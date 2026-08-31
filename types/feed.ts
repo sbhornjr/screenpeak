@@ -27,4 +27,7 @@ export type FeedItem = {
     review_created_at: string | null
     review_updated_at: string | null
     library_status: string | null
+    library_game_count: number | null
+    library_cover_urls: string[] | null
+    library_game_names: string[] | null
 }

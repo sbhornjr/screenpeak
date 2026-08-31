@@ -5,6 +5,7 @@ import FeedGameCard from "@/app/components/feed/FeedGameCard"
 import FeedReview from "@/app/components/feed/FeedReview"
 import FeedListPreview from "@/app/components/feed/FeedListPreview"
 import Avatar from "@/app/components/user/Avatar"
+import FeedLibraryBatch from "./FeedLibraryBatch"
 import type { FeedItem as FeedItemType } from "@/types"
 
 export function timeAgo(date: string): string {
@@ -40,10 +41,15 @@ export default function FeedItem({ item }: { item: FeedItemType }) {
         : item.activity_type === "review" ? `reviewed ${item.game_name}` 
         : item.activity_type === "rating" ? `rated ${item.game_name} a ${item.rating}/10` 
         : item.activity_type === "list_created" ? `created the list "${item.list_name}"`
-        : item.activity_type === "list_liked" ? `liked "${item.list_name}" by ${item.list_owner_username}` : ""
+        : item.activity_type === "list_liked" ? `liked "${item.list_name}" by ${item.list_owner_username}` 
+        : item.activity_type === "library_add_batch" ?  `added ${item.library_game_count} games to their library` : ""
+
+    // List cards drive the row's height; the shorter card types (game card,
+    // cover fan, review) centre their content in whatever height the row gets.
+    const isListActivity = item.activity_type === "list_created" || item.activity_type === "list_liked"
 
     return (
-        <div className="h-full p-4 bg-(--color-surface) rounded-[3px] border border-(--color-border) hover:border-(--color-accent)/40 transition-colors duration-200">
+        <div className="flex h-full flex-col p-4 bg-(--color-surface) rounded-[3px] border border-(--color-border) hover:border-(--color-accent)/40 transition-colors duration-200">
 
             <div className="mb-2 flex items-center gap-2">
                 <Avatar src={item.actor_avatar_url} alt={item.actor_username} size="sm" bordered />
@@ -59,8 +65,9 @@ export default function FeedItem({ item }: { item: FeedItemType }) {
                     {timeAgo(item.created_at)}
                 </span>
             </div>
-            {(item.activity_type === "library_add" || item.activity_type === "rating") && 
-                <FeedGameCard 
+            <div className={isListActivity ? undefined : "flex flex-1 flex-col justify-center"}>
+            {(item.activity_type === "library_add" || item.activity_type === "rating") &&
+                <FeedGameCard
                     gameSlug={item.game_slug} 
                     gameName={item.game_name} 
                     gameCoverImageUrl={item.game_cover_image_url} 
@@ -69,6 +76,11 @@ export default function FeedItem({ item }: { item: FeedItemType }) {
                     userRating={item.viewer_game_rating}
                     avgRating={item.game_avg_rating}
                     metacriticScore={item.game_metacritic_score}
+                />
+            }
+            {item.activity_type === "library_add_batch" && 
+                <FeedLibraryBatch 
+                    gameCoverImageUrls={item.library_cover_urls}
                 />
             }
             {item.activity_type === "review" &&
@@ -91,6 +103,7 @@ export default function FeedItem({ item }: { item: FeedItemType }) {
                     listCoverUrls={item.list_cover_urls}
                 />
             }
+            </div>
         </div>
     )
 }
