@@ -56,7 +56,7 @@ export default function GameFromSteam({ appid, linkEntry, onUpdate } : { appid: 
                 aria-pressed={selected}
                 className="absolute inset-0 z-0 rounded-[3px]"
             />
-            <div className="relative z-10 flex items-center gap-4 pointer-events-none">
+            <div className="relative z-10 flex flex-wrap items-center gap-3 sm:gap-4 pointer-events-none">
                 <div className="relative w-20 h-20 shrink-0 rounded-[3px] overflow-hidden">
                     {linkEntry.coverImageUrl ? (
                         <Image

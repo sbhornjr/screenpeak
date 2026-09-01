@@ -34,7 +34,7 @@ export default async function Explore({ searchParams }: ExplorePageProps) {
 
     return (
         <main>
-            <div className="max-w-6xl mx-auto w-full px-8 pt-8 pb-4">
+            <div className="max-w-6xl mx-auto w-full px-6 sm:px-8 pt-8 pb-4">
                 <p className="font-mono text-[0.6875rem] uppercase tracking-[0.22em] text-(--color-muted) mb-1">
                     <span className="text-(--color-accent)" aria-hidden="true">▸</span> Discover
                 </p>
@@ -43,7 +43,7 @@ export default async function Explore({ searchParams }: ExplorePageProps) {
                 </h1>
             </div>
 
-            <div className="flex flex-col pt-4 pb-8 w-full max-w-6xl mx-auto px-8">
+            <div className="flex flex-col pt-4 pb-8 w-full max-w-6xl mx-auto px-6 sm:px-8">
                 <div className="flex gap-1 mb-8">
                     {["week", "month", "year", "alltime"].map(r => (
                         <Link

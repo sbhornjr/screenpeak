@@ -68,9 +68,9 @@ export default function SearchableDropdown({ table, value, onChange, placeholder
     }, [value, table])
 
     return (
-        <div ref={containerRef} className="relative w-48">
+        <div ref={containerRef} className="relative w-full sm:w-48">
             <div
-                className={`flex items-center bg-(--color-surface) border rounded-[3px] px-3 py-2
+                className={`flex items-center bg-(--color-surface) border rounded-[3px] px-3 py-2 min-h-11
                 transition-colors duration-200 cursor-text
                 ${open ? 'border-(--color-accent)' : 'border-(--color-border) hover:border-(--color-accent)/50'}`}
                 onClick={() => setOpen(true)}

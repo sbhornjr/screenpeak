@@ -32,23 +32,24 @@ export default function Pagination({ page, maxPages, params, url }: { page: numb
         return `/${url}?${p.toString()}`
     }
 
-    const arrow = "px-2 py-1 rounded-[3px] text-sm text-(--color-muted) hover:text-(--color-text) hover:bg-(--color-surface-light) transition-colors duration-200"
-    const arrowOff = "px-2 py-1 text-sm text-(--color-border)"
+    const cell = "inline-flex items-center justify-center min-h-11 min-w-11 px-2 rounded-[3px] text-sm transition-colors duration-200"
+    const arrow = `${cell} text-(--color-muted) hover:text-(--color-text) hover:bg-(--color-surface-light)`
+    const arrowOff = `${cell} text-(--color-border)`
 
     return (
-        <div className="flex flex-row gap-1 items-center justify-center">
+        <div className="flex flex-row flex-wrap gap-0.5 items-center justify-center">
             {page > 1
                 ? <Link href={hrefFor(page - 1)} aria-label="Previous page" className={arrow}>←</Link>
                 : <span className={arrowOff} aria-hidden="true">←</span>
             }
             {getPageNumbers(page, maxPages).map((n, i) =>
                 n === null
-                    ? <span key={`ellipsis-${i}`} className="text-(--color-muted) px-1.5 select-none">…</span>
+                    ? <span key={`ellipsis-${i}`} className="text-(--color-muted) px-1 select-none">…</span>
                     : <Link
                         key={n}
                         href={hrefFor(n)}
                         aria-current={n === page ? "page" : undefined}
-                        className={`px-3 py-1 rounded-[3px] text-sm font-semibold tabular-nums transition-colors duration-200
+                        className={`${cell} font-semibold tabular-nums
                         ${n === page
                             ? 'bg-(--color-accent) text-(--color-bg)'
                             : 'text-(--color-muted) hover:text-(--color-text) hover:bg-(--color-surface-light)'}`}

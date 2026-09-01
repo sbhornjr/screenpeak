@@ -22,7 +22,7 @@ export default function ListPreview({ listId, listName, gameCovers, isPinnable, 
     }
 
     return (
-        <div className={`flex flex-col relative border border-(--color-border) rounded-[3px] p-4 min-w-0 hover:border-(--color-accent)/50 transition-all duration-200 group ${fullLength ? "" : "w-full"}`}>
+        <div className={`flex flex-col relative border border-(--color-border) rounded-[3px] p-4 min-w-0 overflow-hidden hover:border-(--color-accent)/50 transition-all duration-200 group ${fullLength ? "" : "w-full"}`}>
             <Link
                 href={`/user/${username}/lists/${listId}`}
                 className="absolute inset-0 rounded-[3px] z-0"
@@ -34,12 +34,13 @@ export default function ListPreview({ listId, listName, gameCovers, isPinnable, 
                 <p className="text-xs text-(--color-muted) font-mono">Updated {new Date(lastUpdated).getMonth() + 1}/{new Date(lastUpdated).getDate()}/{new Date(lastUpdated).getFullYear()}</p>
             </div>
             <div className="flex flex-col mb-4 px-2 py-1 gap-1">
-                <h2 className="text-2xl font-(family-name:--font-display) text-(--color-text) whitespace-nowrap">
-                    {listName} <span className="text-(--color-muted) text-lg">({listCount})</span>
+                <h2 className="text-2xl font-(family-name:--font-display) text-(--color-text) min-w-0">
+                    <span className="line-clamp-1 break-words">{listName} <span className="text-(--color-muted) text-lg">({listCount})</span></span>
                 </h2>
                 {description && <p className="text-sm text-(--color-muted) line-clamp-2">{description}</p>}
             </div>
             <div className="flex flex-row mb-2 px-2 py-2 gap-2 items-center">
+                <div className="min-w-0 flex-1 overflow-hidden">
                 {gameCovers && gameCovers.length > 0 ? (
                     <CoverFan size="lg" covers={gameCovers.filter(g => g.coverImageUrl).map(g => ({
                         key: g.slug ?? '',
@@ -56,7 +57,8 @@ export default function ListPreview({ listId, listName, gameCovers, isPinnable, 
                         </span>
                     </div>
                 )}
-                <div className="flex flex-col gap-2 ml-auto items-end justify-center relative z-10">
+                </div>
+                <div className="flex flex-col gap-2 shrink-0 items-end justify-center relative z-10">
                     {isLikable && (
                         <LikeButton listId={String(listId)} initialLiked={userHasLiked} initialCount={likeCount} userId={activeUserId} />
                     )}

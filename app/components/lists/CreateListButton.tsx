@@ -44,6 +44,7 @@ export default function CreateListButton({ userId, type, current, defaultListPri
                     titleClassName="font-semibold text-3xl mb-2 self-center"
                     panelClassName="w-full max-w-xl max-h-8/10 p-8 overflow-y-auto gap-4"
                 >
+                    <form onSubmit={(e) => { e.preventDefault(); submitList() }} className="contents">
                         <div>
                             <h2 className="font-semibold text-md px-1">List Name</h2>
                             <input
@@ -94,9 +95,10 @@ export default function CreateListButton({ userId, type, current, defaultListPri
                                 </button>
                             ))}
                         </div>
-                        <button onClick={() => submitList()} className="px-4 py-1 text-md bg-(--color-accent) text-(--color-bg) font-semibold rounded-[3px] hover:bg-(--color-accent-hover) transition-colors duration-200">
+                        <button type="submit" className="px-4 py-1 text-md bg-(--color-accent) text-(--color-bg) font-semibold rounded-[3px] hover:bg-(--color-accent-hover) transition-colors duration-200">
                             {isUpdate ? "Update List" : "Create List"}
                         </button>
+                    </form>
                 </Modal>
             )}
         </div>

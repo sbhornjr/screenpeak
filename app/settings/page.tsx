@@ -38,7 +38,7 @@ export default async function Settings({ searchParams } : SettingsPageProps) {
                 <h1 className="text-4xl font-bold tracking-tight mb-6">Settings</h1>
                 <div className="flex gap-5 items-center mb-8">
                     <AvatarUploader userId={user.id} username={user.username} currentAvatarUrl={user.avatar_url} />
-                    <div className="flex flex-col">
+                    <div className="flex flex-col min-w-0">
                         <h2 className="text-2xl font-semibold font-(family-name:--font-display)">{user.username}</h2>
                         <p className="text-sm font-semibold text-(--color-muted)">{user.selected_title}</p>
                         <p className="text-sm text-(--color-muted)">Member since {new Date(user.created_at).getMonth() + 1}/{new Date(user.created_at).getDate()}/{new Date(user.created_at).getFullYear()}</p>
@@ -50,15 +50,15 @@ export default async function Settings({ searchParams } : SettingsPageProps) {
                     <section className="border border-(--color-border) rounded-[3px] bg-(--color-surface) p-6">
                         <h2 className="text-xl font-semibold mb-4">Account</h2>
                         <div className="divide-y divide-(--color-border)">
-                            <div className="flex items-center justify-between gap-4 py-3">
+                            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3">
                                 <p className="text-(--color-muted)">Username <span className="text-(--color-text) ml-2">{user.username}</span></p>
                                 <ChangeUsernameButton userId={user.id} currentUsername={user.username} />
                             </div>
-                            <div className="flex items-center justify-between gap-4 py-3">
+                            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3">
                                 <p className="text-(--color-muted) min-w-0 truncate">Email <span className="text-(--color-text) ml-2">{viewer.email}</span></p>
                                 <ChangeEmailButton currentEmail={viewer.email!} />
                             </div>
-                            <div className="flex items-center justify-between gap-4 py-3">
+                            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3">
                                 <p className="text-(--color-muted)">Password <span className="text-(--color-text) ml-2">••••••••</span></p>
                                 <ChangePasswordButton />
                             </div>
@@ -69,15 +69,15 @@ export default async function Settings({ searchParams } : SettingsPageProps) {
                     <section className="border border-(--color-border) rounded-[3px] bg-(--color-surface) p-6">
                         <h2 className="text-xl font-semibold mb-4">Privacy</h2>
                         <div className="divide-y divide-(--color-border)">
-                            <div className="flex items-center justify-between gap-4 py-3">
+                            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3">
                                 <p className="text-(--color-muted)">Default list <span className="text-(--color-text) ml-2">{user.default_list_public ? "Public" : "Private"}</span></p>
                                 <ChangePrivacyButton currentPrivacy={user.default_list_public} type="Default List" userId={user.id} />
                             </div>
-                            <div className="flex items-center justify-between gap-4 py-3">
+                            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3">
                                 <p className="text-(--color-muted)">Library <span className="text-(--color-text) ml-2">{user.library_public ? "Public" : "Private"}</span></p>
                                 <ChangePrivacyButton currentPrivacy={user.library_public} type="Library" userId={user.id} />
                             </div>
-                            <div className="flex items-center justify-between gap-4 py-3">
+                            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3">
                                 <p className="text-(--color-muted)">Loadout <span className="text-(--color-text) ml-2">{user.loadout_public ? "Public" : "Private"}</span></p>
                                 <ChangePrivacyButton currentPrivacy={user.loadout_public} type="Loadout" userId={user.id} />
                             </div>
@@ -87,7 +87,7 @@ export default async function Settings({ searchParams } : SettingsPageProps) {
                     {/* Connections */}
                     <section className="border border-(--color-border) rounded-[3px] bg-(--color-surface) p-6">
                         <h2 className="text-xl font-semibold mb-4">Connections</h2>
-                        <div className="flex items-center justify-between gap-4">
+                        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
                             <p className="text-(--color-muted)">Steam <span className="text-(--color-text) ml-2">{steamUser ? "Linked" : "Not linked"}</span></p>
                             {steamUser ? (
                                 <div className="flex gap-2">

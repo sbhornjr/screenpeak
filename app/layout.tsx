@@ -6,48 +6,48 @@ import Plus1Layer from "@/app/components/util/Plus1Layer"
 import UserProvider from "@/app/components/user/UserContext"
 
 const fraunces = Fraunces({
-  subsets: ['latin'],
-  variable: '--font-display',
-  weight: 'variable',
-  style: ['normal', 'italic'],
+    subsets: ['latin'],
+    variable: '--font-display',
+    weight: 'variable',
+    style: ['normal', 'italic'],
 })
 
 const plexSans = IBM_Plex_Sans({
-  subsets: ['latin'],
-  variable: '--font-body',
-  weight: ['400', '500', '600'],
-  style: ['normal', 'italic'],
+    subsets: ['latin'],
+    variable: '--font-body',
+    weight: ['400', '500', '600'],
+    style: ['normal', 'italic'],
 })
 
 const plexMono = IBM_Plex_Mono({
-  subsets: ['latin'],
-  variable: '--font-mono',
-  weight: ['400', '500', '600'],
+    subsets: ['latin'],
+    variable: '--font-mono',
+    weight: ['400', '500', '600'],
 })
 
 export const metadata: Metadata = {
-  title: 'NG+ | Your Gaming Identity',
-  description: 'Track, rate, and share the games that define you.',
+    title: 'NG+ | Your Gaming Identity',
+    description: 'Track, rate, and share the games that define you.',
 }
 
 export default function RootLayout({
-  children,
+    children,
 }: {
-  children: React.ReactNode
+    children: React.ReactNode
 }) {
-  return (
-    <html lang="en" className={`${fraunces.variable} ${plexSans.variable} ${plexMono.variable}`}>
-      <body>
-        <UserProvider>
-          <Plus1Layer />
-          <header className="w-full">
-            <NavBar />
-          </header>
-          <div className="min-h-screen bg-(--color-bg) text-(--color-text)">
-            {children}
-          </div>
-        </UserProvider>
-      </body>
-    </html>
-  )
+    return (
+        <html lang="en" className={`${fraunces.variable} ${plexSans.variable} ${plexMono.variable}`}>
+            <body>
+                <UserProvider>
+                    <Plus1Layer />
+                    <header className="w-full">
+                        <NavBar />
+                    </header>
+                    <div className="min-h-screen bg-(--color-bg) text-(--color-text)">
+                        {children}
+                    </div>
+                </UserProvider>
+            </body>
+        </html>
+    )
 }

@@ -54,7 +54,7 @@ export default async function SearchPage({ searchParams } : SearchPageProps) {
 
     return (
         <main>
-            <div className="w-full max-w-6xl mx-auto px-8 pt-8 pb-16">
+            <div className="w-full max-w-6xl mx-auto px-6 sm:px-8 pt-8 pb-16">
                 <h1 className="text-4xl font-bold font-(family-name:--font-display) tracking-tight mb-6">
                     Games
                 </h1>

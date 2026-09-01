@@ -63,14 +63,14 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
 
     return (
         <main>
-            <div className="w-full max-w-6xl mx-auto px-8 pt-8 pb-16">
-                <div className="flex gap-8 mb-4">
+            <div className="w-full max-w-6xl mx-auto px-6 sm:px-8 pt-8 pb-16">
+                <div className="flex flex-col sm:flex-row gap-4 sm:gap-8 mb-4">
                     {isOwnProfile ? (
                         <AvatarUploader userId={profile.id} username={username} currentAvatarUrl={profile.avatar_url} />
                     ) : (
                         <Avatar src={profile.avatar_url} alt={username} size="lg" />
                     )}
-                    <div className="flex flex-col">
+                    <div className="flex flex-col min-w-0">
                         <p className="font-mono text-[0.625rem] uppercase tracking-[0.22em] text-(--color-muted) mb-0.5">
                             <span className="text-(--color-accent)" aria-hidden="true">&#9656;</span> Player file
                         </p>
@@ -83,14 +83,14 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
                         <p className="text-md font-semibold font-(family-name:--font-display) text-(--color-muted)">{followersCount} Followers | {followingCount} Following</p>
                     </div>
                     {!isOwnProfile && viewer && (
-                        <div className="ml-auto">
+                        <div className="sm:ml-auto">
                             <FollowButton userId={viewer.id} targetUserId={profile.id} initialIsFollowing={!!followersData?.find(f => f.follower_id === viewer?.id)} />
                         </div>
                     )}
                 </div>
 
                 {/* Links to this player's other pages — nav, not on-page tabs */}
-                <nav className="flex items-center gap-3 mb-8 text-sm font-semibold font-(family-name:--font-display)">
+                <nav className="flex flex-wrap items-center gap-3 mb-8 text-sm font-semibold font-(family-name:--font-display)">
                     {[
                         { label: 'Profile', href: null as string | null },
                         ...(isOwnProfile || profile.library_public ? [{ label: 'Library', href: `/user/${username}/library` }] : []),

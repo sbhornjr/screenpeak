@@ -14,12 +14,12 @@ export default function Modal({
     onClose,
     title,
     titleClassName = "font-semibold text-3xl mb-6 self-center",
-    panelClassName = "w-full max-w-md p-8",
+    panelClassName = "w-full max-w-md p-6 sm:p-8",
     children,
 }: ModalProps) {
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm w-full h-full flex items-center justify-center z-50 p-5">
-            <div className={`bg-(--color-surface) border border-(--color-border) rounded-[3px] relative flex flex-col ${panelClassName}`}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm w-full h-full flex items-start sm:items-center justify-center z-50 p-4 sm:p-5 overflow-y-auto">
+            <div className={`bg-(--color-surface) border border-(--color-border) rounded-[3px] relative flex flex-col my-auto max-h-[calc(100dvh-2rem)] overflow-y-auto ${panelClassName}`}>
                 <button
                     type="button"
                     onClick={onClose}

@@ -63,7 +63,7 @@ export default async function RatingsPage({ params, searchParams }: RatingsPageP
 
     return (
         <main>
-            <div className="w-full max-w-4xl mx-auto px-8 pt-8 pb-16 flex flex-col gap-2">
+            <div className="w-full max-w-4xl mx-auto px-6 sm:px-8 pt-8 pb-16 flex flex-col gap-2">
                 <Link href={`/user/${username}`} className="inline-flex items-center gap-2 text-(--color-muted)
                     text-sm font-semibold mb-6 group hover:text-(--color-accent) transition-colors duration-200 font-(family-name:--font-display)">
                     <span className="group-hover:-translate-x-0.5 transition-transform duration-200 text-lg">←</span>
