@@ -5,7 +5,7 @@ import Pagination from "@/app/components/util/Pagination";
 import RatingsReviewsFilters from "@/app/components/game/RatingsReviewsFilters";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getViewer, getProfileSummaryByUsername } from "@/lib/queries/user";
+import { getProfileSummaryByUsername } from "@/lib/queries/user";
 import { getUserRatingsReviewsPage, getUserRatingsReviewsCounts } from "@/lib/queries/review";
 import { getDeveloperNameMap } from "@/lib/queries/game";
 
@@ -20,7 +20,6 @@ export default async function RatingsPage({ params, searchParams }: RatingsPageP
     const currentPage = Number(page ?? 1)
     const currentPageSize = Number(pageSize ?? 10)
     const supabase = await createClient()
-    const viewer = await getViewer(supabase)
 
     if (filter && !(filter === "all" || filter === "ratings" || filter === "reviews")) {
         console.log("Filter " + filter + " is not valid. Redirecting to home.")

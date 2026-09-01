@@ -6,7 +6,6 @@ import { generateLoadoutIdentity } from "@/lib/loadout";
 import SubmitBioButton from "@/app/components/user/SubmitBioButton";
 import DistributionChart from "@/app/components/util/DistributionChart";
 import SectionHead from "@/app/components/util/SectionHead";
-import Panel from "@/app/components/util/Panel";
 import { getViewer, getUserIdFromUsername, getAccountSettings } from "@/lib/queries/user";
 import { getDeveloperNameMap } from "@/lib/queries/game";
 import { getLoadoutGenreStats, getLoadoutDeveloperStats, getLoadoutStatusBreakdown, getLoadoutRatingHighlights } from "@/lib/queries/stats";
@@ -43,9 +42,6 @@ export default async function LoadoutPage({ params } : LoadoutPageProps) {
         getUserRatings(supabase, ownerId.id),
     ])
 
-    const backlogStat = statusStats.find(s => s.status == "backlog")
-    const playingStat = statusStats.find(s => s.status == "playing")
-    const abandonedStat = statusStats.find(s => s.status == "abandoned")
     const completedStat = statusStats.find(s => s.status == "completed")
     const totalGames = statusStats.reduce((acc, s) => { return acc + s.count}, 0)
 

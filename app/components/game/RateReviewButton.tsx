@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import AuthModal from "@/app/components/user/AuthModal"
 import { useUser } from "@/app/components/user/UserContext"
 import { createClient } from '@/lib/supabase-browser'

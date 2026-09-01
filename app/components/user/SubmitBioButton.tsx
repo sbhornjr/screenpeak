@@ -8,7 +8,7 @@ export default function SubmitBioButton({ userId, bio } : { userId: string, bio:
 
     async function submitBio() {
         const supabase = await createClient()
-        const { data } = await supabase
+        await supabase
             .from('users')
             .update({ bio: bio })
             .eq("id", userId)

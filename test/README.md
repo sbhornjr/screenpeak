@@ -1,0 +1,47 @@
+# Test suite
+
+Runner: [Vitest](https://vitest.dev). Run with:
+
+```bash
+npm test          # one-off (vitest run)
+npm run test:watch
+```
+
+Config lives in `vitest.config.mts` at the repo root. Node is the default
+environment; DOM specs opt in per-file with a `// @vitest-environment jsdom`
+docblock.
+
+## What is covered, and why
+
+This is a **characterization suite** — it pins down the *current* observable
+behaviour of the project's logic so refactors have a safety net. Tests sit at
+public seams (exported functions, rendered components), never against internals.
+The only things mocked are true system boundaries: `fetch` (outbound HTTP to
+RAWG / Steam / Anthropic) and the Supabase client (DB). No internal collaborator
+is mocked — logging behaviour is asserted through real `console` spies.
+
+| Spec | Seam | Behaviour locked in |
+|------|------|---------------------|
+| `lib/logger.test.ts` | `redact`, `logger` | Recursive redaction of sensitive keys (case-insensitive, substring, nested, arrays); level → console routing; meta redaction; `debug` silenced in production |
+| `lib/titles.test.ts` | `getTitles` | Fixed genre titles always present; games/devs mapped to `#1 <name> Fan`; ordering |
+| `lib/plus1.test.ts` / `plus1.ssr.test.ts` | `plus1` | Dispatches `ngplus:plus1` with `{label, n}` (default `n=1`); no-ops when `window` is undefined |
+| `lib/supabase-logging.test.ts` | `createLoggingFetch` | Response passed through with body still readable (uses `.clone()`); error line on non-ok; request-body redaction; oversized-body truncation; network errors rethrown after logging |
+| `lib/rawg.test.ts` | `importGameFromSteam` | The 4-strategy Steam→RAWG name matcher: exact, roman-vs-arabic sequels, diacritics, `(YYYY)` suffix on either side; `null` + no write when unmatched |
+| `lib/steam.test.ts` | `getOwnedGames`, `getPlayerAchievementCompletion`, `getFullyCompletedAppids` | Public-profile mapping; hidden-details → `undefined` (not zero); throw/log on non-ok owned-games; achievement completion truth table; errors swallowed to `false`; concurrent 100%-set collection |
+| `lib/loadout.test.ts` | `generateLoadoutIdentity` | Returns model text on success; degrades to `''` + logs on API failure; `''` for non-text content blocks |
+| `lib/queries.game.test.ts` | `getGameTaxonomy`, `getDistinctEsrbRatings`, `getDeveloperNameMap` | Embedded-row flattening + missing sections; de-dupe/drop-null/sort; first-wins map with string-normalised keys; error → empty map + log |
+| `components/Pagination.test.tsx` | `<Pagination>` | Page-window math (fixed-width run near edges, ellipses, `<= 7` shows all); `aria-current`; disabled arrows; href preserves params |
+| `components/DistributionChart.test.tsx` | `<DistributionChart>` | One row per bucket; `count · pct%` vs `0`; singular/plural caption |
+| `components/StatGrid.test.tsx` | `<StatGrid>` | One cell per stat; value + label rendered; caller `className` appended |
+
+## Not covered (deliberately)
+
+- Thin `lib/queries/*` wrappers that only forward args to `supabase.rpc()` /
+  `.from()` — testing them would assert "it called the client", which breaks on
+  any refactor without catching real bugs.
+- Server Components, route handlers, `proxy.ts`, and `feed-actions.ts` — these
+  are integration/E2E territory (they compose auth + DB + framework) and need a
+  running stack, not unit mocks.
+- `scripts/` (`seed-games.ts`, `inspect-rawg.ts`) — one-shot operational
+  scripts; their reusable core (`seedGame`, `importGameFromSteam`) is exercised
+  via `lib/rawg.test.ts`.
