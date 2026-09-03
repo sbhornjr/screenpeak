@@ -28,7 +28,7 @@ export async function getProfileSummaryById(supabase: SupabaseClient, userId: st
 export async function getFullProfile(supabase: SupabaseClient, username: string) {
     const { data } = await supabase
         .from('users')
-        .select('id, username, display_name, avatar_url, bio, created_at, selected_title, favorite_game_ids, user_bio, default_list_public, library_public, loadout_public')
+        .select('id, username, display_name, avatar_url, created_at, selected_title, favorite_game_ids, user_bio, default_list_public, library_public, loadout_public, profile_loadout_bio')
         .eq('username', username)
         .single()
 
@@ -198,4 +198,15 @@ export async function unfollowUser(supabase: SupabaseClient, followerId: string,
 export async function deleteUserAccount(adminClient: SupabaseClient, userId: string) {
     const { error } = await adminClient.auth.admin.deleteUser(userId)
     return error
+}
+
+export async function getCurrentLoadoutIdentity(supabase: SupabaseClient, userId: string) {
+    const { data } = await supabase
+        .from("users")
+        .select("loadout_identity, loadout_identity_at")
+        .eq("id", userId)
+        .single()
+
+    return data
+        
 }

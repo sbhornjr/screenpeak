@@ -2,15 +2,15 @@ import { createClient } from "@/lib/supabase-server";
 import GameCard from "@/app/components/game/GameCard";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { generateLoadoutIdentity } from "@/lib/loadout";
-import SubmitBioButton from "@/app/components/user/SubmitBioButton";
+import LoadoutActions from "@/app/components/user/LoadoutActions";
 import DistributionChart from "@/app/components/util/DistributionChart";
 import SectionHead from "@/app/components/util/SectionHead";
-import { getViewer, getUserIdFromUsername, getAccountSettings } from "@/lib/queries/user";
+import { getViewer, getUserIdFromUsername, getAccountSettings, getCurrentLoadoutIdentity } from "@/lib/queries/user";
 import { getDeveloperNameMap } from "@/lib/queries/game";
-import { getLoadoutGenreStats, getLoadoutDeveloperStats, getLoadoutStatusBreakdown, getLoadoutRatingHighlights } from "@/lib/queries/stats";
+import { getLoadoutRatingHighlights } from "@/lib/queries/stats";
 import { getUserRatings, getAvgRatingsForGames, getUserRatingsForGames } from "@/lib/queries/review";
 import { AvgRatingsData } from "@/types";
+import { buildLoadoutInput } from "@/lib/loadout";
 
 type LoadoutPageProps = {
     params: Promise<{ username: string }>
@@ -34,18 +34,19 @@ export default async function LoadoutPage({ params } : LoadoutPageProps) {
         if (!ownerSettings || !ownerSettings.loadout_public) redirect("/")
     }
 
-    const [genreStats, developerStats, statusStats, highlights, ratingsReviews] = await Promise.all([
-        getLoadoutGenreStats(supabase, ownerId.id),
-        getLoadoutDeveloperStats(supabase, ownerId.id),
-        getLoadoutStatusBreakdown(supabase, ownerId.id),
+    const loadoutInput = await buildLoadoutInput(supabase, ownerId.id, username)
+    const totalGames = loadoutInput.totalGames
+    const completedStat = loadoutInput.completedGames
+    const avgRating = loadoutInput.avgRating
+    const topGenres = loadoutInput.topGenres
+    const topDevelopers = loadoutInput.topDevelopers
+
+    const [highlights, ratingsReviews, currentLoadoutIdentity] = await Promise.all([
         getLoadoutRatingHighlights(supabase, ownerId.id),
         getUserRatings(supabase, ownerId.id),
+        getCurrentLoadoutIdentity(supabase, ownerId.id)
     ])
 
-    const completedStat = statusStats.find(s => s.status == "completed")
-    const totalGames = statusStats.reduce((acc, s) => { return acc + s.count}, 0)
-
-    const avgRating = ratingsReviews.length > 0 ? ratingsReviews.reduce((acc, r) => { return acc + r.rating}, 0) / ratingsReviews.length : 0
     const ratingDistribution = [10,9,8,7,6,5,4,3,2,1].map(n => ({
         name: n,
         count: ratingsReviews.filter(r => r.rating === n).length
@@ -57,23 +58,15 @@ export default async function LoadoutPage({ params } : LoadoutPageProps) {
 
     // Only sections with something to show get rendered — an empty labelled
     // section reads as broken.
-    const genreFavs = genreStats?.filter(g => g.rated_count > 1).slice(0, 6) ?? []
-    const developerFavs = developerStats?.filter(d => d.rated_count > 1).slice(0, 6) ?? []
+    const genreFavs = topGenres?.filter(g => g.rated_count > 1).slice(0, 6) ?? []
+    const developerFavs = topDevelopers?.filter(d => d.rated_count > 1).slice(0, 6) ?? []
     const topGames = highlights.filter(h => h.highlight_type === "top")
     const bottomGames = highlights.filter(h => h.highlight_type === "bottom")
 
-    let loadoutIdentity = ''
-    if (ratingsReviews.length >= 5) {
-        loadoutIdentity = await generateLoadoutIdentity({
-            username: username,
-            totalGames: totalGames,
-            completedGames: completedStat ? completedStat.count : 0,
-            totalRatings: ratingsReviews.length,
-            avgRating,
-            topGenres: genreStats ?? [],
-            topDevelopers: developerStats ?? []
-        })
-    }
+    const isOwner = !!viewer && viewer.id === ownerId.id
+    const loadoutIdentity = currentLoadoutIdentity?.loadout_identity ?? ""
+    const canGenerate = loadoutInput.totalRatings >= 5
+    const ratingsToUnlock = Math.max(0, 5 - ratingsReviews.length)
 
     return (
         <main className="bg-(--color-bg)">
@@ -87,7 +80,7 @@ export default async function LoadoutPage({ params } : LoadoutPageProps) {
                     </h1>
                     <div className="flex flex-wrap gap-x-6 gap-y-1 font-mono text-xs text-(--color-muted) tabular-nums">
                         <span><span className="text-(--color-text)">{totalGames}</span> logged</span>
-                        <span><span className="text-(--color-text)">{completedStat?.count ?? 0}</span> completed</span>
+                        <span><span className="text-(--color-text)">{completedStat}</span> completed</span>
                         <span><span className="text-(--color-text)">{ratingsReviews.length}</span> rated</span>
                         <span><span className="text-(--color-text)">{ratingsReviews.length ? Math.trunc(avgRating * 100) / 100 : "—"}</span> avg</span>
                     </div>
@@ -95,37 +88,62 @@ export default async function LoadoutPage({ params } : LoadoutPageProps) {
 
                 {/* Analyst's note beside the rating breakdown — two halves of "who is this player" */}
                 <div className="grid md:grid-cols-[1.4fr_1fr] gap-8 md:gap-12 mb-14 items-start">
-                    {loadoutIdentity ? (
-                        <div className="border border-(--color-border) bg-(--color-surface) rounded-md px-7 py-6 shadow-[inset_0_1px_0_rgba(239,232,215,0.05)]">
-                            <p className="text-[10px] tracking-[0.3em] uppercase text-(--color-accent) font-mono mb-3">
-                                The Read-out
-                            </p>
-                            <p className="text-lg leading-relaxed text-(--color-text) font-(family-name:--font-display) italic">
-                                &ldquo;{loadoutIdentity}&rdquo;
-                            </p>
-                            <div className="mt-4 flex justify-end">
-                                <SubmitBioButton userId={ownerId.id} bio={loadoutIdentity} />
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="border border-(--color-border) bg-(--color-surface) rounded-[3px] p-6">
-                            <p className="text-[10px] tracking-[0.3em] uppercase text-(--color-muted) font-mono mb-2">
-                                Read-out locked
-                            </p>
-                            <p className="text-(--color-text) mb-4">
-                                {`Rate ${Math.max(0, 5 - ratingsReviews.length)} more ${5 - ratingsReviews.length === 1 ? "game" : "games"} to unlock your read-out.`}
-                            </p>
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="flex-1 h-1.5 bg-(--color-surface-light) rounded-full overflow-hidden">
-                                    <div className="h-full bg-(--color-accent) rounded-full" style={{ width: `${Math.min(100, (ratingsReviews.length / 5) * 100)}%` }} />
-                                </div>
-                                <span className="font-mono text-xs text-(--color-muted) tabular-nums">{Math.min(ratingsReviews.length, 5)} / 5</span>
-                            </div>
-                            <Link href="/games" className="inline-block px-4 py-2 rounded-[3px] text-sm font-semibold bg-(--color-accent) text-(--color-bg) hover:bg-(--color-accent-hover) transition-colors duration-200">
-                                Find games to rate
-                            </Link>
-                        </div>
-                    )}
+                    <div className="border border-(--color-border) bg-(--color-surface) rounded-md px-7 py-6 shadow-[inset_0_1px_0_rgba(239,232,215,0.05)]">
+                        <p className="text-[10px] tracking-[0.3em] uppercase text-(--color-accent) font-mono mb-3">
+                            The Read-out
+                        </p>
+
+                        {loadoutIdentity ? (
+                            <>
+                                <p className="text-lg leading-relaxed text-(--color-text) font-(family-name:--font-display) italic">
+                                    &ldquo;{loadoutIdentity}&rdquo;
+                                </p>
+                                {isOwner && (
+                                    <>
+                                        <LoadoutActions userId={ownerId.id} identity={loadoutIdentity} />
+                                        <p className="mt-2 text-right text-[10px] uppercase tracking-[0.2em] text-(--color-muted) font-mono">
+                                            drafted with AI · edit anytime
+                                        </p>
+                                    </>
+                                )}
+                            </>
+                        ) : !canGenerate ? (
+                            <>
+                                <p className="text-(--color-text) mb-4">
+                                    {isOwner
+                                        ? `Rate ${ratingsToUnlock} more ${ratingsToUnlock === 1 ? "game" : "games"} to unlock your Read-out.`
+                                        : "No Read-out yet."}
+                                </p>
+                                {isOwner && (
+                                    <>
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <div className="flex-1 h-1.5 bg-(--color-surface-light) rounded-full overflow-hidden">
+                                                <div className="h-full bg-(--color-accent) rounded-full" style={{ width: `${Math.min(100, (ratingsReviews.length / 5) * 100)}%` }} />
+                                            </div>
+                                            <span className="font-mono text-xs text-(--color-muted) tabular-nums">{Math.min(ratingsReviews.length, 5)} / 5</span>
+                                        </div>
+                                        <Link href="/games" className="inline-block px-4 py-2 rounded-[3px] text-sm font-semibold bg-(--color-accent) text-(--color-bg) hover:bg-(--color-accent-hover) transition-colors duration-200">
+                                            Find games to rate
+                                        </Link>
+                                    </>
+                                )}
+                            </>
+                        ) : (
+                            <>
+                                <p className="text-(--color-text) mb-3">
+                                    {isOwner ? "You haven't generated a Read-out yet." : "No Read-out yet."}
+                                </p>
+                                {isOwner && (
+                                    <>
+                                        <LoadoutActions userId={ownerId.id} identity="" />
+                                        <p className="mt-2 text-right text-[10px] uppercase tracking-[0.2em] text-(--color-muted) font-mono">
+                                            drafted with AI · edit anytime
+                                        </p>
+                                    </>
+                                )}
+                            </>
+                        )}
+                    </div>
 
                     <div>
                         <SectionHead>Scoring Style</SectionHead>

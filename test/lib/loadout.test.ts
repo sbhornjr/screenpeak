@@ -18,7 +18,7 @@ const sampleData = {
     totalRatings: 60,
     avgRating: 7.8,
     topGenres: [{ genre_name: 'RPG', weighted_rating: 8.2, rated_count: 20, completed_count: 12 }],
-    topDevelopers: [{ developer_name: 'Larian', weighted_rating: 9, rated_count: 5 }],
+    topDevelopers: [{ developer_name: 'Larian', weighted_rating: 9, rated_count: 5, game_count: 8 }],
 }
 
 describe('generateLoadoutIdentity', () => {

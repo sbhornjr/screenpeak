@@ -1,5 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { logger } from './logger'
+import { SupabaseClient } from '@supabase/supabase-js'
+import { getLoadoutGenreStats, getLoadoutDeveloperStats, getLoadoutStatusBreakdown } from '@/lib/queries/stats'
+import { getUserRatings } from '@/lib/queries/review'
 
 type LoadoutData = {
     username: string
@@ -8,7 +11,26 @@ type LoadoutData = {
     totalRatings: number
     avgRating: number
     topGenres: { genre_name: string, weighted_rating: number, rated_count: number, completed_count: number }[]
-    topDevelopers: { developer_name: string, weighted_rating: number, rated_count: number }[]
+    topDevelopers: { developer_name: string, weighted_rating: number, rated_count: number, game_count: number }[]
+}
+
+export async function buildLoadoutInput(supabase: SupabaseClient, userId: string, username: string): Promise<LoadoutData> {
+    const [genreStats, developerStats, statusStats, ratingsReviews] = await Promise.all([
+        getLoadoutGenreStats(supabase, userId),
+        getLoadoutDeveloperStats(supabase, userId),
+        getLoadoutStatusBreakdown(supabase, userId),
+        getUserRatings(supabase, userId)
+    ])
+
+    const totalGames = statusStats.reduce((a, s) => a + s.count, 0)
+    const completedGames = statusStats.find(s => s.status === 'completed')?.count ?? 0
+    const avgRating = ratingsReviews.length > 0 ? ratingsReviews.reduce((acc, r) => { return acc + r.rating}, 0) / ratingsReviews.length : 0
+
+    return {
+        username, totalGames, completedGames,
+        totalRatings: ratingsReviews.length, avgRating,
+        topGenres: genreStats ?? [], topDevelopers: developerStats ?? [],
+    }
 }
 
 // Failures here (rate limit, bad key, network) shouldn't take down the whole

@@ -1,0 +1,1209 @@
+<title>NG+ Ship Readiness Dossier</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+
+<style>
+:root{
+  --bg:#17140f; --surface:#201c15; --surface-2:#29241b;
+  --border:#3d3629; --border-lo:#2b2620;
+  --ink:#e6decd; --ink-dim:#a89e8b; --ink-faint:#7a7161;
+  --brass:#b98a3c; --brass-hi:#d8ac57;
+  --blocker:#d6493f; --soon:#d99a3a; --polish:#5f93d0; --done:#7aa661;
+  --maxw:70ch;
+  --font-display:'Fraunces',Georgia,'Times New Roman',serif;
+  --font-body:'IBM Plex Sans',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  --font-mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:var(--font-body); font-size:1rem; line-height:1.7;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1180px;margin:0 auto;padding:0 clamp(1rem,4vw,2.5rem)}
+
+/* masthead */
+.masthead{padding:clamp(2.5rem,6vw,4.75rem) 0 2.25rem;border-bottom:1px solid var(--border)}
+.eyebrow{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.24em;text-transform:uppercase;color:var(--brass);margin:0 0 1.1rem}
+h1{font-family:var(--font-display);font-weight:400;font-size:clamp(2rem,5.2vw,2.95rem);line-height:1.08;margin:0 0 .7rem;text-wrap:balance}
+.standfirst{max-width:58ch;color:var(--ink-dim);font-size:1.06rem;margin:0 0 2rem}
+.progress{display:flex;align-items:center;gap:1rem;flex-wrap:wrap;font-family:var(--font-mono);font-size:.78rem;color:var(--ink-dim)}
+.bar{flex:1;min-width:180px;max-width:320px;height:6px;background:var(--surface-2);border:1px solid var(--border);border-radius:4px;overflow:hidden}
+.bar > i{display:block;height:100%;background:var(--brass);width:0;transition:width .35s ease}
+button.reset{font-family:var(--font-mono);font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);background:none;border:1px solid var(--border);border-radius:4px;padding:.3rem .6rem;cursor:pointer}
+button.reset:hover{color:var(--ink);border-color:var(--ink-faint)}
+.usenote{margin:1.6rem 0 0;max-width:var(--maxw);font-size:.92rem;color:var(--ink-faint);border-left:2px solid var(--border);padding-left:1rem}
+
+/* layout */
+.layout{display:grid;grid-template-columns:1fr;gap:2.5rem;padding:2.5rem 0 5rem}
+@media(min-width:960px){.layout{grid-template-columns:232px minmax(0,1fr);gap:3.5rem}}
+
+/* toc */
+.toc{font-size:.85rem}
+.toc summary{font-family:var(--font-mono);font-size:.7rem;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-faint);cursor:pointer;padding:.4rem 0;list-style:none}
+.toc summary::-webkit-details-marker{display:none}
+@media(min-width:960px){
+  .toc[open] > summary,.toc:not([open]) > summary{pointer-events:none}
+  .toc summary{display:none}
+  .toc-inner{position:sticky;top:1.5rem;max-height:calc(100vh - 3rem);overflow-y:auto;padding-right:.4rem}
+}
+.toc h2{font-family:var(--font-mono);font-size:.68rem;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-faint);margin:1.3rem 0 .45rem}
+.toc h2:first-child{margin-top:.3rem}
+.toc a{display:block;color:var(--ink-dim);text-decoration:none;padding:.2rem 0 .2rem .7rem;border-left:2px solid transparent;line-height:1.35}
+.toc a:hover{color:var(--ink)}
+.toc a.active{color:var(--brass-hi);border-left-color:var(--brass)}
+.toc a .k{font-family:var(--font-mono);font-size:.78em;color:var(--ink-faint);margin-right:.4em}
+.toc a.active .k{color:var(--brass)}
+
+/* sections */
+.section{margin:0 0 3.75rem;scroll-margin-top:1.5rem}
+h2.sec{font-family:var(--font-display);font-weight:400;font-size:clamp(1.5rem,3.6vw,2.05rem);line-height:1.15;margin:0 0 .45rem;text-wrap:balance}
+h2.sec .n{font-family:var(--font-mono);font-size:.82rem;color:var(--brass);margin-right:.55rem}
+.sec-intro{color:var(--ink-dim);max-width:var(--maxw);margin:0 0 1.9rem}
+.content{max-width:var(--maxw)}
+.content p{margin:.9rem 0}
+.content ul{max-width:var(--maxw);padding-left:1.2rem;margin:.9rem 0}
+.content li{margin:.35rem 0}
+
+/* concept cards */
+.concept{border:1px solid var(--border);background:var(--surface);border-radius:6px;padding:1.05rem 1.3rem;margin:0 0 .9rem;max-width:var(--maxw)}
+.concept h3{font-family:var(--font-body);font-weight:600;font-size:1rem;margin:0 0 .45rem;color:var(--ink)}
+.concept p{margin:.45rem 0 0;font-size:.95rem;color:var(--ink-dim)}
+.concept p:first-of-type{margin-top:0}
+.concept dl{margin:.55rem 0 0;font-size:.94rem}
+.concept dt{font-family:var(--font-mono);font-size:.82rem;color:var(--brass-hi);margin:.6rem 0 .15rem}
+.concept dd{margin:0;color:var(--ink-dim)}
+
+/* checklist items */
+.item{border:1px solid var(--border);border-left:4px solid var(--sev,var(--brass));background:var(--surface);border-radius:6px;margin:0 0 1.15rem;scroll-margin-top:1.5rem}
+.item[data-sev="blocker"]{--sev:var(--blocker)}
+.item[data-sev="soon"]{--sev:var(--soon)}
+.item[data-sev="polish"]{--sev:var(--polish)}
+.item[data-sev="deploy"]{--sev:var(--brass)}
+.item-head{display:flex;gap:.8rem;align-items:flex-start;padding:1rem 1.2rem}
+.item-head input{margin:.3rem 0 0;width:1.05rem;height:1.05rem;accent-color:var(--done);flex:none;cursor:pointer}
+.item-head label{font-weight:600;font-size:1.02rem;line-height:1.42;cursor:pointer}
+.tag{display:inline-block;font-family:var(--font-mono);font-size:.6rem;letter-spacing:.13em;text-transform:uppercase;padding:.16rem .46rem;border-radius:3px;border:1px solid var(--sev,var(--brass));color:var(--sev,var(--brass));margin-right:.55rem;vertical-align:.14em}
+.code{font-family:var(--font-mono);font-size:.82em;color:var(--brass-hi)}
+.item.done{opacity:.5}
+.item.done .item-head label{text-decoration:line-through;text-decoration-color:var(--ink-faint)}
+.item-body{padding:0 1.2rem 1.2rem;max-width:var(--maxw)}
+.field{margin-top:1rem;border-top:1px solid var(--border-lo);padding-top:.85rem}
+.field:first-child{border-top:0;padding-top:0}
+.flabel{display:block;font-family:var(--font-mono);font-size:.65rem;letter-spacing:.17em;text-transform:uppercase;color:var(--brass);margin:0 0 .4rem}
+.field p{margin:.35rem 0}
+.field ul{padding-left:1.15rem;margin:.4rem 0}
+.field li{margin:.3rem 0}
+
+code{font-family:var(--font-mono);font-size:.86em;background:var(--surface-2);border:1px solid var(--border-lo);border-radius:3px;padding:.08em .36em;overflow-wrap:break-word}
+pre{margin:.65rem 0 0;background:var(--surface-2);border:1px solid var(--border);border-left:3px solid var(--brass);border-radius:4px;padding:.9rem 1rem;overflow-x:auto}
+pre code{background:none;border:0;padding:0;font-size:.82rem;line-height:1.65;color:var(--ink);white-space:pre}
+
+.gate{border:1px solid var(--brass);background:var(--surface);border-radius:6px;padding:1.4rem 1.5rem;max-width:var(--maxw)}
+.gate h2.sec{margin-top:0}
+.gate ul{margin:.6rem 0 0}
+
+a{color:var(--brass-hi)}
+.content a,.field a,.concept a{text-decoration:underline;text-decoration-color:var(--border)}
+a:focus-visible,input:focus-visible,summary:focus-visible,button:focus-visible{outline:2px solid var(--brass-hi);outline-offset:2px}
+hr{border:0;border-top:1px solid var(--border);margin:2.5rem 0}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="wrap">
+
+<header class="masthead">
+  <p class="eyebrow">NG+ · Pre-launch dossier</p>
+  <h1>Ship Readiness Dossier</h1>
+  <p class="standfirst">Everything worth closing before the first public link exists — sorted by how much it hurts to skip, with the concepts spelled out and copy-paste steps for each. Built for a first ship.</p>
+  <div class="progress">
+    <span id="count">0 / 0 done</span>
+    <span class="bar"><i></i></span>
+    <button class="reset" id="reset">Reset progress</button>
+  </div>
+  <p class="usenote">Check items off as you go — your progress is saved in this browser only (no account, nothing sent anywhere). Three tiers: <strong style="color:var(--blocker)">Blocker</strong> = fix before anyone can reach the site · <strong style="color:var(--soon)">Soon</strong> = want it in v1, a few days' slip harms no one · <strong style="color:var(--polish)">Polish</strong> = safe to ship without, do soon after. The deploy runbook at the end is an ordered sequence.</p>
+</header>
+
+<div class="layout">
+
+  <details class="toc" open>
+    <summary>Contents</summary>
+    <nav class="toc-inner" aria-label="Contents">
+      <h2>Start here</h2>
+      <a href="#concepts"><span class="k">§0</span>Concepts you'll need</a>
+      <h2>Blockers</h2>
+      <a href="#B1"><span class="k">B1</span>Loadout AI → opt-in button</a>
+      <a href="#B2"><span class="k">B2</span>Forgot-password flow</a>
+      <a href="#B3"><span class="k">B3</span>Auth callback route</a>
+      <a href="#B4"><span class="k">B4</span>RLS policy audit</a>
+      <h2>Soon</h2>
+      <a href="#S1"><span class="k">S1</span>not-found.tsx</a>
+      <a href="#S2"><span class="k">S2</span>loading.tsx for slow routes</a>
+      <a href="#S3"><span class="k">S3</span>Per-page metadata</a>
+      <a href="#S4"><span class="k">S4</span>robots.ts + sitemap.ts</a>
+      <a href="#S5"><span class="k">S5</span>Security headers</a>
+      <a href="#S6"><span class="k">S6</span>Error monitoring</a>
+      <a href="#S7"><span class="k">S7</span>Server-side validation</a>
+      <a href="#S8"><span class="k">S8</span>Privacy + terms + consent</a>
+      <h2>Polish</h2>
+      <a href="#P1"><span class="k">P1</span>Modal accessibility</a>
+      <a href="#P2"><span class="k">P2</span>Strip server console.logs</a>
+      <a href="#P3"><span class="k">P3</span>Repo &amp; docs hygiene</a>
+      <a href="#P4"><span class="k">P4</span>Icons + web manifest</a>
+      <h2>Deploy runbook</h2>
+      <a href="#deploy"><span class="k">§D</span>Overview</a>
+      <a href="#D1"><span class="k">D1</span>Clean local build</a>
+      <a href="#D2"><span class="k">D2</span>Confirm secrets never committed</a>
+      <a href="#D3"><span class="k">D3</span>.env.example + push repo</a>
+      <a href="#D4"><span class="k">D4</span>Import into Vercel</a>
+      <a href="#D5"><span class="k">D5</span>Set env vars on the host</a>
+      <a href="#D6"><span class="k">D6</span>Point Supabase at prod URL</a>
+      <a href="#D7"><span class="k">D7</span>Deploy + smoke test</a>
+      <a href="#D8"><span class="k">D8</span>Custom domain</a>
+      <a href="#D9"><span class="k">D9</span>Production housekeeping</a>
+      <h2>Finish</h2>
+      <a href="#gate"><span class="k">§F</span>Final gate</a>
+    </nav>
+  </details>
+
+  <main>
+
+  <!-- ============ CONCEPTS ============ -->
+  <section class="section" id="concepts">
+    <h2 class="sec"><span class="n">§0</span>Concepts you'll need</h2>
+    <p class="sec-intro">These come up repeatedly below. Skim them once; the checklist items link back to them.</p>
+
+    <div class="concept">
+      <h3>App Router "special files"</h3>
+      <p>In <code>app/</code>, certain filenames are wired up by Next.js automatically — you create the file, Next does the rest. The ones that matter here:</p>
+      <dl>
+        <dt>page.tsx</dt><dd>the UI for a route.</dd>
+        <dt>layout.tsx</dt><dd>shared shell wrapping a route and its children.</dd>
+        <dt>loading.tsx</dt><dd>shown instantly while <code>page.tsx</code> is fetching its data — Next wraps the segment in a React <code>&lt;Suspense&gt;</code> boundary for you.</dd>
+        <dt>error.tsx</dt><dd>catches errors thrown while rendering that segment and shows fallback UI. Must be a Client Component. You have this at the root.</dd>
+        <dt>not-found.tsx</dt><dd>rendered when <code>notFound()</code> is called or no route matches. You do <em>not</em> have this.</dd>
+        <dt>global-error.tsx</dt><dd>catches errors in the root layout itself. You have this.</dd>
+        <dt>route.ts</dt><dd>an API endpoint (exports <code>GET</code>, <code>POST</code>, …) instead of a page.</dd>
+        <dt>robots.ts / sitemap.ts / manifest.ts / icon.png / opengraph-image.png</dt><dd>each generates the matching file or <code>&lt;head&gt;</code> tag at build time.</dd>
+        <dt>proxy.ts</dt><dd>runs on the server before every matched request. In Next 16 this file was renamed from <code>middleware.ts</code> — yours is correct and working; don't rename it back.</dd>
+      </dl>
+    </div>
+
+    <div class="concept">
+      <h3>Public vs secret environment variables</h3>
+      <p><strong>Anything named <code>NEXT_PUBLIC_*</code></strong> is copied into the browser JavaScript bundle <em>at build time</em>. Any visitor can read it in devtools. That's fine for <code>NEXT_PUBLIC_SUPABASE_URL</code> and the anon key — they're designed to be public, and Row Level Security is what actually protects the data. Consequence: changing one of these needs a fresh build + redeploy.</p>
+      <p><strong>Every other variable</strong> (<code>SUPABASE_SECRET_KEY</code>, <code>ANTHROPIC_API_KEY</code>, <code>RAWG_API_KEY</code>, <code>STEAM_API_KEY</code>) is only readable on the server — in Route Handlers, Server Components, and <code>proxy.ts</code>. Never prefix a secret with <code>NEXT_PUBLIC_</code>.</p>
+      <p><code>.env.local</code> is your machine-only copy and is gitignored. <code>.env.example</code> is a committed copy with the same keys but blank values — it documents what the project needs.</p>
+    </div>
+
+    <div class="concept">
+      <h3>Row Level Security (RLS)</h3>
+      <p>A PostgreSQL feature Supabase is built on. Each table carries <em>policies</em> — small SQL rules evaluated per row that decide whether the current request may <code>select</code> / <code>insert</code> / <code>update</code> / <code>delete</code> that row. <code>auth.uid()</code> inside a policy returns the logged-in user's id.</p>
+      <p>This app sends every write straight from the browser to Supabase (see <code>lib/queries/*</code>). Those functions pass a row id and trust the database to refuse the write if the row isn't yours. So these policies are not a backstop — they are the <em>only</em> thing enforcing "you can only edit your own stuff." If a table has RLS off, or a policy that's too loose, any logged-in user can edit anyone's data by calling the same query with a different id.</p>
+    </div>
+
+    <div class="concept">
+      <h3>How Supabase email links become a session</h3>
+      <p>When a user clicks "confirm your email" or "reset your password" in an email, Supabase sends them to <em>your</em> app carrying a one-time credential — either <code>?code=…</code> (the PKCE flow) or <code>?token_hash=…&amp;type=…</code> (the older flow). It never puts a real session token in an email; that would be a security hole.</p>
+      <dl>
+        <dt>supabase.auth.exchangeCodeForSession(code)</dt><dd>your server hands the <code>code</code> back to Supabase, which verifies it and returns real session cookies. Used for the PKCE <code>?code=</code> links.</dd>
+        <dt>supabase.auth.verifyOtp({ type, token_hash })</dt><dd>the equivalent for <code>?token_hash=…&amp;type=…</code> links (<code>type</code> is <code>signup</code>, <code>recovery</code>, <code>email_change</code>, …).</dd>
+      </dl>
+      <p>Either way you need <strong>a route that receives the link and does the exchange</strong>, then redirects the user into the app. Without it, every email link dead-ends on a 404. That's item <a href="#B3">B3</a>, and <a href="#B2">B2</a> depends on it.</p>
+    </div>
+  </section>
+
+  <hr>
+
+  <!-- ============ BLOCKERS ============ -->
+  <section class="section" id="blockers">
+    <h2 class="sec"><span class="n">B</span>Blockers — before any public link</h2>
+    <p class="sec-intro">If someone can reach the site, these must already be done.</p>
+
+    <article class="item" data-sev="blocker" id="B1">
+      <div class="item-head">
+        <input type="checkbox" class="chk" id="chk-B1">
+        <label for="chk-B1"><span class="tag">Blocker</span>B1 · Move the Loadout AI call behind an opt-in button</label>
+      </div>
+      <div class="item-body">
+        <div class="field">
+          <span class="flabel">What it is</span>
+          <p><span class="code">app/user/[username]/loadout/page.tsx:66</span> runs <code>generateLoadoutIdentity()</code> — a paid Anthropic API call — on <em>every render</em>, whenever the profile has 5+ ratings. There's no caching, and no login is required: public loadouts render for anonymous visitors (lines 32–35). The call is also <code>await</code>ed inline, so it blocks the whole page for 1–3s each time.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">Why it matters here</span>
+          <p>Every page load is one Sonnet call you pay for, and one bot crawling public profiles runs up an unbounded bill. Separately: an AI-written "identity" that appears unbidden on every profile is an easy target for the anti-AI crowd — making it something the owner <em>chooses to generate and can edit</em> defuses both problems at once. (See also the product call: keep it opt-in and editable, skip the AI title.)</p>
+        </div>
+        <div class="field">
+          <span class="flabel">Status — implemented</span>
+          <p>Shipped as: two columns on the <code>users</code> table, a delete of the inline generate call in <span class="code">page.tsx</span>, a no-body <code>POST /api/loadout</code> route, and a client <code>GenerateLoadoutButton</code>. Details below reflect the working version.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">How to do it — generate on demand, store the result, owner-only</span>
+          <ul>
+            <li>Add columns to the <code>users</code> table (Supabase → SQL Editor). <strong>Run this before testing</strong> — nothing else creates them:
+              <pre><code>alter table users
+  add column loadout_identity    text,
+  add column loadout_identity_at timestamptz;</code></pre>
+            </li>
+            <li>In <span class="code">page.tsx</span>, <strong>delete</strong> the inline <code>generateLoadoutIdentity()</code> block. The page only reads the stored value and figures out whether the viewer owns the profile:
+              <pre><code>const isOwner = !!viewer &amp;&amp; viewer.id === ownerId.id
+const loadoutIdentity = currentLoadoutIdentity?.loadout_identity ?? ''
+const canGenerate = loadoutInput.totalRatings &gt;= 5</code></pre>
+              Non-owners only ever see the saved text or a muted "No Read-out yet". No page render calls Anthropic.
+            </li>
+            <li><span class="code">app/api/loadout/route.ts</span> — no body. The caller is identified by session; username and stats are read server-side so they can't be spoofed:
+              <pre><code>export async function POST() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+
+  const { data: current } = await supabase
+    .from('users').select('username, loadout_identity_at')
+    .eq('id', user.id).single()
+  if (!current?.username)
+    return NextResponse.json({ error: 'no profile' }, { status: 400 })
+
+  // one generation per minute, per user
+  if (current.loadout_identity_at &amp;&amp;
+      Date.now() - new Date(current.loadout_identity_at).getTime() &lt; 60_000)
+    return NextResponse.json({ error: 'slow down' }, { status: 429 })
+
+  const input = await buildLoadoutInput(supabase, user.id, current.username)
+  if (input.totalRatings &lt; 5)
+    return NextResponse.json({ error: 'not eligible' }, { status: 400 })
+
+  const text = await generateLoadoutIdentity(input)
+  if (!text) return NextResponse.json({ error: 'generation failed' }, { status: 502 })
+
+  const { error } = await supabase.from('users')
+    .update({ loadout_identity: text, loadout_identity_at: new Date().toISOString() })
+    .eq('id', user.id)
+  if (error) return NextResponse.json({ error: 'save failed' }, { status: 500 })
+
+  return NextResponse.json({ text })
+}</code></pre>
+            </li>
+            <li><code>buildLoadoutInput(supabase, userId, username)</code> in <span class="code">lib/loadout.ts</span> is the shared helper the page and the route both call — it runs the four <code>getLoadout*</code> queries and derives <code>totalGames</code> / <code>completedGames</code> / <code>avgRating</code>.</li>
+            <li><span class="code">app/components/user/LoadoutActions.tsx</span> is one <code>"use client"</code> component holding both owner controls (generate/regenerate + save-to-bio) and a shared error line. The component body stays sync; the <code>onClick</code> handlers are <code>async</code> — that's the part that <code>await</code>s. On a successful generate it calls <code>router.refresh()</code> (from <code>next/navigation</code>), which re-runs the server page so the freshly saved text renders. It maps 401/429/400 to inline messages shown full-width below the buttons. (Replaced the earlier separate <code>GenerateLoadoutButton</code> / <code>SubmitBioButton</code> pair, which misaligned.)</li>
+            <li>In <span class="code">page.tsx</span>, the Read-out card renders <code>&lt;LoadoutActions userId={ownerId.id} identity={loadoutIdentity} /&gt;</code> only when <code>isOwner</code> — passing <code>identity=""</code> in the "not generated yet" state hides the Save button — plus a quiet <code>drafted with AI · edit anytime</code> line.</li>
+          </ul>
+        </div>
+        <div class="field">
+          <span class="flabel">Verify</span>
+          <p><code>npm run build</code> passes; <code>/api/loadout</code> appears in the route list. Load any loadout — yours or someone else's — while watching your Anthropic usage dashboard: zero calls. Click "Generate" on your own: one call, and the text persists across reloads. Click it twice fast: the second returns 429. An anonymous visitor sees no button.</p>
+        </div>
+      </div>
+    </article>
+
+    <article class="item" data-sev="blocker" id="B2">
+      <div class="item-head">
+        <input type="checkbox" class="chk" id="chk-B2">
+        <label for="chk-B2"><span class="tag">Blocker</span>B2 · Add a "forgot password" flow</label>
+      </div>
+      <div class="item-body">
+        <div class="field">
+          <span class="flabel">What it is</span>
+          <p>A way for a user who <em>can't</em> log in to get a reset link by email. The code has sign-in, sign-up, and <code>updatePassword</code> (<span class="code">lib/queries/user.ts:141</span>) — but <code>updatePassword</code> needs an already-valid session, so a locked-out user has no path back in.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">Why it matters here</span>
+          <p>Password logins guarantee some users will forget theirs. Without this, they're permanently locked out and either email you or leave.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">How to do it — three pieces</span>
+          <ul>
+            <li><strong>A "Forgot password?" control in <code>AuthModal</code>:</strong>
+              <pre><code>await supabase.auth.resetPasswordForEmail(email, {
+  redirectTo: `${location.origin}/auth/callback?next=/auth/update-password`,
+})
+// then show "Check your email for a reset link."</code></pre>
+            </li>
+            <li><strong>The <code>/auth/callback</code> route</strong> — item <a href="#B3">B3</a>. The reset link lands there first and it creates a temporary session.</li>
+            <li><strong>A small <code>app/auth/update-password/page.tsx</code></strong> — a client form with one "new password" field:
+              <pre><code>const { error } = await supabase.auth.updateUser({ password: newPassword })
+// success -&gt; redirect to '/' ; the user is already in the temp session</code></pre>
+            </li>
+          </ul>
+        </div>
+        <div class="field">
+          <span class="flabel">Verify</span>
+          <p>Sign up, log out, use "forgot password", open the email, follow the link, set a new password, log in with it.</p>
+        </div>
+      </div>
+    </article>
+
+    <article class="item" data-sev="blocker" id="B3">
+      <div class="item-head">
+        <input type="checkbox" class="chk" id="chk-B3">
+        <label for="chk-B3"><span class="tag">Blocker</span>B3 · Add the auth callback route</label>
+      </div>
+      <div class="item-body">
+        <div class="field">
+          <span class="flabel">What it is</span>
+          <p>A Route Handler at <span class="code">app/auth/callback/route.ts</span> that receives the credential from Supabase email links (<code>?code=</code> or <code>?token_hash=&amp;type=</code>), exchanges it for a real session, and redirects the user into the app. See the concept <a href="#concepts">"How Supabase email links become a session"</a>.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">Why it matters here</span>
+          <p>Every email flow — signup confirmation, password reset (<a href="#B2">B2</a>), email-change confirmation (you already have <code>updateEmail</code> at <span class="code">user.ts:137</span>) — sends the user to a link pointing back at your app. With no route to catch it, the link 404s and the flow dies.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">How to do it</span>
+          <pre><code>// app/auth/callback/route.ts
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase-server'
+
+export async function GET(request: NextRequest) {
+  const { searchParams, origin } = request.nextUrl
+  const next = searchParams.get('next') ?? '/'
+  const code = searchParams.get('code')
+  const token_hash = searchParams.get('token_hash')
+  const type = searchParams.get('type') as
+    'signup' | 'recovery' | 'email_change' | 'invite' | 'magiclink' | null
+
+  const supabase = await createClient()
+  let error = null
+
+  if (code) {
+    ({ error } = await supabase.auth.exchangeCodeForSession(code))
+  } else if (token_hash &amp;&amp; type) {
+    ({ error } = await supabase.auth.verifyOtp({ type, token_hash }))
+  } else {
+    error = new Error('missing code')
+  }
+
+  if (error) {
+    return NextResponse.redirect(`${origin}/?auth_error=1`)
+  }
+  return NextResponse.redirect(`${origin}${next}`)
+}</code></pre>
+          <p>Then, in the Supabase dashboard:</p>
+          <ul>
+            <li><strong>Authentication → URL Configuration:</strong> set "Site URL" to your production URL; add <code>https://your-site/auth/callback</code> to "Redirect URLs".</li>
+            <li><strong>Authentication → Email Templates:</strong> the default templates link to <code>{{ .SiteURL }}/auth/confirm?token_hash=…&amp;type=…</code>. Either change them to <code>/auth/callback</code>, or also create <code>app/auth/confirm/route.ts</code> with the same body — the handler above already covers both shapes, so pointing the templates at <code>/auth/callback</code> is simplest.</li>
+            <li><strong>Authentication → Providers → Email:</strong> decide whether "Confirm email" is on (recommended). If on, this route is mandatory for signup to work at all.</li>
+          </ul>
+        </div>
+        <div class="field">
+          <span class="flabel">Verify</span>
+          <p>Fresh signup → confirmation email → click the link → you land logged-in on the app, not on a 404.</p>
+        </div>
+      </div>
+    </article>
+
+    <article class="item" data-sev="blocker" id="B4">
+      <div class="item-head">
+        <input type="checkbox" class="chk" id="chk-B4">
+        <label for="chk-B4"><span class="tag">Blocker</span>B4 · Audit your RLS policies</label>
+      </div>
+      <div class="item-body">
+        <div class="field">
+          <span class="flabel">What it is</span>
+          <p>Confirming that every table in Supabase has Row Level Security <em>enabled</em> and policies that tie writes to the logged-in user. See the <a href="#concepts">RLS concept</a>.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">Why it matters here</span>
+          <p>All writes go browser → Supabase directly. <code>updateList(listId, …)</code>, <code>setListPinned(listId, …)</code>, <code>syncListGames(listId, …)</code>, <code>removeGameFromList(listId, gameId)</code> in <span class="code">lib/queries/list.ts</span> send only a list id — they trust the database to reject the write if that list isn't yours. If RLS is missing or permissive on <em>any</em> user-owned table, anyone logged in can edit or delete anyone's lists, ratings, library, or profile.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">How to do it</span>
+          <ul>
+            <li>Supabase dashboard → Database → Tables. For every user-owned table (<code>lists</code>, <code>list_games</code>, <code>ratings</code>/<code>reviews</code>, <code>library</code>, <code>account_settings</code>/<code>profiles</code>, <code>follows</code>, …): confirm the "RLS enabled" toggle is on and there is a policy for each operation you perform.</li>
+            <li>The pattern for rows owned by a user:
+              <pre><code>-- read: your own rows, plus public ones
+create policy "read own or public" on lists
+  for select using (is_public or auth.uid() = user_id);
+
+-- writes: only your own
+create policy "insert own" on lists
+  for insert with check (auth.uid() = user_id);
+create policy "update own" on lists
+  for update using (auth.uid() = user_id)
+             with check (auth.uid() = user_id);
+create policy "delete own" on lists
+  for delete using (auth.uid() = user_id);</code></pre>
+            </li>
+            <li>For a join/child table like <code>list_games</code>, the check hops through the parent:
+              <pre><code>create policy "write via owned list" on list_games
+  for all using (exists (
+    select 1 from lists
+    where lists.id = list_games.list_id
+      and lists.user_id = auth.uid()
+  ));</code></pre>
+            </li>
+            <li>Don't forget <code>storage.objects</code> for the avatar/image bucket — same thinking: public <code>select</code>, writes scoped to the user's own folder.</li>
+          </ul>
+        </div>
+        <div class="field">
+          <span class="flabel">Verify</span>
+          <p>With two accounts: log in as A, take a <code>list_id</code> belonging to B (visible on B's public profile), and in the browser console run the same <code>.update()</code> your app runs against it. It must return zero rows / an error — not succeed. Repeat the idea for each user-owned table.</p>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <hr>
+
+  <!-- ============ SOON ============ -->
+  <section class="section" id="soon">
+    <h2 class="sec"><span class="n">S</span>Soon — want these in v1</h2>
+    <p class="sec-intro">First-impression and safety-net work. A few days' slip won't hurt a user, but don't ship the "1.0" tweet without them.</p>
+
+    <article class="item" data-sev="soon" id="S1">
+      <div class="item-head">
+        <input type="checkbox" class="chk" id="chk-S1">
+        <label for="chk-S1"><span class="tag">Soon</span>S1 · <code>app/not-found.tsx</code></label>
+      </div>
+      <div class="item-body">
+        <div class="field">
+          <span class="flabel">What it is</span>
+          <p>The page Next shows when <code>notFound()</code> is called or a URL matches nothing. You call <code>notFound()</code> in <span class="code">user/[username]/page.tsx:32</span>, <span class="code">lists/page.tsx</span>, <span class="code">lists/[listId]/page.tsx</span> (twice), and <span class="code">games/[slug]/page.tsx:84</span>. With no file, all of those render Next's unstyled default.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">Why it matters here</span>
+          <p>A bare black-on-white "404 | This page could not be found" in the middle of your warm-dark app reads as broken, not as a missing page.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">How to do it</span>
+          <pre><code>// app/not-found.tsx  — Server Component, no "use client" needed
+import Link from 'next/link'
+
+export default function NotFound() {
+  return (
+    &lt;main className="mx-auto max-w-xl px-6 py-24 text-center font-(family-name:--font-body)"&gt;
+      &lt;p className="font-mono text-xs uppercase tracking-[0.22em] text-(--color-muted)"&gt;404&lt;/p&gt;
+      &lt;h1 className="mt-2 font-(family-name:--font-display) text-4xl text-(--color-text)"&gt;
+        Not in the ledger
+      &lt;/h1&gt;
+      &lt;p className="mt-3 text-(--color-muted)"&gt;
+        That page, game, or profile doesn&amp;apos;t exist — or was made private.
+      &lt;/p&gt;
+      &lt;Link href="/" className="mt-6 inline-block rounded-[3px] bg-(--color-accent) px-4 py-2 text-sm font-semibold text-(--color-bg)"&gt;
+        Back to the feed
+      &lt;/Link&gt;
+    &lt;/main&gt;
+  )
+}</code></pre>
+          <p>One root file covers everything. You can add per-folder <code>not-found.tsx</code> files later for wording specific to games vs. profiles.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">Verify</span>
+          <p>Visit <code>/user/definitely-not-real</code> → your styled page, not the default.</p>
+        </div>
+      </div>
+    </article>
+
+    <article class="item" data-sev="soon" id="S2">
+      <div class="item-head">
+        <input type="checkbox" class="chk" id="chk-S2">
+        <label for="chk-S2"><span class="tag">Soon</span>S2 · <code>loading.tsx</code> for the slow routes</label>
+      </div>
+      <div class="item-body">
+        <div class="field">
+          <span class="flabel">What it is</span>
+          <p>A file Next shows <em>immediately</em> while the sibling <code>page.tsx</code> is fetching. Creating it automatically wraps the route in a React <code>&lt;Suspense&gt;</code> boundary; when the page's <code>await</code>s resolve, Next swaps the real content in.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">Why it matters here</span>
+          <p><span class="code">app/user/[username]/loadout/page.tsx</span> awaits five queries before <em>anything</em> renders — the user clicks and stares at the old page. The feed (<code>app/page.tsx</code>) and profile pages have a milder version of the same.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">How to do it</span>
+          <pre><code>// app/user/[username]/loadout/loading.tsx
+export default function Loading() {
+  return (
+    &lt;main className="mx-auto max-w-6xl px-6 py-8"&gt;
+      &lt;div className="h-10 w-64 rounded bg-(--color-surface) motion-safe:animate-pulse" /&gt;
+      &lt;div className="mt-8 grid gap-8 md:grid-cols-[1.4fr_1fr]"&gt;
+        &lt;div className="h-40 rounded-md bg-(--color-surface) motion-safe:animate-pulse" /&gt;
+        &lt;div className="h-40 rounded-md bg-(--color-surface) motion-safe:animate-pulse" /&gt;
+      &lt;/div&gt;
+    &lt;/main&gt;
+  )
+}</code></pre>
+          <p>Add the same shape (matching each page's real layout) at <span class="code">app/user/[username]/loading.tsx</span> and for the feed segment. <code>motion-safe:</code> keeps it still for users with reduced-motion set.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">Verify</span>
+          <p>DevTools → Network → throttle to "Slow 3G", navigate to a loadout → skeleton appears the instant you click.</p>
+        </div>
+      </div>
+    </article>
+
+    <article class="item" data-sev="soon" id="S3">
+      <div class="item-head">
+        <input type="checkbox" class="chk" id="chk-S3">
+        <label for="chk-S3"><span class="tag">Soon</span>S3 · Per-page metadata with <code>generateMetadata</code> + <code>metadataBase</code></label>
+      </div>
+      <div class="item-body">
+        <div class="field">
+          <span class="flabel">What <code>generateMetadata</code> is</span>
+          <p>An <code>async function generateMetadata({ params })</code> you export from a <code>page.tsx</code> or <code>layout.tsx</code>. Next runs it on the server and uses the returned object to write the <code>&lt;title&gt;</code>, <code>&lt;meta name="description"&gt;</code>, and the Open Graph / Twitter tags into <code>&lt;head&gt;</code>. Those OG tags are what Discord, iMessage, Slack, and Twitter read to build the preview card when someone pastes your link.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">What <code>metadataBase</code> is</span>
+          <p>OG image URLs must be absolute (<code>https://site.com/x.png</code>, not <code>/x.png</code>). <code>metadataBase: new URL('https://site.com')</code> in the root layout tells Next what to prefix relative URLs with. Without it Next logs a build warning and falls back to <code>http://localhost:3000</code>, so every shared link's preview points at localhost.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">Why it matters here</span>
+          <p>Right now only <span class="code">app/layout.tsx</span> sets metadata, statically — so <em>every</em> page shares the title "NG+ | Your Gaming Identity". Your <code>/games/[slug]</code> and <code>/user/[username]</code> pages are exactly the ones people share, and they'd all preview identically with no game name and no cover art.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">How to do it</span>
+          <ul>
+            <li>In <span class="code">app/layout.tsx</span>, extend the existing <code>metadata</code>:
+              <pre><code>export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'),
+  title: { default: 'NG+ | Your Gaming Identity', template: '%s | NG+' },
+  description: 'Track, rate, and share the games that define you.',
+  openGraph: { siteName: 'NG+', type: 'website' },
+}</code></pre>
+              The <code>template</code> means a page returning <code>title: 'Hades'</code> becomes <code>"Hades | NG+"</code> automatically.
+            </li>
+            <li>In <span class="code">app/games/[slug]/page.tsx</span>, add alongside the default export:
+              <pre><code>export async function generateMetadata(
+  { params }: { params: Promise&lt;{ slug: string }&gt; }
+): Promise&lt;Metadata&gt; {
+  const { slug } = await params
+  const supabase = await createClient()
+  const game = await getGameBySlug(supabase, slug)   // your existing query
+  if (!game) return {}
+  return {
+    title: game.name,
+    description: game.description_short
+      ?? `Ratings and reviews for ${game.name} on NG+.`,
+    openGraph: {
+      title: game.name,
+      images: game.cover_image_url ? [game.cover_image_url] : [],
+    },
+  }
+}</code></pre>
+            </li>
+            <li>Same shape for <span class="code">app/user/[username]/page.tsx</span> — <code>title: `${username}`</code>, description from the bio.</li>
+            <li>Add <code>NEXT_PUBLIC_SITE_URL</code> to <code>.env.local</code> and (later) the host. Next dedupes the query between <code>generateMetadata</code> and the page within one request, so you're not paying for it twice.</li>
+          </ul>
+        </div>
+        <div class="field">
+          <span class="flabel">Verify</span>
+          <p><code>curl -s https://your-site/games/&lt;slug&gt; | grep -i 'og:title\|&lt;title&gt;'</code> shows the game name. Paste the link into Discord → the card shows the cover.</p>
+        </div>
+      </div>
+    </article>
+
+    <article class="item" data-sev="soon" id="S4">
+      <div class="item-head">
+        <input type="checkbox" class="chk" id="chk-S4">
+        <label for="chk-S4"><span class="tag">Soon</span>S4 · <code>robots.ts</code> and <code>sitemap.ts</code></label>
+      </div>
+      <div class="item-body">
+        <div class="field">
+          <span class="flabel">What they are</span>
+          <p><strong><code>app/robots.ts</code></strong> is served as <code>/robots.txt</code> — the first file every search-engine crawler fetches, telling it which paths it may crawl and where the sitemap is. <strong><code>app/sitemap.ts</code></strong> is served as <code>/sitemap.xml</code> — a machine-readable list of every URL you want indexed, so crawlers find pages they might not reach by following links (every game detail page, say).</p>
+        </div>
+        <div class="field">
+          <span class="flabel">Why it matters here</span>
+          <p>Without them, search engines still crawl you — slowly, incompletely, and with no steer on what to index (you probably don't want <code>/settings</code> or <code>/steamlink</code> in Google). For a public-profile app, being findable is part of the point.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">How to do it</span>
+          <pre><code>// app/robots.ts
+import type { MetadataRoute } from 'next'
+
+export default function robots(): MetadataRoute.Robots {
+  const base = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
+  return {
+    rules: { userAgent: '*', allow: '/', disallow: ['/settings', '/steamlink', '/api/'] },
+    sitemap: `${base}/sitemap.xml`,
+  }
+}</code></pre>
+          <pre><code>// app/sitemap.ts
+import type { MetadataRoute } from 'next'
+import { createClient } from '@/lib/supabase-server'
+
+export default async function sitemap(): Promise&lt;MetadataRoute.Sitemap&gt; {
+  const base = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
+  const supabase = await createClient()
+  const { data: games } = await supabase
+    .from('games').select('slug, updated_at').limit(5000)
+
+  return [
+    { url: base, lastModified: new Date() },
+    { url: `${base}/games`, lastModified: new Date() },
+    { url: `${base}/explore`, lastModified: new Date() },
+    ...(games ?? []).map((g) =&gt; ({
+      url: `${base}/games/${g.slug}`,
+      lastModified: g.updated_at ? new Date(g.updated_at) : undefined,
+    })),
+  ]
+}</code></pre>
+          <p>You can append public user profiles too — but only rows where the user set their profile public.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">Verify</span>
+          <p>Visit <code>/robots.txt</code> and <code>/sitemap.xml</code> on the deployed site; the sitemap lists your game URLs.</p>
+        </div>
+      </div>
+    </article>
+
+    <article class="item" data-sev="soon" id="S5">
+      <div class="item-head">
+        <input type="checkbox" class="chk" id="chk-S5">
+        <label for="chk-S5"><span class="tag">Soon</span>S5 · Security headers in <code>next.config.ts</code></label>
+      </div>
+      <div class="item-body">
+        <div class="field">
+          <span class="flabel">What they are</span>
+          <p>HTTP response headers that instruct the browser to enforce specific protections. Next sets them for all routes via an <code>async headers()</code> function in <span class="code">next.config.ts</span> (yours currently only configures <code>images</code>).</p>
+        </div>
+        <div class="field">
+          <span class="flabel">What each one does</span>
+          <ul>
+            <li><code>Strict-Transport-Security</code> (HSTS) — "only ever contact this site over HTTPS." Blocks downgrade attacks.</li>
+            <li><code>X-Frame-Options: DENY</code> + <code>Content-Security-Policy: frame-ancestors 'none'</code> — "no other site may load this page in an <code>&lt;iframe&gt;</code>." Stops clickjacking, where an attacker frames your site invisibly over their own buttons to trick a logged-in user into clicking. Higher stakes for you because your whole auth flow is a modal.</li>
+            <li><code>X-Content-Type-Options: nosniff</code> — "don't guess content types," so a file can't be served as an image and executed as script.</li>
+            <li><code>Referrer-Policy: strict-origin-when-cross-origin</code> — don't leak full URLs (which can carry usernames/ids) to third-party sites.</li>
+            <li><code>Permissions-Policy</code> — proactively switch off browser APIs you never use (camera, mic, geolocation).</li>
+          </ul>
+        </div>
+        <div class="field">
+          <span class="flabel">How to do it</span>
+          <pre><code>// next.config.ts — add inside nextConfig
+  async headers() {
+    return [{
+      source: '/:path*',
+      headers: [
+        { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
+        { key: 'X-Frame-Options', value: 'DENY' },
+        { key: 'X-Content-Type-Options', value: 'nosniff' },
+        { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+        { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+        { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
+      ],
+    }]
+  },</code></pre>
+          <p>A <em>full</em> Content-Security-Policy (restricting which script/style/image sources may load) is more involved because Next's inline scripts need a per-request nonce — reasonable to defer to v2. <code>frame-ancestors</code> alone is the high-value, low-risk piece.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">Verify</span>
+          <p><code>curl -sI https://your-site | grep -i 'strict-transport\|x-frame'</code>, or run the URL through securityheaders.com.</p>
+        </div>
+      </div>
+    </article>
+
+    <article class="item" data-sev="soon" id="S6">
+      <div class="item-head">
+        <input type="checkbox" class="chk" id="chk-S6">
+        <label for="chk-S6"><span class="tag">Soon</span>S6 · Error monitoring</label>
+      </div>
+      <div class="item-body">
+        <div class="field">
+          <span class="flabel">What it is</span>
+          <p>Something that catches errors thrown on the server (ideally the client too) and sends them somewhere you'll actually see — a dashboard or a chat webhook — with the stack trace and which request caused it.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">What <code>instrumentation.ts</code> + <code>onRequestError</code> are</span>
+          <p><span class="code">instrumentation.ts</span> is a Next file that runs once when the server process starts — the standard place to initialize a monitoring SDK. <code>onRequestError</code> is an optional function you export from it that Next calls on every unhandled server error, passing the error plus the route and request. That's the hook monitoring tools plug into.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">Why it matters here</span>
+          <p>Your <code>error.tsx</code> and <code>global-error.tsx</code> currently only call <code>logger.error(...)</code>, which in production goes to the browser console — nowhere you'll ever look. The first you'd hear of a broken page is a user telling you.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">How to do it — pick one</span>
+          <ul>
+            <li><strong>Sentry (most complete):</strong> run <code>npx @sentry/wizard@latest -i nextjs</code>. It scaffolds <code>instrumentation.ts</code>, client/server config, and a source-map upload step. Free tier is generous. Then have <code>error.tsx</code> also call <code>Sentry.captureException(error)</code>.</li>
+            <li><strong>Minimal, no dependency:</strong>
+              <pre><code>// instrumentation.ts
+export async function onRequestError(err: unknown, request: { path: string }) {
+  await fetch(process.env.ERROR_WEBHOOK_URL!, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      content: `⚠️ ${request.path}\n${err instanceof Error ? err.stack : String(err)}`,
+    }),
+  })
+}</code></pre>
+              Point <code>ERROR_WEBHOOK_URL</code> at a Discord or Slack incoming webhook.
+            </li>
+          </ul>
+        </div>
+        <div class="field">
+          <span class="flabel">Verify</span>
+          <p>Deploy, temporarily add a route that throws, hit it, confirm the error lands in Sentry / your webhook, then remove the throw.</p>
+        </div>
+      </div>
+    </article>
+
+    <article class="item" data-sev="soon" id="S7">
+      <div class="item-head">
+        <input type="checkbox" class="chk" id="chk-S7">
+        <label for="chk-S7"><span class="tag">Soon</span>S7 · Server-side input validation</label>
+      </div>
+      <div class="item-body">
+        <div class="field">
+          <span class="flabel">What it is</span>
+          <p>Checking that form data is well-formed <em>on the server</em> — in your <code>lib/queries/*</code> functions — before it reaches the database: length limits, required fields, allowed characters.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">Why it matters here</span>
+          <p>Client checks (<code>AuthModal</code> password length, <code>AvatarUploader</code> file size) are bypassable — anyone can call your Supabase endpoints directly. Concretely: the review textarea has no max length, so one review can insert megabytes of text; usernames have no format/length rules and DB errors are swallowed (<code>ChangeUsernameButton</code> ignores the return value); bio is unbounded.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">How to do it</span>
+          <p>Add a schema library — <code>npm i zod</code> — and validate at the top of each write function:</p>
+          <pre><code>import { z } from 'zod'
+
+const reviewSchema = z.object({
+  gameId: z.string().uuid(),
+  rating: z.number().int().min(1).max(10),
+  body: z.string().max(5000).optional(),
+})
+
+export async function upsertReview(supabase, input: unknown) {
+  const parsed = reviewSchema.safeParse(input)
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0].message }
+  }
+  const { gameId, rating, body } = parsed.data
+  // ...write
+}</code></pre>
+          <ul>
+            <li><code>.parse()</code> throws on bad input; <code>.safeParse()</code> returns <code>{ success, data | error }</code> so you can show a message. Use <code>safeParse</code> at boundaries.</li>
+            <li>Priorities: review body <code>max(5000)</code>; username <code>z.string().min(3).max(20).regex(/^[a-z0-9_]+$/i)</code>; bio <code>max(500)</code>; list name required + <code>max(80)</code>.</li>
+            <li>Stop swallowing errors — return <code>{ error }</code> to the component so a failed change tells the user instead of silently doing nothing.</li>
+          </ul>
+        </div>
+        <div class="field">
+          <span class="flabel">Verify</span>
+          <p>From the UI, try to save a too-long username and an oversized review → clean error message, no DB write.</p>
+        </div>
+      </div>
+    </article>
+
+    <article class="item" data-sev="soon" id="S8">
+      <div class="item-head">
+        <input type="checkbox" class="chk" id="chk-S8">
+        <label for="chk-S8"><span class="tag">Soon</span>S8 · Privacy policy, terms, and signup consent</label>
+      </div>
+      <div class="item-body">
+        <div class="field">
+          <span class="flabel">What it is</span>
+          <p>A <code>/privacy</code> page describing what personal data you collect and why, a <code>/terms</code> page with the usage rules, and a checkbox at signup where the user agrees to both.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">Why it matters here</span>
+          <p>You collect email, uploaded avatars, free-text reviews, <strong>and the user's entire Steam owned-games library + Steam ID</strong>, and you send profile data to Anthropic (a third-party "processor"). In most jurisdictions that triggers a disclosure obligation; app stores and some payment providers also require a public privacy policy to exist. The Steam import in particular raises what users reasonably expect to be told.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">How to do it</span>
+          <ul>
+            <li>Two pages — <span class="code">app/privacy/page.tsx</span> and <span class="code">app/terms/page.tsx</span> (plain JSX or MDX). The privacy page should name: <em>account data</em> (email, username, avatar), <em>activity</em> (ratings, reviews, lists), <em>Steam</em> (library + Steam ID, only if the user connects it), <em>AI</em> (your aggregate stats are sent to Anthropic to generate the Loadout text), how to delete everything (you already have <code>/api/delete-account</code> — link it), and a contact email.</li>
+            <li>In <code>AuthModal</code>'s signup branch: <code>&lt;label&gt;&lt;input type="checkbox" required&gt; I agree to the &lt;a href="/terms"&gt;Terms&lt;/a&gt; and &lt;a href="/privacy"&gt;Privacy Policy&lt;/a&gt;&lt;/label&gt;</code>, blocking submit until checked.</li>
+            <li>Link both in the site footer.</li>
+            <li>A reputable policy generator gets you ~80% there; write the "AI &amp; third parties" paragraph yourself, since that's the non-standard part.</li>
+          </ul>
+        </div>
+        <div class="field">
+          <span class="flabel">Verify</span>
+          <p>Signup is blocked with the box unchecked; <code>/privacy</code> and <code>/terms</code> render and are linked in the footer.</p>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <hr>
+
+  <!-- ============ POLISH ============ -->
+  <section class="section" id="polish">
+    <h2 class="sec"><span class="n">P</span>Polish — v1.1</h2>
+    <p class="sec-intro">Genuinely fine to ship without. Worth doing in the first week or two after.</p>
+
+    <article class="item" data-sev="polish" id="P1">
+      <div class="item-head">
+        <input type="checkbox" class="chk" id="chk-P1">
+        <label for="chk-P1"><span class="tag">Polish</span>P1 · Modal accessibility</label>
+      </div>
+      <div class="item-body">
+        <div class="field">
+          <span class="flabel">What it is</span>
+          <p><span class="code">app/components/util/Modal.tsx</span> backs every dialog in the app — auth, rate/review, list-create, delete-account, change username/email/password. It's missing: Escape-to-close, a focus trap (Tab should cycle inside the modal, not into the page behind it), focus restore (on close, focus returns to the button that opened it), <code>role="dialog"</code> + <code>aria-modal="true"</code> + <code>aria-labelledby</code>, and body scroll lock.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">Why it matters</span>
+          <p>Keyboard and screen-reader users currently can't tell the dialog is modal, can Tab into hidden content, and lose their place when it closes. It's one component, so one fix covers every dialog.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">How to do it</span>
+          <p>Either add a <code>useEffect</code> that (a) listens for <code>Escape</code>, (b) moves focus into the modal on open and stores <code>document.activeElement</code>, (c) restores it on close, plus the ARIA attributes and <code>document.body.style.overflow = 'hidden'</code> — or adopt a headless primitive (<code>npm i @radix-ui/react-dialog</code>) that does all of it, and keep your existing Tailwind styling on its parts.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">Verify</span>
+          <p>Open a modal → press Escape (closes) → Tab repeatedly (stays inside) → close (focus back on the trigger button) → VoiceOver/NVDA announces "dialog".</p>
+        </div>
+      </div>
+    </article>
+
+    <article class="item" data-sev="polish" id="P2">
+      <div class="item-head">
+        <input type="checkbox" class="chk" id="chk-P2">
+        <label for="chk-P2"><span class="tag">Polish</span>P2 · Strip <code>console.log</code> from server paths</label>
+      </div>
+      <div class="item-body">
+        <div class="field">
+          <span class="flabel">What it is</span>
+          <p>Debug logging left in Server Components that run on normal navigation: <span class="code">settings/page.tsx:28</span>, <span class="code">library/page.tsx:45-65</span> (5×), <span class="code">ratings_reviews/page.tsx:25-35</span> (3×).</p>
+        </div>
+        <div class="field">
+          <span class="flabel">Why it matters</span>
+          <p>They fire on every visit to those pages and flood your production server logs, which makes real errors (and S6's monitoring output) harder to spot. Not a security issue — no secrets — just noise.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">How to do it</span>
+          <p>Replace each with <code>logger.debug(...)</code> (already gated to development in <span class="code">lib/logger.ts</span>) or delete it. Quick sweep: <code>grep -rn "console\.log" app/</code>.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">Verify</span>
+          <p><code>grep -rn "console\.log" app/</code> comes back clean (or only intentional ones remain).</p>
+        </div>
+      </div>
+    </article>
+
+    <article class="item" data-sev="polish" id="P3">
+      <div class="item-head">
+        <input type="checkbox" class="chk" id="chk-P3">
+        <label for="chk-P3"><span class="tag">Polish</span>P3 · Repo &amp; docs hygiene</label>
+      </div>
+      <div class="item-body">
+        <div class="field">
+          <span class="flabel">What it is</span>
+          <p>Loose ends a new contributor (or future you) will trip on.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">The list</span>
+          <ul>
+            <li><code>STEAM_API_KEY</code> is used in the Steam routes but missing from the env-var list in <span class="code">AGENTS.md</span> — add it.</li>
+            <li><span class="code">README.md</span> is still the <code>create-next-app</code> template — replace with: what the app is, local setup, the <code>npm run</code> commands, required env vars.</li>
+            <li>The <span class="code">AGENTS.md</span> line "No test framework is configured" is now false — there's a Vitest suite (<code>npm test</code>, 14 files under <code>test/</code>). Update it.</li>
+            <li>Delete the unused <code>create-next-app</code> SVGs in <code>public/</code> (<code>next.svg</code>, <code>vercel.svg</code>, etc.) once nothing references them.</li>
+          </ul>
+        </div>
+        <div class="field">
+          <span class="flabel">Verify</span>
+          <p>Fresh clone + follow your new README's setup steps → app runs.</p>
+        </div>
+      </div>
+    </article>
+
+    <article class="item" data-sev="polish" id="P4">
+      <div class="item-head">
+        <input type="checkbox" class="chk" id="chk-P4">
+        <label for="chk-P4"><span class="tag">Polish</span>P4 · Icons + web manifest</label>
+      </div>
+      <div class="item-body">
+        <div class="field">
+          <span class="flabel">What it is</span>
+          <p>You have <code>app/favicon.ico</code> but no <code>app/icon.png</code> (higher-res icon modern browsers and bookmarks use) or <code>app/apple-icon.png</code> (iOS home-screen icon). <code>app/manifest.ts</code> generates the web app manifest — name, theme colour, icons — which lets the site be "added to home screen" as a basic PWA.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">Why it matters</span>
+          <p>Low stakes — purely how the site looks when bookmarked or pinned. Cheap to do: three small files.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">How to do it</span>
+          <pre><code>// app/manifest.ts
+import type { MetadataRoute } from 'next'
+export default function manifest(): MetadataRoute.Manifest {
+  return {
+    name: 'NG+', short_name: 'NG+',
+    start_url: '/', display: 'standalone',
+    background_color: '#17140f', theme_color: '#17140f',
+    icons: [{ src: '/icon.png', sizes: '512x512', type: 'image/png' }],
+  }
+}</code></pre>
+          <p>Drop a 512×512 <code>icon.png</code> and a 180×180 <code>apple-icon.png</code> into <code>app/</code> — Next picks them up by filename.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">Verify</span>
+          <p>DevTools → Application → Manifest shows no errors; the tab icon is crisp.</p>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <hr>
+
+  <!-- ============ DEPLOY ============ -->
+  <section class="section" id="deploy">
+    <h2 class="sec"><span class="n">D</span>Deployment runbook</h2>
+    <p class="sec-intro">Do these in order. Context from the codebase sweep: there's currently no <code>vercel.json</code>, no <code>Dockerfile</code>, no CI workflow, and no <code>.env.example</code>; env vars are only listed in <code>AGENTS.md</code>; <code>next</code> is pinned to <code>^16.2.12</code>.</p>
+
+    <div class="concept">
+      <h3>D0 · Pick a host</h3>
+      <p>For a Next.js 16 app the path of least resistance is <strong>Vercel</strong> — the company that makes Next.js. Zero config, it understands the <code>proxy.ts</code> edge runtime, every git push gets its own preview URL, and the free "Hobby" tier covers a project at this stage.</p>
+      <p>Alternatives, roughly in order of "more control, more setup": Netlify (very similar to Vercel) · Railway / Render / Fly.io (you run it as a Node server) · a VPS running <code>npm run build &amp;&amp; npm run start</code> behind nginx. The rest of this runbook assumes Vercel, but the concepts — env vars, Supabase URL config, the build check — are identical everywhere.</p>
+    </div>
+
+    <article class="item" data-sev="deploy" id="D1">
+      <div class="item-head">
+        <input type="checkbox" class="chk" id="chk-D1">
+        <label for="chk-D1"><span class="tag">Deploy</span>D1 · Get a clean production build locally</label>
+      </div>
+      <div class="item-body">
+        <div class="field">
+          <span class="flabel">Do this</span>
+          <pre><code>npm run lint
+npx tsc --noEmit
+npm test
+npm run build</code></pre>
+        </div>
+        <div class="field">
+          <span class="flabel">Why</span>
+          <p>All four must pass. <code>npm run build</code> is the one that matters most — it runs the exact compile the host will run and catches things <code>dev</code> never does: type errors in rarely-hit files, a broken <code>generateMetadata</code>, an invalid <code>sitemap.ts</code>. Fix everything red here before pushing anywhere.</p>
+        </div>
+      </div>
+    </article>
+
+    <article class="item" data-sev="deploy" id="D2">
+      <div class="item-head">
+        <input type="checkbox" class="chk" id="chk-D2">
+        <label for="chk-D2"><span class="tag">Deploy</span>D2 · Confirm secrets were never committed</label>
+      </div>
+      <div class="item-body">
+        <div class="field">
+          <span class="flabel">Do this</span>
+          <pre><code>git log --all --full-history -- .env.local .env</code></pre>
+        </div>
+        <div class="field">
+          <span class="flabel">Why / what if it's not clean</span>
+          <p>Must print nothing. If it prints commits, your keys are in git history and stay there even after deleting the file — <strong>rotate every key before the repo goes anywhere</strong>: Supabase → Settings → API → roll the <code>service_role</code> / secret key; regenerate the Anthropic, RAWG, and Steam keys in their dashboards; update <code>.env.local</code>.</p>
+        </div>
+      </div>
+    </article>
+
+    <article class="item" data-sev="deploy" id="D3">
+      <div class="item-head">
+        <input type="checkbox" class="chk" id="chk-D3">
+        <label for="chk-D3"><span class="tag">Deploy</span>D3 · Add <code>.env.example</code> and push the repo</label>
+      </div>
+      <div class="item-body">
+        <div class="field">
+          <span class="flabel">Do this</span>
+          <pre><code># .env.example  — committed, all values blank
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+NEXT_PUBLIC_SITE_URL=
+SUPABASE_SECRET_KEY=
+ANTHROPIC_API_KEY=
+RAWG_API_KEY=
+STEAM_API_KEY=</code></pre>
+          <p>Confirm <code>.gitignore</code> still lists <code>.env*.local</code>. Commit <code>.env.example</code>. Push to a GitHub repo — private is fine.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">Why</span>
+          <p><code>.env.example</code> is the canonical list of what the app needs to run — it replaces "go read AGENTS.md". The host also reads it to prompt you for the same keys during import.</p>
+        </div>
+      </div>
+    </article>
+
+    <article class="item" data-sev="deploy" id="D4">
+      <div class="item-head">
+        <input type="checkbox" class="chk" id="chk-D4">
+        <label for="chk-D4"><span class="tag">Deploy</span>D4 · Import into Vercel</label>
+      </div>
+      <div class="item-body">
+        <div class="field">
+          <span class="flabel">Do this</span>
+          <p><a href="https://vercel.com">vercel.com</a> → sign in with GitHub → <strong>Add New → Project</strong> → pick the repo. It auto-detects Next.js; leave the build and output settings at their defaults. Don't click Deploy yet — set env vars first (D5), or the first build fails.</p>
+        </div>
+      </div>
+    </article>
+
+    <article class="item" data-sev="deploy" id="D5">
+      <div class="item-head">
+        <input type="checkbox" class="chk" id="chk-D5">
+        <label for="chk-D5"><span class="tag">Deploy</span>D5 · Set environment variables on the host</label>
+      </div>
+      <div class="item-body">
+        <div class="field">
+          <span class="flabel">Do this</span>
+          <p>Project → <strong>Settings → Environment Variables</strong>. Add each key from your <code>.env.local</code>, ticking "Production" (and "Preview" if you want preview deploys to work):</p>
+          <ul>
+            <li><code>NEXT_PUBLIC_SUPABASE_URL</code>, <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> — public; safe here, they're in the browser bundle by design.</li>
+            <li><code>NEXT_PUBLIC_SITE_URL</code> — your production URL, e.g. <code>https://ngplus.vercel.app</code> (or your custom domain). Used by <code>metadataBase</code> (S3), <code>robots.ts</code>/<code>sitemap.ts</code> (S4), and the auth <code>redirectTo</code> (B2).</li>
+            <li><code>SUPABASE_SECRET_KEY</code>, <code>ANTHROPIC_API_KEY</code>, <code>RAWG_API_KEY</code>, <code>STEAM_API_KEY</code> — secret; server-only, never prefixed <code>NEXT_PUBLIC</code>.</li>
+          </ul>
+        </div>
+        <div class="field">
+          <span class="flabel">Key concept</span>
+          <p><code>NEXT_PUBLIC_*</code> values are baked into the JS bundle <em>at build time</em> — change one later and you must redeploy for it to take effect. Secret vars are read at runtime on the server, so rotating one only needs a redeploy, no code change.</p>
+        </div>
+      </div>
+    </article>
+
+    <article class="item" data-sev="deploy" id="D6">
+      <div class="item-head">
+        <input type="checkbox" class="chk" id="chk-D6">
+        <label for="chk-D6"><span class="tag">Deploy</span>D6 · Point Supabase at your production URL</label>
+      </div>
+      <div class="item-body">
+        <div class="field">
+          <span class="flabel">Do this</span>
+          <p>Supabase dashboard → <strong>Authentication → URL Configuration</strong>:</p>
+          <ul>
+            <li>"Site URL" → your production URL.</li>
+            <li>"Redirect URLs" → add <code>https://your-site/auth/callback</code> and, if you use preview deploys, <code>https://*.vercel.app/auth/callback</code> (tighten later).</li>
+          </ul>
+          <p>Then <strong>Authentication → Providers → Email</strong>: confirm whether "Confirm email" is on (recommended). If on, B3's callback route is mandatory for signup to complete.</p>
+          <p>And <strong>Storage → Policies</strong>: your avatar/image bucket needs public <code>select</code> and authenticated <code>insert</code>/<code>update</code>/<code>delete</code> scoped to the user's own folder — the same RLS thinking as B4, on <code>storage.objects</code>.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">Why</span>
+          <p>The links in Supabase's emails are built from "Site URL". If it still points at <code>localhost</code>, every confirmation and reset email in production sends users to their own machine.</p>
+        </div>
+      </div>
+    </article>
+
+    <article class="item" data-sev="deploy" id="D7">
+      <div class="item-head">
+        <input type="checkbox" class="chk" id="chk-D7">
+        <label for="chk-D7"><span class="tag">Deploy</span>D7 · Deploy, then smoke-test the whole path</label>
+      </div>
+      <div class="item-body">
+        <div class="field">
+          <span class="flabel">Do this</span>
+          <p>Trigger the deploy (Vercel does it automatically once env vars are set, or hit "Redeploy"). When it's live, walk the entire critical path <em>on the production URL</em>:</p>
+          <ul>
+            <li>1 · Sign up with a real email you control.</li>
+            <li>2 · Receive the confirmation email, click the link → land logged-in (tests B3 + D6).</li>
+            <li>3 · Search a game, open its detail page → the browser-tab title is the game name (tests S3).</li>
+            <li>4 · Rate it 1–10, write a review.</li>
+            <li>5 · Get to 5 ratings → open your Loadout, click "Generate my Read-out" → one call, and the text survives a reload. Loading the page itself makes zero AI calls (tests B1).</li>
+            <li>6 · Log out → "Forgot password" → reset email → set a new password → log in (tests B2).</li>
+            <li>7 · Visit <code>/robots.txt</code>, <code>/sitemap.xml</code>, and a bad URL like <code>/user/xxxxx</code> → styled 404 (tests S1, S4).</li>
+            <li>8 · <code>curl -sI https://your-site | grep -i x-frame</code> (tests S5).</li>
+            <li>9 · From a second account, try to edit the first account's list via devtools → must fail (tests B4).</li>
+          </ul>
+        </div>
+      </div>
+    </article>
+
+    <article class="item" data-sev="deploy" id="D8">
+      <div class="item-head">
+        <input type="checkbox" class="chk" id="chk-D8">
+        <label for="chk-D8"><span class="tag">Deploy</span>D8 · Custom domain (optional)</label>
+      </div>
+      <div class="item-body">
+        <div class="field">
+          <span class="flabel">Do this</span>
+          <p>Vercel → Settings → Domains → add your domain and follow the DNS instructions (usually one <code>A</code> record or a <code>CNAME</code>). Once it resolves, update <code>NEXT_PUBLIC_SITE_URL</code> <em>and</em> the Supabase "Site URL" / "Redirect URLs" to the custom domain, then redeploy so <code>metadataBase</code> and the auth redirects use it.</p>
+        </div>
+      </div>
+    </article>
+
+    <article class="item" data-sev="deploy" id="D9">
+      <div class="item-head">
+        <input type="checkbox" class="chk" id="chk-D9">
+        <label for="chk-D9"><span class="tag">Deploy</span>D9 · Production housekeeping</label>
+      </div>
+      <div class="item-body">
+        <div class="field">
+          <span class="flabel">The list</span>
+          <ul>
+            <li><strong>Supabase free tier</strong> pauses a project after ~1 week of inactivity — fine now, just know it. The paid tier ($25/mo) removes that and adds daily backups; enable Point-in-Time Recovery once you have real users.</li>
+            <li><strong>Anthropic spend limit</strong> — set a monthly cap / alert on your Anthropic account so a B1 regression can't surprise you with a bill.</li>
+            <li><strong>Vercel deploy branch</strong> — Settings → Git: confirm production deploys track the branch you expect (usually <code>main</code>).</li>
+            <li><strong>Preview protection</strong> — Settings → Deployment Protection: require auth for preview URLs so half-built features aren't publicly linkable.</li>
+            <li><strong>RAWG</strong> — the seed script is run manually, not at runtime, so no action; just don't put <code>RAWG_API_KEY</code> anywhere client-side.</li>
+          </ul>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <hr>
+
+  <!-- ============ GATE ============ -->
+  <section class="section gate" id="gate">
+    <h2 class="sec"><span class="n">F</span>Final gate</h2>
+    <p>You're ready to share the link when:</p>
+    <ul>
+      <li>Every <strong style="color:var(--blocker)">Blocker</strong> (B1–B4) is checked.</li>
+      <li>D1's four commands pass clean on your machine.</li>
+      <li>D7's smoke test is fully green on the production URL — especially step 5 (Loadout only generates from the button, never on page load) and step 9 (cross-account edit fails).</li>
+      <li>You've decided consciously about each <strong style="color:var(--soon)">Soon</strong> item — done, or explicitly "next week".</li>
+    </ul>
+    <p style="margin-bottom:0;color:var(--ink-dim)">The three things you'd already parked for v2 — Steam achievements, review likes &amp; sort, same-series links — aren't on this list and don't belong on it. They're additive; none of them block a ship.</p>
+  </section>
+
+  </main>
+</div>
+</div>
+
+<script>
+(function () {
+  var KEY = 'ngplus-ship-readiness-v1';
+  var state = {};
+  try { state = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { state = {}; }
+  var boxes = Array.prototype.slice.call(document.querySelectorAll('.chk'));
+  var barFill = document.querySelector('.bar > i');
+  var countEl = document.getElementById('count');
+
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+
+  function refresh() {
+    var done = 0;
+    boxes.forEach(function (b) {
+      var on = !!state[b.id];
+      b.checked = on;
+      var item = b.closest('.item');
+      if (item) item.classList.toggle('done', on);
+      if (on) done++;
+    });
+    var pct = boxes.length ? Math.round((done / boxes.length) * 100) : 0;
+    if (barFill) barFill.style.width = pct + '%';
+    if (countEl) countEl.textContent = done + ' / ' + boxes.length + ' done';
+  }
+
+  boxes.forEach(function (b) {
+    b.addEventListener('change', function () {
+      state[b.id] = b.checked;
+      save();
+      refresh();
+    });
+  });
+
+  var resetBtn = document.getElementById('reset');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', function () {
+      if (confirm('Clear every checkmark? This only affects this browser.')) {
+        state = {};
+        save();
+        refresh();
+      }
+    });
+  }
+
+  refresh();
+
+  // scroll-spy for the table of contents
+  var links = {};
+  Array.prototype.slice.call(document.querySelectorAll('.toc a')).forEach(function (a) {
+    var id = a.getAttribute('href').slice(1);
+    links[id] = a;
+  });
+  var targets = Array.prototype.slice.call(document.querySelectorAll('main [id]'));
+  if ('IntersectionObserver' in window && targets.length) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting && links[e.target.id]) {
+          Object.keys(links).forEach(function (k) { links[k].classList.remove('active'); });
+          links[e.target.id].classList.add('active');
+        }
+      });
+    }, { rootMargin: '-12% 0px -78% 0px' });
+    targets.forEach(function (t) { io.observe(t); });
+  }
+})();
+</script>

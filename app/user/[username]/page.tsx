@@ -114,9 +114,9 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
                         ? <>{Math.trunc(avgRating * 100) / 100}<span className="text-base text-(--color-muted)"> / 10</span></>
                         : <span className="text-(--color-muted)">&mdash;</span> },
                 ]} />
-                {profile.bio && (
+                {profile.profile_loadout_bio && (
                     <p className="mt-6 mb-2 text-lg italic leading-relaxed text-(--color-text) font-(family-name:--font-display) max-w-2xl mx-auto text-center">
-                        &ldquo;{profile.bio}&rdquo;
+                        &ldquo;{profile.profile_loadout_bio}&rdquo;
                     </p>
                 )}
 
