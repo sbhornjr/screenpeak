@@ -120,13 +120,17 @@ export async function signInWithPassword(supabase: SupabaseClient, email: string
     return error
 }
 
-export async function signUpWithPassword(supabase: SupabaseClient, { email, password, username }: { email: string, password: string, username: string }) {
-    const { error } = await supabase.auth.signUp({
+export async function signUpWithPassword(
+    supabase: SupabaseClient,
+    { email, password, username }: { email: string, password: string, username: string },
+    emailRedirectTo?: string,
+) {
+    const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { username } }
+        options: { data: { username }, emailRedirectTo }
     })
-    return error
+    return { data, error }
 }
 
 export async function signOut(supabase: SupabaseClient) {

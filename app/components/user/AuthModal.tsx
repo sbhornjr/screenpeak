@@ -20,11 +20,14 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
     const [password, setPassword] = useState("")
     const [passwordAgain, setPasswordAgain] = useState("")
     const [error, setError] = useState("")
+    const [info, setInfo] = useState("")
     const router = useRouter()
 
     if (!isOpen) return null;
 
     async function signIn() {
+        setError("")
+        setInfo("")
         setLoading(true)
         const supabase = createClient()
         const error = await signInWithPassword(supabase, email, password)
@@ -37,7 +40,26 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
         }
     }
 
+    async function forgotPassword() {
+        setError("")
+        setInfo("")
+        if (!email) {
+            setError("Enter your email above first.")
+            return
+        }
+        setLoading(true)
+        const supabase = createClient()
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+            redirectTo: `${window.location.origin}/auth/confirm?next=/auth/update-password`,
+        })
+        setLoading(false)
+        if (error) setError(error.message)
+        else setInfo("If that email has an account, a reset link is on its way.")
+    }
+
     async function signUp() {
+        setError("")
+        setInfo("")
         if (password !== passwordAgain) {
             setError("Passwords don't match")
             return
@@ -48,14 +70,35 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
         }
         setLoading(true)
         const supabase = createClient()
-        const error = await signUpWithPassword(supabase, { email, password, username })
+        const { data, error } = await signUpWithPassword(
+            supabase,
+            { email, password, username },
+            `${window.location.origin}/auth/confirm`,
+        )        
         setLoading(false)
+
+        // Supabase hides "email already registered" two ways depending on the
+        // Confirm-email setting: an explicit error when it's off, or a user with
+        // no identities when it's on (anti-enumeration). Treat both as "sign in".
+        const alreadyRegistered =
+            error?.code === "user_already_exists" ||
+            (!error && !!data.user && (data.user.identities?.length ?? 0) === 0)
+
+        if (alreadyRegistered) {
+            setError("That email already has an account — sign in instead.")
+            setTab("signin")
+            return
+        }
         if (error) {
             setError(error.message)
-        } else {
-            onClose()
-            router.refresh()
+            return
         }
+        if (!data.session) {
+            setInfo("Check your email for a link to finish signing up.")
+            return
+        }
+        onClose()
+        router.refresh()
     }
 
     return (
@@ -89,9 +132,13 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
                         {error && (
                             <p className="self-center font-semibold mt-4">{error}</p>
                         )}
+                        {info && (
+                            <p className="self-center text-sm text-(--color-muted) mt-4">{info}</p>
+                        )}
                         <button type="submit" disabled={loading} className="font-semibold py-2 px-5 self-center my-4 rounded-[3px] bg-(--color-accent) text-(--color-bg) hover:bg-(--color-accent-hover) transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-accent) focus-visible:ring-offset-2 focus-visible:ring-offset-(--color-surface) disabled:opacity-60">
                             {loading ? "..." : "Sign In"}</button>
-                        <button type="button" onClick={() => setTab("signup")} className="underline self-center hover:text-(--color-accent) transition-colors duration-200">Don&apos;t have an account? Sign Up.</button>
+                        <button type="button" onClick={forgotPassword} disabled={loading} className="text-sm underline self-center text-(--color-muted) hover:text-(--color-accent) transition-colors duration-200 disabled:opacity-60">Forgot password?</button>
+                        <button type="button" onClick={() => { setTab("signup"); setError(""); setInfo("") }} className="underline self-center hover:text-(--color-accent) transition-colors duration-200">Don&apos;t have an account? Sign Up.</button>
                     </form>
                 )
                 : (
@@ -139,9 +186,12 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
                         {error && (
                             <p className="self-center font-semibold mt-4">{error}</p>
                         )}
+                        {info && (
+                            <p className="self-center text-sm text-(--color-muted) mt-4">{info}</p>
+                        )}
                         <button type="submit" disabled={loading} className="font-semibold py-2 px-5 self-center my-4 rounded-[3px] bg-(--color-accent) text-(--color-bg) hover:bg-(--color-accent-hover) transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-accent) focus-visible:ring-offset-2 focus-visible:ring-offset-(--color-surface) disabled:opacity-60">
                             {loading ? "..." : "Sign Up"}</button>
-                        <button type="button" onClick={() => setTab("signin")} className="underline self-center hover:text-(--color-accent) transition-colors duration-200">Already have an account? Sign In.</button>
+                        <button type="button" onClick={() => { setTab("signin"); setError(""); setInfo("") }} className="underline self-center hover:text-(--color-accent) transition-colors duration-200">Already have an account? Sign In.</button>
                     </form>
                 )}
         </Modal>

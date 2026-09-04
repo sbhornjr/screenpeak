@@ -313,24 +313,25 @@ const canGenerate = loadoutInput.totalRatings &gt;= 5</code></pre>
           <p>Password logins guarantee some users will forget theirs. Without this, they're permanently locked out and either email you or leave.</p>
         </div>
         <div class="field">
-          <span class="flabel">How to do it — three pieces</span>
+          <span class="flabel">Status — implemented</span>
+          <p>Shipped as a "Forgot password?" control in <code>AuthModal</code> + a new <span class="code">app/auth/update-password/page.tsx</span>, both riding on B3's <code>/auth/confirm</code> route.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">How it works — three pieces</span>
           <ul>
-            <li><strong>A "Forgot password?" control in <code>AuthModal</code>:</strong>
+            <li><strong>"Forgot password?" in <code>AuthModal</code>'s sign-in tab</strong> calls
               <pre><code>await supabase.auth.resetPasswordForEmail(email, {
-  redirectTo: `${location.origin}/auth/callback?next=/auth/update-password`,
-})
-// then show "Check your email for a reset link."</code></pre>
+  redirectTo: `${window.location.origin}/auth/confirm?next=/auth/update-password`,
+})</code></pre>
+              then shows an anti-enumeration message ("If that email has an account, a reset link is on its way").
             </li>
-            <li><strong>The <code>/auth/callback</code> route</strong> — item <a href="#B3">B3</a>. The reset link lands there first and it creates a temporary session.</li>
-            <li><strong>A small <code>app/auth/update-password/page.tsx</code></strong> — a client form with one "new password" field:
-              <pre><code>const { error } = await supabase.auth.updateUser({ password: newPassword })
-// success -&gt; redirect to '/' ; the user is already in the temp session</code></pre>
-            </li>
+            <li><strong>The <a href="#B3"><code>/auth/confirm</code> route</strong></a> (B3) catches the link — <code>verifyOtp</code> for a <code>type=recovery</code> token-hash link, or <code>exchangeCodeForSession</code> for the default-template <code>?code=</code> link — sets a temporary session, and redirects to <code>/auth/update-password</code>.</li>
+            <li><strong><span class="code">app/auth/update-password/page.tsx</span></strong> — a client page that checks a session exists (shows a "use the link in your email" message if not), takes a new password + confirmation, calls <code>supabase.auth.updateUser({ password })</code>, then redirects home.</li>
           </ul>
         </div>
         <div class="field">
           <span class="flabel">Verify</span>
-          <p>Sign up, log out, use "forgot password", open the email, follow the link, set a new password, log in with it.</p>
+          <p>Sign in tab → "Forgot password?" with your email → open the email → follow the link → land on <code>/auth/update-password</code> → set a new password → you're logged in and sent home. Visiting <code>/auth/update-password</code> directly (no link) shows the fallback message, not a broken form.</p>
         </div>
       </div>
     </article>
@@ -342,53 +343,36 @@ const canGenerate = loadoutInput.totalRatings &gt;= 5</code></pre>
       </div>
       <div class="item-body">
         <div class="field">
+          <span class="flabel">Status — implemented</span>
+          <p>Shipped as <span class="code">app/auth/confirm/route.ts</span> plus signup-flow changes in <code>AuthModal</code> and <code>signUpWithPassword</code>. Confirm-email is still <em>off</em> in Supabase — the route + flow are ready for when you turn it on.</p>
+        </div>
+        <div class="field">
           <span class="flabel">What it is</span>
-          <p>A Route Handler at <span class="code">app/auth/callback/route.ts</span> that receives the credential from Supabase email links (<code>?code=</code> or <code>?token_hash=&amp;type=</code>), exchanges it for a real session, and redirects the user into the app. See the concept <a href="#concepts">"How Supabase email links become a session"</a>.</p>
+          <p>A Route Handler at <span class="code">app/auth/confirm/route.ts</span> that receives the credential from Supabase email links, exchanges it for a real session, and redirects the user in. It handles <strong>both</strong> link formats so you don't have to edit email templates: <code>?token_hash=&amp;type=</code> (custom template) via <code>verifyOtp</code>, and <code>?code=</code> (Supabase's default template) via <code>exchangeCodeForSession</code>. Recovery links (<code>type=recovery</code>, or <code>next=/auth/update-password</code> on the code flow) are sent to the set-password page; everything else to <code>next</code> (default <code>/</code>).</p>
         </div>
         <div class="field">
           <span class="flabel">Why it matters here</span>
-          <p>Every email flow — signup confirmation, password reset (<a href="#B2">B2</a>), email-change confirmation (you already have <code>updateEmail</code> at <span class="code">user.ts:137</span>) — sends the user to a link pointing back at your app. With no route to catch it, the link 404s and the flow dies.</p>
+          <p>Every email flow — signup confirmation, password reset (<a href="#B2">B2</a>), email-change confirmation (<code>updateEmail</code> at <span class="code">user.ts:137</span>) — sends the user to a link pointing back at your app. With no route to catch it, the link 404s and the flow dies.</p>
         </div>
         <div class="field">
-          <span class="flabel">How to do it</span>
-          <pre><code>// app/auth/callback/route.ts
-import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase-server'
-
-export async function GET(request: NextRequest) {
-  const { searchParams, origin } = request.nextUrl
-  const next = searchParams.get('next') ?? '/'
-  const code = searchParams.get('code')
-  const token_hash = searchParams.get('token_hash')
-  const type = searchParams.get('type') as
-    'signup' | 'recovery' | 'email_change' | 'invite' | 'magiclink' | null
-
-  const supabase = await createClient()
-  let error = null
-
-  if (code) {
-    ({ error } = await supabase.auth.exchangeCodeForSession(code))
-  } else if (token_hash &amp;&amp; type) {
-    ({ error } = await supabase.auth.verifyOtp({ type, token_hash }))
-  } else {
-    error = new Error('missing code')
-  }
-
-  if (error) {
-    return NextResponse.redirect(`${origin}/?auth_error=1`)
-  }
-  return NextResponse.redirect(`${origin}${next}`)
-}</code></pre>
-          <p>Then, in the Supabase dashboard:</p>
+          <span class="flabel">Also changed</span>
           <ul>
-            <li><strong>Authentication → URL Configuration:</strong> set "Site URL" to your production URL; add <code>https://your-site/auth/callback</code> to "Redirect URLs".</li>
-            <li><strong>Authentication → Email Templates:</strong> the default templates link to <code>{{ .SiteURL }}/auth/confirm?token_hash=…&amp;type=…</code>. Either change them to <code>/auth/callback</code>, or also create <code>app/auth/confirm/route.ts</code> with the same body — the handler above already covers both shapes, so pointing the templates at <code>/auth/callback</code> is simplest.</li>
-            <li><strong>Authentication → Providers → Email:</strong> decide whether "Confirm email" is on (recommended). If on, this route is mandatory for signup to work at all.</li>
+            <li><code>signUpWithPassword</code> takes an <code>emailRedirectTo</code> arg; <code>AuthModal</code> passes <code>${window.location.origin}/auth/confirm</code> so confirmation links come back to the route, not the bare site root.</li>
+            <li><code>AuthModal.signUp()</code> now branches on the result: session returned → close + refresh; no session → "check your email"; already-registered (an explicit <code>user_already_exists</code> error with confirm-email off, or <code>data.user.identities.length === 0</code> with it on) → "sign in instead" + flips to the sign-in tab.</li>
+          </ul>
+        </div>
+        <div class="field">
+          <span class="flabel">Dashboard — still required (no code)</span>
+          <ul>
+            <li><strong>Authentication → URL Configuration:</strong> Site URL <code>http://localhost:3000</code> (prod URL later); add <code>http://localhost:3000/**</code> to "Redirect URLs" (add the prod <code>/**</code> at deploy). Without the allowlist entry Supabase ignores <code>emailRedirectTo</code> and the link lands on the bare site root.</li>
+            <li><strong>Email templates:</strong> nothing to do — the route handles the default <code>?code=</code> template. Editing templates is gated behind custom SMTP anyway.</li>
+            <li><strong>Custom SMTP:</strong> not needed for local testing or a soft launch (built-in sender works, just rate-limited). Add a provider (Resend etc.) before real signup volume — needs a verified domain, so it pairs with <a href="#D8">D8</a>.</li>
+            <li><strong>Confirm email toggle:</strong> off today. Flip it on (Authentication → Providers → Email) whenever you're ready — the code already handles both states.</li>
           </ul>
         </div>
         <div class="field">
           <span class="flabel">Verify</span>
-          <p>Fresh signup → confirmation email → click the link → you land logged-in on the app, not on a 404.</p>
+          <p>With confirm-email on: fresh signup → confirmation email → click the link → land logged-in, not a 404. Sign up with an existing email → "sign in instead" + tab flips. Password reset link (B2) → lands on <code>/auth/update-password</code>.</p>
         </div>
       </div>
     </article>
