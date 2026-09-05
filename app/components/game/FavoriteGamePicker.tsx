@@ -16,6 +16,7 @@ export default function FavoriteGamePicker({ userId, currentGames } : { userId: 
     const [results, setResults] = useState<Game[]>([])
     const [isGamePickerModalOpen, setIsGamePickerModalOpen] = useState(false)
     const [selectedGames, setSelectedGames] = useState(currentGames)
+    const [error, setError] = useState("")
     const router = useRouter()
 
     useEffect(() => {        
@@ -34,18 +35,26 @@ export default function FavoriteGamePicker({ userId, currentGames } : { userId: 
     }, [searchQuery])  
 
     function gameSelected(game: Game) {
+        // if/else, not two ifs — otherwise deselecting a game when the list is
+        // under 5 immediately re-adds it via the second check.
         if (selectedGames.find(g => g.id === game.id)) {
             setSelectedGames(selectedGames.filter(g => g.id !== game.id))
-        }
-        if (selectedGames.length < 5) {
+        } else if (selectedGames.length < 5) {
             setSelectedGames([game, ...selectedGames])
         }
     }
-    
+
     async function submitGames() {
+        setError("")
         const supabase = createClient()
         const addedNew = selectedGames.some(g => !currentGames.find(c => c.id === g.id))
-        await updateFavoriteGames(supabase, userId, selectedGames.map(g => g.id))
+        const { error: writeError } = await updateFavoriteGames(supabase, userId, selectedGames.map(g => g.id))
+
+        if (writeError) {
+            setError(writeError)
+            return
+        }
+
         setIsGamePickerModalOpen(false)
         // +1 only when a game was newly pinned, not on reorder/removal
         if (addedNew) plus1("FAVORITED")
@@ -65,6 +74,9 @@ export default function FavoriteGamePicker({ userId, currentGames } : { userId: 
                     panelClassName="w-full max-w-xl max-h-[75vh] p-8 overflow-scroll"
                 >
                         <p className="text-center text-md mb-4">You can only select 5 favorite games. Choose wisely.</p>
+                        {error && (
+                            <p className="text-center text-sm font-semibold text-(--color-bad) mb-2">{error}</p>
+                        )}
                         <div className="flex flex-row gap-2">
                             <input
                                 type="text"

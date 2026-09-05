@@ -11,14 +11,21 @@ import { updateSelectedTitle } from "@/lib/queries/user";
 export default function TitleSelectButton({ userId, currentTitle, topGames, topDevelopers } : { userId: string, currentTitle : string, topGames : string[], topDevelopers : string[] }) {
     const [isTitleSelectModalOpen, setIsTitleSelectModalOpen] = useState(false)
     const [selectedTitle, setSelectedTitle] = useState(currentTitle)
+    const [error, setError] = useState("")
     const router = useRouter()
 
     async function handleTitleChange(title: string) {
+        setError("")
         const supabase = createClient()
-        const newTitle = await updateSelectedTitle(supabase, userId, title)
+        const { title: newTitle, error: writeError } = await updateSelectedTitle(supabase, userId, title)
+
+        if (writeError || !newTitle) {
+            setError(writeError ?? "Couldn't update your title")
+            return
+        }
+
         setSelectedTitle(newTitle)
         setIsTitleSelectModalOpen(false)
-
         router.refresh()
     }
 
@@ -31,6 +38,9 @@ export default function TitleSelectButton({ userId, currentTitle, topGames, topD
                     title="Select Title"
                     panelClassName="w-full max-w-md max-h-8/10 p-8 overflow-scroll"
                 >
+                    {error && (
+                        <p className="mb-3 text-sm font-semibold text-(--color-bad)">{error}</p>
+                    )}
                     <div className="grid grid-cols-2 gap-4 items-center">
                         {getTitles({topGames, topDevelopers}).map(t =>
                             <button key={t} onClick={() => handleTitleChange(t)}

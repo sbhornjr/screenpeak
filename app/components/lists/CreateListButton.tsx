@@ -14,19 +14,24 @@ export default function CreateListButton({ userId, type, current, defaultListPri
     const [isPinned, setIsPinned] = useState(current ? current.isPinned : false)
     const [isPublic, setIsPublic] = useState(current ? current.isPublic : defaultListPrivacy ?? true)
     const [isCreateListModalOpen, setIsCreateListModalOpen] = useState(false)
+    const [error, setError] = useState("")
     const router = useRouter()
     const isUpdate = type && type === "update"
 
     async function submitList() {
+        setError("")
         const supabase = createClient()
         const fields = { name, description, isPublic, isPinned }
 
-        if (isUpdate && current) {
-            await updateList(supabase, current.listId, fields)
-        } else {
-            await createList(supabase, userId, fields)
-            plus1("NEW LIST")
+        const { error: writeError } = isUpdate && current
+            ? await updateList(supabase, current.listId, fields)
+            : await createList(supabase, userId, fields)
+
+        if (writeError) {
+            setError(writeError)
+            return
         }
+        if (!isUpdate) plus1("NEW LIST")
 
         setIsCreateListModalOpen(false)
         router.refresh()
@@ -95,6 +100,9 @@ export default function CreateListButton({ userId, type, current, defaultListPri
                                 </button>
                             ))}
                         </div>
+                        {error && (
+                            <p className="text-sm font-semibold text-(--color-bad)">{error}</p>
+                        )}
                         <button type="submit" className="px-4 py-1 text-md bg-(--color-accent) text-(--color-bg) font-semibold rounded-[3px] hover:bg-(--color-accent-hover) transition-colors duration-200">
                             {isUpdate ? "Update List" : "Create List"}
                         </button>

@@ -18,6 +18,7 @@ export default function RateReviewButton({ game_id, existing_rating_review } :
     const [rating, setRating] = useState(existingRatingReview ? existingRatingReview.rating : "6")
     const [ratingLabel, setRatingLabel] = useState("")
     const [review, setReview] = useState(existingRatingReview?.review ?? "")
+    const [error, setError] = useState("")
     const router = useRouter()
 
     function setLabel(value: string) {
@@ -66,19 +67,20 @@ export default function RateReviewButton({ game_id, existing_rating_review } :
     async function handleSubmit() {
         if (!user) return
 
+        setError("")
         const supabase = createClient()
-
         const wasNew = !existingRatingReview
 
-        if (existingRatingReview) {
-            const data = await updateRatingReview(supabase, { userId: user.id, gameId: game_id, rating, review })
-            setExistingRatingReview(data)
-        }
-        else {
-            const data = await createRatingReview(supabase, { userId: user.id, gameId: game_id, rating, review })
-            setExistingRatingReview(data)
+        const { data, error: writeError } = existingRatingReview
+            ? await updateRatingReview(supabase, { userId: user.id, gameId: game_id, rating, review })
+            : await createRatingReview(supabase, { userId: user.id, gameId: game_id, rating, review })
+
+        if (writeError) {
+            setError(writeError)
+            return
         }
 
+        setExistingRatingReview(data)
         setIsRateReviewModalOpen(false)
         // +1 fires only the first time you score a game, not on amendments
         if (wasNew) plus1("RATED")
@@ -131,6 +133,9 @@ export default function RateReviewButton({ game_id, existing_rating_review } :
                                     rounded-[3px] px-3 py-2 resize-none"
                             />
                         </div>
+                        {error && (
+                            <p className="text-sm font-semibold text-(--color-bad) text-center mb-2">{error}</p>
+                        )}
                         <button onClick={() => handleSubmit()} className="w-32 px-4 py-1 text-xl bg-(--color-accent) text-(--color-bg) font-semibold self-center rounded-[3px] transition-all duration-200 group-hover:bg-(--color-accent-hover)">
                             Submit
                         </button>

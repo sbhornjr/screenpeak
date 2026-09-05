@@ -10,11 +10,18 @@ import { updateBio } from "@/lib/queries/user"
 export default function BioButton({ userId, currentBio } : { userId: string, currentBio: string }) {
     const [bio, setBio] = useState(currentBio)
     const [isBioModalOpen, setIsBioModalOpen] = useState(false)
+    const [error, setError] = useState("")
     const router = useRouter()
 
     async function submitBio() {
+        setError("")
         const supabase = createClient()
-        await updateBio(supabase, userId, bio)
+        const { error: writeError } = await updateBio(supabase, userId, bio)
+
+        if (writeError) {
+            setError(writeError)
+            return
+        }
 
         setIsBioModalOpen(false)
         router.refresh()
@@ -39,6 +46,9 @@ export default function BioButton({ userId, currentBio } : { userId: string, cur
                             border border-(--color-border) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-accent) focus-visible:border-(--color-accent)
                             rounded-[3px] px-3 py-2 resize-none"
                     />
+                    {error && (
+                        <p className="mt-2 text-sm font-semibold text-(--color-bad)">{error}</p>
+                    )}
                     <button onClick={() => submitBio()} className="mt-4 px-4 py-1 text-md bg-(--color-accent) text-(--color-bg) font-semibold rounded-[3px] hover:bg-(--color-accent-hover) transition-colors duration-200">
                         Submit Bio
                     </button>

@@ -14,16 +14,20 @@ export default function AddToListButton({ gameId, lists, listIdsGameIsIn, defaul
     const [isAddToListModalOpen, setIsAddToListModalOpen] = useState(false)
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
     const [listIdsGameIsInState, setListIdsGameIsInState] = useState(new Set(listIdsGameIsIn))
+    const [error, setError] = useState("")
     const { user } = useUser()
 
     async function handleListToggle(listId: string, alreadyInList: boolean) {
+        setError("")
         const supabase = createClient()
 
         if (alreadyInList) {
-            await removeGameFromList(supabase, listId, gameId)
+            const { error: removeError } = await removeGameFromList(supabase, listId, gameId)
+            if (removeError) { setError(removeError); return }
             setListIdsGameIsInState(prev => { prev.delete(listId); return new Set(prev) })
         } else {
-            await addGameToList(supabase, listId, gameId)
+            const { error: addError } = await addGameToList(supabase, listId, gameId)
+            if (addError) { setError(addError); return }
             setListIdsGameIsInState(prev => new Set(prev).add(listId))
             plus1("LISTED")
             setIsAddToListModalOpen(false)
@@ -78,6 +82,9 @@ export default function AddToListButton({ gameId, lists, listIdsGameIsIn, defaul
                                 </button>
                             )
                         })}
+                        {error && (
+                            <p className="text-sm font-semibold text-(--color-bad) mb-2">{error}</p>
+                        )}
                         {user && <CreateListFromGamePageButton gameId={gameId} userId={user.id} close={() => setIsAddToListModalOpen(false)} defaultListPrivacy={defaultListPrivacy ?? true}/>}
                 </Modal>
             )}

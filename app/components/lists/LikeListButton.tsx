@@ -22,13 +22,17 @@ export default function LikeButton({ listId, initialCount, initialLiked, userId 
         const supabase = createClient()
 
         if (liked) {
-            await unlikeList(supabase, listId, userId)
-            setLiked(false)
-            setCount(c => c - 1)
+            const { error } = await unlikeList(supabase, listId, userId)
+            if (!error) {
+                setLiked(false)
+                setCount(c => c - 1)
+            }
         } else {
-            await likeList(supabase, listId, userId)
-            setLiked(true)
-            setCount(c => c + 1)
+            const { error } = await likeList(supabase, listId, userId)
+            if (!error) {
+                setLiked(true)
+                setCount(c => c + 1)
+            }
         }
 
         setLoading(false)

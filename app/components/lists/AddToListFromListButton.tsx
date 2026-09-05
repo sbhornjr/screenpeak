@@ -14,6 +14,7 @@ export default function AddToListFromListButton({ listId, currentGames } : { lis
     const [searchQuery, setSearchQuery] = useState("")
     const [results, setResults] = useState<Game[]>([])
     const [selectedGames, setSelectedGames] = useState(currentGames)
+    const [error, setError] = useState("")
     const router = useRouter()
 
     useEffect(() => {        
@@ -40,12 +41,17 @@ export default function AddToListFromListButton({ listId, currentGames } : { lis
     }
 
     async function submitGames() {
+        setError("")
         const supabase = createClient()
 
         const toRemove = currentGames.filter(g => !selectedGames.some(s => s.id === g.id))
         const toAdd = selectedGames.filter(g => !currentGames.some(c => c.id === g.id))
 
-        await syncListGames(supabase, listId, { toAdd, toRemove })
+        const { error: syncError } = await syncListGames(supabase, listId, { toAdd, toRemove })
+        if (syncError) {
+            setError(syncError)
+            return
+        }
 
         setIsAddToListModalOpen(false)
         router.refresh()
@@ -68,7 +74,7 @@ export default function AddToListFromListButton({ listId, currentGames } : { lis
                         titleClassName="font-semibold text-3xl mb-2 self-center"
                         panelClassName="w-full max-w-xl max-h-8/10 p-8 overflow-y-auto gap-4"
                     >
-                            <div className="flex flex-row gap-2">
+            <div className="flex flex-row gap-2">
                                 <input
                                     type="text"
                                     value={searchQuery}
@@ -87,6 +93,9 @@ export default function AddToListFromListButton({ listId, currentGames } : { lis
                                     Lock
                                 </button>
                             </div>
+                            {error && (
+                                <p className="text-sm font-semibold text-(--color-bad) mt-2">{error}</p>
+                            )}
                             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
                                 {results.map(game => 
                                     <button key={game.id} onClick={() => gameSelected(game)} className={`border border-(--color-muted) hover:border-(--color-accent) hover:bg-(--color-accent-hover) rounded-[3px] ${gameIds.find(g => g === game.id) && "border-(--color-accent) bg-(--color-accent-hover)"}`}>

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { GameRatingReview, RatingReviewData, RatingReviewCounts, AvgRatingsData, GameRatingsStats } from '@/types'
+import { ratingReviewSchema, parseOrError } from '@/lib/schemas'
 
 // Rating counts + distribution for a game, computed server-side rather than
 // pulling every rating/review row (with joined user data) into memory.
@@ -53,25 +54,33 @@ export async function getGameReviewsForPage(supabase: SupabaseClient, gameId: st
 }
 
 export async function createRatingReview(supabase: SupabaseClient, { userId, gameId, rating, review }: { userId: string, gameId: string, rating: number | string, review: string }) {
-    const { data } = await supabase
+    const parsed = parseOrError(ratingReviewSchema, { rating, review })
+    if (!parsed.success) return { data: null, error: parsed.error }
+
+    const { data, error } = await supabase
         .from('ratings_reviews')
-        .insert({ user_id: userId, game_id: gameId, rating, review })
+        .insert({ user_id: userId, game_id: gameId, rating: parsed.data.rating, review: parsed.data.review })
         .select('rating, review, user_id, created_at, updated_at')
         .single()
 
-    return data
+    if (error) return { data: null, error: error.message }
+    return { data, error: null }
 }
 
 export async function updateRatingReview(supabase: SupabaseClient, { userId, gameId, rating, review }: { userId: string, gameId: string, rating: number | string, review: string }) {
-    const { data } = await supabase
+    const parsed = parseOrError(ratingReviewSchema, { rating, review })
+    if (!parsed.success) return { data: null, error: parsed.error }
+
+    const { data, error } = await supabase
         .from('ratings_reviews')
-        .update({ rating, review })
+        .update({ rating: parsed.data.rating, review: parsed.data.review })
         .eq('user_id', userId)
         .eq('game_id', gameId)
         .select('rating, review, user_id, created_at, updated_at')
         .single()
 
-    return data
+    if (error) return { data: null, error: error.message }
+    return { data, error: null }
 }
 
 // Full rows (used by the loadout page's stats + rating distribution)

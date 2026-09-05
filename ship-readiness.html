@@ -78,6 +78,10 @@ h2.sec .n{font-family:var(--font-mono);font-size:.82rem;color:var(--brass);margi
 
 /* checklist items */
 .item{border:1px solid var(--border);border-left:4px solid var(--sev,var(--brass));background:var(--surface);border-radius:6px;margin:0 0 1.15rem;scroll-margin-top:1.5rem}
+.item.complete{border-left-color:var(--done)}
+.item.complete .item-head .tag{border-color:var(--done);color:var(--done)}
+.item.deferred{opacity:.72}
+.item.deferred .item-head .tag{border-color:var(--ink-faint);color:var(--ink-faint)}
 .item[data-sev="blocker"]{--sev:var(--blocker)}
 .item[data-sev="soon"]{--sev:var(--soon)}
 .item[data-sev="polish"]{--sev:var(--polish)}
@@ -123,7 +127,7 @@ hr{border:0;border-top:1px solid var(--border);margin:2.5rem 0}
     <span class="bar"><i></i></span>
     <button class="reset" id="reset">Reset progress</button>
   </div>
-  <p class="usenote">Check items off as you go — your progress is saved in this browser only (no account, nothing sent anywhere). Three tiers: <strong style="color:var(--blocker)">Blocker</strong> = fix before anyone can reach the site · <strong style="color:var(--soon)">Soon</strong> = want it in v1, a few days' slip harms no one · <strong style="color:var(--polish)">Polish</strong> = safe to ship without, do soon after. The deploy runbook at the end is an ordered sequence.</p>
+  <p class="usenote">Check items off as you go — your progress is saved in this browser only (no account, nothing sent anywhere). Three tiers: <strong style="color:var(--blocker)">Blocker</strong> = fix before anyone can reach the site · <strong style="color:var(--soon)">Soon</strong> = want it in v1, a few days' slip harms no one · <strong style="color:var(--polish)">Polish</strong> = safe to ship without, do soon after. Items tagged <strong style="color:var(--done)">✓ Done</strong> are built and verified. The deploy runbook at the end is an ordered sequence.</p>
 </header>
 
 <div class="layout">
@@ -133,20 +137,20 @@ hr{border:0;border-top:1px solid var(--border);margin:2.5rem 0}
     <nav class="toc-inner" aria-label="Contents">
       <h2>Start here</h2>
       <a href="#concepts"><span class="k">§0</span>Concepts you'll need</a>
-      <h2>Blockers</h2>
-      <a href="#B1"><span class="k">B1</span>Loadout AI → opt-in button</a>
-      <a href="#B2"><span class="k">B2</span>Forgot-password flow</a>
-      <a href="#B3"><span class="k">B3</span>Auth callback route</a>
-      <a href="#B4"><span class="k">B4</span>RLS policy audit</a>
+      <h2>Blockers — all done</h2>
+      <a href="#B1"><span class="k">B1</span>✓ Loadout AI → opt-in button</a>
+      <a href="#B2"><span class="k">B2</span>✓ Forgot-password flow</a>
+      <a href="#B3"><span class="k">B3</span>✓ Auth callback route</a>
+      <a href="#B4"><span class="k">B4</span>✓ RLS policy audit</a>
       <h2>Soon</h2>
-      <a href="#S1"><span class="k">S1</span>not-found.tsx</a>
-      <a href="#S2"><span class="k">S2</span>loading.tsx for slow routes</a>
-      <a href="#S3"><span class="k">S3</span>Per-page metadata</a>
-      <a href="#S4"><span class="k">S4</span>robots.ts + sitemap.ts</a>
-      <a href="#S5"><span class="k">S5</span>Security headers</a>
-      <a href="#S6"><span class="k">S6</span>Error monitoring</a>
-      <a href="#S7"><span class="k">S7</span>Server-side validation</a>
-      <a href="#S8"><span class="k">S8</span>Privacy + terms + consent</a>
+      <a href="#S1"><span class="k">S1</span>✓ not-found.tsx</a>
+      <a href="#S2"><span class="k">S2</span>✓ loading.tsx for slow routes</a>
+      <a href="#S3"><span class="k">S3</span>✓ Per-page metadata</a>
+      <a href="#S4"><span class="k">S4</span>✓ robots.ts + sitemap.ts</a>
+      <a href="#S5"><span class="k">S5</span>✓ Security headers</a>
+      <a href="#S6"><span class="k">S6</span>⏸ Error monitoring</a>
+      <a href="#S7"><span class="k">S7</span>✓ Server-side validation</a>
+      <a href="#S8"><span class="k">S8</span>⏸ Privacy + terms + consent</a>
       <h2>Polish</h2>
       <a href="#P1"><span class="k">P1</span>Modal accessibility</a>
       <a href="#P2"><span class="k">P2</span>Strip server console.logs</a>
@@ -222,10 +226,10 @@ hr{border:0;border-top:1px solid var(--border);margin:2.5rem 0}
     <h2 class="sec"><span class="n">B</span>Blockers — before any public link</h2>
     <p class="sec-intro">If someone can reach the site, these must already be done.</p>
 
-    <article class="item" data-sev="blocker" id="B1">
+    <article class="item complete" data-sev="blocker" id="B1">
       <div class="item-head">
         <input type="checkbox" class="chk" id="chk-B1">
-        <label for="chk-B1"><span class="tag">Blocker</span>B1 · Move the Loadout AI call behind an opt-in button</label>
+        <label for="chk-B1"><span class="tag">✓ Done</span>B1 · Move the Loadout AI call behind an opt-in button</label>
       </div>
       <div class="item-body">
         <div class="field">
@@ -298,10 +302,10 @@ const canGenerate = loadoutInput.totalRatings &gt;= 5</code></pre>
       </div>
     </article>
 
-    <article class="item" data-sev="blocker" id="B2">
+    <article class="item complete" data-sev="blocker" id="B2">
       <div class="item-head">
         <input type="checkbox" class="chk" id="chk-B2">
-        <label for="chk-B2"><span class="tag">Blocker</span>B2 · Add a "forgot password" flow</label>
+        <label for="chk-B2"><span class="tag">✓ Done</span>B2 · Add a "forgot password" flow</label>
       </div>
       <div class="item-body">
         <div class="field">
@@ -336,10 +340,10 @@ const canGenerate = loadoutInput.totalRatings &gt;= 5</code></pre>
       </div>
     </article>
 
-    <article class="item" data-sev="blocker" id="B3">
+    <article class="item complete" data-sev="blocker" id="B3">
       <div class="item-head">
         <input type="checkbox" class="chk" id="chk-B3">
-        <label for="chk-B3"><span class="tag">Blocker</span>B3 · Add the auth callback route</label>
+        <label for="chk-B3"><span class="tag">✓ Done</span>B3 · Add the auth callback route</label>
       </div>
       <div class="item-body">
         <div class="field">
@@ -377,52 +381,34 @@ const canGenerate = loadoutInput.totalRatings &gt;= 5</code></pre>
       </div>
     </article>
 
-    <article class="item" data-sev="blocker" id="B4">
+    <article class="item complete" data-sev="blocker" id="B4">
       <div class="item-head">
         <input type="checkbox" class="chk" id="chk-B4">
-        <label for="chk-B4"><span class="tag">Blocker</span>B4 · Audit your RLS policies</label>
+        <label for="chk-B4"><span class="tag">✓ Done</span>B4 · Audit your RLS policies</label>
       </div>
       <div class="item-body">
         <div class="field">
-          <span class="flabel">What it is</span>
-          <p>Confirming that every table in Supabase has Row Level Security <em>enabled</em> and policies that tie writes to the logged-in user. See the <a href="#concepts">RLS concept</a>.</p>
+          <span class="flabel">Status — audited &amp; hardened</span>
+          <p>Full policy dump reviewed (<code>pg_policies</code>). RLS is enabled on all 17 tables; every INSERT/DELETE is scoped to <code>auth.uid()</code>; <code>list_games</code> correctly hops to the parent list; reference tables (<code>games</code>, <code>genres</code>, …) are read-only-locked. Two gaps were found and fixed.</p>
         </div>
         <div class="field">
           <span class="flabel">Why it matters here</span>
-          <p>All writes go browser → Supabase directly. <code>updateList(listId, …)</code>, <code>setListPinned(listId, …)</code>, <code>syncListGames(listId, …)</code>, <code>removeGameFromList(listId, gameId)</code> in <span class="code">lib/queries/list.ts</span> send only a list id — they trust the database to reject the write if that list isn't yours. If RLS is missing or permissive on <em>any</em> user-owned table, anyone logged in can edit or delete anyone's lists, ratings, library, or profile.</p>
+          <p>All writes go browser → Supabase directly (<code>lib/queries/*</code> send only a row id and trust the DB to reject the write if it isn't yours). RLS is the only enforcement layer, so a permissive policy on any user-owned table = anyone logged in can edit anyone's data.</p>
         </div>
         <div class="field">
-          <span class="flabel">How to do it</span>
+          <span class="flabel">What was fixed</span>
           <ul>
-            <li>Supabase dashboard → Database → Tables. For every user-owned table (<code>lists</code>, <code>list_games</code>, <code>ratings</code>/<code>reviews</code>, <code>library</code>, <code>account_settings</code>/<code>profiles</code>, <code>follows</code>, …): confirm the "RLS enabled" toggle is on and there is a policy for each operation you perform.</li>
-            <li>The pattern for rows owned by a user:
-              <pre><code>-- read: your own rows, plus public ones
-create policy "read own or public" on lists
-  for select using (is_public or auth.uid() = user_id);
-
--- writes: only your own
-create policy "insert own" on lists
-  for insert with check (auth.uid() = user_id);
-create policy "update own" on lists
-  for update using (auth.uid() = user_id)
-             with check (auth.uid() = user_id);
-create policy "delete own" on lists
-  for delete using (auth.uid() = user_id);</code></pre>
-            </li>
-            <li>For a join/child table like <code>list_games</code>, the check hops through the parent:
-              <pre><code>create policy "write via owned list" on list_games
-  for all using (exists (
-    select 1 from lists
-    where lists.id = list_games.list_id
-      and lists.user_id = auth.uid()
-  ));</code></pre>
-            </li>
-            <li>Don't forget <code>storage.objects</code> for the avatar/image bucket — same thinking: public <code>select</code>, writes scoped to the user's own folder.</li>
+            <li><strong>Missing <code>WITH CHECK</code> on every UPDATE policy</strong> (<code>users</code>, <code>lists</code>, <code>library_entries</code>, <code>ratings_reviews</code>, <code>steam_accounts</code>). <code>USING</code> gated which rows could be updated but nothing validated the row afterward, so a user could reassign their own row to another <code>user_id</code>. Added <code>with check (auth.uid() = user_id)</code> to each via <code>ALTER POLICY</code>.</li>
+            <li><strong>The <code>avatars</code> storage bucket had no policies.</strong> <code>uploadAvatarImage()</code> writes <code>&lt;user_id&gt;/avatar.&lt;ext&gt;</code>; without policies any logged-in user could overwrite anyone's avatar. Added public read + owner-folder-scoped insert/update/delete on <code>storage.objects</code> (<code>(storage.foldername(name))[1] = auth.uid()::text</code>).</li>
           </ul>
         </div>
         <div class="field">
+          <span class="flabel">Optional hardening not yet applied</span>
+          <p>SELECT on <code>library_entries</code> and <code>steam_accounts</code> is <code>using (true)</code>, so the <code>library_public</code> toggle and Steam-ID visibility are enforced only in the app UI, not the REST API. Tighten with an <code>EXISTS</code> check against the owner's flag if you want the DB to enforce them — behavior-changing, so test public profiles first.</p>
+        </div>
+        <div class="field">
           <span class="flabel">Verify</span>
-          <p>With two accounts: log in as A, take a <code>list_id</code> belonging to B (visible on B's public profile), and in the browser console run the same <code>.update()</code> your app runs against it. It must return zero rows / an error — not succeed. Repeat the idea for each user-owned table.</p>
+          <p>Re-run the <code>pg_policies</code> query filtered to <code>cmd = 'UPDATE'</code> — all five show a non-null <code>with_check</code>. Cross-account test: as user A, run the same <code>.update()</code> / <code>.delete()</code> / forged <code>.insert()</code> your app runs against a row owned by B — every one returns zero rows or an error.</p>
         </div>
       </div>
     </article>
@@ -433,14 +419,18 @@ create policy "delete own" on lists
   <!-- ============ SOON ============ -->
   <section class="section" id="soon">
     <h2 class="sec"><span class="n">S</span>Soon — want these in v1</h2>
-    <p class="sec-intro">First-impression and safety-net work. A few days' slip won't hurt a user, but don't ship the "1.0" tweet without them.</p>
+    <p class="sec-intro">First-impression and safety-net work. A few days' slip won't hurt a user, but don't ship the "1.0" tweet without them. <strong>S1–S5 and S7 are done;</strong> S6 (error monitoring) and S8 (privacy/terms) are deliberately held until the project name and contact email are finalized.</p>
 
-    <article class="item" data-sev="soon" id="S1">
+    <article class="item complete" data-sev="soon" id="S1">
       <div class="item-head">
         <input type="checkbox" class="chk" id="chk-S1">
-        <label for="chk-S1"><span class="tag">Soon</span>S1 · <code>app/not-found.tsx</code></label>
+        <label for="chk-S1"><span class="tag">✓ Done</span>S1 · <code>app/not-found.tsx</code></label>
       </div>
       <div class="item-body">
+        <div class="field">
+          <span class="flabel">Status — implemented &amp; verified</span>
+          <p><span class="code">app/not-found.tsx</span> ships — Server Component, design-token styled ("Game Over" / link back to feed), covers the "or was made private" case. Build passes with <code>○ /_not-found</code> in the route list. Optional later: a <code>metadata</code> title export, and per-folder <code>not-found.tsx</code> for game- vs profile-specific wording.</p>
+        </div>
         <div class="field">
           <span class="flabel">What it is</span>
           <p>The page Next shows when <code>notFound()</code> is called or a URL matches nothing. You call <code>notFound()</code> in <span class="code">user/[username]/page.tsx:32</span>, <span class="code">lists/page.tsx</span>, <span class="code">lists/[listId]/page.tsx</span> (twice), and <span class="code">games/[slug]/page.tsx:84</span>. With no file, all of those render Next's unstyled default.</p>
@@ -479,12 +469,16 @@ export default function NotFound() {
       </div>
     </article>
 
-    <article class="item" data-sev="soon" id="S2">
+    <article class="item complete" data-sev="soon" id="S2">
       <div class="item-head">
         <input type="checkbox" class="chk" id="chk-S2">
-        <label for="chk-S2"><span class="tag">Soon</span>S2 · <code>loading.tsx</code> for the slow routes</label>
+        <label for="chk-S2"><span class="tag">✓ Done</span>S2 · <code>loading.tsx</code> for the slow routes</label>
       </div>
       <div class="item-body">
+        <div class="field">
+          <span class="flabel">Status — implemented &amp; verified</span>
+          <p>Six <code>loading.tsx</code> files, each a pulsing skeleton (<code>motion-safe:</code> respected, <code>aria-busy</code> on the main): a neutral root fallback (<span class="code">app/loading.tsx</span>) for light routes, plus layout-matched skeletons for <span class="code">app/games/</span> (filter bar + card grid), <span class="code">app/games/[slug]/</span> (cover + meta + distribution + reviews), <span class="code">app/user/[username]/</span> (avatar header + stat grid + card grid — also covers the nested library / lists / ratings_reviews pages), <span class="code">app/user/[username]/loadout/</span> (the <code>1.4fr / 1fr</code> Read-out grid + card sections), and <span class="code">app/user/[username]/lists/[listId]/</span> (title + game grid). <code>tsc</code>, lint, and build all pass. Verify by throttling the network in DevTools and navigating between these routes.</p>
+        </div>
         <div class="field">
           <span class="flabel">What it is</span>
           <p>A file Next shows <em>immediately</em> while the sibling <code>page.tsx</code> is fetching. Creating it automatically wraps the route in a React <code>&lt;Suspense&gt;</code> boundary; when the page's <code>await</code>s resolve, Next swaps the real content in.</p>
@@ -516,12 +510,16 @@ export default function Loading() {
       </div>
     </article>
 
-    <article class="item" data-sev="soon" id="S3">
+    <article class="item complete" data-sev="soon" id="S3">
       <div class="item-head">
         <input type="checkbox" class="chk" id="chk-S3">
-        <label for="chk-S3"><span class="tag">Soon</span>S3 · Per-page metadata with <code>generateMetadata</code> + <code>metadataBase</code></label>
+        <label for="chk-S3"><span class="tag">✓ Done</span>S3 · Per-page metadata with <code>generateMetadata</code> + <code>metadataBase</code></label>
       </div>
       <div class="item-body">
+        <div class="field">
+          <span class="flabel">Status — implemented &amp; verified</span>
+          <p><code>/games/[slug]</code> and <code>/user/[username]</code> both have <code>generateMetadata</code> with full <code>og:*</code> / <code>twitter:*</code> tags, confirmed via <code>curl</code> — game pages carry the RAWG cover image, profile pages carry the real avatar URL as <code>og:image</code>. <strong>Social previews (Discord, iMessage, …) can't be tested against <code>localhost</code></strong> — the crawler runs on their servers and can't reach your machine. Deploy or run a tunnel (<code>cloudflared tunnel --url http://localhost:3000</code>) to see an actual card; <code>curl -s &lt;url&gt; | grep og:</code> is the reliable local check.</p>
+        </div>
         <div class="field">
           <span class="flabel">What <code>generateMetadata</code> is</span>
           <p>An <code>async function generateMetadata({ params })</code> you export from a <code>page.tsx</code> or <code>layout.tsx</code>. Next runs it on the server and uses the returned object to write the <code>&lt;title&gt;</code>, <code>&lt;meta name="description"&gt;</code>, and the Open Graph / Twitter tags into <code>&lt;head&gt;</code>. Those OG tags are what Discord, iMessage, Slack, and Twitter read to build the preview card when someone pastes your link.</p>
@@ -576,67 +574,49 @@ export default function Loading() {
       </div>
     </article>
 
-    <article class="item" data-sev="soon" id="S4">
+    <article class="item complete" data-sev="soon" id="S4">
       <div class="item-head">
         <input type="checkbox" class="chk" id="chk-S4">
-        <label for="chk-S4"><span class="tag">Soon</span>S4 · <code>robots.ts</code> and <code>sitemap.ts</code></label>
+        <label for="chk-S4"><span class="tag">✓ Done</span>S4 · <code>robots.ts</code> and <code>sitemap.ts</code></label>
       </div>
       <div class="item-body">
         <div class="field">
+          <span class="flabel">Status — implemented &amp; verified</span>
+          <p>Confirmed live via <code>curl localhost:3000/robots.txt</code> and <code>/sitemap.xml</code> — disallow list correct, sitemap carries real URLs and <code>lastmod</code> dates for games, users, and public lists.</p>
+        </div>
+        <div class="field">
           <span class="flabel">What they are</span>
-          <p><strong><code>app/robots.ts</code></strong> is served as <code>/robots.txt</code> — the first file every search-engine crawler fetches, telling it which paths it may crawl and where the sitemap is. <strong><code>app/sitemap.ts</code></strong> is served as <code>/sitemap.xml</code> — a machine-readable list of every URL you want indexed, so crawlers find pages they might not reach by following links (every game detail page, say).</p>
+          <p><strong><code>app/robots.ts</code></strong> is served as <code>/robots.txt</code> — the first file every search-engine crawler fetches, telling it which paths it may crawl and where the sitemap is. <strong><code>app/sitemap.ts</code></strong> is served as <code>/sitemap.xml</code> — a supplementary hint listing URLs worth knowing about, not an access list. Crawlers mostly discover pages by <em>following links</em> (nav, game cards, "reviewed by X" links); the sitemap helps with pages that are harder to reach that way and signals <code>lastModified</code> for recrawling.</p>
         </div>
         <div class="field">
           <span class="flabel">Why it matters here</span>
-          <p>Without them, search engines still crawl you — slowly, incompletely, and with no steer on what to index (you probably don't want <code>/settings</code> or <code>/steamlink</code> in Google). For a public-profile app, being findable is part of the point.</p>
+          <p>Without them, search engines still crawl you — slowly, incompletely, and with no steer on what to index. <code>robots.txt</code> is advisory, not access control — it keeps well-behaved crawlers out of pages like <code>/auth/update-password</code>, which is still separately guarded by its own session check.</p>
         </div>
         <div class="field">
-          <span class="flabel">How to do it</span>
-          <pre><code>// app/robots.ts
-import type { MetadataRoute } from 'next'
-
-export default function robots(): MetadataRoute.Robots {
-  const base = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
-  return {
-    rules: { userAgent: '*', allow: '/', disallow: ['/settings', '/steamlink', '/api/'] },
-    sitemap: `${base}/sitemap.xml`,
-  }
-}</code></pre>
-          <pre><code>// app/sitemap.ts
-import type { MetadataRoute } from 'next'
-import { createClient } from '@/lib/supabase-server'
-
-export default async function sitemap(): Promise&lt;MetadataRoute.Sitemap&gt; {
-  const base = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
-  const supabase = await createClient()
-  const { data: games } = await supabase
-    .from('games').select('slug, updated_at').limit(5000)
-
-  return [
-    { url: base, lastModified: new Date() },
-    { url: `${base}/games`, lastModified: new Date() },
-    { url: `${base}/explore`, lastModified: new Date() },
-    ...(games ?? []).map((g) =&gt; ({
-      url: `${base}/games/${g.slug}`,
-      lastModified: g.updated_at ? new Date(g.updated_at) : undefined,
-    })),
-  ]
-}</code></pre>
-          <p>You can append public user profiles too — but only rows where the user set their profile public.</p>
+          <span class="flabel">What was built</span>
+          <ul>
+            <li><code>robots.ts</code> disallows <code>/settings</code>, <code>/steamlink</code>, <code>/auth/</code>, <code>/api/</code>.</li>
+            <li><code>sitemap.ts</code> includes: the three static pages; every game, ordered by <code>metacritic_score desc nulls last</code> before the 5000-row cap — without an explicit order Postgres returns rows in an unstable sequence, so ordering first means a cap (if it ever binds) drops the least-notable games, not an arbitrary slice; every user profile (there are no private profiles, so it's an unconditional include); and every list where <code>is_public = true</code>, joined back to its owner's username for the real <code>/user/&lt;username&gt;/lists/&lt;id&gt;</code> path.</li>
+            <li>Not filtered further by popularity — at this scale, "all public lists" is simpler and correct. Revisit with a sitemap index (multiple files) only if you ever approach Google's 50,000-URL-per-file limit.</li>
+          </ul>
         </div>
         <div class="field">
           <span class="flabel">Verify</span>
-          <p>Visit <code>/robots.txt</code> and <code>/sitemap.xml</code> on the deployed site; the sitemap lists your game URLs.</p>
+          <p><code>curl localhost:3000/robots.txt</code> shows the disallow list; <code>curl localhost:3000/sitemap.xml</code> lists real game/user/list URLs with <code>&lt;lastmod&gt;</code> dates. Re-check both after deploying, since the URLs switch from <code>localhost</code> to <code>NEXT_PUBLIC_SITE_URL</code>.</p>
         </div>
       </div>
     </article>
 
-    <article class="item" data-sev="soon" id="S5">
+    <article class="item complete" data-sev="soon" id="S5">
       <div class="item-head">
         <input type="checkbox" class="chk" id="chk-S5">
-        <label for="chk-S5"><span class="tag">Soon</span>S5 · Security headers in <code>next.config.ts</code></label>
+        <label for="chk-S5"><span class="tag">✓ Done</span>S5 · Security headers in <code>next.config.ts</code></label>
       </div>
       <div class="item-body">
+        <div class="field">
+          <span class="flabel">Status — implemented &amp; verified</span>
+          <p><code>headers()</code> added for <code>/:path*</code>; all six confirmed serving via <code>curl -sI</code>: HSTS, <code>X-Frame-Options: DENY</code>, <code>X-Content-Type-Options: nosniff</code>, <code>Referrer-Policy</code>, <code>Permissions-Policy</code>, and CSP <code>frame-ancestors 'none'</code>. Two notes: the HSTS <code>preload</code> directive is only a signal — it does nothing until you actually submit the domain at <code>hstspreload.org</code>, and enrolment is hard to reverse, so do that only once you're certain the domain is HTTPS-only forever. A full CSP (<code>script-src</code> etc.) is still deferred — it needs per-request nonces for Next's inline scripts.</p>
+        </div>
         <div class="field">
           <span class="flabel">What they are</span>
           <p>HTTP response headers that instruct the browser to enforce specific protections. Next sets them for all routes via an <code>async headers()</code> function in <span class="code">next.config.ts</span> (yours currently only configures <code>images</code>).</p>
@@ -676,12 +656,16 @@ export default async function sitemap(): Promise&lt;MetadataRoute.Sitemap&gt; {
       </div>
     </article>
 
-    <article class="item" data-sev="soon" id="S6">
+    <article class="item deferred" data-sev="soon" id="S6">
       <div class="item-head">
         <input type="checkbox" class="chk" id="chk-S6">
-        <label for="chk-S6"><span class="tag">Soon</span>S6 · Error monitoring</label>
+        <label for="chk-S6"><span class="tag">⏸ Deferred</span>S6 · Error monitoring</label>
       </div>
       <div class="item-body">
+        <div class="field">
+          <span class="flabel">Status — deferred until the name is settled</span>
+          <p>On hold pending the final project name + a real domain/email (NG+ has a trademark conflict). Sentry signup wants an account and creates a project keyed to the app; no point doing it twice. Pick it back up alongside <a href="#S8">S8</a> and the deploy runbook — the wizard needs a browser login, so it's a manual step regardless.</p>
+        </div>
         <div class="field">
           <span class="flabel">What it is</span>
           <p>Something that catches errors thrown on the server (ideally the client too) and sends them somewhere you'll actually see — a dashboard or a chat webhook — with the stack trace and which request caused it.</p>
@@ -720,58 +704,94 @@ export async function onRequestError(err: unknown, request: { path: string }) {
       </div>
     </article>
 
-    <article class="item" data-sev="soon" id="S7">
+    <article class="item complete" data-sev="soon" id="S7">
       <div class="item-head">
         <input type="checkbox" class="chk" id="chk-S7">
-        <label for="chk-S7"><span class="tag">Soon</span>S7 · Server-side input validation</label>
+        <label for="chk-S7"><span class="tag">✓ Done</span>S7 · Server-side input validation</label>
       </div>
       <div class="item-body">
         <div class="field">
-          <span class="flabel">What it is</span>
-          <p>Checking that form data is well-formed <em>on the server</em> — in your <code>lib/queries/*</code> functions — before it reaches the database: length limits, required fields, allowed characters.</p>
+          <span class="flabel">Status — implemented &amp; verified</span>
+          <p>One schema file (<span class="code">lib/schemas.ts</span>) used by every write path in <code>lib/queries/review.ts</code>, <code>list.ts</code>, and <code>user.ts</code>, plus <code>AuthModal</code> and the update-password page. Every one of those functions now returns <code>{ error }</code> instead of discarding it, and every caller (16 components) shows the message instead of silently closing the modal. <span class="code">test/lib/schemas.test.ts</span> covers the boundary cases for every schema. <code>tsc</code>, lint, build, and all 91 tests pass.</p>
         </div>
         <div class="field">
-          <span class="flabel">Why it matters here</span>
-          <p>Client checks (<code>AuthModal</code> password length, <code>AvatarUploader</code> file size) are bypassable — anyone can call your Supabase endpoints directly. Concretely: the review textarea has no max length, so one review can insert megabytes of text; usernames have no format/length rules and DB errors are swallowed (<code>ChangeUsernameButton</code> ignores the return value); bio is unbounded.</p>
-        </div>
-        <div class="field">
-          <span class="flabel">How to do it</span>
-          <p>Add a schema library — <code>npm i zod</code> — and validate at the top of each write function:</p>
-          <pre><code>import { z } from 'zod'
-
-const reviewSchema = z.object({
-  gameId: z.string().uuid(),
-  rating: z.number().int().min(1).max(10),
-  body: z.string().max(5000).optional(),
-})
-
-export async function upsertReview(supabase, input: unknown) {
-  const parsed = reviewSchema.safeParse(input)
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0].message }
-  }
-  const { gameId, rating, body } = parsed.data
-  // ...write
-}</code></pre>
+          <span class="flabel">The rules, and why each number</span>
           <ul>
-            <li><code>.parse()</code> throws on bad input; <code>.safeParse()</code> returns <code>{ success, data | error }</code> so you can show a message. Use <code>safeParse</code> at boundaries.</li>
-            <li>Priorities: review body <code>max(5000)</code>; username <code>z.string().min(3).max(20).regex(/^[a-z0-9_]+$/i)</code>; bio <code>max(500)</code>; list name required + <code>max(80)</code>.</li>
-            <li>Stop swallowing errors — return <code>{ error }</code> to the component so a failed change tells the user instead of silently doing nothing.</li>
+            <li>Review body — <code>max(5000)</code>. Empty string stays valid on purpose — it's "rated, no written review," a real distinct state the app already relies on.</li>
+            <li>Bio — <code>max(500)</code>.</li>
+            <li>Username — <code>3–20 chars, [A-Za-z0-9_]</code> only.</li>
+            <li>List name — required, <code>max(80)</code>. List description — <code>max(500)</code>.</li>
+            <li>Password — raised from 6 to <code>min(8)</code> characters, in one place instead of three separately-maintained copies (<code>AuthModal</code>, <code>/auth/update-password</code>, and <code>ChangePasswordButton</code>, which previously had <em>no</em> length check at all).</li>
+            <li>Email — real format check (<code>AuthModal</code>'s email inputs were also <code>type="text"</code> with zero validation before this).</li>
+            <li>Favorite games — capped at 5 server-side too (was UI-only).</li>
+            <li>Privacy toggle target — was a free string compared with if/else; now a <code>z.enum(['Default List','Library','Loadout'])</code> plus a lookup table.</li>
+            <li><code>selected_title</code> — only bounded by length, deliberately not a strict enum: titles are computed per-user from stats (<code>lib/titles.ts</code> mixes a fixed genre list with dynamic <code>"#1 &lt;game&gt; Fan"</code> entries), so there's no single valid set to check against without recomputing that user's stats server-side. Flagged as a real gap, bigger than input-shape validation, not solved here.</li>
           </ul>
         </div>
         <div class="field">
+          <span class="flabel">Bugs found and fixed along the way</span>
+          <ul>
+            <li><code>FavoriteGamePicker.gameSelected</code> had two separate <code>if</code>s instead of <code>if</code>/<code>else if</code> — deselecting a game while under the cap of 5 immediately re-added it.</li>
+            <li><code>ChangePasswordButton</code>'s old/new password inputs were <code>type="text"</code> (plaintext-visible) — now <code>type="password"</code>. Its error paragraph also had an inverted CSS condition (<code>${errorMsg &amp;&amp; "hidden"}</code>) that hid the message exactly when there was one to show.</li>
+            <li><code>ChangePasswordButton</code> never checked <code>updatePassword</code>'s own result — only the pre-check sign-in step could ever show an error.</li>
+          </ul>
+        </div>
+        <div class="field">
+          <span class="flabel">Defense-in-depth: Postgres CHECK constraints</span>
+          <p>These functions run client-side (browser components call them directly), so the zod layer is a shared source of truth + good UX, not a wall against someone bypassing your JS entirely. Run this once in the SQL editor for that layer — it checks for existing violations first, adds each constraint as <code>not valid</code> (so it doesn't fail immediately if data already exists), then only validates once you've confirmed there's nothing to fix:</p>
+          <pre><code>-- 1. Check for existing violations before adding anything
+select id, username from users where username !~ '^[A-Za-z0-9_]{3,20}$';
+select id from users where char_length(coalesce(user_bio, '')) &gt; 500;
+select id from users where favorite_game_ids is not null and cardinality(favorite_game_ids) &gt; 5;
+select id, name from lists where char_length(name) not between 1 and 80;
+select id from lists where char_length(coalesce(description, '')) &gt; 500;
+select user_id, game_id, rating from ratings_reviews where rating not between 1 and 10;
+select user_id, game_id from ratings_reviews where char_length(coalesce(review, '')) &gt; 5000;
+-- Fix (or decide to grandfather) anything these return before continuing.
+
+-- 2. Add the constraints without checking existing rows yet
+alter table users add constraint username_format
+  check (username ~ '^[A-Za-z0-9_]{3,20}$') not valid;
+alter table users add constraint user_bio_length
+  check (char_length(coalesce(user_bio, '')) &lt;= 500) not valid;
+alter table users add constraint favorite_games_max
+  check (favorite_game_ids is null or cardinality(favorite_game_ids) &lt;= 5) not valid;
+alter table lists add constraint list_name_length
+  check (char_length(name) between 1 and 80) not valid;
+alter table lists add constraint list_description_length
+  check (char_length(coalesce(description, '')) &lt;= 500) not valid;
+alter table ratings_reviews add constraint rating_range
+  check (rating between 1 and 10) not valid;
+alter table ratings_reviews add constraint review_length
+  check (char_length(coalesce(review, '')) &lt;= 5000) not valid;
+
+-- 3. Only after step 1 comes back clean — validate for real
+alter table users validate constraint username_format;
+alter table users validate constraint user_bio_length;
+alter table users validate constraint favorite_games_max;
+alter table lists validate constraint list_name_length;
+alter table lists validate constraint list_description_length;
+alter table ratings_reviews validate constraint rating_range;
+alter table ratings_reviews validate constraint review_length;</code></pre>
+          <p>No constraint for <code>selected_title</code> — a DB CHECK can't express "one of this specific user's earned titles" any better than the zod layer can.</p>
+        </div>
+        <div class="field">
           <span class="flabel">Verify</span>
-          <p>From the UI, try to save a too-long username and an oversized review → clean error message, no DB write.</p>
+          <p>From the UI: an oversized review, a too-short username, or a >5th favorite game all show an inline message and make no write. In the SQL editor: the step-1 queries return zero rows before you validate; after validating, a direct <code>update</code> that violates a constraint fails at the database regardless of what the app sends.</p>
         </div>
       </div>
     </article>
 
-    <article class="item" data-sev="soon" id="S8">
+    <article class="item deferred" data-sev="soon" id="S8">
       <div class="item-head">
         <input type="checkbox" class="chk" id="chk-S8">
-        <label for="chk-S8"><span class="tag">Soon</span>S8 · Privacy policy, terms, and signup consent</label>
+        <label for="chk-S8"><span class="tag">⏸ Deferred</span>S8 · Privacy policy, terms, and signup consent</label>
       </div>
       <div class="item-body">
+        <div class="field">
+          <span class="flabel">Status — deferred until the name is settled</span>
+          <p>On hold pending the final name + contact email (NG+ has a trademark conflict). Both documents name the company/app and a contact address throughout, and the consent checkbox links to <code>/privacy</code> and <code>/terms</code> — cheaper to write once the name is real. Decisions still needed before drafting: operating jurisdiction (and whether EU users are allowed → GDPR sections), minimum signup age, contact email. Recommended baseline: run Termly, then hand-write the third-parties list (Supabase / Vercel / Anthropic / Valve) and the AI-disclosure paragraph.</p>
+        </div>
         <div class="field">
           <span class="flabel">What it is</span>
           <p>A <code>/privacy</code> page describing what personal data you collect and why, a <code>/terms</code> page with the usage rules, and a checkbox at signup where the user agrees to both.</p>
@@ -1113,10 +1133,10 @@ STEAM_API_KEY=</code></pre>
     <h2 class="sec"><span class="n">F</span>Final gate</h2>
     <p>You're ready to share the link when:</p>
     <ul>
-      <li>Every <strong style="color:var(--blocker)">Blocker</strong> (B1–B4) is checked.</li>
+      <li><strong style="color:var(--done)">Blockers B1–B4: done.</strong> Loadout AI is opt-in &amp; owner-only (B1); forgot-password + <code>/auth/confirm</code> + <code>/auth/update-password</code> shipped (B2/B3); RLS audited and the UPDATE <code>with_check</code> + storage-bucket gaps closed (B4). Two dashboard steps remain outside the code: the Supabase redirect allowlist (needed for the auth emails to land) and — before real signup volume — custom SMTP.</li>
       <li>D1's four commands pass clean on your machine.</li>
       <li>D7's smoke test is fully green on the production URL — especially step 5 (Loadout only generates from the button, never on page load) and step 9 (cross-account edit fails).</li>
-      <li>You've decided consciously about each <strong style="color:var(--soon)">Soon</strong> item — done, or explicitly "next week".</li>
+      <li><strong style="color:var(--done)">Soon items S1–S5 and S7: done.</strong> Branded 404, a loading skeleton, per-page share metadata, robots/sitemap, six security headers, and zod validation on every write path with DB CHECK constraints. S6 (error monitoring) and S8 (privacy + terms) are consciously deferred to the naming/email step — both are launch-blockers only in the sense that S8 should be live before real users sign up.</li>
     </ul>
     <p style="margin-bottom:0;color:var(--ink-dim)">The three things you'd already parked for v2 — Steam achievements, review likes &amp; sort, same-series links — aren't on this list and don't belong on it. They're additive; none of them block a ship.</p>
   </section>

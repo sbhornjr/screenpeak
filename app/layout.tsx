@@ -26,8 +26,10 @@ const plexMono = IBM_Plex_Mono({
 })
 
 export const metadata: Metadata = {
-    title: 'NG+ | Your Gaming Identity',
+    metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'),
+    title: { default: 'NG+ | Your Gaming Identity', template: '%s | NG+' },
     description: 'Track, rate, and share the games that define you.',
+    openGraph: { siteName: 'NG+', type: 'website' },
 }
 
 export default function RootLayout({

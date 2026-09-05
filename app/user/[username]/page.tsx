@@ -18,9 +18,25 @@ import { queryGames, getDeveloperNameMap } from "@/lib/queries/game";
 import { getLibraryStatusBreakdown } from "@/lib/queries/library";
 import { getRecentReviews, getUserRatings } from "@/lib/queries/review";
 import { getLoadoutDeveloperStats } from "@/lib/queries/stats";
+import { Metadata } from "next";
 
 type ProfilePageProps = {
     params: Promise<{ username: string }>
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ username: string }> }): Promise<Metadata> {
+    const { username } = await params
+    const supabase = await createClient()
+    const profile = await getFullProfile(supabase, username)
+    if (!profile) return {}
+    return {
+        title: username,
+        description: `Follow ${username} on NG+.`,
+        openGraph: {
+            title: username,
+            images: profile.avatar_url ? [profile.avatar_url] : [],
+        },
+    }
 }
 
 export default async function ProfilePage({ params }: ProfilePageProps) {

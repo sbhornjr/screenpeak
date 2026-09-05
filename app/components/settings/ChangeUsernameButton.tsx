@@ -10,11 +10,18 @@ import { updateUsername } from "@/lib/queries/user";
 export default function ChangeUsernameButton({ userId, currentUsername } : { userId: string, currentUsername: string }) {
     const [isChangeUsernameModalOpen, setIsChangeUsernameModalOpen] = useState(false)
     const [username, setUsername] = useState("")
+    const [error, setError] = useState("")
     const router = useRouter()
 
     async function submitUsername() {
+        setError("")
         const supabase = createClient()
-        await updateUsername(supabase, userId, username)
+        const { error: writeError } = await updateUsername(supabase, userId, username)
+
+        if (writeError) {
+            setError(writeError)
+            return
+        }
 
         setIsChangeUsernameModalOpen(false)
         router.refresh()
@@ -41,6 +48,9 @@ export default function ChangeUsernameButton({ userId, currentUsername } : { use
                                 className="w-full bg-(--color-surface) text-(--color-text) placeholder:text-(--color-muted) self-center justify-self-center border border-(--color-border) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-accent) focus-visible:border-(--color-accent) rounded-[3px] px-2 py-1"
                             />
                         </div>
+                        {error && (
+                            <p className="mt-2 text-sm font-semibold text-(--color-bad)">{error}</p>
+                        )}
                         <button type="submit" className="px-4 py-1 mt-4 text-md bg-(--color-accent) text-(--color-bg) font-semibold rounded-[3px] hover:bg-(--color-accent-hover) transition-colors duration-200">
                             Submit
                         </button>

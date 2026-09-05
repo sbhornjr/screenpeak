@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase-browser"
+import { passwordSchema, parseOrError } from "@/lib/schemas"
 
 // Reached only from a password-reset link: /auth/confirm verifies the recovery
 // token, sets a temporary session, and redirects here. The user then sets a new
@@ -29,13 +30,14 @@ export default function UpdatePasswordPage() {
             setError("Passwords don't match")
             return
         }
-        if (password.length < 6) {
-            setError("Password must be at least 6 characters")
+        const passwordCheck = parseOrError(passwordSchema, password)
+        if (!passwordCheck.success) {
+            setError(passwordCheck.error)
             return
         }
         setLoading(true)
         const supabase = createClient()
-        const { error } = await supabase.auth.updateUser({ password })
+        const { error } = await supabase.auth.updateUser({ password: passwordCheck.data })
         setLoading(false)
         if (error) {
             setError(error.message)

@@ -16,8 +16,9 @@ export default function ListPreview({ listId, listName, gameCovers, isPinnable, 
 
     async function handlePinChange() {
         const supabase = createClient()
-        const isPinned = await setListPinned(supabase, listId, !isPinnedNow)
-        setIsPinnedNow(isPinned)
+        const { isPinned: newPinned, error } = await setListPinned(supabase, listId, !isPinnedNow)
+        if (error) return // leave the pin state as it was — nothing changed server-side
+        setIsPinnedNow(newPinned)
         router.refresh()
     }
 

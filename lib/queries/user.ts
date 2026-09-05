@@ -1,4 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import {
+    emailSchema, passwordSchema, usernameSchema, bioSchema,
+    selectedTitleSchema, favoriteGameIdsSchema, privacyTypeSchema, parseOrError,
+} from '@/lib/schemas'
 
 export async function getViewer(supabase: SupabaseClient) {
     const { data: { user } } = await supabase.auth.getUser()
@@ -56,38 +60,55 @@ export async function getAccountSettings(supabase: SupabaseClient, userId: strin
 }
 
 export async function updateBio(supabase: SupabaseClient, userId: string, bio: string) {
-    await supabase.from('users').update({ user_bio: bio }).eq('id', userId)
+    const parsed = parseOrError(bioSchema, bio)
+    if (!parsed.success) return { error: parsed.error }
+
+    const { error } = await supabase.from('users').update({ user_bio: parsed.data }).eq('id', userId)
+    return { error: error?.message ?? null }
 }
 
 export async function updateUsername(supabase: SupabaseClient, userId: string, username: string) {
-    const { data } = await supabase
+    const parsed = parseOrError(usernameSchema, username)
+    if (!parsed.success) return { data: null, error: parsed.error }
+
+    const { data, error } = await supabase
         .from('users')
-        .update({ username })
+        .update({ username: parsed.data })
         .eq('id', userId)
         .select('username')
         .single()
 
-    return data
+    if (error) return { data: null, error: error.message }
+    return { data, error: null }
 }
 
 export async function updateSelectedTitle(supabase: SupabaseClient, userId: string, title: string) {
-    const { data } = await supabase
+    const parsed = parseOrError(selectedTitleSchema, title)
+    if (!parsed.success) return { title: null, error: parsed.error }
+
+    const { data, error } = await supabase
         .from('users')
-        .update({ selected_title: title })
+        .update({ selected_title: parsed.data })
         .eq('id', userId)
         .select('selected_title')
         .single()
 
-    return data?.selected_title
+    if (error) return { title: null, error: error.message }
+    return { title: data?.selected_title, error: null }
 }
 
 export async function updateFavoriteGames(supabase: SupabaseClient, userId: string, gameIds: string[]) {
-    await supabase
+    const parsed = parseOrError(favoriteGameIdsSchema, gameIds)
+    if (!parsed.success) return { error: parsed.error }
+
+    const { error } = await supabase
         .from('users')
-        .update({ favorite_game_ids: gameIds })
+        .update({ favorite_game_ids: parsed.data })
         .eq('id', userId)
         .select('favorite_game_ids')
         .single()
+
+    return { error: error?.message ?? null }
 }
 
 export async function uploadAvatarImage(supabase: SupabaseClient, userId: string, file: File): Promise<string> {
@@ -112,7 +133,7 @@ export async function updateAvatarUrl(supabase: SupabaseClient, userId: string, 
         .update({ avatar_url: url })
         .eq('id', userId)
 
-    return error
+    return error?.message ?? null
 }
 
 export async function signInWithPassword(supabase: SupabaseClient, email: string, password: string) {
@@ -138,35 +159,37 @@ export async function signOut(supabase: SupabaseClient) {
 }
 
 export async function updateEmail(supabase: SupabaseClient, email: string) {
-    const { error } = await supabase.auth.updateUser({ email })
-    return error
+    const parsed = parseOrError(emailSchema, email)
+    if (!parsed.success) return parsed.error
+
+    const { error } = await supabase.auth.updateUser({ email: parsed.data })
+    return error?.message ?? null
 }
 
 export async function updatePassword(supabase: SupabaseClient, password: string) {
-    const { error } = await supabase.auth.updateUser({ password })
-    return error
+    const parsed = parseOrError(passwordSchema, password)
+    if (!parsed.success) return parsed.error
+
+    const { error } = await supabase.auth.updateUser({ password: parsed.data })
+    return error?.message ?? null
 }
 
+const PRIVACY_COLUMN = {
+    'Default List': 'default_list_public',
+    'Library': 'library_public',
+    'Loadout': 'loadout_public',
+} as const
+
 export async function updatePrivacy(supabase: SupabaseClient, privacy: boolean, type: string, userId: string) {
-    if (type === "Default List") {
-        const { error } = await supabase
-            .from("users")
-            .update({ default_list_public: privacy})
-            .eq("id", userId)
-        return error
-    } else if (type === "Library") {
-        const { error } = await supabase
-            .from("users")
-            .update({ library_public : privacy})
-            .eq("id", userId)
-        return error
-    } else if (type == "Loadout") {
-        const { error } = await supabase
-            .from("users")
-            .update({ loadout_public : privacy})
-            .eq("id", userId)
-        return error
-    }
+    const parsed = parseOrError(privacyTypeSchema, type)
+    if (!parsed.success) return parsed.error
+
+    const { error } = await supabase
+        .from('users')
+        .update({ [PRIVACY_COLUMN[parsed.data]]: privacy })
+        .eq('id', userId)
+
+    return error?.message ?? null
 }
 
 export async function getFollowers(supabase: SupabaseClient, userId: string) {

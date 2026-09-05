@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { GameCover, ListDetail, ListGameEntry } from '@/types'
+import { listFieldsSchema, parseOrError } from '@/lib/schemas'
 
 export async function getUserLists(supabase: SupabaseClient, userId: string | null | undefined, includePrivate: boolean) {
     const { data } = await supabase.rpc('get_user_lists', { p_user_id: userId, p_include_private: includePrivate })
@@ -84,17 +85,21 @@ export async function addGameToList(supabase: SupabaseClient, listId: string, ga
         .limit(1)
         .single()
 
-    await supabase
+    const { error } = await supabase
         .from('list_games')
         .insert({ list_id: listId, game_id: gameId, position: (maxPos?.position ?? -1) + 1 })
+
+    return { error: error?.message ?? null }
 }
 
 export async function removeGameFromList(supabase: SupabaseClient, listId: string, gameId: string) {
-    await supabase
+    const { error } = await supabase
         .from('list_games')
         .delete()
         .eq('list_id', listId)
         .eq('game_id', gameId)
+
+    return { error: error?.message ?? null }
 }
 
 type ListFields = {
@@ -105,20 +110,29 @@ type ListFields = {
 }
 
 export async function createList(supabase: SupabaseClient, userId: string, fields: ListFields) {
-    const { data } = await supabase
+    const parsed = parseOrError(listFieldsSchema, fields)
+    if (!parsed.success) return { data: null, error: parsed.error }
+
+    const { data, error } = await supabase
         .from('lists')
-        .insert({ user_id: userId, name: fields.name, description: fields.description, is_public: fields.isPublic, is_pinned: fields.isPinned })
+        .insert({ user_id: userId, name: parsed.data.name, description: parsed.data.description, is_public: parsed.data.isPublic, is_pinned: parsed.data.isPinned })
         .select('id')
         .single()
 
-    return data
+    if (error) return { data: null, error: error.message }
+    return { data, error: null }
 }
 
 export async function updateList(supabase: SupabaseClient, listId: string, fields: ListFields) {
-    await supabase
+    const parsed = parseOrError(listFieldsSchema, fields)
+    if (!parsed.success) return { error: parsed.error }
+
+    const { error } = await supabase
         .from('lists')
-        .update({ name: fields.name, description: fields.description, is_public: fields.isPublic, is_pinned: fields.isPinned })
+        .update({ name: parsed.data.name, description: parsed.data.description, is_public: parsed.data.isPublic, is_pinned: parsed.data.isPinned })
         .eq('id', listId)
+
+    return { error: error?.message ?? null }
 }
 
 export async function syncListGames(supabase: SupabaseClient, listId: string, { toAdd, toRemove }: { toAdd: { id: string }[], toRemove: { id: string }[] }) {
@@ -132,14 +146,14 @@ export async function syncListGames(supabase: SupabaseClient, listId: string, { 
 
     const startPosition = (maxPosData?.position ?? -1) + 1
 
-    await Promise.all([
+    const [removeResult, addResult] = await Promise.all([
         toRemove.length > 0
             ? supabase
                 .from('list_games')
                 .delete()
                 .in('game_id', toRemove.map(g => g.id))
                 .eq('list_id', listId)
-            : Promise.resolve(),
+            : Promise.resolve({ error: null }),
         toAdd.length > 0
             ? supabase
                 .from('list_games')
@@ -148,29 +162,35 @@ export async function syncListGames(supabase: SupabaseClient, listId: string, { 
                     game_id: game.id,
                     position: startPosition + index
                 })))
-            : Promise.resolve(),
+            : Promise.resolve({ error: null }),
     ])
+
+    const error = removeResult.error ?? addResult.error
+    return { error: error?.message ?? null }
 }
 
 export async function likeList(supabase: SupabaseClient, listId: string, userId: string) {
-    await supabase.from('list_likes').insert({ list_id: listId, user_id: userId })
+    const { error } = await supabase.from('list_likes').insert({ list_id: listId, user_id: userId })
+    return { error: error?.message ?? null }
 }
 
 export async function unlikeList(supabase: SupabaseClient, listId: string, userId: string) {
-    await supabase
+    const { error } = await supabase
         .from('list_likes')
         .delete()
         .eq('list_id', listId)
         .eq('user_id', userId)
+
+    return { error: error?.message ?? null }
 }
 
 export async function setListPinned(supabase: SupabaseClient, listId: string | number, pinned: boolean) {
-    const { data } = await supabase
+    const { data, error } = await supabase
         .from('lists')
         .update({ is_pinned: pinned })
         .eq('id', listId)
         .select('is_pinned')
         .single()
 
-    return data?.is_pinned
+    return { isPinned: data?.is_pinned, error: error?.message ?? null }
 }

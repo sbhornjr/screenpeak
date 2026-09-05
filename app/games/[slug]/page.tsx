@@ -20,6 +20,7 @@ import { getGameBySlug, getGameTaxonomy } from "@/lib/queries/game";
 import { getGameRatingsStats, getUserRatingReviewForGame, getGameReviewsForPage } from "@/lib/queries/review";
 import { getUserLists, getGameListMembership } from "@/lib/queries/list";
 import { getLibraryEntry } from "@/lib/queries/library";
+import { Metadata } from "next";
 
 type GamePageProps = {
     params: Promise<{ slug: string }>
@@ -34,6 +35,7 @@ function relTime(iso: string) {
     if (days < 365) return `${Math.floor(days / 30)}mo ago`
     return `${Math.floor(days / 365)}y ago`
 }
+
 function tierInk(n: number) {
     return n >= 8 ? "var(--color-good)" : n >= 6 ? "var(--color-mid)" : "var(--color-bad)"
 }
@@ -49,6 +51,21 @@ type LogRow = {
 const label = "font-mono text-[0.5625rem] uppercase tracking-[0.2em] text-(--color-muted)"
 const metaLink = "text-sm text-(--color-text) underline decoration-(--color-border) underline-offset-2 hover:decoration-(--color-accent) hover:text-(--color-accent) transition-colors duration-200"
 const tag = "inline-flex px-2 py-0.5 rounded text-[0.6875rem] font-mono tracking-[0.06em] border border-(--color-border) text-(--color-muted) hover:text-(--color-accent) hover:border-(--color-border-bright) transition-colors duration-200"
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+    const { slug } = await params
+    const supabase = await createClient()
+    const game = await getGameBySlug(supabase, slug)
+    if (!game) return {}
+    return {
+        title: game.name,
+        description: game.description_short ?? `Ratings and reviews for ${game.name} on NG+.`,
+        openGraph: {
+            title: game.name,
+            images: game.cover_image_url ? [game.cover_image_url] : [],
+        },
+    }
+}
 
 function Log({ row, own = false }: { row: LogRow, own?: boolean }) {
     return (

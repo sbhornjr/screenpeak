@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase-browser"
 import { useRouter } from "next/navigation"
 import Modal from "@/app/components/util/Modal"
 import { signInWithPassword, signUpWithPassword } from "@/lib/queries/user"
+import { emailSchema, usernameSchema, passwordSchema, parseOrError } from "@/lib/schemas"
 
 type AuthModalProps = {
     isOpen: boolean
@@ -28,9 +29,14 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
     async function signIn() {
         setError("")
         setInfo("")
+        const emailCheck = parseOrError(emailSchema, email)
+        if (!emailCheck.success) {
+            setError(emailCheck.error)
+            return
+        }
         setLoading(true)
         const supabase = createClient()
-        const error = await signInWithPassword(supabase, email, password)
+        const error = await signInWithPassword(supabase, emailCheck.data, password)
         setLoading(false)
         if (error) {
             setError(error.message)
@@ -43,13 +49,14 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
     async function forgotPassword() {
         setError("")
         setInfo("")
-        if (!email) {
-            setError("Enter your email above first.")
+        const emailCheck = parseOrError(emailSchema, email)
+        if (!emailCheck.success) {
+            setError(emailCheck.error)
             return
         }
         setLoading(true)
         const supabase = createClient()
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        const { error } = await supabase.auth.resetPasswordForEmail(emailCheck.data, {
             redirectTo: `${window.location.origin}/auth/confirm?next=/auth/update-password`,
         })
         setLoading(false)
@@ -60,21 +67,27 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
     async function signUp() {
         setError("")
         setInfo("")
+
+        const emailCheck = parseOrError(emailSchema, email)
+        if (!emailCheck.success) { setError(emailCheck.error); return }
+
+        const usernameCheck = parseOrError(usernameSchema, username)
+        if (!usernameCheck.success) { setError(usernameCheck.error); return }
+
         if (password !== passwordAgain) {
             setError("Passwords don't match")
             return
         }
-        if (password.length < 6) {
-            setError("Password must be at least 6 characters")
-            return
-        }
+        const passwordCheck = parseOrError(passwordSchema, password)
+        if (!passwordCheck.success) { setError(passwordCheck.error); return }
+
         setLoading(true)
         const supabase = createClient()
         const { data, error } = await signUpWithPassword(
             supabase,
-            { email, password, username },
+            { email: emailCheck.data, password: passwordCheck.data, username: usernameCheck.data },
             `${window.location.origin}/auth/confirm`,
-        )        
+        )
         setLoading(false)
 
         // Supabase hides "email already registered" two ways depending on the
@@ -113,7 +126,7 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
                             Email
                         </label>
                         <input
-                            type="text"
+                            type="email"
                             placeholder="Email"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
@@ -130,7 +143,7 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
                             className="w-full bg-(--color-surface) text-(--color-text) placeholder:text-(--color-muted) border border-(--color-border) rounded-[3px] px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-accent) focus-visible:border-(--color-accent)"
                         />
                         {error && (
-                            <p className="self-center font-semibold mt-4">{error}</p>
+                            <p className="self-center font-semibold text-(--color-bad) mt-4">{error}</p>
                         )}
                         {info && (
                             <p className="self-center text-sm text-(--color-muted) mt-4">{info}</p>
@@ -147,7 +160,7 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
                             Email
                         </label>
                         <input
-                            type="text"
+                            type="email"
                             placeholder="Email"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
@@ -184,7 +197,7 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
                             className="w-full bg-(--color-surface) text-(--color-text) placeholder:text-(--color-muted) border border-(--color-border) rounded-[3px] px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-accent) focus-visible:border-(--color-accent)"
                         />
                         {error && (
-                            <p className="self-center font-semibold mt-4">{error}</p>
+                            <p className="self-center font-semibold text-(--color-bad) mt-4">{error}</p>
                         )}
                         {info && (
                             <p className="self-center text-sm text-(--color-muted) mt-4">{info}</p>

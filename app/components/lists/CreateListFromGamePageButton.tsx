@@ -13,13 +13,26 @@ export default function CreateListFromGamePageButton({ userId, gameId, close, de
     const [isPinned, setIsPinned] = useState(false)
     const [isPublic, setIsPublic] = useState(defaultListPrivacy ?? true)
     const [isCreateListModalOpen, setIsCreateListModalOpen] = useState(false)
+    const [error, setError] = useState("")
     const router = useRouter()
 
     async function submitList() {
+        setError("")
         const supabase = createClient()
 
-        const list = await createList(supabase, userId, { name, description, isPublic, isPinned })
-        if (list) await addGameToList(supabase, list.id, gameId)
+        const { data: list, error: createError } = await createList(supabase, userId, { name, description, isPublic, isPinned })
+        if (createError) {
+            setError(createError)
+            return
+        }
+
+        if (list) {
+            const { error: addError } = await addGameToList(supabase, list.id, gameId)
+            if (addError) {
+                setError(addError)
+                return
+            }
+        }
 
         setIsCreateListModalOpen(false)
         close()
@@ -91,6 +104,9 @@ export default function CreateListFromGamePageButton({ userId, gameId, close, de
                                 </button>
                             ))}
                         </div>
+                        {error && (
+                            <p className="text-sm font-semibold text-(--color-bad)">{error}</p>
+                        )}
                         <button type="submit" className="px-4 py-1 text-md bg-(--color-accent) text-(--color-bg) font-semibold rounded-[3px] hover:bg-(--color-accent-hover) transition-colors duration-200">
                             Create List
                         </button>
