@@ -22,15 +22,16 @@ export default function FeedGameCard({ gameSlug, gameName, gameCoverImageUrl, ga
                         <span className="relative text-(--color-muted) text-[8px] uppercase tracking-[0.15em] font-mono">No Cover</span>
                     </div>
                 )}
-                {!avgRating && metacriticScore && (
-                    <Seal label="MC" score={metacriticScore} side="right" size="sm" scale={100} />
-                )}
-                {avgRating && (
+                {/* One tag only — the cover is 80px wide and the feed line already
+                    states the rating. Prefer the community score, then critic, then
+                    the viewer's own. */}
+                {avgRating ? (
                     <Seal label="SP" score={avgRating} side="right" size="sm" />
-                )}
-                {userRating && (
-                    <Seal label="You" score={userRating} side="left" size="sm" />
-                )}
+                ) : metacriticScore ? (
+                    <Seal label="MC" score={metacriticScore} side="right" size="sm" scale={100} />
+                ) : userRating ? (
+                    <Seal label="You" score={userRating} side="right" size="sm" />
+                ) : null}
             </div>
 
             <div className="flex flex-col justify-center gap-1 flex-1 min-w-0">

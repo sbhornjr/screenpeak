@@ -149,16 +149,19 @@ It replaced an earlier `▸` menu-cursor glyph everywhere that glyph appeared.
 near-opaque dark fill, thin bright border, and a 2px tier-coloured hairline along
 the bottom — a HUD score readout, not an ink stamp (it used to be a rotated
 dashed circle; that was the old ledger direction). Source label (`SP` / `MC` /
-`You`) small and tracked above the number; number bold, mono, tier-coloured.
-Appears anywhere a game's score sits on top of its cover art: `GameCard`,
-`FeedGameCard`, `FeedReview`. It intentionally does **not** appear in text-row
-contexts (`Review.tsx`, `ReviewPageRating.tsx`) — there a plain colour +
-`--font-mono` number is enough.
+`You`) small and tracked above the number; number bold, mono, tier-coloured. A
+`min-w` keeps the footprint fixed so `8`, `8.5` and `10` don't reflow. Appears
+anywhere a game's score sits on top of its cover art: `GameCard`, `FeedGameCard`,
+`FeedReview`. It intentionally does **not** appear in text-row contexts
+(`Review.tsx`, `ReviewPageRating.tsx`) — there a plain colour + `--font-mono`
+number is enough.
 
 Placement convention: **right side = Metacritic or ScreenPeak community score**
 (whichever applies — never both at once), **left side = the viewer's own score**.
-The landing-page hero showing MC and SP simultaneously with no viewer score is a
-deliberate one-off, not a new standard.
+Two tags only where the cover is wide enough (`GameCard`); the feed's 80px
+thumbnail (`FeedGameCard`) shows one, preferring SP → MC → You since the feed
+line already states the rating. The landing-page hero showing MC and SP
+simultaneously with no viewer score is a deliberate one-off.
 
 ### The Folio (CoverFan)
 
