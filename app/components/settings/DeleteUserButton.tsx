@@ -36,7 +36,7 @@ export default function DeleteAccountButton() {
                 <Modal
                     onClose={() => setIsDeleteUserModalOpen(false)}
                     title="Delete Account"
-                    panelClassName="w-full max-w-md max-h-8/10 p-8 overflow-y-auto"
+                    panelClassName="w-full max-w-md max-h-8/10 p-8"
                 >
                     <p className="font-semibold text-lg text-(--color-muted)">Are you sure? This permanently deletes your account and all your data. This cannot be undone.</p>
                     {error && <p className="text-(--color-bad) mt-3">{error}</p>}

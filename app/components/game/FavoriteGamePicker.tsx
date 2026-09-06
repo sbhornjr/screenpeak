@@ -71,7 +71,7 @@ export default function FavoriteGamePicker({ userId, currentGames } : { userId: 
                     onClose={() => setIsGamePickerModalOpen(false)}
                     title="Choose Favorite Games"
                     titleClassName="font-semibold text-3xl mb-2 self-center"
-                    panelClassName="w-full max-w-xl max-h-[75vh] p-8 overflow-scroll"
+                    panelClassName="w-full max-w-xl max-h-[75vh] p-8"
                 >
                         <p className="text-center text-md mb-4">You can only select 5 favorite games. Choose wisely.</p>
                         {error && (

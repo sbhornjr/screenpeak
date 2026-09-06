@@ -34,7 +34,7 @@ export default function ChangeEmailButton({ currentEmail } : { currentEmail: str
                 <Modal
                     onClose={() => setIsChangeEmailModalOpen(false)}
                     title="Change Email"
-                    panelClassName="w-full max-w-md max-h-8/10 p-8 overflow-y-auto"
+                    panelClassName="w-full max-w-md max-h-8/10 p-8"
                 >
                     <form onSubmit={(e) => { e.preventDefault(); submitEmail() }}>
                         <p className="font-semibold text-lg text-(--color-muted)">Current Email: <span className="text-(--color-text)">{currentEmail}</span></p>

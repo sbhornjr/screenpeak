@@ -25,7 +25,6 @@ export default async function Settings({ searchParams } : SettingsPageProps) {
     const user = await getAccountSettings(supabase, viewer.id)
 
     if (!user) {
-        console.log("User not found")
         redirect("/")
     }
 

@@ -33,7 +33,7 @@ export default function ChangePrivacyButton({ currentPrivacy, type, userId } : {
                 <Modal
                     onClose={() => setIsChangePrivacyModalOpen(false)}
                     title={`${type} Privacy`}
-                    panelClassName="w-full max-w-md max-h-8/10 p-8 overflow-y-auto"
+                    panelClassName="w-full max-w-md max-h-8/10 p-8"
                 >
                     <p className="font-semibold text-lg text-(--color-muted)">Current {type} Privacy: <span className="text-(--color-text)">{ currentPrivacy ? "Public" : "Private"}</span></p>
                     {error && (

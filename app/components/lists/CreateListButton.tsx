@@ -47,9 +47,9 @@ export default function CreateListButton({ userId, type, current, defaultListPri
                     onClose={() => setIsCreateListModalOpen(false)}
                     title={isUpdate ? "Edit List" : "Create a List"}
                     titleClassName="font-semibold text-3xl mb-2 self-center"
-                    panelClassName="w-full max-w-xl max-h-8/10 p-8 overflow-y-auto gap-4"
+                    panelClassName="w-full max-w-xl max-h-8/10 p-8 gap-4"
                 >
-                    <form onSubmit={(e) => { e.preventDefault(); submitList() }} className="contents">
+                    <form onSubmit={(e) => { e.preventDefault(); submitList() }} className="flex flex-col gap-4">
                         <div>
                             <h2 className="font-semibold text-md px-1">List Name</h2>
                             <input

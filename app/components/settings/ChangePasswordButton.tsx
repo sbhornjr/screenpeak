@@ -44,7 +44,7 @@ export default function ChangePasswordButton() {
                 <Modal
                     onClose={() => setIsChangePasswordModalOpen(false)}
                     title="Change Password"
-                    panelClassName="w-full max-w-md max-h-8/10 p-8 overflow-y-auto"
+                    panelClassName="w-full max-w-md max-h-8/10 p-8"
                 >
                         <form onSubmit={(e) => { e.preventDefault(); submitPassword() }}>
                             <div className="flex flex-col mt-4">

@@ -36,7 +36,7 @@ export default function TitleSelectButton({ userId, currentTitle, topGames, topD
                 <Modal
                     onClose={() => setIsTitleSelectModalOpen(false)}
                     title="Select Title"
-                    panelClassName="w-full max-w-md max-h-8/10 p-8 overflow-scroll"
+                    panelClassName="w-full max-w-md max-h-8/10 p-8"
                 >
                     {error && (
                         <p className="mb-3 text-sm font-semibold text-(--color-bad)">{error}</p>

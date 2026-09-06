@@ -72,7 +72,7 @@ export default function AddToListFromListButton({ listId, currentGames } : { lis
                         onClose={() => setIsAddToListModalOpen(false)}
                         title="Manage List"
                         titleClassName="font-semibold text-3xl mb-2 self-center"
-                        panelClassName="w-full max-w-xl max-h-8/10 p-8 overflow-y-auto gap-4"
+                        panelClassName="w-full max-w-xl max-h-8/10 p-8 gap-4"
                     >
             <div className="flex flex-row gap-2">
                                 <input

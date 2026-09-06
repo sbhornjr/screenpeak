@@ -42,27 +42,22 @@ export default async function LibraryPage({ params, searchParams } : LibraryPage
     const { genres, platforms, developers, publishers, esrbRatings } = await getLibraryFacets(supabase, ownerId.id)
 
     if (genreQuery != '' && !genres.map((g) => g.slug).includes(genreQuery)) {
-        console.log("Genre " + genreQuery + " is not in the Library. Redirecting to home.")
         redirect('/')
     }
 
     if (platformQuery != '' && !platforms.map((p) => p.slug).includes(platformQuery)) {
-        console.log("Platform " + platformQuery + " is not in the Library. Redirecting to home.")
         redirect('/')
     }
 
     if (developerQuery != '' && !developers.map((d) => d.slug).includes(developerQuery)) {
-        console.log("Developer " + developerQuery + " is not in the Library. Redirecting to home.")
         redirect('/')
     }
 
     if (publisherQuery != '' && !publishers.map((p) => p.slug).includes(publisherQuery)) {
-        console.log("Publisher " + publisherQuery + " is not in the Library. Redirecting to home.")
         redirect('/')
     }
 
     if (esrbQuery != '' && !esrbRatings.includes(esrbQuery)) {
-        console.log("ESRB Rating " + esrbQuery + " is not in the Library. Redirecting to home.")
         redirect('/')
     }
 

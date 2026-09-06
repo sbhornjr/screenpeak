@@ -152,8 +152,8 @@ hr{border:0;border-top:1px solid var(--border);margin:2.5rem 0}
       <a href="#S7"><span class="k">S7</span>✓ Server-side validation</a>
       <a href="#S8"><span class="k">S8</span>⏸ Privacy + terms + consent</a>
       <h2>Polish</h2>
-      <a href="#P1"><span class="k">P1</span>Modal accessibility</a>
-      <a href="#P2"><span class="k">P2</span>Strip server console.logs</a>
+      <a href="#P1"><span class="k">P1</span>✓ Modal accessibility</a>
+      <a href="#P2"><span class="k">P2</span>✓ Strip server console.logs</a>
       <a href="#P3"><span class="k">P3</span>Repo &amp; docs hygiene</a>
       <a href="#P4"><span class="k">P4</span>Icons + web manifest</a>
       <h2>Deploy runbook</h2>
@@ -824,12 +824,16 @@ alter table ratings_reviews validate constraint review_length;</code></pre>
     <h2 class="sec"><span class="n">P</span>Polish — v1.1</h2>
     <p class="sec-intro">Genuinely fine to ship without. Worth doing in the first week or two after.</p>
 
-    <article class="item" data-sev="polish" id="P1">
+    <article class="item complete" data-sev="polish" id="P1">
       <div class="item-head">
         <input type="checkbox" class="chk" id="chk-P1">
-        <label for="chk-P1"><span class="tag">Polish</span>P1 · Modal accessibility</label>
+        <label for="chk-P1"><span class="tag">✓ Done</span>P1 · Modal accessibility</label>
       </div>
       <div class="item-body">
+        <div class="field">
+          <span class="flabel">Status — implemented &amp; verified</span>
+          <p>One rewrite of <span class="code">app/components/util/Modal.tsx</span> fixes every dialog: Escape closes; Tab / Shift+Tab cycle inside the panel (and ignore a nested modal's focusables); focus moves to the first form field on open and restores to the trigger on close; <code>role="dialog"</code> + <code>aria-modal="true"</code> + <code>aria-labelledby</code> (wired to the title via <code>useId</code>); body scroll locked with scrollbar-width compensation so the page doesn't shift. Plus the requested <strong>backdrop click to close</strong> — guarded by an <code>onMouseDown</code> check so dragging a text selection out of the panel doesn't dismiss it. Follow-up fixes to how tall modals scroll: (1) <code>overflow-scroll</code> → <code>overflow-y-auto</code> on the title-picker / favorite-games modals — they were forcing permanent scrollbar gutters (a dark band on the right and bottom); (2) the panel is now a <strong>fixed header (close button + title) over a scrolling body</strong> instead of one big scroll container, so a long list scrolls <em>under</em> the header rather than jamming against the top edge and swallowing the close button's padding. Callers had <code>overflow-y-auto</code> stripped from their <code>panelClassName</code> (the Modal owns overflow now); the <code>p-8</code> assumption was standardised. Verified with headless-browser measurements + screenshots at scroll positions. <code>tsc</code>, lint, build, 91 tests all pass. Known limit: two <em>stacked</em> modals both close on one Escape — fine for now; a headless library (<code>@radix-ui/react-dialog</code>) is the move if that ever matters.</p>
+        </div>
         <div class="field">
           <span class="flabel">What it is</span>
           <p><span class="code">app/components/util/Modal.tsx</span> backs every dialog in the app — auth, rate/review, list-create, delete-account, change username/email/password. It's missing: Escape-to-close, a focus trap (Tab should cycle inside the modal, not into the page behind it), focus restore (on close, focus returns to the button that opened it), <code>role="dialog"</code> + <code>aria-modal="true"</code> + <code>aria-labelledby</code>, and body scroll lock.</p>
@@ -849,12 +853,16 @@ alter table ratings_reviews validate constraint review_length;</code></pre>
       </div>
     </article>
 
-    <article class="item" data-sev="polish" id="P2">
+    <article class="item complete" data-sev="polish" id="P2">
       <div class="item-head">
         <input type="checkbox" class="chk" id="chk-P2">
-        <label for="chk-P2"><span class="tag">Polish</span>P2 · Strip <code>console.log</code> from server paths</label>
+        <label for="chk-P2"><span class="tag">✓ Done</span>P2 · Strip <code>console.log</code> from server paths</label>
       </div>
       <div class="item-body">
+        <div class="field">
+          <span class="flabel">Status — done</span>
+          <p>Verified: no <code>console.log</code> left in <span class="code">settings/page.tsx</span>, <span class="code">library/page.tsx</span>, or <span class="code">ratings_reviews/page.tsx</span>.</p>
+        </div>
         <div class="field">
           <span class="flabel">What it is</span>
           <p>Debug logging left in Server Components that run on normal navigation: <span class="code">settings/page.tsx:28</span>, <span class="code">library/page.tsx:45-65</span> (5×), <span class="code">ratings_reviews/page.tsx:25-35</span> (3×).</p>

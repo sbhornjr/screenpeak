@@ -34,7 +34,7 @@ export default function ChangeUsernameButton({ userId, currentUsername } : { use
                 <Modal
                     onClose={() => setIsChangeUsernameModalOpen(false)}
                     title="Change Username"
-                    panelClassName="w-full max-w-md max-h-8/10 p-8 overflow-y-auto"
+                    panelClassName="w-full max-w-md max-h-8/10 p-8"
                 >
                     <form onSubmit={(e) => { e.preventDefault(); submitUsername() }}>
                         <p className="font-semibold text-lg text-(--color-muted)">Current Username: <span className="text-(--color-text)">{currentUsername}</span></p>

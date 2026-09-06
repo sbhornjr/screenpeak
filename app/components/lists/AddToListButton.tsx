@@ -57,8 +57,9 @@ export default function AddToListButton({ gameId, lists, listIdsGameIsIn, defaul
                     onClose={() => setIsAddToListModalOpen(false)}
                     title="Add to List"
                     titleClassName="font-semibold text-3xl mb-2 self-center"
-                    panelClassName="w-full max-w-xl max-h-8/10 p-8 overflow-y-auto gap-4"
+                    panelClassName="w-full max-w-xl max-h-8/10 p-8"
                 >
+                    <div className="flex flex-col gap-4">
                         {lists.map(list => {
                             const alreadyInList = listIdsGameIsInState.has(list.listId)
                             return (
@@ -86,6 +87,7 @@ export default function AddToListButton({ gameId, lists, listIdsGameIsIn, defaul
                             <p className="text-sm font-semibold text-(--color-bad) mb-2">{error}</p>
                         )}
                         {user && <CreateListFromGamePageButton gameId={gameId} userId={user.id} close={() => setIsAddToListModalOpen(false)} defaultListPrivacy={defaultListPrivacy ?? true}/>}
+                    </div>
                 </Modal>
             )}
         </div>

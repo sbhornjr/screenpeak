@@ -35,7 +35,7 @@ export default function UnlinkSteamAccountButton({ userId } : { userId: string }
                 <Modal
                     onClose={() => setIsUnlinkSteamAccountModalOpen(false)}
                     title="Unlink Steam Account"
-                    panelClassName="w-full max-w-md max-h-8/10 p-8 overflow-y-auto"
+                    panelClassName="w-full max-w-md max-h-8/10 p-8"
                 >
                     <p className="font-semibold text-lg text-(--color-muted)">This action will not affect your Library. Games that were originally imported via Steam will remain.</p>
                     {error && (

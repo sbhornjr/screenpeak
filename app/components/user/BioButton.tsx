@@ -35,7 +35,7 @@ export default function BioButton({ userId, currentBio } : { userId: string, cur
                     onClose={() => setIsBioModalOpen(false)}
                     title="Bio"
                     titleClassName="font-semibold text-3xl mb-2 self-center"
-                    panelClassName="w-full max-w-xl max-h-[75vh] p-8 overflow-y-auto"
+                    panelClassName="w-full max-w-xl max-h-[75vh] p-8"
                 >
                     <textarea
                         placeholder="Bio..."

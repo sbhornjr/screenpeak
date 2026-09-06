@@ -22,17 +22,14 @@ export default async function RatingsPage({ params, searchParams }: RatingsPageP
     const supabase = await createClient()
 
     if (filter && !(filter === "all" || filter === "ratings" || filter === "reviews")) {
-        console.log("Filter " + filter + " is not valid. Redirecting to home.")
         redirect('/')
     }
 
     if (sort && !(sort === "date" || sort === "rating")) {
-        console.log("Sort " + sort + " is not valid. Redirecting to home.")
         redirect('/')
     }
 
     if (order && !(order === "desc" || order === "asc")) {
-        console.log("Order" + order + " is not valid. Redirecting to home.")
         redirect('/')
     }
 
