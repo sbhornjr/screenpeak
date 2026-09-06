@@ -88,9 +88,9 @@ hues so the distinction survives regardless, and the numbers stay the source of
 truth. A 4th semantic colour, if ever needed, should sit outside this
 blue/amber/red/grey family.
 
-**Contrast against cover art:** the rating stamp (`Seal`) sits on unpredictable,
+**Contrast against cover art:** the rating tag (`Seal`) sits on unpredictable,
 often busy game art. Its background is a near-opaque dark fill
-(`rgba(11,13,16,0.88)`), not a light tint — deliberate; a transparent fill was
+(`rgba(11,13,16,0.9)`), not a light tint — deliberate; a transparent fill was
 unreadable on bright/saturated covers. Keep any future overlay-on-photo element
 near that opacity.
 
@@ -120,9 +120,9 @@ One flat corner radius everywhere non-circular: **`rounded-[3px]`**. Cards,
 buttons, modals, inputs, image frames, tag pills, dropdowns — everything. It
 replaced a mix of `rounded-lg`/`xl`/`2xl` that read as generic soft SaaS chrome.
 
-Stay circular (`rounded-full`) only for actually-round objects:
-- Avatars (`Avatar.tsx`)
-- The rating stamp (`Seal.tsx`)
+Stay circular (`rounded-full`) only for actually-round objects — avatars
+(`Avatar.tsx`). Everything else, the rating tag (`Seal.tsx`) included, takes the
+flat radius.
 
 Progress-bar-style fills (rating distribution bars) use `rounded-[1px]`, not
 `rounded-full` — a pill-shaped thin bar reads as a loading indicator.
@@ -143,14 +143,17 @@ structural marker:
 
 It replaced an earlier `▸` menu-cursor glyph everywhere that glyph appeared.
 
-### The Seal (rating stamp)
+### The Seal (rating tag)
 
-`app/components/game/Seal.tsx`. A small dashed-border circle, near-opaque dark
-fill, tier-coloured border/text, slightly rotated (`-7deg` right, `5deg` left) —
-a stamped score mark rather than a UI badge. Appears anywhere a game's score sits
-on top of its cover art: `GameCard`, `FeedGameCard`, `FeedReview`. It
-intentionally does **not** appear in text-row contexts (`Review.tsx`,
-`ReviewPageRating.tsx`) — there a plain colour + `--font-mono` number is enough.
+`app/components/game/Seal.tsx`. A flat `rounded-[2px]` cell on a game's cover:
+near-opaque dark fill, thin bright border, and a 2px tier-coloured hairline along
+the bottom — a HUD score readout, not an ink stamp (it used to be a rotated
+dashed circle; that was the old ledger direction). Source label (`SP` / `MC` /
+`You`) small and tracked above the number; number bold, mono, tier-coloured.
+Appears anywhere a game's score sits on top of its cover art: `GameCard`,
+`FeedGameCard`, `FeedReview`. It intentionally does **not** appear in text-row
+contexts (`Review.tsx`, `ReviewPageRating.tsx`) — there a plain colour +
+`--font-mono` number is enough.
 
 Placement convention: **right side = Metacritic or ScreenPeak community score**
 (whichever applies — never both at once), **left side = the viewer's own score**.
@@ -181,8 +184,8 @@ tracked mono.
 
 ## 7. Component patterns
 
-- **Catalog card** (`GameCard`): cover art, up to two `Seal`s, a dotted rule,
-  then title / developer+year (mono) / play stats (mono). Base pattern other
+- **Catalog card** (`GameCard`): cover art, up to two `Seal`s, then title over a
+  1px hairline / developer+year (mono) / play stats (mono). Base pattern other
   card types riff on.
 - **Stat tiles** (`StatGrid`, inline stat cards on `Loadout`): value in
   `--color-good` + mono, label in tracked-uppercase muted mono underneath.
@@ -203,7 +206,7 @@ tracked mono.
 - Reference colour/font tokens, never hardcode a hex or font name.
 - Put every number in `--font-mono`.
 - Use the seam via `Eyebrow` / `SectionHead`; use `Wordmark` for the logo.
-- Keep the `rounded-[3px]` radius uniform; only avatars and the Seal stay round.
+- Keep the `rounded-[3px]` radius uniform; only avatars stay round.
 - Show an empty state (dashed placeholder + short mono label) instead of blank
   space when a collection is empty.
 - Ground any new visual device in something ScreenPeak actually does (rating,
@@ -216,6 +219,6 @@ tracked mono.
 - Don't rename established, correctly-understood nouns (Library, etc.) for
   branding cohesion.
 - Don't use "split screen" (the system name) in user-facing copy.
-- Don't apply the Seal stamp to non-image text rows (plain mono number there).
+- Don't apply the Seal tag to non-image text rows (plain mono number there).
 - Don't undersize an `Image`'s `sizes` prop to exactly match its rendered box if
   that box is rotated or scaled on hover — request headroom.

@@ -77,7 +77,7 @@ export default async function Home() {
                                 sizes="(max-width: 768px) 80vw, 400px"
                                 priority
                             />
-                            <Seal label="MC" score={heroGame.metacritic_score} side="right" />
+                            <Seal label="MC" score={heroGame.metacritic_score} side="right" scale={100} />
                             <Seal label="SP" score={heroGame.avg_ngplus_rating} side="left" />
                         </div>
                     )}
@@ -146,7 +146,7 @@ export default async function Home() {
                     <div className="text-left max-w-xl mx-auto mb-10">
                         <div className="border border-(--color-border) bg-(--color-surface) rounded-[3px] px-7 py-6 shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
                             <Eyebrow className="!text-[10px] !mb-3">Your read-out, previewed</Eyebrow>
-                            <p className="text-lg leading-relaxed text-(--color-text) font-(family-name:--font-display) italic">
+                            <p className="text-lg leading-relaxed text-(--color-text) font-(family-name:--font-body) italic">
                                 &ldquo;You&apos;ve completed 41 games and rated 28 of them — averaging an 8.1, which says you don&apos;t waste time finishing things you don&apos;t like. RPGs dominate your library, but your highest-rated games are all tight, three-hour puzzle boxes.&rdquo;
                             </p>
                         </div>

@@ -1,14 +1,16 @@
 import Link from "next/link"
 import Image from "next/image"
 
-const ROTATIONS = ['-9deg', '6deg', '-4deg', '8deg', '-7deg']
+const ROTATIONS = ['-5deg', '3deg', '-2deg', '4deg', '-4deg']
 
 // imgSizes intentionally requests more than the rendered box (which is only
 // ~80/112px wide) — these covers are rotated, and an exactly-matched fetch
 // looks soft once it's resampled at an angle plus scaled up slightly on hover.
 const SIZES = {
     md: { wrap: 'w-20 h-28', overlap: '-2.25rem', imgSizes: '140px' },
-    lg: { wrap: 'w-28 h-40', overlap: '-1.5rem', imgSizes: '220px' },
+    // lg fans sit in a fixed-width column in ListPreview: a full 5-cover fan is
+    // ~336px wide (96 + 4×60), so the column reserves that and titles line up.
+    lg: { wrap: 'w-24 h-36', overlap: '-2.25rem', imgSizes: '200px' },
 }
 
 export default function CoverFan({ covers, size = 'md' }: { covers: { src: string, href?: string, alt?: string, key: string }[], size?: 'md' | 'lg' }) {

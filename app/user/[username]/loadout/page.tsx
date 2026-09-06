@@ -55,7 +55,7 @@ export default async function LoadoutPage({ params } : LoadoutPageProps) {
 
     const developerMap = await getDeveloperNameMap(supabase, highlights.map(h => h.game_id))
     const avgRatings = await getAvgRatingsForGames(supabase, highlights.map(h => h.game_id)) as AvgRatingsData[]
-    const viewerRatings = await getUserRatingsForGames(supabase, viewer?.id ?? "", highlights.map(h => h.game_id))
+    const viewerRatings = viewer ? await getUserRatingsForGames(supabase, viewer.id ?? "", highlights.map(h => h.game_id)) : []
 
     // Only sections with something to show get rendered — an empty labelled
     // section reads as broken.
@@ -78,7 +78,7 @@ export default async function LoadoutPage({ params } : LoadoutPageProps) {
                         {username}&apos;s Loadout
                     </h1>
                     <div className="flex flex-wrap gap-x-6 gap-y-1 font-mono text-xs text-(--color-muted) tabular-nums">
-                        <span><span className="text-(--color-text)">{totalGames}</span> logged</span>
+                        <span><span className="text-(--color-text)">{totalGames}</span> saved</span>
                         <span><span className="text-(--color-text)">{completedStat}</span> completed</span>
                         <span><span className="text-(--color-text)">{ratingsReviews.length}</span> rated</span>
                         <span><span className="text-(--color-text)">{ratingsReviews.length ? Math.trunc(avgRating * 100) / 100 : "—"}</span> avg</span>
@@ -88,13 +88,11 @@ export default async function LoadoutPage({ params } : LoadoutPageProps) {
                 {/* Analyst's note beside the rating breakdown — two halves of "who is this player" */}
                 <div className="grid md:grid-cols-[1.4fr_1fr] gap-8 md:gap-12 mb-14 items-start">
                     <div className="border border-(--color-border) bg-(--color-surface) rounded-md px-7 py-6 shadow-[inset_0_1px_0_rgba(239,232,215,0.05)]">
-                        <p className="text-[10px] tracking-[0.3em] uppercase text-(--color-accent) font-mono mb-3">
-                            The Read-out
-                        </p>
+                        <Eyebrow className="!text-[10px] !mb-3">The Read-out</Eyebrow>
 
                         {loadoutIdentity ? (
                             <>
-                                <p className="text-lg leading-relaxed text-(--color-text) font-(family-name:--font-display) italic">
+                                <p className="text-lg leading-relaxed text-(--color-text) font-(family-name:--font-body) italic">
                                     &ldquo;{loadoutIdentity}&rdquo;
                                 </p>
                                 {isOwner && (

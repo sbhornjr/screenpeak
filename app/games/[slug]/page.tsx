@@ -130,7 +130,7 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
     }))
     const maxCount = Math.max(...distribution.map(d => d.count), 1)
 
-    const lists = (await getUserLists(supabase, user?.id, true)) as ListSummary[]
+    const lists = user ? (await getUserLists(supabase, user?.id, true)) as ListSummary[] : []
     const listIdsGameIsIn = await getGameListMembership(supabase, game.id, lists.map(l => l.id))
     const userSettings = user ? await getAccountSettings(supabase, user.id) : null
 

@@ -49,7 +49,7 @@ export default function GameCard({ game, developer, ngplusRating, userRating, ad
                     )}
 
                     {!ngplusRating && game.metacritic_score && (
-                        <Seal label="MC" score={game.metacritic_score} side="right" />
+                        <Seal label="MC" score={game.metacritic_score} side="right" scale={100} />
                     )}
                     {ngplusRating && (
                         <Seal label="SP" score={ngplusRating} side="right" />
@@ -78,7 +78,7 @@ export default function GameCard({ game, developer, ngplusRating, userRating, ad
                     >
                         {game.name}
                     </h3>
-                    <div className="border-t border-dotted border-(--color-muted)/40 mt-1.5 pt-1.5 flex items-baseline justify-between gap-2">
+                    <div className="border-t border-(--color-border) mt-1.5 pt-1.5 flex items-baseline justify-between gap-2">
                         <p className="text-(--color-muted) text-xs font-(family-name:--font-body) line-clamp-1">
                             {developer ?? ' '}
                         </p>
