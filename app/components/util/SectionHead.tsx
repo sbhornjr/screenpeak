@@ -1,7 +1,7 @@
 import { ReactNode } from "react"
 
-/** A menu-cursor into a tracked label, then a rule. The recurring section
- *  header across the app. */
+/** A phosphor seam into a tracked label, then a rule — the screen split. The
+ *  recurring section header across the app. */
 export default function SectionHead({ children, count, action, className = "" }: {
     children: ReactNode
     count?: ReactNode
@@ -10,7 +10,7 @@ export default function SectionHead({ children, count, action, className = "" }:
 }) {
     return (
         <div className={`flex items-center gap-2.5 mt-10 mb-5 font-mono text-[0.6875rem] uppercase tracking-[0.22em] text-(--color-muted) ${className}`}>
-            <span className="text-(--color-accent)" aria-hidden="true">&#9656;</span>
+            <span className="w-[2px] h-[0.95rem] bg-(--color-accent) shrink-0" aria-hidden="true" />
             <b className="text-(--color-text) font-semibold whitespace-nowrap">{children}</b>
             {count != null && <span className="whitespace-nowrap">&middot; {count}</span>}
             {action && <span className="shrink-0">{action}</span>}

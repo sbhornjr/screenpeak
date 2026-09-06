@@ -59,7 +59,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     if (!game) return {}
     return {
         title: game.name,
-        description: game.description_short ?? `Ratings and reviews for ${game.name} on NG+.`,
+        description: game.description_short ?? `Ratings and reviews for ${game.name} on ScreenPeak.`,
         openGraph: {
             title: game.name,
             images: game.cover_image_url ? [game.cover_image_url] : [],
@@ -141,7 +141,7 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
         : null
 
     return (
-        <main style={{ background: "radial-gradient(120% 55% at 50% -8%, rgba(230,169,74,0.06), transparent 60%), var(--color-bg)" }}>
+        <main style={{ background: "radial-gradient(120% 55% at 50% -8%, rgba(71,198,221,0.07), transparent 60%), var(--color-bg)" }}>
             <div className="w-full max-w-5xl mx-auto px-6 md:px-10 pt-6 pb-24">
 
                 <div className="flex items-center justify-between mb-8 font-mono text-[0.6875rem] uppercase tracking-[0.2em] text-(--color-muted)">
@@ -149,14 +149,14 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
                         <span className="group-hover:-translate-x-0.5 transition-transform duration-200">&#9666;</span>
                         Games
                     </Link>
-                    <span>NG+ &nbsp;·&nbsp; <span className="text-(--color-text)">Save file</span></span>
+                    <span className="inline-flex items-center gap-2"><span className="w-[2px] h-[0.8rem] bg-(--color-accent)" aria-hidden="true" /><span className="text-(--color-text)">ScreenPeak</span></span>
                 </div>
 
                 <h1
-                    className="font-(family-name:--font-display) text-(--color-text) flex items-start gap-2 mb-3"
+                    className="font-(family-name:--font-display) text-(--color-text) flex items-stretch gap-3 mb-3"
                     style={{ fontSize: "clamp(2.4rem, 5.5vw, 4.5rem)", fontWeight: 600, letterSpacing: "-0.03em", lineHeight: 0.97, textWrap: "balance" }}
                 >
-                    <span className="text-(--color-accent)" style={{ fontSize: "0.5em", lineHeight: 1.7, flex: "none" }} aria-hidden="true">&#9656;</span>
+                    <span className="bg-(--color-accent) shrink-0 self-stretch my-[0.1em]" style={{ width: "3px", flex: "none" }} aria-hidden="true" />
                     <span>{game.name}</span>
                 </h1>
                 <div className="mb-9 flex flex-wrap items-center gap-1.5">
@@ -173,7 +173,7 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
                             <Image src={game.cover_image_url} alt={game.name} width={256} height={340} className="w-full h-auto object-cover" priority />
                         </div>
                         <Panel className="p-4">
-                            <p className={`${label} mb-2.5`}>Your save file</p>
+                            <p className={`${label} mb-2.5`}>Your save</p>
                             {inFile ? (
                                 <ul className="flex flex-col gap-1 text-[0.8125rem]">
                                     {statusLabel && <li className="flex items-baseline gap-2"><span className={label}>Status</span> {statusLabel}</li>}
@@ -183,7 +183,7 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
                                 </ul>
                             ) : (
                                 <p className="text-sm text-(--color-muted) leading-relaxed">
-                                    Not in your save file yet. Hit <span className="text-(--color-accent) font-mono">+ Save Game</span> to add it.
+                                    Not in your save yet. Hit <span className="text-(--color-accent) font-mono">+ Save Game</span> to add it.
                                 </p>
                             )}
                         </Panel>
@@ -191,7 +191,7 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
 
                     {/* Right — the stats + your move */}
                     <div className="min-w-0 order-1 md:order-2">
-                        <SectionHead className="!mt-0">The Stats</SectionHead>
+                        <SectionHead className="!mt-0">The Scoreboard</SectionHead>
                         <div className="flex flex-wrap items-start gap-x-6 gap-y-4">
                             <StatCompare
                                 critic={game.metacritic_score}
@@ -200,7 +200,7 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
                                 you={userReview?.rating ?? null}
                             />
                             <div className="flex flex-col gap-2.5">
-                                <p className={label}>Your move</p>
+                                <p className={label}>Your turn</p>
                                 <StickyGameActions gameName={game.name}>
                                     <LibraryButton game_id={game.id} />
                                     <AddToListButton
@@ -280,14 +280,14 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
                 ) : (
                     <Panel className="px-6 py-[1.3rem]">
                         <p className="text-(--color-text) leading-relaxed max-w-[50ch]">
-                            No one on NG+ has scored {game.name} yet. Be the first to put it on the board.
+                            No one on ScreenPeak has scored {game.name} yet. Be the first to put it on the board.
                         </p>
                         <div className="mt-3.5"><RateReviewButton game_id={game.id} existing_rating_review={userReview} /></div>
                     </Panel>
                 )}
 
-                {/* Logs */}
-                <SectionHead count={reviewCount}>Logs</SectionHead>
+                {/* Reviews */}
+                <SectionHead count={reviewCount}>Reviews</SectionHead>
                 {reviewCount > 1 && (
                     <div className="mb-4">
                         <GameReviewsFilters gameSlug={game.slug} pageSize={String(pageSizeQuery)} sort={sortQuery} order={orderQuery} page={String(pageQuery)} />
@@ -296,7 +296,7 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
                 <div className="flex flex-col gap-3">
                     {userReview && user && userReview.review !== "" && <Log row={userReview as unknown as LogRow} own />}
                     {pagedReviews.map(r => <Log key={r.user_id} row={r as unknown as LogRow} />)}
-                    {reviewCount === 0 && <p className="text-(--color-muted) italic text-sm">No written logs yet.</p>}
+                    {reviewCount === 0 && <p className="text-(--color-muted) italic text-sm">No written reviews yet.</p>}
                 </div>
                 {otherReviewsCount > 0 && (
                     <div className="mt-5">

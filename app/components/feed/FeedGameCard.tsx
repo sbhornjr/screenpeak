@@ -26,7 +26,7 @@ export default function FeedGameCard({ gameSlug, gameName, gameCoverImageUrl, ga
                     <Seal label="MC" score={metacriticScore} side="right" size="sm" />
                 )}
                 {avgRating && (
-                    <Seal label="NG+" score={avgRating} side="right" size="sm" />
+                    <Seal label="SP" score={avgRating} side="right" size="sm" />
                 )}
                 {userRating && (
                     <Seal label="You" score={userRating} side="left" size="sm" />

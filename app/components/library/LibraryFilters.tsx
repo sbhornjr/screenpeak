@@ -118,7 +118,7 @@ export default function LibraryFilters({ current, genres, platforms, developers,
                     <option value="date_added">Date Added</option>
                     <option value="name">Name</option>
                     <option value="metacritic_score">Metacritic Rating</option>
-                    <option value="ngplus_rating">NG+ Rating</option>
+                    <option value="ngplus_rating">ScreenPeak Rating</option>
                     <option value="your_rating">Your Rating</option>
                 </FilterSelect>
                 <button

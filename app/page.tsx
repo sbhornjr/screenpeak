@@ -6,6 +6,7 @@ import Avatar from "@/app/components/user/Avatar";
 import LandingCTA from "@/app/components/util/LandingCTA";
 import EmptyState from "@/app/components/util/EmptyState";
 import StatCompare from "@/app/components/game/StatCompare";
+import Eyebrow from "@/app/components/util/Eyebrow";
 import Image from "next/image";
 import Link from "next/link";
 import { getViewer } from "@/lib/queries/user";
@@ -36,13 +37,11 @@ export default async function Home() {
                 {/* Hero — the tri-source rating tension, made concrete with a real game */}
                 <section className="w-full max-w-6xl mx-auto px-6 pt-16 pb-20 grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
                     <div>
-                        <p className="text-(--color-muted) text-xs font-semibold tracking-[0.3em] uppercase mb-4 font-mono">
-                            {heroGame ? `${heroGame.name}` : 'Every game, three scores'}
-                        </p>
+                        <Eyebrow className="!mb-4">{heroGame ? heroGame.name : 'Every game, three scores'}</Eyebrow>
                         {heroGame ? (
                             <h1 className="text-4xl sm:text-5xl md:text-6xl font-(family-name:--font-display) text-(--color-text) leading-[1.1] mb-6">
                                 Metacritic said <span className="text-(--color-good)">{heroGame.metacritic_score}</span>.
-                                {' '}NG+ said <span className="text-(--color-mid)">{heroGame.avg_ngplus_rating}</span>.
+                                {' '}ScreenPeak said <span className="text-(--color-mid)">{heroGame.avg_ngplus_rating}</span>.
                             </h1>
                         ) : (
                             <h1 className="text-4xl sm:text-5xl md:text-6xl font-(family-name:--font-display) text-(--color-text) leading-[1.1] mb-6">
@@ -63,7 +62,7 @@ export default async function Home() {
                             </div>
                         )}
                         <p className="text-(--color-muted) mb-8 max-w-md leading-relaxed">
-                            NG+ stamps every game you log with three scores — the critics&apos; verdict, the community&apos;s, and yours. Track your library, rate what you&apos;ve played, and see where you land.
+                            ScreenPeak stamps every game you log with three scores — the critics&apos; verdict, the community&apos;s, and yours. Track your library, rate what you&apos;ve played, and see where you land.
                         </p>
                         <LandingCTA primaryLabel="Start Your Library" />
                     </div>
@@ -79,16 +78,14 @@ export default async function Home() {
                                 priority
                             />
                             <Seal label="MC" score={heroGame.metacritic_score} side="right" />
-                            <Seal label="NG+" score={heroGame.avg_ngplus_rating} side="left" />
+                            <Seal label="SP" score={heroGame.avg_ngplus_rating} side="left" />
                         </div>
                     )}
                 </section>
 
                 {/* Proof strip — real activity, not marketing copy */}
                 <section className="w-full max-w-6xl mx-auto px-6 pb-20">
-                    <p className="text-(--color-muted) text-xs font-semibold tracking-[0.3em] uppercase mb-2 font-mono">
-                        On NG+ right now
-                    </p>
+                    <Eyebrow className="!mb-2">Peak right now</Eyebrow>
                     <h2 className="text-3xl font-(family-name:--font-display) text-(--color-text) mb-8">
                         Real ratings from real players
                     </h2>
@@ -142,17 +139,13 @@ export default async function Home() {
 
                 {/* Loadout teaser — the single most ownable feature, made tangible */}
                 <section className="w-full max-w-3xl mx-auto px-6 pb-24 text-center">
-                    <p className="text-(--color-muted) text-xs font-semibold tracking-[0.3em] uppercase mb-2 font-mono">
-                        Your turn
-                    </p>
+                    <Eyebrow className="justify-center !mb-2">Your turn</Eyebrow>
                     <h2 className="text-3xl font-(family-name:--font-display) text-(--color-text) mb-8">
                         Rate five games. We&apos;ll tell you who you are.
                     </h2>
-                    <div className="text-left max-w-xl mx-auto mb-10 rotate-[0.5deg]">
+                    <div className="text-left max-w-xl mx-auto mb-10">
                         <div className="border border-(--color-border) bg-(--color-surface) rounded-[3px] px-7 py-6 shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
-                            <p className="text-[10px] tracking-[0.3em] uppercase text-(--color-accent) font-mono mb-3">
-                                Your read-out, previewed
-                            </p>
+                            <Eyebrow className="!text-[10px] !mb-3">Your read-out, previewed</Eyebrow>
                             <p className="text-lg leading-relaxed text-(--color-text) font-(family-name:--font-display) italic">
                                 &ldquo;You&apos;ve completed 41 games and rated 28 of them — averaging an 8.1, which says you don&apos;t waste time finishing things you don&apos;t like. RPGs dominate your library, but your highest-rated games are all tight, three-hour puzzle boxes.&rdquo;
                             </p>
@@ -169,9 +162,7 @@ export default async function Home() {
     return (
         <main>
             <div className="w-full max-w-6xl mx-auto px-6 pt-8 pb-16">
-                <p className="text-(--color-muted) text-xs font-semibold tracking-[0.22em] uppercase mb-1 font-mono">
-                    <span className="text-(--color-accent)" aria-hidden="true">▸</span> Activity log
-                </p>
+                <Eyebrow>Activity log</Eyebrow>
                 <h1 className="text-4xl font-bold mb-8 font-(family-name:--font-display) tracking-tight">
                     Activity
                 </h1>

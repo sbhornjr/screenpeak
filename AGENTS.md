@@ -1,6 +1,12 @@
-# ng-plus
+# ScreenPeak
 
 Next.js 16 (App Router) gaming profile app backed by Supabase. Tailwind CSS v4.
+(The repo directory is still historically `ng-plus`; the product name is
+**ScreenPeak** — it was renamed from "NG+" over a trademark conflict. The
+Supabase columns / RPC fields `ngplus_rating` and `avg_ngplus_rating` keep their
+names — renaming them needs a DB migration and they never surface in the UI.
+Frontend wiring was renamed: the tic event is `screenpeak:plus1`, its CSS class
+`sp-plus1`.)
 
 <!-- BEGIN:nextjs-agent-rules -->
 # This is NOT the Next.js you know
@@ -60,24 +66,35 @@ Required in `.env.local` (gitignored):
 
 ## Conventions
 
-- **Design system** — a warm-dark "ledger / dossier" theme. All colour, type,
-  and spacing go through CSS custom properties defined in `app/globals.css`;
-  reference them as Tailwind arbitrary properties, e.g. `bg-(--color-bg)`,
-  `text-(--color-text)`, `border-(--color-border)`. Do **not** hardcode hex.
-  - Ground / surfaces: `--color-bg` `#17140f`, `--color-surface` `#242018`,
-    `--color-surface-light` `#2e2a20`, `--color-border` `#4a4335`
-  - Text: `--color-text` `#ddd5c4` (body), `--color-muted` `#a89e8b`
+- **Design system** — "ScreenPeak": screen-peeking at what your friends play.
+  Cool-graphite dark ground, one electron-beam cyan accent treated as phosphor
+  light, and a **split-screen** motif — the three scores (critic / community /
+  you) sit side by side like players sharing a screen. All colour, type, and
+  spacing go through CSS custom properties in `app/globals.css`; reference them
+  as Tailwind arbitrary properties, e.g. `bg-(--color-bg)`, `text-(--color-text)`,
+  `border-(--color-border)`. Do **not** hardcode hex.
+  - Ground / surfaces: `--color-bg` `#101215`, `--color-surface` `#181b20`,
+    `--color-surface-light` `#21252b`, `--color-border` `#313640`
+  - Text: `--color-text` `#dfe3ea` (body), `--color-muted` `#8b919d`
     (genuine secondary text only — not paragraphs)
-  - Accent: `--color-accent` `#b98a3c` (aged brass) — used for primary
-    buttons, links, active nav. **Never purple.**
-  - Rating tiers (reserved for scores only, never decoration):
-    `--color-good` `#4f86c6` (critic / ≥8), `--color-mid` `#d99a3a`
-    (community / 6–7), `--color-bad` `#d6493f` (you / <6)
-- **Fonts** — Fraunces (`--font-display`, serif headings), IBM Plex Sans
-  (`--font-body`), IBM Plex Mono (`--font-mono`, tracked-uppercase labels,
-  datestamps, and numeric data only). Set in `app/layout.tsx`.
-- Reusable UI lives in `app/components/util/` — prefer `EmptyState`,
-  `StatGrid`, `ScoreVerdict`, `DistributionChart`, `Pagination`, `Avatar`,
-  `Modal` over re-rolling one.
+  - Accent: `--color-accent` `#47c6dd` (electron cyan) — primary buttons, links,
+    active nav, and the seam marker. Cool, not icy-pastel; never purple, never brass.
+  - Split-screen "player" colours (`--color-critic` = P1 warm `#e8a24e`,
+    `--color-community` = P2 grey `#9aa1ad`, `--color-you` = P3 = the accent) —
+    used only by the stat compare.
+  - Rating tiers (reserved for score *values* on cards / distributions, never
+    decoration): `--color-good` `#4f86c6` (≥8), `--color-mid` `#e0a13f` (6–7),
+    `--color-bad` `#e0574c` (<6)
+- **The seam** — a 2px vertical cyan bar is the recurring structural marker: it
+  precedes every `SectionHead` and page `Eyebrow`, and divides the wordmark
+  (`Screen` | `Peak`). It replaced an earlier `▸` menu-cursor glyph. Use
+  `Eyebrow` / `SectionHead`, don't re-roll the markup.
+- **Fonts** — Chakra Petch (`--font-display`, a semi-condensed screen-readout
+  face for headings), IBM Plex Sans (`--font-body`), IBM Plex Mono
+  (`--font-mono`, tracked-uppercase labels, datestamps, and numeric data only).
+  Set in `app/layout.tsx`.
+- Reusable UI lives in `app/components/util/` — prefer `Eyebrow`, `SectionHead`,
+  `Wordmark`, `EmptyState`, `StatGrid`, `ScoreVerdict`, `DistributionChart`,
+  `Pagination`, `Avatar`, `Modal` over re-rolling one.
 - Path alias: `@/*` maps to project root
 - No monorepo — single package

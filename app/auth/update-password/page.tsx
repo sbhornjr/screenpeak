@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase-browser"
 import { passwordSchema, parseOrError } from "@/lib/schemas"
+import Eyebrow from "@/app/components/util/Eyebrow"
 
 // Reached only from a password-reset link: /auth/confirm verifies the recovery
 // token, sets a temporary session, and redirects here. The user then sets a new
@@ -56,9 +57,7 @@ export default function UpdatePasswordPage() {
     return (
         <main className="bg-(--color-bg) min-h-[60vh]">
             <div className="mx-auto max-w-md px-6 py-16 font-(family-name:--font-body)">
-                <p className="font-mono text-[0.6875rem] uppercase tracking-[0.22em] text-(--color-muted) mb-1">
-                    <span className="text-(--color-accent)" aria-hidden="true">&#9656;</span> Account
-                </p>
+                <Eyebrow>Account</Eyebrow>
                 <h1 className="text-3xl md:text-4xl text-(--color-text) font-(family-name:--font-display) mb-6">
                     Set a new password
                 </h1>

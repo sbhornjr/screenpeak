@@ -11,10 +11,9 @@ type EmptyStateProps = {
     dense?: boolean
 }
 
-/* Default mark: an empty save-slot glyph, on-concept for the "your save file"
-   direction — a floppy outline with a hollow label, reading as "slot with
-   nothing written to it yet". SVG rather than emoji (emoji render
-   inconsistently across platforms and read as placeholder art). */
+/* Default mark: an empty save-slot glyph — a floppy outline with a hollow label,
+   reading as "slot with nothing written to it yet". SVG rather than emoji (emoji
+   render inconsistently across platforms and read as placeholder art). */
 function DefaultIcon({ size }: { size: number }) {
     return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true"

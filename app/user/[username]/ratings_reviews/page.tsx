@@ -8,6 +8,7 @@ import Link from "next/link";
 import { getProfileSummaryByUsername } from "@/lib/queries/user";
 import { getUserRatingsReviewsPage, getUserRatingsReviewsCounts } from "@/lib/queries/review";
 import { getDeveloperNameMap } from "@/lib/queries/game";
+import Eyebrow from "@/app/components/util/Eyebrow";
 
 type RatingsPageProps = {
     params: Promise<{ username: string }>
@@ -65,7 +66,7 @@ export default async function RatingsPage({ params, searchParams }: RatingsPageP
                     <span className="group-hover:-translate-x-0.5 transition-transform duration-200 text-lg">←</span>
                     {username}&apos;s profile
                 </Link>
-                <p className="font-mono text-[0.6875rem] uppercase tracking-[0.22em] text-(--color-muted) mb-1"><span className="text-(--color-accent)" aria-hidden="true">▸</span> All logs</p>
+                <Eyebrow>All reviews</Eyebrow>
                 <h1 className="text-4xl md:text-5xl font-bold font-(family-name:--font-display) tracking-tight mb-2">{username}&apos;s Ratings &amp; Reviews</h1>
                 <div className="flex items-center flex-wrap gap-x-4 gap-y-1 text-sm text-(--color-muted) font-mono mb-6">
                     <span className="tabular-nums"><span className="text-(--color-text)">{ratingsReviewsCounts[0].rating_count}</span> ratings</span>

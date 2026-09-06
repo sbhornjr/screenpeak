@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useState } from "react"
 import AuthModal from "@/app/components/user/AuthModal"
 import { useUser } from "@/app/components/user/UserContext"
+import Wordmark from "@/app/components/util/Wordmark"
 
 export default function NavBar() {
     const [isModalOpen, setIsModalOpen] = useState(false)
@@ -23,8 +24,8 @@ export default function NavBar() {
 
     return (
         <div className="flex flex-row flex-wrap px-4 py-2 items-center gap-x-4 gap-y-1 sm:gap-x-6 w-full">
-            <Link href="/" className="text-3xl sm:text-4xl font-bold font-(family-name:--font-display) tracking-tight mx-1 sm:mx-2">
-                NG<span className="text-(--color-accent)">+</span>
+            <Link href="/" aria-label="ScreenPeak home" className="text-3xl sm:text-4xl font-bold tracking-tight mx-1 sm:mx-2">
+                <Wordmark />
             </Link>
             <Link href="/games" className={navLink}>
                 Games

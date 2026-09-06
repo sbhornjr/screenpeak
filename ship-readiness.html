@@ -128,6 +128,10 @@ hr{border:0;border-top:1px solid var(--border);margin:2.5rem 0}
     <button class="reset" id="reset">Reset progress</button>
   </div>
   <p class="usenote">Check items off as you go — your progress is saved in this browser only (no account, nothing sent anywhere). Three tiers: <strong style="color:var(--blocker)">Blocker</strong> = fix before anyone can reach the site · <strong style="color:var(--soon)">Soon</strong> = want it in v1, a few days' slip harms no one · <strong style="color:var(--polish)">Polish</strong> = safe to ship without, do soon after. Items tagged <strong style="color:var(--done)">✓ Done</strong> are built and verified. The deploy runbook at the end is an ordered sequence.</p>
+  <div style="margin-top:1.6rem;border:1px solid var(--soon);border-radius:6px;padding:1rem 1.25rem;max-width:var(--maxw)">
+    <p style="margin:0 0 .4rem;font-family:var(--font-mono);font-size:.68rem;letter-spacing:.18em;text-transform:uppercase;color:var(--soon)">▶ Name settled — ScreenPeak</p>
+    <p style="margin:0;color:var(--ink-dim);font-size:.95rem">The name is now <strong>ScreenPeak</strong> (renamed from "NG+" over a trademark conflict) and the UI rebrand is done. <strong>Done so far:</strong> all four Blockers (B1–B4), Soon items S1–S5 + S7, Polish P1–P2, and the ScreenPeak rebrand. <strong>Still open, no longer blocked by the name:</strong> S6 (Sentry project), S8 (privacy/terms + contact email — still needs a jurisdiction + contact address), P3 (README + docs), P4 (real icons + full web manifest — a placeholder <code>app/icon.svg</code> now exists), and the deploy runbook (needs a domain).</p>
+  </div>
 </header>
 
 <div class="layout">
@@ -154,8 +158,8 @@ hr{border:0;border-top:1px solid var(--border);margin:2.5rem 0}
       <h2>Polish</h2>
       <a href="#P1"><span class="k">P1</span>✓ Modal accessibility</a>
       <a href="#P2"><span class="k">P2</span>✓ Strip server console.logs</a>
-      <a href="#P3"><span class="k">P3</span>Repo &amp; docs hygiene</a>
-      <a href="#P4"><span class="k">P4</span>Icons + web manifest</a>
+      <a href="#P3"><span class="k">P3</span>⏸ Repo &amp; docs hygiene</a>
+      <a href="#P4"><span class="k">P4</span>⏸ Icons + web manifest</a>
       <h2>Deploy runbook</h2>
       <a href="#deploy"><span class="k">§D</span>Overview</a>
       <a href="#D1"><span class="k">D1</span>Clean local build</a>
@@ -882,12 +886,16 @@ alter table ratings_reviews validate constraint review_length;</code></pre>
       </div>
     </article>
 
-    <article class="item" data-sev="polish" id="P3">
+    <article class="item deferred" data-sev="polish" id="P3">
       <div class="item-head">
         <input type="checkbox" class="chk" id="chk-P3">
-        <label for="chk-P3"><span class="tag">Polish</span>P3 · Repo &amp; docs hygiene</label>
+        <label for="chk-P3"><span class="tag">⏸ Deferred</span>P3 · Repo &amp; docs hygiene</label>
       </div>
       <div class="item-body">
+        <div class="field">
+          <span class="flabel">Status — deferred (but name-independent)</span>
+          <p>Parked with the rest during the pause, but none of this needs the name — the <code>STEAM_API_KEY</code> line, the stale "no test framework" line, and the boilerplate <code>public/*.svg</code> are all one-minute fixes, and the README can be written now (just leave the project name as a placeholder). A good warm-up task when you sit back down.</p>
+        </div>
         <div class="field">
           <span class="flabel">What it is</span>
           <p>Loose ends a new contributor (or future you) will trip on.</p>
@@ -908,12 +916,16 @@ alter table ratings_reviews validate constraint review_length;</code></pre>
       </div>
     </article>
 
-    <article class="item" data-sev="polish" id="P4">
+    <article class="item deferred" data-sev="polish" id="P4">
       <div class="item-head">
         <input type="checkbox" class="chk" id="chk-P4">
-        <label for="chk-P4"><span class="tag">Polish</span>P4 · Icons + web manifest</label>
+        <label for="chk-P4"><span class="tag">⏸ Deferred</span>P4 · Icons + web manifest</label>
       </div>
       <div class="item-body">
+        <div class="field">
+          <span class="flabel">Status — deferred until the name is settled</span>
+          <p>These are the app's logo shown tiny (16–180px), so there's nothing to make until the name and a basic mark exist. Nothing is broken meanwhile — <code>favicon.ico</code> already covers the tab. When you're back, either drop in a 512×512 <code>icon.png</code> + 180×180 <code>apple-icon.png</code> + <code>manifest.ts</code>, or generate placeholder versions from code with <code>app/icon.tsx</code> / <code>app/apple-icon.tsx</code> (Next's <code>ImageResponse</code>) that swap out in one commit later.</p>
+        </div>
         <div class="field">
           <span class="flabel">What it is</span>
           <p>You have <code>app/favicon.ico</code> but no <code>app/icon.png</code> (higher-res icon modern browsers and bookmarks use) or <code>app/apple-icon.png</code> (iOS home-screen icon). <code>app/manifest.ts</code> generates the web app manifest — name, theme colour, icons — which lets the site be "added to home screen" as a basic PWA.</p>
@@ -1138,15 +1150,21 @@ STEAM_API_KEY=</code></pre>
 
   <!-- ============ GATE ============ -->
   <section class="section gate" id="gate">
-    <h2 class="sec"><span class="n">F</span>Final gate</h2>
-    <p>You're ready to share the link when:</p>
+    <h2 class="sec"><span class="n">F</span>Where this stands</h2>
+    <p><strong style="color:var(--done)">Done &amp; verified this round:</strong></p>
     <ul>
-      <li><strong style="color:var(--done)">Blockers B1–B4: done.</strong> Loadout AI is opt-in &amp; owner-only (B1); forgot-password + <code>/auth/confirm</code> + <code>/auth/update-password</code> shipped (B2/B3); RLS audited and the UPDATE <code>with_check</code> + storage-bucket gaps closed (B4). Two dashboard steps remain outside the code: the Supabase redirect allowlist (needed for the auth emails to land) and — before real signup volume — custom SMTP.</li>
-      <li>D1's four commands pass clean on your machine.</li>
-      <li>D7's smoke test is fully green on the production URL — especially step 5 (Loadout only generates from the button, never on page load) and step 9 (cross-account edit fails).</li>
-      <li><strong style="color:var(--done)">Soon items S1–S5 and S7: done.</strong> Branded 404, a loading skeleton, per-page share metadata, robots/sitemap, six security headers, and zod validation on every write path with DB CHECK constraints. S6 (error monitoring) and S8 (privacy + terms) are consciously deferred to the naming/email step — both are launch-blockers only in the sense that S8 should be live before real users sign up.</li>
+      <li><strong>Blockers B1–B4.</strong> Loadout AI is opt-in &amp; owner-only (B1); forgot-password + <code>/auth/confirm</code> + <code>/auth/update-password</code> shipped (B2/B3); RLS audited, UPDATE <code>with_check</code> + storage-bucket gaps closed (B4).</li>
+      <li><strong>Soon S1–S5, S7.</strong> Branded 404, loading skeletons (root + 5 targeted), per-page share metadata, robots/sitemap, six security headers, and zod validation on every write path (91 tests).</li>
+      <li><strong>Polish P1–P2.</strong> Modal accessibility + the scroll/header rebuild; server <code>console.log</code>s stripped.</li>
     </ul>
-    <p style="margin-bottom:0;color:var(--ink-dim)">The three things you'd already parked for v2 — Steam achievements, review likes &amp; sort, same-series links — aren't on this list and don't belong on it. They're additive; none of them block a ship.</p>
+    <p><strong style="color:var(--soon)">Deferred until the name is settled:</strong> S6 (Sentry), S8 (privacy/terms), P3 (docs), P4 (icons), and the deploy runbook (D1–D9 — needs a domain).</p>
+    <p><strong>Three things you can do any time — no name required:</strong></p>
+    <ul>
+      <li><strong>Supabase redirect allowlist.</strong> Authentication → URL Configuration → add <code>http://localhost:3000/**</code> and set Site URL. Until this is in, the forgot-password / confirm links dead-end.</li>
+      <li><strong>Run B4's CHECK-constraint SQL</strong> (in the B4 card) — check for violations first, then add + validate.</li>
+      <li><strong>Confirm the <code>loadout_identity</code> / <code>loadout_identity_at</code> columns exist</strong> on <code>users</code> (B1) if you haven't already run that <code>alter table</code>.</li>
+    </ul>
+    <p style="margin-bottom:0;color:var(--ink-dim)">The v2 parking lot — Steam achievements, review likes &amp; sort, same-series links — is separate and additive; none of it blocks a ship.</p>
   </section>
 
   </main>

@@ -11,6 +11,7 @@ import FollowButton from "@/app/components/user/FollowButton";
 import BioButton from "@/app/components/user/BioButton";
 import StatGrid from "@/app/components/util/StatGrid";
 import SectionHead from "@/app/components/util/SectionHead";
+import Eyebrow from "@/app/components/util/Eyebrow";
 import EmptyState from "@/app/components/util/EmptyState";
 import { GameData } from "@/types";
 import { getViewer, getFullProfile, getFollowers, getFollowing } from "@/lib/queries/user";
@@ -31,7 +32,7 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
     if (!profile) return {}
     return {
         title: username,
-        description: `Follow ${username} on NG+.`,
+        description: `Follow ${username} on ScreenPeak.`,
         openGraph: {
             title: username,
             images: profile.avatar_url ? [profile.avatar_url] : [],
@@ -87,9 +88,7 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
                         <Avatar src={profile.avatar_url} alt={username} size="lg" />
                     )}
                     <div className="flex flex-col min-w-0">
-                        <p className="font-mono text-[0.625rem] uppercase tracking-[0.22em] text-(--color-muted) mb-0.5">
-                            <span className="text-(--color-accent)" aria-hidden="true">&#9656;</span> Player file
-                        </p>
+                        <Eyebrow className="!text-[0.625rem] !mb-0.5">Player Card</Eyebrow>
                         <h1 className="text-3xl font-semibold font-(family-name:--font-display)">{username}</h1>
                         <div className="flex">
                             <p className="text-lg font-semibold font-(family-name:--font-display)">{currentTitle}</p>
@@ -163,7 +162,7 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
                 <div className="flex flex-col">
                     <SectionHead action={
                         <Link className="font-mono text-[0.625rem] uppercase tracking-[0.15em] hover:text-(--color-accent) transition-colors duration-200" href={`/user/${username}/ratings_reviews`}>View all</Link>
-                    }>Recent Logs</SectionHead>
+                    }>Recent Reviews</SectionHead>
                     {recentReviews && recentReviews.length > 0
                         ? recentReviews.map(r => <Review key={r.games.name} gameName={r.games.name} gameSlug={r.games.slug} rating_review={r}/>)
                         : <EmptyState dense title="No reviews yet" description={isOwnProfile ? "Rate and review a game to start building your record." : "This player hasn't reviewed anything yet."} />}

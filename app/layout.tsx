@@ -1,14 +1,14 @@
 import type { Metadata } from 'next'
-import { Fraunces, IBM_Plex_Sans, IBM_Plex_Mono } from 'next/font/google'
+import { Chakra_Petch, IBM_Plex_Sans, IBM_Plex_Mono } from 'next/font/google'
 import './globals.css'
 import NavBar from "@/app/components/util/NavBar"
 import Plus1Layer from "@/app/components/util/Plus1Layer"
 import UserProvider from "@/app/components/user/UserContext"
 
-const fraunces = Fraunces({
+const chakraPetch = Chakra_Petch({
     subsets: ['latin'],
     variable: '--font-display',
-    weight: 'variable',
+    weight: ['400', '500', '600', '700'],
     style: ['normal', 'italic'],
 })
 
@@ -27,9 +27,9 @@ const plexMono = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
     metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'),
-    title: { default: 'NG+ | Your Gaming Identity', template: '%s | NG+' },
+    title: { default: 'ScreenPeak | Your Gaming Identity', template: '%s | ScreenPeak' },
     description: 'Track, rate, and share the games that define you.',
-    openGraph: { siteName: 'NG+', type: 'website' },
+    openGraph: { siteName: 'ScreenPeak', type: 'website' },
 }
 
 export default function RootLayout({
@@ -38,7 +38,7 @@ export default function RootLayout({
     children: React.ReactNode
 }) {
     return (
-        <html lang="en" className={`${fraunces.variable} ${plexSans.variable} ${plexMono.variable}`}>
+        <html lang="en" className={`${chakraPetch.variable} ${plexSans.variable} ${plexMono.variable}`}>
             <body>
                 <UserProvider>
                     <Plus1Layer />

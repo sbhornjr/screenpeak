@@ -1,5 +1,5 @@
 /**
- * Fire the +1 tic — NG+'s signature interaction. `Plus1Layer` (mounted once in
+ * Fire the +1 tic — ScreenPeak's signature interaction. `Plus1Layer` (mounted once in
  * the root layout) listens for this event and floats a "+1 LABEL" chip up the
  * screen like XP gain.
  *
@@ -10,5 +10,5 @@
  */
 export function plus1(label?: string, n = 1) {
     if (typeof window === "undefined") return
-    window.dispatchEvent(new CustomEvent("ngplus:plus1", { detail: { label, n } }))
+    window.dispatchEvent(new CustomEvent("screenpeak:plus1", { detail: { label, n } }))
 }

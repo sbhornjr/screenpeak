@@ -52,7 +52,7 @@ export default function GameCard({ game, developer, ngplusRating, userRating, ad
                         <Seal label="MC" score={game.metacritic_score} side="right" />
                     )}
                     {ngplusRating && (
-                        <Seal label="NG+" score={ngplusRating} side="right" />
+                        <Seal label="SP" score={ngplusRating} side="right" />
                     )}
                     {userRating && (
                         <Seal label="You" score={userRating} side="left" />

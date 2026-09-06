@@ -4,6 +4,7 @@ import { redirect } from "next/navigation"
 import LibraryFilters from "../../../components/library/LibraryFilters";
 import Link from "next/link";
 import EmptyState from "../../../components/util/EmptyState";
+import Eyebrow from "@/app/components/util/Eyebrow";
 import { getViewer, getUserIdFromUsername, getAccountSettings } from "@/lib/queries/user";
 import { queryGames, getDeveloperNameMap } from "@/lib/queries/game";
 import { getLibraryFacets, getLibraryEntries } from "@/lib/queries/library";
@@ -84,9 +85,7 @@ export default async function LibraryPage({ params, searchParams } : LibraryPage
     return (
         <main>
             <div className="w-full max-w-6xl mx-auto px-6 sm:px-8 pt-8 pb-16">
-                <p className="font-mono text-[0.6875rem] uppercase tracking-[0.22em] text-(--color-muted) mb-1">
-                    <span className="text-(--color-accent)" aria-hidden="true">&#9656;</span> Save select
-                </p>
+                <Eyebrow>Save select</Eyebrow>
                 <h1 className="text-4xl font-bold font-(family-name:--font-display) tracking-tight mb-6">{username}&apos;s Library</h1>
                 {/* Filters */}
                 <LibraryFilters

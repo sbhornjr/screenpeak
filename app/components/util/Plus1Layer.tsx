@@ -5,8 +5,8 @@ import { useEffect, useState } from 'react'
 type Chip = { id: number; text: string }
 
 /**
- * The +1 tic — NG+'s signature interaction. Any client action that advances
- * your file dispatches `window` event "ngplus:plus1"; this layer catches it
+ * The +1 tic — ScreenPeak's signature interaction. Any client action that advances
+ * your record dispatches `window` event "screenpeak:plus1"; this layer catches it
  * and floats a "+1 LABEL" up the screen like XP gain.
  *
  * Mounted once in the root layout. Trigger from anywhere via `plus1()` in
@@ -25,8 +25,8 @@ export default function Plus1Layer() {
             setChips(c => [...c, { id, text: `+${n}${label}` }])
             window.setTimeout(() => setChips(c => c.filter(x => x.id !== id)), 1000)
         }
-        window.addEventListener('ngplus:plus1', onPlus1)
-        return () => window.removeEventListener('ngplus:plus1', onPlus1)
+        window.addEventListener('screenpeak:plus1', onPlus1)
+        return () => window.removeEventListener('screenpeak:plus1', onPlus1)
     }, [])
 
     if (chips.length === 0) return null
@@ -36,8 +36,8 @@ export default function Plus1Layer() {
             {chips.map(c => (
                 <span
                     key={c.id}
-                    className="ngplus-plus1 font-mono font-bold text-lg tracking-[0.08em] text-(--color-accent) [animation:ngplus-plus1_1s_cubic-bezier(0.2,0.7,0.3,1)_forwards]"
-                    style={{ textShadow: "0 0 16px rgba(230,169,74,0.55), 0 1px 0 rgba(0,0,0,0.4)" }}
+                    className="sp-plus1 font-mono font-bold text-lg tracking-[0.08em] text-(--color-accent) [animation:sp-plus1_1s_cubic-bezier(0.2,0.7,0.3,1)_forwards]"
+                    style={{ textShadow: "0 0 16px rgba(71,198,221,0.6), 0 1px 0 rgba(0,0,0,0.4)" }}
                 >
                     {c.text}
                 </span>

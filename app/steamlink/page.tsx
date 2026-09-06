@@ -68,8 +68,8 @@ export default async function SteamLinkPage() {
         <main>
             <div className="w-full mx-auto max-w-6xl items-center justify-items-center">
                 <h2 className="text-center text-5xl mb-6 font-bold">Games From Steam ({steamGamesData.game_count ?? 0})</h2>
-                <p className="text-center text-xl font-semibold my-2">Your Steam library has been imported. Your existing NG+ Library will not be affected.
-                    All games existing in your NG+ Library that have been imported from Steam are at the bottom of this list. All games will be imported by default, you can click a game if you do not wish to import it.
+                <p className="text-center text-xl font-semibold my-2">Your Steam library has been imported. Your existing ScreenPeak library will not be affected.
+                    All games already in your ScreenPeak library that were also imported from Steam are at the bottom of this list. All games will be imported by default, you can click a game if you do not wish to import it.
                     You may adjust relevant settings for each game before confirming the import.</p>
                 {unmatchedCount > 0 && (
                     <p className="text-center text-sm text-(--color-muted)">{unmatchedCount} game{unmatchedCount === 1 ? "" : "s"} in your Steam library couldn&apos;t be matched to our catalog and won&apos;t appear below.</p>

@@ -5,6 +5,7 @@ import ListPreview from "../components/lists/ListPreview";
 import UserCard from "../components/user/UserCard";
 import { getViewer } from "@/lib/queries/user";
 import SectionHead from "@/app/components/util/SectionHead";
+import Eyebrow from "@/app/components/util/Eyebrow";
 import { getTrendingGames, getTrendingLists, getExploreRecommendations } from "@/lib/queries/explore";
 
 type ExplorePageProps = {
@@ -35,9 +36,7 @@ export default async function Explore({ searchParams }: ExplorePageProps) {
     return (
         <main>
             <div className="max-w-6xl mx-auto w-full px-6 sm:px-8 pt-8 pb-4">
-                <p className="font-mono text-[0.6875rem] uppercase tracking-[0.22em] text-(--color-muted) mb-1">
-                    <span className="text-(--color-accent)" aria-hidden="true">▸</span> Discover
-                </p>
+                <Eyebrow>Discover</Eyebrow>
                 <h1 className="text-4xl font-bold font-(family-name:--font-display) tracking-tight">
                     Explore
                 </h1>
@@ -59,7 +58,7 @@ export default async function Explore({ searchParams }: ExplorePageProps) {
                     ))}
                 </div>
 
-                <SectionHead>Trending Games</SectionHead>
+                <SectionHead>Peak right now</SectionHead>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
                     {trendingGames.map(game => (
                         <GameCard 
@@ -161,7 +160,7 @@ export default async function Explore({ searchParams }: ExplorePageProps) {
                     </div>
                 )}
 
-                <SectionHead>Popular Lists</SectionHead>
+                <SectionHead>Lists peaking now</SectionHead>
                 <div className="flex flex-col gap-4 w-full">
                     {trendingLists.map(list => (
                         <ListPreview 

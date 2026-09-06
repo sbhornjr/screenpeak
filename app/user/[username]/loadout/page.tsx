@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import LoadoutActions from "@/app/components/user/LoadoutActions";
 import DistributionChart from "@/app/components/util/DistributionChart";
 import SectionHead from "@/app/components/util/SectionHead";
+import Eyebrow from "@/app/components/util/Eyebrow";
 import { getViewer, getUserIdFromUsername, getAccountSettings, getCurrentLoadoutIdentity } from "@/lib/queries/user";
 import { getDeveloperNameMap } from "@/lib/queries/game";
 import { getLoadoutRatingHighlights } from "@/lib/queries/stats";
@@ -72,9 +73,7 @@ export default async function LoadoutPage({ params } : LoadoutPageProps) {
         <main className="bg-(--color-bg)">
             <div className="w-full max-w-6xl mx-auto px-6 md:px-10 pt-8 pb-16 font-(family-name:--font-body)">
                 <header className="mb-8">
-                    <p className="font-mono text-[0.6875rem] uppercase tracking-[0.22em] text-(--color-muted) mb-1">
-                        <span className="text-(--color-accent)" aria-hidden="true">&#9656;</span> Stats screen
-                    </p>
+                    <Eyebrow>Stats screen</Eyebrow>
                     <h1 className="text-4xl md:text-5xl text-(--color-text) font-(family-name:--font-display) mb-2">
                         {username}&apos;s Loadout
                     </h1>

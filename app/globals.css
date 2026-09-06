@@ -1,37 +1,38 @@
 @import "tailwindcss";
 
 :root {
-  /* "New Game Plus" — the app is your permanent save file for games.
-     A warm, hearth-lit console-menu palette: near-black ground, bright bone
-     text, one amber accent treated as light. */
-  --font-display: 'Fraunces', serif;
+  /* "ScreenPeak" — screen-peeking at what your friends are playing. The app is
+     a split screen: your score next to the critics' and the community's. A cool
+     graphite ground with one electron-beam cyan accent treated as phosphor light. */
+  --font-display: 'Chakra Petch', system-ui, sans-serif;
   --font-body: 'IBM Plex Sans', sans-serif;
   --font-mono: 'IBM Plex Mono', monospace;
 
-  --color-bg: #141210;
-  --color-surface: #1d1a15;
-  --color-surface-light: #262119;
-  --color-border: #38332a;
-  --color-border-bright: #5b5040;
+  --color-bg: #101215;
+  --color-surface: #181b20;
+  --color-surface-light: #21252b;
+  --color-border: #313640;
+  --color-border-bright: #495060;
 
-  /* The accent is light, not ink — glows on interactive elements, carries the "+" */
-  --color-accent: #e6a94a;
-  --color-accent-hover: #f2ba5c;
+  /* The accent is phosphor, not ink — glows on interactive elements, carries the seam */
+  --color-accent: #47c6dd;
+  --color-accent-hover: #6ad6e9;
 
-  --color-text: #efe8d7;
-  --color-muted: #9a917e;
+  --color-text: #dfe3ea;
+  --color-muted: #8b919d;
 
-  /* Score-source colors (critic / community / you) used by the stat compare.
-     Kept hue-separated; "you" is always the accent. */
-  --color-critic: #5b91cc;
-  --color-community: #cbc1a8;
+  /* Split-screen player colors (critic=P1 / community=P2 / you=P3) used by the
+     stat compare. Warm vs cool so the "players" read apart; "you" is the accent. */
+  --color-critic: #e8a24e;
+  --color-community: #9aa1ad;
   --color-you: var(--color-accent);
 
-  /* Rating-tier colors — score quality, used on cards / distributions */
-  --color-good: #5b91cc;
-  --color-mid: #d99a3a;
-  --color-bad: #d6493f;
-  --color-bad-hover: #a83a30;
+  /* Rating-tier colors — score quality, used on cards / distributions.
+     Hue-separated and colorblind-safe; "good" blue stays distinct from the cyan accent. */
+  --color-good: #4f86c6;
+  --color-mid: #e0a13f;
+  --color-bad: #e0574c;
+  --color-bad-hover: #b0433a;
 }
 
 body {
@@ -55,13 +56,13 @@ h1, h2, h3, h4, h5, h6 {
 ::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 3px; }
 
 /* The +1 tic — the one keyframe the design leans on. Everything else is Tailwind. */
-@keyframes ngplus-plus1 {
+@keyframes sp-plus1 {
   0%   { opacity: 0; transform: translateY(10px) scale(0.85); }
   16%  { opacity: 1; transform: translateY(0) scale(1.05); }
   30%  { transform: translateY(-2px) scale(1); }
   100% { opacity: 0; transform: translateY(-34px) scale(1); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .ngplus-plus1 { animation: ngplus-plus1-rm 1s steps(1) forwards !important; }
-  @keyframes ngplus-plus1-rm { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
+  .sp-plus1 { animation: sp-plus1-rm 1s steps(1) forwards !important; }
+  @keyframes sp-plus1-rm { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
 }

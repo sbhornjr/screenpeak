@@ -1,109 +1,221 @@
-# NG+ Design System
+# ScreenPeak Design System
 
-Internal reference for NG+'s visual identity. No name for this system is user-facing — see **Naming Conventions** below before introducing any new terminology.
+Internal reference for ScreenPeak's visual identity. No name for this system is
+user-facing — see **Naming Conventions** below before introducing any new terminology.
 
 ## 1. Concept
 
-NG+ isn't a storefront or a HUD — it's a personal ledger: you log what you played, grade it against your own taste, and compare that grade to Metacritic and the community. The design is built outward from two things nothing else in this space has:
+**ScreenPeak** is screen-peeking: leaning over to see what your friends are
+playing, and how they scored it. The product was renamed from "NG+" over a
+trademark conflict; the art direction was retuned at the same time.
 
-- **The three-source rating.** Every game carries up to three independent scores — Metacritic, the NG+ community average, and yours — shown as stamped seals rather than a single number.
-- **Loadout.** An LLM-written "gamer identity" paragraph generated from a user's real library/rating data.
+The design is built outward from two things nothing else in this space has:
 
-Everything else — palette, type, geometry — is derived from an archival/catalog metaphor (a personal card catalog, a stamped ledger of what you've played) rather than borrowed from a music player or a HUD. Avoid reaching for neon/arcade or Spotify-style pill-and-circle geometry — that was explicitly rejected during the redesign as a generic "gaming app" default, not a fit for what this app actually does (cataloging and grading, not playing).
+- **The three-source rating.** Every game carries up to three independent scores
+  — Metacritic, the ScreenPeak community average, and yours — laid out **side by
+  side like players sharing a split screen**, not collapsed to one number. Your
+  score is the near player: lit up, seamed, called out against the community.
+- **Loadout.** An LLM-written "gamer identity" paragraph generated from a user's
+  real library/rating data.
+
+Palette, type, and geometry come from the **split screen** — a couch-multiplayer
+memory (GoldenEye, Mario Kart, Halo LAN nights) rendered with restraint: a cool
+CRT-graphite ground, one electron-beam cyan treated as phosphor light, and a thin
+seam that divides one thing from another. Do **not** take this literally into
+costume territory — no scanline overlays, no pixel fonts, no chrome bevels. The
+direction lives in structure and colour, not decoration.
 
 ## 2. Naming Conventions
 
-- **"Loadout"** is a real feature name (the AI-identity page). It's allowed to be a little unusual because nothing else occupies that name.
-- **"Ledger"** is *not* a product name. It's the internal/design-system name for this aesthetic direction (the palette, type, stamp motif) — used only in code comments and design discussion, never in UI copy, button labels, or page titles.
-- **"Library"** stays "Library." Every game platform (Steam, Xbox, PlayStation, GOG) already uses this word correctly; renaming it for vocabulary-cohesion reasons costs real clarity for no real gain. Don't rename established, correctly-expected nouns just to sound more "on brand" — save distinctive naming for things that don't already have an expected name (like Loadout).
+- **"Loadout"** is a real feature name (the AI-identity page). It's allowed to be
+  a little unusual because nothing else occupies that name.
+- **"Split screen"** is *not* a product name. It's the internal/design-system
+  name for this aesthetic direction (the palette, type, seam motif) — used only
+  in code comments and design discussion, never in UI copy or page titles.
+- **"Library"** stays "Library." Every game platform already uses this word
+  correctly; renaming it for vocabulary-cohesion reasons costs real clarity for
+  no gain. Don't rename established, correctly-expected nouns just to sound more
+  "on brand" — save distinctive naming for things that don't already have an
+  expected name (like Loadout).
+- Present-tense, "right now" language is on-brand for discovery surfaces —
+  "Peak right now", "Lists peaking now" — playing on *peak* as "at its height."
+- Internal identifiers keep their history: `ngplus_rating` (sort key),
+  `avg_ngplus_rating` (DB column), the `ngplus:plus1` event. These are wiring,
+  not UI — don't rename them for the rebrand.
 
 ## 3. Color
 
-All colors are CSS custom properties in `app/globals.css` under `:root`. Always reference the token (`bg-(--color-x)`, `var(--color-x)`), never a hardcoded hex — that's what makes retuning the palette a one-file change.
+All colors are CSS custom properties in `app/globals.css` under `:root`. Always
+reference the token (`bg-(--color-x)`, `var(--color-x)`), never a hardcoded hex —
+that's what makes retuning the palette a one-file change.
 
 | Token | Hex | Role |
 |---|---|---|
-| `--color-bg` | `#14120f` | Page background — warm near-black (brown undertone, not neutral gray) |
-| `--color-surface` | `#221f1a` | Card/panel background |
-| `--color-surface-light` | `#2b271f` | Subtle fill — placeholder images, hover backgrounds |
-| `--color-border` | `#3a352b` | Hairline borders, dividers |
-| `--color-accent` | `#8e5aa8` | Interactive color — links, primary buttons, focus/hover states |
-| `--color-accent-hover` | `#7a4a8f` | Hover/pressed state for accent-colored elements |
-| `--color-text` | `#c9c2b4` | Primary text — warm parchment, not stark white |
-| `--color-muted` | `#8a8378` | Secondary text, metadata, captions |
+| `--color-bg` | `#101215` | Page background — cool near-black, faint graphite/blue undertone (not brown, not neutral gray) |
+| `--color-surface` | `#181b20` | Card/panel background |
+| `--color-surface-light` | `#21252b` | Subtle fill — placeholder images, hover backgrounds |
+| `--color-border` | `#313640` | Hairline borders, dividers |
+| `--color-border-bright` | `#495060` | Emphasized border |
+| `--color-accent` | `#47c6dd` | Interactive colour — links, primary buttons, focus/hover, the seam. Electron-beam cyan; cool, not icy-pastel |
+| `--color-accent-hover` | `#6ad6e9` | Hover/pressed state for accent-coloured elements |
+| `--color-text` | `#dfe3ea` | Primary text — cool phosphor white, not stark white |
+| `--color-muted` | `#8b919d` | Secondary text, metadata, captions |
 
-**Rating tiers** (`--color-good` / `--color-mid` / `--color-bad`) are a separate semantic set, used for Metacritic/NG+/your-score values and nowhere else:
+**Split-screen player colours** (`--color-critic` / `--color-community` /
+`--color-you`) — used *only* by the stat compare (`StatCompare`), where the three
+scores are the three "players":
+
+| Token | Hex | Player |
+|---|---|---|
+| `--color-critic` | `#e8a24e` | P1 — the critics, warm amber (the far player) |
+| `--color-community` | `#9aa1ad` | P2 — the crowd, cool grey |
+| `--color-you` | = `--color-accent` | P3 — you, the near player, lit cyan |
+
+**Rating-tier colours** (`--color-good` / `--color-mid` / `--color-bad`) are a
+separate semantic set, used for score *values* on cards / distributions and
+nowhere else:
 
 | Token | Hex | Meaning |
 |---|---|---|
-| `--color-good` | `#4f86c6` | Score ≥ 8 |
-| `--color-mid` | `#d99a3a` | Score 6–7 |
-| `--color-bad` / `--color-bad-hover` | `#d6493f` / `#a83a30` | Score < 6, and destructive actions (delete account, remove from library) |
+| `--color-good` | `#4f86c6` | Score ≥ 8 (kept a true cornflower blue, distinct from the cyan accent) |
+| `--color-mid` | `#e0a13f` | Score 6–7 |
+| `--color-bad` / `--color-bad-hover` | `#e0574c` / `#b0433a` | Score < 6, and destructive actions (delete account, remove from library) |
 
-**Why blue/amber/red, not gold/brass/red:** an earlier version used three shades of the same warm hue (gold/brass/oxblood) differing mainly in lightness — this is hard to read for color-blind users, since it relies on a lightness difference in a hue family where color-blind discrimination is already weak. The current set uses genuinely different hues so tier is legible by color *and* the numbers remain the actual source of truth regardless. If you ever need a 4th semantic color, pick a hue outside this blue/amber/red family — don't add another warm brown/gold.
+**Why amber/grey/red for tiers and players, not shades of one hue:** an earlier
+version used three shades of the same warm hue differing mainly in lightness —
+hard to read for color-blind users. The current sets use genuinely different
+hues so the distinction survives regardless, and the numbers stay the source of
+truth. A 4th semantic colour, if ever needed, should sit outside this
+blue/amber/red/grey family.
 
-**Contrast against cover art:** the rating stamp (`Seal`, see below) sits on top of unpredictable, often busy game cover art. Its background is a near-opaque dark fill (`rgba(15,13,10,0.88)`), not a light tint — this is deliberate. A more transparent fill looked fine on plain art and unreadable on bright/saturated covers (tested against a solid-red game cover and a warm-orange one). Keep any future overlay-on-photo element close to that opacity.
+**Contrast against cover art:** the rating stamp (`Seal`) sits on unpredictable,
+often busy game art. Its background is a near-opaque dark fill
+(`rgba(11,13,16,0.88)`), not a light tint — deliberate; a transparent fill was
+unreadable on bright/saturated covers. Keep any future overlay-on-photo element
+near that opacity.
 
 ## 4. Typography
 
-Three font roles, each with a distinct job — this replaced an earlier two-font setup (Space Grotesk + Inter) that read as the generic "safe modern SaaS" pairing.
+Three font roles, each with a distinct job.
 
 | Role | Font | Variable | Used for |
 |---|---|---|---|
-| Display | Fraunces (variable weight, italic) | `--font-display` | Headings, card titles, the Loadout headline |
+| Display | Chakra Petch (semi-condensed, has italic) | `--font-display` | Headings, card titles, the Loadout headline. A screen-readout face — reads like a game HUD without being a costume |
 | Body | IBM Plex Sans | `--font-body` | Prose — reviews, bios, descriptions |
 | Mono | IBM Plex Mono | `--font-mono` | **Every number**: ratings, hours played, dates, stat values, badge labels |
 
-The mono rule is a real convention, not a decoration — any numeric/data value in the UI (a rating, a play count, a timestamp, a stat tile figure) should render in `font-(family-name:--font-mono)`, tracked-out and uppercase for labels. This is what makes numbers read as "stamped ledger entries" consistently across the app. Prose never uses mono.
+The mono rule is a real convention: any numeric/data value in the UI (a rating,
+a play count, a timestamp, a stat figure) renders in
+`font-(family-name:--font-mono)`, tracked-out and uppercase for labels. This is
+what makes numbers read as consistent "readout" entries across the app. Prose
+never uses mono.
 
-`h1`–`h6` are bound to `--font-display` globally in `globals.css`, so headings need no explicit font class — but most existing code repeats `font-(family-name:--font-display)` explicitly anyway for clarity; match that existing style rather than relying on the implicit heading rule.
+`h1`–`h6` are bound to `--font-display` globally in `globals.css`; most existing
+code still repeats `font-(family-name:--font-display)` explicitly for clarity —
+match that style.
 
 ## 5. Geometry
 
-One flat corner radius everywhere non-circular: **`rounded-[3px]`**. This applies to cards, buttons, modals, form inputs, image frames, tag pills, dropdowns — everything. It replaced a mix of `rounded-lg`/`rounded-xl`/`rounded-2xl` that read as generic soft SaaS chrome.
+One flat corner radius everywhere non-circular: **`rounded-[3px]`**. Cards,
+buttons, modals, inputs, image frames, tag pills, dropdowns — everything. It
+replaced a mix of `rounded-lg`/`xl`/`2xl` that read as generic soft SaaS chrome.
 
-Stay circular (`rounded-full`) only for things that are actually round objects, not because "circle" is a decorative default:
+Stay circular (`rounded-full`) only for actually-round objects:
 - Avatars (`Avatar.tsx`)
-- The rating stamp (`Seal.tsx`) — see below
+- The rating stamp (`Seal.tsx`)
 
-Progress-bar-style fills (rating distribution bars) use `rounded-[1px]`, not `rounded-full` — a pill-shaped thin bar reads as a loading indicator, not a ledger mark.
+Progress-bar-style fills (rating distribution bars) use `rounded-[1px]`, not
+`rounded-full` — a pill-shaped thin bar reads as a loading indicator.
 
 ## 6. Signature devices
 
+### The Seam
+
+A **2px vertical cyan bar** — the divider between two screens. It's the recurring
+structural marker:
+
+- Precedes the label in `SectionHead` (`app/components/util/SectionHead.tsx`) and
+  page `Eyebrow` (`app/components/util/Eyebrow.tsx`) — always use these, don't
+  re-roll the markup.
+- Divides the wordmark: `Screen` (text) | seam | `Peak` (accent), in
+  `app/components/util/Wordmark.tsx`.
+- Brackets the lit "You" column in `StatCompare`.
+
+It replaced an earlier `▸` menu-cursor glyph everywhere that glyph appeared.
+
 ### The Seal (rating stamp)
 
-`app/components/game/Seal.tsx`. A small dashed-border circle, semi-transparent dark fill, tier-colored border/text, slightly rotated (`-7deg` on the right, `5deg` on the left) — reads as a hand-stamped ink mark rather than a UI badge. This is the app's one true signature element and should appear anywhere a game's score is shown on top of its cover art: `GameCard`, `FeedGameCard`, `FeedReview`. It intentionally does **not** appear in list-row contexts where a score sits next to text rather than on an image (e.g. `Review.tsx`, `ReviewPageRating.tsx`) — there, a plain colored number in `--font-mono` is enough; forcing the stamp shape into a non-image layout would be decoration without a reason.
+`app/components/game/Seal.tsx`. A small dashed-border circle, near-opaque dark
+fill, tier-coloured border/text, slightly rotated (`-7deg` right, `5deg` left) —
+a stamped score mark rather than a UI badge. Appears anywhere a game's score sits
+on top of its cover art: `GameCard`, `FeedGameCard`, `FeedReview`. It
+intentionally does **not** appear in text-row contexts (`Review.tsx`,
+`ReviewPageRating.tsx`) — there a plain colour + `--font-mono` number is enough.
 
-Placement convention: **right side = Metacritic or NG+ community score** (whichever applies — never both at once), **left side = the viewer's own score**. Don't invent a third position; if you need to show more than two scores at once (as the landing-page hero does, showing MC and NG+ simultaneously with no viewer score), that's a deliberate one-off, not a new standard layout.
+Placement convention: **right side = Metacritic or ScreenPeak community score**
+(whichever applies — never both at once), **left side = the viewer's own score**.
+The landing-page hero showing MC and SP simultaneously with no viewer score is a
+deliberate one-off, not a new standard.
 
 ### The Folio (CoverFan)
 
-`app/components/lists/CoverFan.tsx`. Renders a list's covers as an overlapping, individually-tilted fan (`-9deg` to `8deg`, alternating) instead of a flat grid — reads as a hand of cards / stack of physical media rather than a generic thumbnail row. Used by both `ListPreview` (the standalone list page, `size="lg"`) and `FeedListPreview` (inline in the activity feed, default `size="md"`).
+`app/components/lists/CoverFan.tsx`. Renders a list's covers as an overlapping,
+individually-tilted fan (`-9deg` to `8deg`, alternating) instead of a flat grid —
+a hand of cards / stack of physical media. Used by `ListPreview` (`size="lg"`)
+and `FeedListPreview` (default `size="md"`).
 
 Two things that look like bugs but are load-bearing:
-- **`imgSizes` in `CoverFan.tsx` is deliberately larger than the rendered box** (140px request for an 80px box, 220px for a 112px box). These images are rotated in CSS; an exactly-matched image request looks visibly soft once resampled at an angle. Don't "fix" this down to match the container size.
-- **Rotation uses the CSS custom-property trick** (`rotate-[var(--fan-rotate)]` + an inline `style` setting `--fan-rotate`), not a literal Tailwind class per array index. A literal array of rotation classes (`ROTATIONS[i % n]` interpolated directly into `className`) works fine here since Tailwind scans raw source text, but if you ever generate rotation values dynamically (not from a fixed small array), use the CSS-variable pattern so the utility class Tailwind sees is always a static string.
+- **`imgSizes` is deliberately larger than the rendered box** (140px request for
+  an 80px box, 220px for a 112px box). These images are rotated in CSS; an
+  exactly-matched request looks visibly soft resampled at an angle. Don't "fix"
+  this down.
+- **Rotation uses the CSS-custom-property trick** (`rotate-[var(--fan-rotate)]` +
+  inline `style` setting `--fan-rotate`), not a literal Tailwind class per index.
+  A fixed small array of literal rotation classes works too (Tailwind scans raw
+  source); use the CSS-variable pattern if values are ever generated dynamically.
 
-Empty lists (0 games) show a single dashed-outline placeholder box in the same footprint as the folio, with muted uppercase mono text ("No games yet") — never leave the space blank. Same idea for `GameCard`'s missing-cover state: a faint diagonal-hatch texture + "No Cover" in tracked mono, not a flat gray box with plain text.
+Empty lists (0 games) show a single dashed-outline placeholder box in the folio
+footprint, muted uppercase mono text ("No games yet") — never blank space. Same
+for `GameCard`'s missing-cover state: faint diagonal-hatch + "No Cover" in
+tracked mono.
 
 ## 7. Component patterns
 
-- **Catalog card** (`GameCard`): cover art, up to two `Seal`s, a dotted rule, then title (Fraunces) / developer+year (mono) / play stats (mono). This is the base pattern other card types riff on.
-- **Stat tiles** (`StatGrid`, and the inline stat cards on `Loadout`): value in `--color-good` + mono, label in tracked-uppercase muted mono underneath.
-- **Dossier note** (the Loadout identity paragraph, and the landing page's "Example Dossier Entry"): a slightly rotated card with a tracked-uppercase mono eyebrow label and the actual content in italic Fraunces. Anything presented as a *sample* rather than real user data should carry an explicit "Example ___" eyebrow like this — never let illustrative copy pass as real.
+- **Catalog card** (`GameCard`): cover art, up to two `Seal`s, a dotted rule,
+  then title / developer+year (mono) / play stats (mono). Base pattern other
+  card types riff on.
+- **Stat tiles** (`StatGrid`, inline stat cards on `Loadout`): value in
+  `--color-good` + mono, label in tracked-uppercase muted mono underneath.
+- **The +1 tic** (`lib/plus1.ts` → `Plus1Layer`): a `+1 LABEL` chip floats up the
+  screen like XP gain. Fire it only on a new, first-time, durable write to the
+  user's own data — `SAVED` / `COMPLETED` / `RATED` / `LISTED` / `NEW LIST` /
+  `FAVORITED`. Silent on edits, removals, follows, and anything about other
+  people.
+- **Sample copy** (the Loadout identity paragraph; the landing "your read-out,
+  previewed"): a card with a tracked-uppercase mono eyebrow and the content in
+  italic display type. Anything shown as a *sample* rather than real user data
+  carries an explicit "Example ___"-style eyebrow — never let illustrative copy
+  pass as real.
 
 ## 8. Do's and Don'ts
 
 **Do**
-- Reference color/font tokens, never hardcode a hex or a font name.
+- Reference colour/font tokens, never hardcode a hex or font name.
 - Put every number in `--font-mono`.
-- Keep the `rounded-[3px]` radius uniform; only avatars and the Seal stay circular.
-- Show an empty state (dashed placeholder + short mono label) instead of blank space when a collection is empty.
-- Ground any new visual device in something NG+ actually does (rating, logging, reviewing) before reaching for a generic "gaming" motif.
+- Use the seam via `Eyebrow` / `SectionHead`; use `Wordmark` for the logo.
+- Keep the `rounded-[3px]` radius uniform; only avatars and the Seal stay round.
+- Show an empty state (dashed placeholder + short mono label) instead of blank
+  space when a collection is empty.
+- Ground any new visual device in something ScreenPeak actually does (rating,
+  logging, reviewing, peeking at friends) before reaching for a generic motif.
 
 **Don't**
-- Don't introduce pill-shaped buttons or Spotify-style geometry — already considered and rejected as a generic default, not a fit for this app.
-- Don't rename established, correctly-understood nouns (Library, etc.) for branding cohesion.
-- Don't use "Ledger" in any user-facing copy.
-- Don't apply the Seal stamp to non-image, text-row contexts (use a plain mono-colored number there instead).
-- Don't undersize an `Image`'s `sizes` prop to exactly match its rendered box if that box is rotated or scaled on hover — request headroom.
+- Don't take the split-screen literally — no scanline overlays, pixel fonts, or
+  bevelled chrome. Structure and colour only.
+- Don't introduce pill-shaped buttons or Spotify-style pill-and-circle geometry.
+- Don't rename established, correctly-understood nouns (Library, etc.) for
+  branding cohesion.
+- Don't use "split screen" (the system name) in user-facing copy.
+- Don't apply the Seal stamp to non-image text rows (plain mono number there).
+- Don't undersize an `Image`'s `sizes` prop to exactly match its rendered box if
+  that box is rotated or scaled on hover — request headroom.

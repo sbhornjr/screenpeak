@@ -10,6 +10,7 @@ import { getViewer, getAccountSettings } from "@/lib/queries/user";
 import { getSteamAccount } from "@/lib/queries/steam";
 import UnlinkSteamAccountButton from "../components/settings/UnlinkSteamAccountButton";
 import Link from "next/link";
+import Eyebrow from "@/app/components/util/Eyebrow";
 
 type SettingsPageProps = {
     searchParams: Promise<{ steam_error?: string }>
@@ -33,7 +34,7 @@ export default async function Settings({ searchParams } : SettingsPageProps) {
     return (
         <main>
             <div className="w-full max-w-2xl mx-auto px-6 pt-8 pb-16 font-(family-name:--font-display)">
-                <p className="font-mono text-[0.6875rem] uppercase tracking-[0.22em] text-(--color-muted) mb-1"><span className="text-(--color-accent)" aria-hidden="true">▸</span> System</p>
+                <Eyebrow>System</Eyebrow>
                 <h1 className="text-4xl font-bold tracking-tight mb-6">Settings</h1>
                 <div className="flex gap-5 items-center mb-8">
                     <AvatarUploader userId={user.id} username={user.username} currentAvatarUrl={user.avatar_url} />
