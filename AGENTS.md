@@ -18,21 +18,28 @@ This version has breaking changes — APIs, conventions, and file structure may 
 ## Commands
 
 ```bash
-npm run dev      # dev server on :3000
-npm run build    # production build
-npm run lint     # eslint (core-web-vitals + typescript)
-npm run seed     # seed games from RAWG API (requires .env.local with RAWG_API_KEY + SUPABASE_SECRET_KEY)
+npm run dev        # dev server on :3000
+npm run build      # production build
+npm run lint       # eslint (core-web-vitals + typescript)
+npm run seed       # seed games from RAWG API (requires .env.local with RAWG_API_KEY + SUPABASE_SECRET_KEY)
+npm test           # vitest run (one-off)
+npm run test:watch # vitest in watch mode
 ```
 
-No test framework is configured. No typecheck script — use `npx tsc --noEmit` for type checking.
+Tests: Vitest characterization suite in `test/` — see `test/README.md` for scope.
+No typecheck script — use `npx tsc --noEmit` for type checking.
 
 ## Structure
 
 - `app/` — Next.js App Router pages and API routes
-  - `app/components/` — UI components organized by domain (user, game, library, lists, feed, util)
-  - `app/api/` — API routes (only `delete-account` currently)
-- `lib/` — shared logic: Supabase clients, DB queries, utilities
+  - `app/components/` — UI components organized by domain (user, game, library, lists, feed, settings, util)
+  - `app/api/` — route handlers: `loadout` (POST, generates the Loadout paragraph),
+    `steam/link` + `steam/callback` (Steam OpenID sign-in), `delete-account` (DELETE)
+  - `app/auth/confirm/` — landing route for every Supabase auth email link
+  - `app/feed-actions.ts` — server action, paginates the activity feed
+- `lib/` — shared logic: Supabase clients, DB queries (`lib/queries/`), utilities
 - `scripts/` — standalone scripts (`seed-games.ts`, `inspect-rawg.ts`)
+- `test/` — Vitest suite; `types/` — shared TS types mirroring `lib/queries/`
 
 ## Supabase Clients
 
@@ -50,19 +57,30 @@ Do **not** mix them. The server client is async (`await createClient()`). The br
 
 `proxy.ts` handles Supabase session refresh on every request via cookie-based SSR. It is not wired as `middleware.ts` by default — verify before modifying.
 
+Supabase auth email links (signup, recovery, email change) all land on
+`app/auth/confirm/route.ts`, which handles both the `token_hash`+`type` and `code`
+link formats.
+
 ## External APIs
 
-- **RAWG API** — game data source, used by `scripts/seed-games.ts`
-- **Anthropic API** — generates AI "Loadout" identity text (`lib/loadout.ts`), model `claude-sonnet-4-6`
-- **Supabase Storage** — user avatars and game images (remote pattern: `*.supabase.co/storage/v1/object/public/**`)
+- **RAWG API** — game data source, used by `scripts/seed-games.ts` via `lib/rawg.ts`
+- **Anthropic API** — generates AI "Loadout" identity text (`lib/loadout.ts`), model
+  `claude-sonnet-4-6`. `new Anthropic()` reads `ANTHROPIC_API_KEY` from env implicitly.
+  Failures degrade to `''` — the paragraph is optional page content.
+- **Steam** — Web API for owned games + achievement completion (`lib/steam.ts`), behind
+  Steam OpenID 2.0 sign-in (`lib/steam-openid.ts`); powers the `/steamlink` import flow
+- **Supabase Storage** — user avatars and game images (remote patterns: `media.rawg.io`,
+  `*.supabase.co/storage/v1/object/public/**`)
 
 ## Env Vars
 
 Required in `.env.local` (gitignored):
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SECRET_KEY` (for seed script)
+- `SUPABASE_SECRET_KEY` (seed script + admin client in `delete-account`)
 - `RAWG_API_KEY` (for seed script)
 - `ANTHROPIC_API_KEY` (for loadout generation)
+- `STEAM_API_KEY` (Steam library import + achievements)
+- `NEXT_PUBLIC_SITE_URL` (metadataBase / OG tags; defaults to `http://localhost:3000`)
 
 ## Conventions
 
@@ -94,7 +112,7 @@ Required in `.env.local` (gitignored):
   (`--font-mono`, tracked-uppercase labels, datestamps, and numeric data only).
   Set in `app/layout.tsx`.
 - Reusable UI lives in `app/components/util/` — prefer `Eyebrow`, `SectionHead`,
-  `Wordmark`, `EmptyState`, `StatGrid`, `ScoreVerdict`, `DistributionChart`,
-  `Pagination`, `Avatar`, `Modal` over re-rolling one.
+  `Wordmark`, `EmptyState`, `StatGrid`, `DistributionChart`, `Pagination`,
+  `Panel`, `Modal` (and `app/components/user/Avatar`) over re-rolling one.
 - Path alias: `@/*` maps to project root
 - No monorepo — single package
