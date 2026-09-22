@@ -53,7 +53,7 @@ export default async function LoadoutPage({ params } : LoadoutPageProps) {
         count: ratingsReviews.filter(r => r.rating === n).length
     }))
 
-    const developerMap = await getDeveloperNameMap(supabase, highlights.map(h => h.game_id))
+    const developerMap = await getDeveloperNameMap(highlights.map(h => h.game_id))
     const avgRatings = await getAvgRatingsForGames(supabase, highlights.map(h => h.game_id)) as AvgRatingsData[]
     const viewerRatings = viewer ? await getUserRatingsForGames(supabase, viewer.id ?? "", highlights.map(h => h.game_id)) : []
 

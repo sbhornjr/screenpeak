@@ -54,12 +54,12 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
     const { entries: libraryEntries, totalCount: totalGames } = await getLibraryStatusBreakdown(supabase, profile.id)
 
     const favoriteGamesData = profile.favorite_game_ids?.length > 0
-        ? await queryGames(supabase, { userId: viewer ? viewer.id : null, gameIds: profile.favorite_game_ids })
+        ? await queryGames({ userId: viewer ? viewer.id : null, gameIds: profile.favorite_game_ids })
         : []
     const favoriteGames = favoriteGamesData as GameData[]
     const orderedFavorites = profile.favorite_game_ids.map((id: string) => favoriteGames?.find(g => String(g.id) === id)).filter(Boolean).reverse() as GameData[]
 
-    const developerMap = await getDeveloperNameMap(supabase, profile.favorite_game_ids)
+    const developerMap = await getDeveloperNameMap(profile.favorite_game_ids)
 
     const recentReviews = await getRecentReviews(supabase, profile.id)
 

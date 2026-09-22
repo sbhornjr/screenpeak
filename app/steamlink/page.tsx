@@ -24,7 +24,7 @@ export default async function SteamLinkPage() {
     const steamGamesData = await getOwnedGames(steamUser.steam_id)
     if (!steamGamesData || !steamGamesData.games) redirect("/settings?steam_error=2")
 
-    const ngPlusGamesSteamIds = await getGamesFromSteamIds(supabase, steamGamesData.games.map(g => g.appid))
+    const ngPlusGamesSteamIds = await getGamesFromSteamIds(steamGamesData.games.map(g => g.appid))
 
     // Writing new rows into the shared games/genres/platforms/etc. catalog
     // needs elevated privileges — a regular user's RLS-scoped session client
@@ -39,14 +39,14 @@ export default async function SteamLinkPage() {
     const unmatchedSteamGames = steamGamesData.games.filter(g => !ngPlusGamesSteamIdsSet.has(g.appid))
     await importGamesFromSteam(adminClient, unmatchedSteamGames)
 
-    const ngPlusGamesData = await getGamesFromSteamIds(supabase, steamGamesData.games.map(g => g.appid))
+    const ngPlusGamesData = await getGamesFromSteamIds(steamGamesData.games.map(g => g.appid))
     const ngPlusGameIds = new Set(ngPlusGamesData.map(g => g.id))
     const libraryEntriesByGameId = new Map(
         (await getLibraryEntries(supabase, viewer.id, {}))
             .filter(le => ngPlusGameIds.has(le.game_id))
             .map(le => [le.game_id, le])
     )
-    const developerMap = await getDeveloperNameMap(supabase, ngPlusGamesData.map(g => g.id))
+    const developerMap = await getDeveloperNameMap(ngPlusGamesData.map(g => g.id))
     const steamGamesByAppid = new Map(steamGamesData.games.map(g => [g.appid, g]))
     const fullyCompletedAppids = await getFullyCompletedAppids(steamUser.steam_id, ngPlusGamesData.map(g => g.steam_appid))
 

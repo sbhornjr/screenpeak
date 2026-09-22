@@ -1,45 +1,63 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { sql, eq, ilike, inArray } from 'drizzle-orm'
+import { db } from '@/lib/db'
+import { games, gameGenres, gamePlatforms, gameDevelopers, gamePublishers, genres, platforms, developers, publishers } from '@/db/schema'
 import { Game, GameData } from '@/types'
 
-export async function getGameBySlug(supabase: SupabaseClient, slug: string) {
-    const { data } = await supabase
-        .from('games')
-        .select('*')
-        .eq('slug', slug)
-        .single()
+export async function getGameBySlug(slug: string) {
+    const rows = await db
+        .select({
+            id: games.id,
+            created_at: games.createdAt,
+            rawg_id: games.rawgId,
+            name: games.name,
+            slug: games.slug,
+            cover_image_url: games.coverImageUrl,
+            released: games.released,
+            metacritic_score: games.metacriticScore,
+            description: games.description,
+            esrb_rating: games.esrbRating,
+            reddit_url: games.redditUrl,
+            screenshots: games.screenshots,
+            steam_appid: games.steamAppid,
+        })
+        .from(games)
+        .where(eq(games.slug, slug))
+        .limit(1)
 
-    return data
+    return rows[0] ?? null
 }
 
-export async function getGameTaxonomy(supabase: SupabaseClient, gameId: string) {
-    const [{ data: genres }, { data: platforms }, { data: developers }, { data: publishers }] =
-        await Promise.all([
-            supabase
-                .from('game_genres')
-                .select('genres(id, name, slug)')
-                .eq('game_id', gameId),
-            supabase
-                .from('game_platforms')
-                .select('platforms(id, name, slug)')
-                .eq('game_id', gameId),
-            supabase
-                .from('game_developers')
-                .select('developers(id, name, slug)')
-                .eq('game_id', gameId),
-            supabase
-                .from('game_publishers')
-                .select('publishers(id, name, slug)')
-                .eq('game_id', gameId),
-        ])
+export async function getGameTaxonomy(gameId: string) {
+    const [genreRows, platformRows, developerRows, publisherRows] = await Promise.all([
+        db.select({ id: genres.id, name: genres.name, slug: genres.slug })
+            .from(gameGenres)
+            .innerJoin(genres, eq(gameGenres.genreId, genres.id))
+            .where(eq(gameGenres.gameId, gameId)),
+        db.select({ id: platforms.id, name: platforms.name, slug: platforms.slug })
+            .from(gamePlatforms)
+            .innerJoin(platforms, eq(gamePlatforms.platformId, platforms.id))
+            .where(eq(gamePlatforms.gameId, gameId)),
+        db.select({ id: developers.id, name: developers.name, slug: developers.slug })
+            .from(gameDevelopers)
+            .innerJoin(developers, eq(gameDevelopers.developerId, developers.id))
+            .where(eq(gameDevelopers.gameId, gameId)),
+        db.select({ id: publishers.id, name: publishers.name, slug: publishers.slug })
+            .from(gamePublishers)
+            .innerJoin(publishers, eq(gamePublishers.publisherId, publishers.id))
+            .where(eq(gamePublishers.gameId, gameId)),
+    ])
 
     return {
-        genres: (genres ?? []).flatMap((g) => g.genres ?? []),
-        platforms: (platforms ?? []).flatMap((p) => p.platforms ?? []),
-        developers: (developers ?? []).flatMap((d) => d.developers ?? []),
-        publishers: (publishers ?? []).flatMap((p) => p.publishers ?? []),
+        genres: genreRows,
+        platforms: platformRows,
+        developers: developerRows,
+        publishers: publisherRows,
     }
 }
 
+// Unchanged — called client-side (FavoriteGamePicker.tsx, AddToListFromListButton.tsx),
+// a public unauthenticated search with no mutation risk. Stays on supabase-js.
 export async function searchGamesByName(supabase: SupabaseClient, query: string, limit = 20): Promise<Game[]> {
     const { data } = await supabase
         .from('games')
@@ -50,30 +68,27 @@ export async function searchGamesByName(supabase: SupabaseClient, query: string,
     return data ?? []
 }
 
-// Maps game_id -> developer name for a set of games. Used anywhere a game grid needs to show its developer.
-// Keys are normalized to strings since callers pass ids as a mix of string and number.
-// Chunked like getGamesFromSteamIds below — a large library/catalog can push the .in()
-// filter (sent as URL query params) past undici's header size limit, which fails the
-// fetch entirely (HeadersOverflowError) and would otherwise silently return no developers.
-export async function getDeveloperNameMap(supabase: SupabaseClient, gameIds: (string | number)[]): Promise<Map<string, string | null>> {
+// Maps game_id -> developer name for a set of games. Chunked — a large
+// library/catalog can push the filter past a query-size limit.
+export async function getDeveloperNameMap(gameIds: (string | number)[]): Promise<Map<string, string | null>> {
     const CHUNK_SIZE = 100
     const map = new Map<string, string | null>()
 
     for (let i = 0; i < gameIds.length; i += CHUNK_SIZE) {
-        const chunk = gameIds.slice(i, i + CHUNK_SIZE)
-        const { data: developerLinks, error } = await supabase
-            .from('game_developers')
-            .select('game_id, developers(name)')
-            .in('game_id', chunk)
+        const chunk = gameIds.slice(i, i + CHUNK_SIZE).map(String)
+        try {
+            const rows = await db
+                .select({ game_id: gameDevelopers.gameId, name: developers.name })
+                .from(gameDevelopers)
+                .innerJoin(developers, eq(gameDevelopers.developerId, developers.id))
+                .where(inArray(gameDevelopers.gameId, chunk))
 
-        if (error) {
+            for (const d of rows) {
+                if (!map.has(String(d.game_id))) map.set(String(d.game_id), d.name ?? null)
+            }
+        } catch (error) {
             console.error('Failed to fetch developer names:', error)
             continue
-        }
-
-        for (const d of developerLinks ?? []) {
-            const name = (d.developers as unknown as { name: string } | null)?.name ?? null
-            if (!map.has(String(d.game_id))) map.set(String(d.game_id), name)
         }
     }
 
@@ -95,43 +110,43 @@ type QueryGamesParams = {
     gameIds?: (string | number)[] | null
 }
 
-export async function queryGames(supabase: SupabaseClient, params: QueryGamesParams): Promise<GameData[]> {
-    const { data } = await supabase.rpc('query_games', {
-        p_q: params.q,
-        p_genre: params.genre,
-        p_platform: params.platform,
-        p_developer: params.developer,
-        p_publisher: params.publisher,
-        p_esrb: params.esrb,
-        p_sort: params.sort,
-        p_order: params.order,
-        p_limit: params.limit,
-        p_offset: params.offset,
-        p_user_id: params.userId,
-        p_game_ids: params.gameIds,
-    })
+export async function queryGames(params: QueryGamesParams): Promise<GameData[]> {
+    const rows = await db.execute(sql`
+        select * from query_games(
+            p_q => ${params.q ?? null},
+            p_genre => ${params.genre ?? null},
+            p_platform => ${params.platform ?? null},
+            p_developer => ${params.developer ?? null},
+            p_publisher => ${params.publisher ?? null},
+            p_esrb => ${params.esrb ?? null},
+            p_sort => ${params.sort ?? 'metacritic_score'},
+            p_order => ${params.order ?? 'desc'},
+            p_limit => ${params.limit ?? 10},
+            p_offset => ${params.offset ?? 0},
+            p_user_id => ${params.userId ?? null},
+            p_game_ids => ${params.gameIds ?? null}
+        )
+    `)
 
-    return data ?? []
+    return rows as unknown as GameData[]
 }
 
-export async function getAllGenres(supabase: SupabaseClient) {
-    const { data } = await supabase.from('genres').select('id, name, slug')
-    return data ?? []
+export async function getAllGenres() {
+    return db.select({ id: genres.id, name: genres.name, slug: genres.slug }).from(genres)
 }
 
-export async function getAllPlatforms(supabase: SupabaseClient) {
-    const { data } = await supabase.from('platforms').select('id, name, slug')
-    return data ?? []
+export async function getAllPlatforms() {
+    return db.select({ id: platforms.id, name: platforms.name, slug: platforms.slug }).from(platforms)
 }
 
-export async function getDistinctEsrbRatings(supabase: SupabaseClient): Promise<string[]> {
-    const { data } = await supabase.from('games').select('esrb_rating')
-    if (!data) return []
-    return [...new Set(data.map(row => row.esrb_rating))].filter((rating): rating is string => rating !== null).sort()
+export async function getDistinctEsrbRatings(): Promise<string[]> {
+    const rows = await db.select({ esrb_rating: games.esrbRating }).from(games)
+    return [...new Set(rows.map(row => row.esrb_rating))].filter((rating): rating is string => rating !== null).sort()
 }
 
 type TaxonomyTable = 'developers' | 'publishers'
 
+// Unchanged — called from SearchableDropdown.tsx ('use client'), stays on supabase-js.
 export async function searchTaxonomyTable(supabase: SupabaseClient, table: TaxonomyTable, query: string, limitToIds?: string[]) {
     let q = supabase
         .from(table)
@@ -148,6 +163,7 @@ export async function searchTaxonomyTable(supabase: SupabaseClient, table: Taxon
     return data ?? []
 }
 
+// Unchanged — called from SearchableDropdown.tsx ('use client'), stays on supabase-js.
 export async function getTaxonomyNameBySlug(supabase: SupabaseClient, table: TaxonomyTable, slug: string) {
     const { data } = await supabase
         .from(table)
@@ -158,31 +174,32 @@ export async function getTaxonomyNameBySlug(supabase: SupabaseClient, table: Tax
     return data?.name ?? ''
 }
 
-export async function getGamesFromSteamIds(supabase: SupabaseClient, gameIds: number[]) {
+export async function getGamesFromSteamIds(gameIds: number[]) {
     if (gameIds.length === 0) return []
 
-    // Chunked to keep the .in() filter (sent as URL query params) from
-    // growing unbounded with large Steam libraries — a few hundred ids in
-    // one request risks a URL-length failure that would otherwise come
-    // back as a silent empty result.
     const CHUNK_SIZE = 100
-    // steam_appid is nullable in the schema, but every row here matched a
-    // non-null .in() filter, so it's guaranteed non-null within this result.
     const results: { id: string, name: string, slug: string, cover_image_url: string | null, released: string | null, steam_appid: number }[] = []
 
     for (let i = 0; i < gameIds.length; i += CHUNK_SIZE) {
         const chunk = gameIds.slice(i, i + CHUNK_SIZE)
-        const { data, error } = await supabase
-            .from("games")
-            .select("id, name, slug, cover_image_url, released, steam_appid")
-            .in("steam_appid", chunk)
+        try {
+            const rows = await db
+                .select({
+                    id: games.id,
+                    name: games.name,
+                    slug: games.slug,
+                    cover_image_url: games.coverImageUrl,
+                    released: games.released,
+                    steam_appid: games.steamAppid,
+                })
+                .from(games)
+                .where(inArray(games.steamAppid, chunk))
 
-        if (error) {
-            console.error("Failed to fetch games by steam appid:", error)
+            results.push(...(rows as unknown as typeof results))
+        } catch (error) {
+            console.error('Failed to fetch games by steam appid:', error)
             throw error
         }
-
-        results.push(...(data ?? []))
     }
 
     return results

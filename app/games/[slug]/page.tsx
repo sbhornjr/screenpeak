@@ -54,12 +54,11 @@ const tag = "inline-flex px-2 py-0.5 rounded text-[0.6875rem] font-mono tracking
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
     const { slug } = await params
-    const supabase = await createClient()
-    const game = await getGameBySlug(supabase, slug)
+    const game = await getGameBySlug(slug)
     if (!game) return {}
     return {
         title: game.name,
-        description: game.description_short ?? `Ratings and reviews for ${game.name} on ScreenPeak.`,
+        description: `Ratings and reviews for ${game.name} on ScreenPeak.`,
         openGraph: {
             title: game.name,
             images: game.cover_image_url ? [game.cover_image_url] : [],
@@ -97,7 +96,7 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
     const supabase = await createClient()
 
     const user = await getViewer(supabase)
-    const game = await getGameBySlug(supabase, slug)
+    const game = await getGameBySlug(slug)
     if (!game) notFound()
 
     const {
@@ -105,7 +104,7 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
         platforms: platformList,
         developers: developerList,
         publishers: publisherList,
-    } = await getGameTaxonomy(supabase, game.id)
+    } = await getGameTaxonomy(game.id)
 
     const stats = await getGameRatingsStats(supabase, game.id)
     const userReview = user ? await getUserRatingReviewForGame(supabase, game.id, user.id) : null
@@ -170,7 +169,9 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
                     {/* Left rail — cover + your file */}
                     <div className="flex flex-col gap-5 order-2 md:order-1">
                         <div className="rounded-md overflow-hidden border border-(--color-border) shadow-[0_10px_30px_-12px_rgba(0,0,0,0.7)]">
-                            <Image src={game.cover_image_url} alt={game.name} width={256} height={340} className="w-full h-auto object-cover" priority />
+                            {/* cover_image_url is nullable in the schema, but every game reaching this
+                                page came from a RAWG-backed import that always populates it. */}
+                            <Image src={game.cover_image_url!} alt={game.name} width={256} height={340} className="w-full h-auto object-cover" priority />
                         </div>
                         <Panel className="p-4">
                             <p className={`${label} mb-2.5`}>Your save</p>
@@ -202,7 +203,10 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
                             <div className="flex flex-col gap-2.5">
                                 <p className={label}>Your turn</p>
                                 <StickyGameActions gameName={game.name}>
-                                    <LibraryButton game_id={game.id} />
+                                    {/* LibraryButton's game_id prop is typed number, but games.id is a uuid
+                                        string — a pre-existing mismatch predating this conversion (library.ts
+                                        still on supabase-js). Cast preserves the existing runtime behavior. */}
+                                    <LibraryButton game_id={game.id as unknown as number} />
                                     <AddToListButton
                                         gameId={game.id}
                                         lists={lists.map(l => ({ listId: String(l.id), listName: l.name, listCount: l.game_count }))}
@@ -248,11 +252,11 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
                 )}
 
                 {/* Gallery */}
-                {game.screenshots.length > 1 && (
+                {(game.screenshots?.length ?? 0) > 1 && (
                     <>
                         <SectionHead>Gallery</SectionHead>
                         <div className="mx-auto max-w-3xl">
-                            <ScreenshotCarousel screenshots={game.screenshots.slice(1) ?? []} />
+                            <ScreenshotCarousel screenshots={game.screenshots?.slice(1) ?? []} />
                         </div>
                     </>
                 )}

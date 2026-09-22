@@ -65,7 +65,7 @@ export default async function LibraryPage({ params, searchParams } : LibraryPage
     const libraryEntries = await getLibraryEntries(supabase, ownerId.id, { status: statusQuery, is100: is100Query, sort: sortQuery, order: orderQuery })
     const libraryGameIds = libraryEntries?.map(e => e.game_id) ?? []
 
-    const games = await queryGames(supabase, {
+    const games = await queryGames({
         q: query || null,
         genre: genreQuery || null,
         platform: platformQuery || null,
@@ -80,7 +80,7 @@ export default async function LibraryPage({ params, searchParams } : LibraryPage
     })
 
     const finalGameIds = games?.map(g => g.id) ?? []
-    const developerMap = await getDeveloperNameMap(supabase, finalGameIds)
+    const developerMap = await getDeveloperNameMap(finalGameIds)
 
     return (
         <main>

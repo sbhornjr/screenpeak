@@ -56,7 +56,7 @@ export default async function RatingsPage({ params, searchParams }: RatingsPageP
     const totalCount = ratingsReviews?.[0]?.total_count ?? 0
     const totalPages = Math.ceil(totalCount / currentPageSize)
 
-    const developerMap = await getDeveloperNameMap(supabase, ratingsReviews?.map(rr => rr.game_id) ?? [])
+    const developerMap = await getDeveloperNameMap(ratingsReviews?.map(rr => rr.game_id) ?? [])
 
     return (
         <main>

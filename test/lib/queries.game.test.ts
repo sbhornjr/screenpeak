@@ -1,25 +1,31 @@
-import { describe, it, expect, vi } from 'vitest'
-import { getGameTaxonomy, getDistinctEsrbRatings, getDeveloperNameMap } from '@/lib/queries/game'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// Most of lib/queries/* is a thin pass-through to Supabase and not worth
-// pinning. These three do real work on the result set — flattening embedded
-// rows, de-duping + sorting, building a first-wins map — so they get covered.
-// The Supabase client (a DB boundary) is faked with just the chain each
-// function actually calls.
+const mockDb = { select: vi.fn() }
+vi.mock('@/lib/db', () => ({ db: mockDb }))
+
+const { getGameTaxonomy, getDistinctEsrbRatings, getDeveloperNameMap } = await import('@/lib/queries/game')
+
+// Most of lib/queries/* is a thin pass-through to Drizzle and not worth
+// pinning. These three do real work on the result set — de-duping + sorting,
+// building a first-wins map, tolerating missing joins — so they get covered.
+// db (a DB boundary) is mocked with just the chain each function calls.
+
+beforeEach(() => { mockDb.select.mockReset() })
 
 describe('getGameTaxonomy', () => {
-    it('flattens embedded taxonomy rows and tolerates missing sections', async () => {
-        const byTable: Record<string, { data: unknown }> = {
-            game_genres: { data: [{ genres: [{ id: 'g1', name: 'RPG', slug: 'rpg' }] }] },
-            game_platforms: { data: [{ platforms: [{ id: 'p1', name: 'PC', slug: 'pc' }] }] },
-            game_developers: { data: null },
-            game_publishers: { data: [{ publishers: [{ id: 'pub1', name: 'Larian', slug: 'larian' }] }] },
-        }
-        const supabase = {
-            from: (table: string) => ({ select: () => ({ eq: async () => byTable[table] }) }),
-        }
+    it('returns joined rows per taxonomy and tolerates an empty section', async () => {
+        const byCall = [
+            [{ id: 'g1', name: 'RPG', slug: 'rpg' }],
+            [{ id: 'p1', name: 'PC', slug: 'pc' }],
+            [],
+            [{ id: 'pub1', name: 'Larian', slug: 'larian' }],
+        ]
+        let call = 0
+        mockDb.select.mockImplementation(() => ({
+            from: () => ({ innerJoin: () => ({ where: async () => byCall[call++] }) }),
+        }))
 
-        const taxonomy = await getGameTaxonomy(supabase as never, 'game-1')
+        const taxonomy = await getGameTaxonomy('game-1')
 
         expect(taxonomy).toEqual({
             genres: [{ id: 'g1', name: 'RPG', slug: 'rpg' }],
@@ -32,51 +38,40 @@ describe('getGameTaxonomy', () => {
 
 describe('getDistinctEsrbRatings', () => {
     it('de-duplicates, drops nulls, and sorts alphabetically', async () => {
-        const supabase = {
-            from: () => ({
-                select: async () => ({
-                    data: [
-                        { esrb_rating: 'Teen' },
-                        { esrb_rating: 'Mature' },
-                        { esrb_rating: 'Teen' },
-                        { esrb_rating: null },
-                        { esrb_rating: 'Everyone' },
-                    ],
-                }),
-            }),
-        }
+        mockDb.select.mockImplementation(() => ({
+            from: async () => [
+                { esrb_rating: 'Teen' },
+                { esrb_rating: 'Mature' },
+                { esrb_rating: 'Teen' },
+                { esrb_rating: null },
+                { esrb_rating: 'Everyone' },
+            ],
+        }))
 
-        await expect(getDistinctEsrbRatings(supabase as never)).resolves.toEqual([
-            'Everyone',
-            'Mature',
-            'Teen',
-        ])
+        await expect(getDistinctEsrbRatings()).resolves.toEqual(['Everyone', 'Mature', 'Teen'])
     })
 
-    it('returns an empty array when the query yields no data', async () => {
-        const supabase = { from: () => ({ select: async () => ({ data: null }) }) }
+    it('returns an empty array when the query yields no rows', async () => {
+        mockDb.select.mockImplementation(() => ({ from: async () => [] }))
 
-        await expect(getDistinctEsrbRatings(supabase as never)).resolves.toEqual([])
+        await expect(getDistinctEsrbRatings()).resolves.toEqual([])
     })
 })
 
 describe('getDeveloperNameMap', () => {
-    function supabaseReturning(result: { data: unknown; error: unknown }) {
-        return { from: () => ({ select: () => ({ in: async () => result }) }) }
+    function mockReturning(rows: unknown[]) {
+        mockDb.select.mockImplementation(() => ({ from: () => ({ innerJoin: () => ({ where: async () => rows }) }) }))
     }
 
     it('maps game_id to developer name, keeping the first seen and normalising keys to strings', async () => {
-        const supabase = supabaseReturning({
-            data: [
-                { game_id: 'a', developers: { name: 'Supergiant' } },
-                { game_id: 'a', developers: { name: 'Should Be Ignored' } },
-                { game_id: 3, developers: { name: 'Numeric Key Studio' } },
-                { game_id: 'b', developers: null },
-            ],
-            error: null,
-        })
+        mockReturning([
+            { game_id: 'a', name: 'Supergiant' },
+            { game_id: 'a', name: 'Should Be Ignored' },
+            { game_id: 3, name: 'Numeric Key Studio' },
+            { game_id: 'b', name: null },
+        ])
 
-        const map = await getDeveloperNameMap(supabase as never, ['a', 3, 'b'])
+        const map = await getDeveloperNameMap(['a', 3, 'b'])
 
         expect(map.get('a')).toBe('Supergiant')
         expect(map.get('3')).toBe('Numeric Key Studio')
@@ -84,11 +79,11 @@ describe('getDeveloperNameMap', () => {
         expect(map.size).toBe(3)
     })
 
-    it('logs and returns an empty map when the chunk query errors', async () => {
-        const supabase = supabaseReturning({ data: null, error: { message: 'boom' } })
+    it('logs and returns an empty map when the chunk query throws', async () => {
+        mockDb.select.mockImplementation(() => ({ from: () => ({ innerJoin: () => ({ where: async () => { throw new Error('boom') } }) }) }))
         const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
-        const map = await getDeveloperNameMap(supabase as never, ['a'])
+        const map = await getDeveloperNameMap(['a'])
 
         expect(map.size).toBe(0)
         expect(errSpy).toHaveBeenCalled()

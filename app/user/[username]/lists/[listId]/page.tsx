@@ -48,7 +48,7 @@ export default async function ListPage({ params }: ListPageProps) {
         const [avgRatings, userRatings, developerMapResult] = await Promise.all([
             getAvgRatingsForGames(supabase, gameIds),
             getUserRatingsForGames(supabase, viewer.id, gameIds),
-            getDeveloperNameMap(supabase, gameIds),
+            getDeveloperNameMap(gameIds),
         ])
 
         avgRatingMap = new Map(avgRatings?.map(r => [r.game_id, r.avg_rating]))

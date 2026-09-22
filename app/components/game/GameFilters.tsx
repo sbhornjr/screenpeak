@@ -8,7 +8,7 @@ import SearchableDropdown from '../util/SearchableDropdown';
 
 export default function GameFilters({ current, genres, platforms, esrb_ratings }: 
     { current: {query: string, genre: string, platform: string, developer: string, publisher: string, esrb: string, pageSize: string, sort: string, order: string},
-        genres: { id: number, name: string, slug: string }[], platforms: { id: number, name: string, slug: string }[], esrb_ratings: string[]}) {
+        genres: { id: string, name: string, slug: string }[], platforms: { id: string, name: string, slug: string }[], esrb_ratings: string[]}) {
 
     const [searchQuery, setSearchQuery] = useState(current.query)
     const [selectedGenre, setSelectedGenre] = useState(current.genre)

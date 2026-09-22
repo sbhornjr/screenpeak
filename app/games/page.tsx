@@ -27,7 +27,7 @@ export default async function SearchPage({ searchParams } : SearchPageProps) {
 
     const user = await getViewer(supabase)
 
-    const games = await queryGames(supabase, {
+    const games = await queryGames({
         q: query || null,
         genre: genreQuery || null,
         platform: platformQuery || null,
@@ -45,12 +45,12 @@ export default async function SearchPage({ searchParams } : SearchPageProps) {
     const totalCount = games[0]?.total_count ?? 0
     const totalPages = Math.ceil(totalCount / pageSizeQuery)
 
-    const genres = await getAllGenres(supabase)
-    const platforms = await getAllPlatforms(supabase)
-    const esrb_ratings = await getDistinctEsrbRatings(supabase)
+    const genres = await getAllGenres()
+    const platforms = await getAllPlatforms()
+    const esrb_ratings = await getDistinctEsrbRatings()
 
     const finalGameIds = games?.map(g => g.id) ?? []
-    const developerMap = await getDeveloperNameMap(supabase, finalGameIds)
+    const developerMap = await getDeveloperNameMap(finalGameIds)
 
     return (
         <main>
