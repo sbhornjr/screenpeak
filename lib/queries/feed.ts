@@ -1,18 +1,24 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
+import { sql } from 'drizzle-orm'
+import { db } from '@/lib/db'
 import { FeedItem } from '@/types'
 
 export const FEED_PAGE_SIZE = 12
 
 export async function getFeed(
-    supabase: SupabaseClient,
     userId: string | undefined,
     limit?: number,
     offset?: number,
 ): Promise<FeedItem[]> {
-    const { data } = await supabase.rpc('get_feed', {
-        p_user_id: userId,
-        ...(limit != null ? { p_limit: limit } : {}),
-        ...(offset != null ? { p_offset: offset } : {}),
-    })
-    return data ?? []
+    try {
+        const rows = await db.execute(sql`
+            select * from get_feed(
+                p_user_id => ${userId ?? null},
+                p_limit => ${limit ?? 20},
+                p_offset => ${offset ?? 0}
+            )
+        `)
+        return rows as unknown as FeedItem[]
+    } catch {
+        return []
+    }
 }

@@ -157,7 +157,7 @@ export default async function Home() {
         )
     }
 
-    const feed = await getFeed(supabase, viewer?.id, FEED_PAGE_SIZE, 0)
+    const feed = await getFeed(viewer?.id, FEED_PAGE_SIZE, 0)
 
     return (
         <main>

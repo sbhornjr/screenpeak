@@ -10,5 +10,5 @@ export async function fetchFeedPage(offset: number): Promise<FeedItem[]> {
     const supabase = await createClient()
     const viewer = await getViewer(supabase)
     if (!viewer) return []
-    return getFeed(supabase, viewer.id, FEED_PAGE_SIZE, offset)
+    return getFeed(viewer.id, FEED_PAGE_SIZE, offset)
 }
