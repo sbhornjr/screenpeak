@@ -43,7 +43,7 @@ export default async function LoadoutPage({ params } : LoadoutPageProps) {
     const topDevelopers = loadoutInput.topDevelopers
 
     const [highlights, ratingsReviews, currentLoadoutIdentity] = await Promise.all([
-        getLoadoutRatingHighlights(supabase, ownerId.id),
+        getLoadoutRatingHighlights(ownerId.id),
         getUserRatings(supabase, ownerId.id),
         getCurrentLoadoutIdentity(supabase, ownerId.id)
     ])

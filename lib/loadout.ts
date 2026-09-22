@@ -16,9 +16,9 @@ type LoadoutData = {
 
 export async function buildLoadoutInput(supabase: SupabaseClient, userId: string, username: string): Promise<LoadoutData> {
     const [genreStats, developerStats, statusStats, ratingsReviews] = await Promise.all([
-        getLoadoutGenreStats(supabase, userId),
-        getLoadoutDeveloperStats(supabase, userId),
-        getLoadoutStatusBreakdown(supabase, userId),
+        getLoadoutGenreStats(userId),
+        getLoadoutDeveloperStats(userId),
+        getLoadoutStatusBreakdown(userId),
         getUserRatings(supabase, userId)
     ])
 

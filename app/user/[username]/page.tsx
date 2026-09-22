@@ -63,7 +63,7 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
 
     const recentReviews = await getRecentReviews(supabase, profile.id)
 
-    const developerStats = await getLoadoutDeveloperStats(supabase, profile.id)
+    const developerStats = await getLoadoutDeveloperStats(profile.id)
     const topDeveloperNames = developerStats.slice(0, 6).map(d => d.developer_name)
 
     const ratingStats = await getUserRatings(supabase, profile.id)
