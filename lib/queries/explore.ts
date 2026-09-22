@@ -1,27 +1,39 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
+import { sql } from 'drizzle-orm'
+import { db } from '@/lib/db'
 import { TrendingGame, TrendingList, RecommendedGame, RecommendedList, RecommendedUser } from '@/types'
 
-export async function getTrendingGames(supabase: SupabaseClient, viewerId: string | null | undefined, days: number): Promise<TrendingGame[]> {
-    const { data } = await supabase.rpc('get_trending_games', { p_user_id: viewerId ?? null, p_days: days })
-    return data ?? []
+export async function getTrendingGames(viewerId: string | null | undefined, days: number): Promise<TrendingGame[]> {
+    try {
+        const rows = await db.execute(sql`
+            select * from get_trending_games(p_days => ${days}, p_limit => 10, p_user_id => ${viewerId ?? null})
+        `)
+        return rows as unknown as TrendingGame[]
+    } catch {
+        return []
+    }
 }
 
-export async function getTrendingLists(supabase: SupabaseClient, viewerId: string | null | undefined, days: number): Promise<TrendingList[]> {
-    const { data } = await supabase.rpc('get_trending_lists', { p_user_id: viewerId ?? null, p_days: days })
-    return data ?? []
+export async function getTrendingLists(viewerId: string | null | undefined, days: number): Promise<TrendingList[]> {
+    try {
+        const rows = await db.execute(sql`
+            select * from get_trending_lists(p_days => ${days}, p_limit => 10, p_user_id => ${viewerId ?? null})
+        `)
+        return rows as unknown as TrendingList[]
+    } catch {
+        return []
+    }
 }
 
-export async function getExploreRecommendations(supabase: SupabaseClient, viewerId: string | null | undefined) {
-    const [{ data: recommendedGamesData }, { data: recommendedListsData }, { data: recommendedUsersData }] =
-        await Promise.all([
-            supabase.rpc('get_follow_recommendations', { p_user_id: viewerId ?? null }),
-            supabase.rpc('get_recommended_lists', { p_user_id: viewerId ?? null }),
-            supabase.rpc('get_who_to_follow', { p_user_id: viewerId ?? null })
-        ])
+export async function getExploreRecommendations(viewerId: string | null | undefined) {
+    const [gameRows, listRows, userRows] = await Promise.all([
+        db.execute(sql`select * from get_follow_recommendations(p_user_id => ${viewerId ?? null}, p_limit => 10)`).catch(() => []),
+        db.execute(sql`select * from get_recommended_lists(p_user_id => ${viewerId ?? null}, p_limit => 5)`).catch(() => []),
+        db.execute(sql`select * from get_who_to_follow(p_user_id => ${viewerId ?? null}, p_limit => 5)`).catch(() => []),
+    ])
 
     return {
-        games: (recommendedGamesData ?? []) as RecommendedGame[],
-        lists: (recommendedListsData ?? []) as RecommendedList[],
-        users: (recommendedUsersData ?? []) as RecommendedUser[],
+        games: gameRows as unknown as RecommendedGame[],
+        lists: listRows as unknown as RecommendedList[],
+        users: userRows as unknown as RecommendedUser[],
     }
 }

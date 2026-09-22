@@ -23,7 +23,7 @@ export default async function Home() {
     if (!viewer) {
         const [candidates, trendingGames, recentReviews] = await Promise.all([
             queryGames({ sort: 'metacritic_score', order: 'desc', limit: 40, userId: null }),
-            getTrendingGames(supabase, null, 30),
+            getTrendingGames(null, 30),
             getRecentReviewsGlobal(supabase, 3),
         ])
 

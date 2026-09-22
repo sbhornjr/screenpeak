@@ -28,10 +28,10 @@ export default async function Explore({ searchParams }: ExplorePageProps) {
     const rangeString = range ?? "week"
     const days = rangeToDays[rangeString] ?? 7
 
-    const trendingGames = await getTrendingGames(supabase, viewer?.id, days)
-    const trendingLists = await getTrendingLists(supabase, viewer?.id, days)
+    const trendingGames = await getTrendingGames(viewer?.id, days)
+    const trendingLists = await getTrendingLists(viewer?.id, days)
 
-    const { games: recommendedGames, lists: recommendedLists, users: recommendedUsers } = await getExploreRecommendations(supabase, viewer?.id)
+    const { games: recommendedGames, lists: recommendedLists, users: recommendedUsers } = await getExploreRecommendations(viewer?.id)
 
     return (
         <main>
