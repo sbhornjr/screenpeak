@@ -1,29 +1,47 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
+import { eq } from 'drizzle-orm'
+import { db } from '@/lib/db'
+import { steamAccounts } from '@/db/schema'
 
-export async function getSteamAccount(supabase: SupabaseClient, userId: string) {
-    const { data } = await supabase
-        .from('steam_accounts')
-        .select('steam_id, linked_at, last_synced_at, profile_public')
-        .eq('user_id', userId)
-        .maybeSingle()
+export async function getSteamAccount(userId: string) {
+    try {
+        const rows = await db
+            .select({
+                steam_id: steamAccounts.steamId,
+                linked_at: steamAccounts.linkedAt,
+                last_synced_at: steamAccounts.lastSyncedAt,
+                profile_public: steamAccounts.profilePublic,
+            })
+            .from(steamAccounts)
+            .where(eq(steamAccounts.userId, userId))
+            .limit(1)
 
-    return data
+        return rows[0] ?? null
+    } catch {
+        return null
+    }
 }
 
-export async function upsertSteamAccount(supabase: SupabaseClient, userId: string, steamId64: string) {
-    const { data, error } = await supabase
-        .from('steam_accounts')
-        .upsert({ user_id: userId, steam_id: steamId64, linked_at: new Date().toISOString() }, { onConflict: 'user_id' })
-        .select('steam_id, linked_at')
-        .single()
+export async function upsertSteamAccount(userId: string, steamId64: string) {
+    try {
+        const rows = await db
+            .insert(steamAccounts)
+            .values({ userId, steamId: steamId64, linkedAt: new Date().toISOString() })
+            .onConflictDoUpdate({
+                target: steamAccounts.userId,
+                set: { steamId: steamId64, linkedAt: new Date().toISOString() },
+            })
+            .returning({ steam_id: steamAccounts.steamId, linked_at: steamAccounts.linkedAt })
 
-    return { data, error }
+        return { data: rows[0] ?? null, error: null }
+    } catch (error) {
+        return { data: null, error }
+    }
 }
 
-export async function unlinkSteamAccount(supabase: SupabaseClient, userId: string) {
-    const { error } = await supabase.from('steam_accounts').delete().eq('user_id', userId)
-
-    if (error) {
+export async function unlinkSteamAccount(userId: string) {
+    try {
+        await db.delete(steamAccounts).where(eq(steamAccounts.userId, userId))
+    } catch (error) {
         console.error("Failed to unlink Steam account:", error)
         throw error
     }

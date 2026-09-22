@@ -1,21 +1,18 @@
 "use client"
 
-import { createClient } from "@/lib/supabase-browser";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/app/components/util/Modal";
-import { unlinkSteamAccount } from "@/lib/queries/steam";
+import { unlinkSteamAccountAction } from "@/app/steam-actions";
 
-export default function UnlinkSteamAccountButton({ userId } : { userId: string }) {
+export default function UnlinkSteamAccountButton() {
     const [isUnlinkSteamAccountModalOpen, setIsUnlinkSteamAccountModalOpen] = useState(false)
     const [error, setError] = useState(false)
     const router = useRouter()
 
     async function unlinkAccount() {
-        const supabase = createClient()
-
         try {
-            await unlinkSteamAccount(supabase, userId)
+            await unlinkSteamAccountAction()
         } catch {
             setError(true)
             return

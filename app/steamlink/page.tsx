@@ -17,7 +17,7 @@ export default async function SteamLinkPage() {
 
     if (!viewer) redirect("/")
 
-    const steamUser = await getSteamAccount(supabase, viewer.id)
+    const steamUser = await getSteamAccount(viewer.id)
 
     if (!steamUser || !steamUser.steam_id) redirect("/settings?steam_error=1")
 

@@ -15,10 +15,10 @@ export async function GET(request: NextRequest) {
 
     try {
         const steamId64 = await verifySteamCallback(request.nextUrl.origin, request.url)
-        const { error } = await upsertSteamAccount(supabase, user.id, steamId64)
+        const { error } = await upsertSteamAccount(user.id, steamId64)
 
         if (error) {
-            logger.error('api:steam-callback', 'Failed to save linked Steam account', { userId: user.id, error: error.message })
+            logger.error('api:steam-callback', 'Failed to save linked Steam account', { userId: user.id, error: error instanceof Error ? error.message : String(error) })
             return NextResponse.redirect(new URL('/settings?steam_error=1', request.url))
         }
 

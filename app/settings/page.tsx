@@ -29,7 +29,7 @@ export default async function Settings({ searchParams } : SettingsPageProps) {
         redirect("/")
     }
 
-    const steamUser = await getSteamAccount(supabase, viewer.id)
+    const steamUser = await getSteamAccount(viewer.id)
 
     return (
         <main>
@@ -96,7 +96,7 @@ export default async function Settings({ searchParams } : SettingsPageProps) {
                                             Re-sync
                                         </button>
                                     </Link>
-                                    <UnlinkSteamAccountButton userId={user.id} />
+                                    <UnlinkSteamAccountButton />
                                 </div>
                             ) : (
                                 <Link href="/api/steam/link">
