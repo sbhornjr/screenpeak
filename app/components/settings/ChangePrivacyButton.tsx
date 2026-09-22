@@ -1,21 +1,19 @@
 "use client"
 
-import { createClient } from "@/lib/supabase-browser";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/app/components/util/Modal";
 import EditTriggerButton from "@/app/components/util/EditTriggerButton";
-import { updatePrivacy } from "@/lib/queries/user";
+import { togglePrivacyAction } from "@/app/user-actions";
 
-export default function ChangePrivacyButton({ currentPrivacy, type, userId } : { currentPrivacy: boolean, type: string, userId: string }) {
+export default function ChangePrivacyButton({ currentPrivacy, type } : { currentPrivacy: boolean, type: string }) {
     const [isChangePrivacyModalOpen, setIsChangePrivacyModalOpen] = useState(false)
     const [error, setError] = useState("")
     const router = useRouter()
 
     async function togglePrivacy() {
         setError("")
-        const supabase = createClient()
-        const writeError = await updatePrivacy(supabase, !currentPrivacy, type, userId)
+        const writeError = await togglePrivacyAction(currentPrivacy, type)
 
         if (writeError) {
             setError(writeError)

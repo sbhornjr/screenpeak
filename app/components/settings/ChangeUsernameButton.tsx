@@ -1,13 +1,12 @@
 "use client"
 
-import { createClient } from "@/lib/supabase-browser";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/app/components/util/Modal";
 import EditTriggerButton from "@/app/components/util/EditTriggerButton";
-import { updateUsername } from "@/lib/queries/user";
+import { saveUsername } from "@/app/user-actions";
 
-export default function ChangeUsernameButton({ userId, currentUsername } : { userId: string, currentUsername: string }) {
+export default function ChangeUsernameButton({ currentUsername } : { currentUsername: string }) {
     const [isChangeUsernameModalOpen, setIsChangeUsernameModalOpen] = useState(false)
     const [username, setUsername] = useState("")
     const [error, setError] = useState("")
@@ -15,8 +14,7 @@ export default function ChangeUsernameButton({ userId, currentUsername } : { use
 
     async function submitUsername() {
         setError("")
-        const supabase = createClient()
-        const { error: writeError } = await updateUsername(supabase, userId, username)
+        const { error: writeError } = await saveUsername(username)
 
         if (writeError) {
             setError(writeError)

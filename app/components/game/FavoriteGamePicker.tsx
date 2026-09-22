@@ -8,7 +8,7 @@ import { Game } from "@/types"
 import Modal from "@/app/components/util/Modal"
 import EditTriggerButton from "@/app/components/util/EditTriggerButton"
 import { searchGamesByName } from "@/lib/queries/game"
-import { updateFavoriteGames } from "@/lib/queries/user"
+import { saveFavoriteGames } from "@/app/user-actions"
 import { plus1 } from "@/lib/plus1"
 
 export default function FavoriteGamePicker({ userId, currentGames } : { userId: string, currentGames: Game[]}) {
@@ -46,9 +46,8 @@ export default function FavoriteGamePicker({ userId, currentGames } : { userId: 
 
     async function submitGames() {
         setError("")
-        const supabase = createClient()
         const addedNew = selectedGames.some(g => !currentGames.find(c => c.id === g.id))
-        const { error: writeError } = await updateFavoriteGames(supabase, userId, selectedGames.map(g => g.id))
+        const { error: writeError } = await saveFavoriteGames(selectedGames.map(g => g.id))
 
         if (writeError) {
             setError(writeError)

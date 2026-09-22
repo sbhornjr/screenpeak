@@ -1,12 +1,11 @@
 "use client"
 
-import { createClient } from "@/lib/supabase-browser"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { followUser, unfollowUser } from "@/lib/queries/user"
+import { toggleFollow } from "@/app/user-actions"
 
-export default function FollowButton({ userId, targetUserId, initialIsFollowing } : 
-    { userId: string, targetUserId: string, initialIsFollowing: boolean }) {
+export default function FollowButton({ targetUserId, initialIsFollowing } :
+    { targetUserId: string, initialIsFollowing: boolean }) {
     const [isFollowing, setIsFollowing] = useState(initialIsFollowing)
     const [isLoading, setIsLoading] = useState(false)
     const [hovering, setHovering] = useState(false)
@@ -14,13 +13,8 @@ export default function FollowButton({ userId, targetUserId, initialIsFollowing 
 
     async function handleFollow() {
         setIsLoading(true)
-        const supabase = createClient()
 
-        if (isFollowing) {
-            await unfollowUser(supabase, userId, targetUserId)
-        } else {
-            await followUser(supabase, userId, targetUserId)
-        }
+        await toggleFollow(targetUserId, isFollowing)
 
         setIsFollowing(!isFollowing)
         setIsLoading(false)

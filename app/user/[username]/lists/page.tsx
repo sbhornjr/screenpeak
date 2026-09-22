@@ -19,7 +19,7 @@ export default async function ListsPage({ params, searchParams }: ListsPageProps
     const supabase = await createClient()
     const viewer = await getViewer(supabase)
 
-    const profile = await getProfileSummaryByUsername(supabase, username)
+    const profile = await getProfileSummaryByUsername(username)
 
     if (!profile) notFound()
     const isOwnProfile = viewer?.id === profile.id
@@ -36,7 +36,7 @@ export default async function ListsPage({ params, searchParams }: ListsPageProps
 
     const likesData = await getListLikes(listIds)
 
-    const userSettings = await getAccountSettings(supabase, profile.id)
+    const userSettings = await getAccountSettings(profile.id)
 
     const likeCountMap = new Map<string, number>()
     const userLikedSet = new Set<string>()

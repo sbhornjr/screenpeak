@@ -26,12 +26,12 @@ export default async function LoadoutPage({ params } : LoadoutPageProps) {
     const supabase = await createClient()
     
     const viewer = await getViewer(supabase)
-    const ownerId = await getUserIdFromUsername(supabase, username)
+    const ownerId = await getUserIdFromUsername(username)
 
     if (!ownerId) redirect("/")
 
     if (!viewer || viewer.id != ownerId.id) {
-        const ownerSettings = await getAccountSettings(supabase, ownerId.id)
+        const ownerSettings = await getAccountSettings(ownerId.id)
         if (!ownerSettings || !ownerSettings.loadout_public) redirect("/")
     }
 
@@ -45,7 +45,7 @@ export default async function LoadoutPage({ params } : LoadoutPageProps) {
     const [highlights, ratingsReviews, currentLoadoutIdentity] = await Promise.all([
         getLoadoutRatingHighlights(ownerId.id),
         getUserRatings(ownerId.id),
-        getCurrentLoadoutIdentity(supabase, ownerId.id)
+        getCurrentLoadoutIdentity(ownerId.id)
     ])
 
     const ratingDistribution = [10,9,8,7,6,5,4,3,2,1].map(n => ({

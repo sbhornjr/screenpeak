@@ -27,8 +27,7 @@ type ProfilePageProps = {
 
 export async function generateMetadata({ params }: { params: Promise<{ username: string }> }): Promise<Metadata> {
     const { username } = await params
-    const supabase = await createClient()
-    const profile = await getFullProfile(supabase, username)
+    const profile = await getFullProfile(username)
     if (!profile) return {}
     return {
         title: username,
@@ -44,7 +43,7 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
     const { username } = await params;
     const supabase = await createClient()
 
-    const profile = await getFullProfile(supabase, username)
+    const profile = await getFullProfile(username)
 
     if (!profile) notFound()
 
@@ -53,13 +52,14 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
 
     const { entries: libraryEntries, totalCount: totalGames } = await getLibraryStatusBreakdown(profile.id)
 
-    const favoriteGamesData = profile.favorite_game_ids?.length > 0
-        ? await queryGames({ userId: viewer ? viewer.id : null, gameIds: profile.favorite_game_ids })
+    const favoriteGameIds = profile.favorite_game_ids ?? []
+    const favoriteGamesData = favoriteGameIds.length > 0
+        ? await queryGames({ userId: viewer ? viewer.id : null, gameIds: favoriteGameIds })
         : []
     const favoriteGames = favoriteGamesData as GameData[]
-    const orderedFavorites = profile.favorite_game_ids.map((id: string) => favoriteGames?.find(g => String(g.id) === id)).filter(Boolean).reverse() as GameData[]
+    const orderedFavorites = favoriteGameIds.map((id: string) => favoriteGames?.find(g => String(g.id) === id)).filter(Boolean).reverse() as GameData[]
 
-    const developerMap = await getDeveloperNameMap(profile.favorite_game_ids)
+    const developerMap = await getDeveloperNameMap(favoriteGameIds)
 
     const recentReviews = await getRecentReviews(profile.id)
 
@@ -72,10 +72,10 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
 
     const currentTitle = profile.selected_title ? profile.selected_title : "Title-less Noob"
 
-    const followersData = await getFollowers(supabase, profile.id)
+    const followersData = await getFollowers(profile.id)
     const followersCount = followersData.length
 
-    const followingData = await getFollowing(supabase, profile.id)
+    const followingData = await getFollowing(profile.id)
     const followingCount = followingData.length
 
     return (
@@ -92,14 +92,14 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
                         <h1 className="text-3xl font-semibold font-(family-name:--font-display)">{username}</h1>
                         <div className="flex">
                             <p className="text-lg font-semibold font-(family-name:--font-display)">{currentTitle}</p>
-                            {isOwnProfile && <TitleSelectButton userId={profile.id} currentTitle={currentTitle} topGames={favoriteGames ? favoriteGames.map(g => g.name) : []} topDevelopers={topDeveloperNames} />}
+                            {isOwnProfile && <TitleSelectButton currentTitle={currentTitle} topGames={favoriteGames ? favoriteGames.map(g => g.name) : []} topDevelopers={topDeveloperNames} />}
                         </div>
-                        <p className="text-md font-semibold font-(family-name:--font-display) text-(--color-muted)">Member since {new Date(profile.created_at).getMonth() + 1}/{new Date(profile.created_at).getDate()}/{new Date(profile.created_at).getFullYear()}</p>
+                        <p className="text-md font-semibold font-(family-name:--font-display) text-(--color-muted)">Member since {new Date(profile.created_at ?? '').getMonth() + 1}/{new Date(profile.created_at ?? '').getDate()}/{new Date(profile.created_at ?? '').getFullYear()}</p>
                         <p className="text-md font-semibold font-(family-name:--font-display) text-(--color-muted)">{followersCount} Followers | {followingCount} Following</p>
                     </div>
                     {!isOwnProfile && viewer && (
                         <div className="sm:ml-auto">
-                            <FollowButton userId={viewer.id} targetUserId={profile.id} initialIsFollowing={!!followersData?.find(f => f.follower_id === viewer?.id)} />
+                            <FollowButton targetUserId={profile.id} initialIsFollowing={!!followersData?.find(f => f.follower_id === viewer?.id)} />
                         </div>
                     )}
                 </div>
@@ -135,7 +135,7 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
                     </p>
                 )}
 
-                <SectionHead action={isOwnProfile && <BioButton userId={profile.id} currentBio={profile.user_bio} />}>Bio</SectionHead>
+                <SectionHead action={isOwnProfile && <BioButton currentBio={profile.user_bio ?? ''} />}>Bio</SectionHead>
                 {profile.user_bio
                     ? <p className="text-(--color-text) leading-relaxed max-w-2xl">{profile.user_bio}</p>
                     : <p className="text-(--color-muted) text-sm">{isOwnProfile ? "You haven't written a bio yet." : "No bio yet."}</p>}

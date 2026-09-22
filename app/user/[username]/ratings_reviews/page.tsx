@@ -1,4 +1,3 @@
-import { createClient } from "@/lib/supabase-server";
 import Rating from "@/app/components/game/ReviewPageRating";
 import Review from "@/app/components/game/ReviewPageReview";
 import Pagination from "@/app/components/util/Pagination";
@@ -20,7 +19,6 @@ export default async function RatingsPage({ params, searchParams }: RatingsPageP
     const { filter, sort, order, page, pageSize } = await searchParams
     const currentPage = Number(page ?? 1)
     const currentPageSize = Number(pageSize ?? 10)
-    const supabase = await createClient()
 
     if (filter && !(filter === "all" || filter === "ratings" || filter === "reviews")) {
         redirect('/')
@@ -39,7 +37,7 @@ export default async function RatingsPage({ params, searchParams }: RatingsPageP
     const sortValue: "date" | "rating" = sort === "rating" ? "rating" : "date"
     const orderValue: "desc" | "asc" = order === "asc" ? "asc" : "desc"
 
-    const profile = await getProfileSummaryByUsername(supabase, username)
+    const profile = await getProfileSummaryByUsername(username)
 
     const [ratingsReviews, ratingsReviewsCounts] = await Promise.all([
         getUserRatingsReviewsPage({

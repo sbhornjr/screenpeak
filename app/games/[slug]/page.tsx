@@ -131,7 +131,7 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
 
     const lists = user ? (await getUserLists(user?.id, true)) as ListSummary[] : []
     const listIdsGameIsIn = await getGameListMembership(game.id, lists.map(l => l.id))
-    const userSettings = user ? await getAccountSettings(supabase, user.id) : null
+    const userSettings = user ? await getAccountSettings(user.id) : null
 
     const year = game.released ? new Date(game.released).getFullYear() : null
     const inFile = !!(userReview || libraryEntry)

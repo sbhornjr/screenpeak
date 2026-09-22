@@ -1,14 +1,13 @@
 "use client"
 
-import { createClient } from "@/lib/supabase-browser";
 import { useState } from "react";
 import { getTitles } from "@/lib/titles";
 import { useRouter } from "next/navigation";
 import Modal from "@/app/components/util/Modal";
 import EditTriggerButton from "@/app/components/util/EditTriggerButton";
-import { updateSelectedTitle } from "@/lib/queries/user";
+import { saveSelectedTitle } from "@/app/user-actions";
 
-export default function TitleSelectButton({ userId, currentTitle, topGames, topDevelopers } : { userId: string, currentTitle : string, topGames : string[], topDevelopers : string[] }) {
+export default function TitleSelectButton({ currentTitle, topGames, topDevelopers } : { currentTitle : string, topGames : string[], topDevelopers : string[] }) {
     const [isTitleSelectModalOpen, setIsTitleSelectModalOpen] = useState(false)
     const [selectedTitle, setSelectedTitle] = useState(currentTitle)
     const [error, setError] = useState("")
@@ -16,8 +15,7 @@ export default function TitleSelectButton({ userId, currentTitle, topGames, topD
 
     async function handleTitleChange(title: string) {
         setError("")
-        const supabase = createClient()
-        const { title: newTitle, error: writeError } = await updateSelectedTitle(supabase, userId, title)
+        const { title: newTitle, error: writeError } = await saveSelectedTitle(title)
 
         if (writeError || !newTitle) {
             setError(writeError ?? "Couldn't update your title")

@@ -31,12 +31,12 @@ export default async function LibraryPage({ params, searchParams } : LibraryPage
     const supabase = await createClient()
 
     const viewer = await getViewer(supabase)
-    const ownerId = await getUserIdFromUsername(supabase, username)
+    const ownerId = await getUserIdFromUsername(username)
 
     if (!ownerId) redirect("/")
 
     if (!viewer || viewer.id != ownerId.id) {
-        const ownerSettings = await getAccountSettings(supabase, ownerId.id)
+        const ownerSettings = await getAccountSettings(ownerId.id)
         if (!ownerSettings || !ownerSettings.library_public) redirect("/")
     }
 

@@ -22,7 +22,7 @@ export default async function ListPage({ params }: ListPageProps) {
     const supabase = await createClient()
     const viewer = await getViewer(supabase)
 
-    const profile = await getProfileSummaryByUsername(supabase, username)
+    const profile = await getProfileSummaryByUsername(username)
 
     const list = await getListById(listId)
 

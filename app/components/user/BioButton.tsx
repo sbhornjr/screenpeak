@@ -1,13 +1,12 @@
 "use client"
 
 import { useState } from "react"
-import { createClient } from "@/lib/supabase-browser"
 import { useRouter } from "next/navigation"
 import Modal from "@/app/components/util/Modal"
 import EditTriggerButton from "@/app/components/util/EditTriggerButton"
-import { updateBio } from "@/lib/queries/user"
+import { saveBio } from "@/app/user-actions"
 
-export default function BioButton({ userId, currentBio } : { userId: string, currentBio: string }) {
+export default function BioButton({ currentBio } : { currentBio: string }) {
     const [bio, setBio] = useState(currentBio)
     const [isBioModalOpen, setIsBioModalOpen] = useState(false)
     const [error, setError] = useState("")
@@ -15,8 +14,7 @@ export default function BioButton({ userId, currentBio } : { userId: string, cur
 
     async function submitBio() {
         setError("")
-        const supabase = createClient()
-        const { error: writeError } = await updateBio(supabase, userId, bio)
+        const { error: writeError } = await saveBio(bio)
 
         if (writeError) {
             setError(writeError)

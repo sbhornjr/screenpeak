@@ -3,7 +3,8 @@
 import { useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase-browser'
 import { useRouter } from 'next/navigation'
-import { uploadAvatarImage, updateAvatarUrl } from '@/lib/queries/user'
+import { uploadAvatarImage } from '@/lib/queries/user'
+import { saveAvatarUrl } from '@/app/user-actions'
 import Avatar from '@/app/components/user/Avatar'
 
 export default function AvatarUploader({ userId, currentAvatarUrl, username }: {
@@ -47,7 +48,7 @@ export default function AvatarUploader({ userId, currentAvatarUrl, username }: {
         }
 
         // Update user's avatar_url in the database
-        const updateError = await updateAvatarUrl(supabase, userId, publicUrl)
+        const updateError = await saveAvatarUrl(publicUrl)
 
         if (updateError) {
             setError('Failed to save avatar')
