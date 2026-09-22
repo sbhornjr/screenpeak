@@ -102,9 +102,9 @@ export async function upsertLibraryEntries(userId: string, entries: SteamLinkEnt
     }
 }
 
-export async function deleteLibraryEntry(entryId: string) {
+export async function deleteLibraryEntry(entryId: string, userId: string) {
     try {
-        await db.delete(libraryEntries).where(eq(libraryEntries.id, entryId))
+        await db.delete(libraryEntries).where(and(eq(libraryEntries.id, entryId), eq(libraryEntries.userId, userId)))
     } catch {
         // Original supabase-js version never checked/surfaced delete errors either — fire and forget.
     }

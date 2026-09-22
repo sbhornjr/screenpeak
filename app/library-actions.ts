@@ -26,8 +26,8 @@ export async function addOrUpdateLibraryEntry(gameId: number, fields: LibraryEnt
 }
 
 export async function removeLibraryEntry(entryId: string) {
-    await requireUser()
-    await deleteLibraryEntry(entryId)
+    const user = await requireUser()
+    await deleteLibraryEntry(entryId, user.id)
 }
 
 export async function importSteamLibraryEntries(entries: SteamLinkEntry[]) {
