@@ -5,27 +5,31 @@ import { games, gameGenres, gamePlatforms, gameDevelopers, gamePublishers, genre
 import { Game, GameData } from '@/types'
 
 export async function getGameBySlug(slug: string) {
-    const rows = await db
-        .select({
-            id: games.id,
-            created_at: games.createdAt,
-            rawg_id: games.rawgId,
-            name: games.name,
-            slug: games.slug,
-            cover_image_url: games.coverImageUrl,
-            released: games.released,
-            metacritic_score: games.metacriticScore,
-            description: games.description,
-            esrb_rating: games.esrbRating,
-            reddit_url: games.redditUrl,
-            screenshots: games.screenshots,
-            steam_appid: games.steamAppid,
-        })
-        .from(games)
-        .where(eq(games.slug, slug))
-        .limit(1)
+    try {
+        const rows = await db
+            .select({
+                id: games.id,
+                created_at: games.createdAt,
+                rawg_id: games.rawgId,
+                name: games.name,
+                slug: games.slug,
+                cover_image_url: games.coverImageUrl,
+                released: games.released,
+                metacritic_score: games.metacriticScore,
+                description: games.description,
+                esrb_rating: games.esrbRating,
+                reddit_url: games.redditUrl,
+                screenshots: games.screenshots,
+                steam_appid: games.steamAppid,
+            })
+            .from(games)
+            .where(eq(games.slug, slug))
+            .limit(1)
 
-    return rows[0] ?? null
+        return rows[0] ?? null
+    } catch {
+        return null
+    }
 }
 
 export async function getGameTaxonomy(gameId: string) {
@@ -33,19 +37,23 @@ export async function getGameTaxonomy(gameId: string) {
         db.select({ id: genres.id, name: genres.name, slug: genres.slug })
             .from(gameGenres)
             .innerJoin(genres, eq(gameGenres.genreId, genres.id))
-            .where(eq(gameGenres.gameId, gameId)),
+            .where(eq(gameGenres.gameId, gameId))
+            .catch(() => []),
         db.select({ id: platforms.id, name: platforms.name, slug: platforms.slug })
             .from(gamePlatforms)
             .innerJoin(platforms, eq(gamePlatforms.platformId, platforms.id))
-            .where(eq(gamePlatforms.gameId, gameId)),
+            .where(eq(gamePlatforms.gameId, gameId))
+            .catch(() => []),
         db.select({ id: developers.id, name: developers.name, slug: developers.slug })
             .from(gameDevelopers)
             .innerJoin(developers, eq(gameDevelopers.developerId, developers.id))
-            .where(eq(gameDevelopers.gameId, gameId)),
+            .where(eq(gameDevelopers.gameId, gameId))
+            .catch(() => []),
         db.select({ id: publishers.id, name: publishers.name, slug: publishers.slug })
             .from(gamePublishers)
             .innerJoin(publishers, eq(gamePublishers.publisherId, publishers.id))
-            .where(eq(gamePublishers.gameId, gameId)),
+            .where(eq(gamePublishers.gameId, gameId))
+            .catch(() => []),
     ])
 
     return {
@@ -111,37 +119,53 @@ type QueryGamesParams = {
 }
 
 export async function queryGames(params: QueryGamesParams): Promise<GameData[]> {
-    const rows = await db.execute(sql`
-        select * from query_games(
-            p_q => ${params.q ?? null},
-            p_genre => ${params.genre ?? null},
-            p_platform => ${params.platform ?? null},
-            p_developer => ${params.developer ?? null},
-            p_publisher => ${params.publisher ?? null},
-            p_esrb => ${params.esrb ?? null},
-            p_sort => ${params.sort ?? 'metacritic_score'},
-            p_order => ${params.order ?? 'desc'},
-            p_limit => ${params.limit ?? 10},
-            p_offset => ${params.offset ?? 0},
-            p_user_id => ${params.userId ?? null},
-            p_game_ids => ${params.gameIds ?? null}
-        )
-    `)
+    try {
+        const rows = await db.execute(sql`
+            select * from query_games(
+                p_q => ${params.q ?? null},
+                p_genre => ${params.genre ?? null},
+                p_platform => ${params.platform ?? null},
+                p_developer => ${params.developer ?? null},
+                p_publisher => ${params.publisher ?? null},
+                p_esrb => ${params.esrb ?? null},
+                p_sort => ${params.sort ?? 'metacritic_score'},
+                p_order => ${params.order ?? 'desc'},
+                p_limit => ${params.limit ?? 10},
+                p_offset => ${params.offset ?? 0},
+                p_user_id => ${params.userId ?? null},
+                p_game_ids => ${params.gameIds ?? null}
+            )
+        `)
 
-    return rows as unknown as GameData[]
+        return rows as unknown as GameData[]
+    } catch {
+        return []
+    }
 }
 
 export async function getAllGenres() {
-    return db.select({ id: genres.id, name: genres.name, slug: genres.slug }).from(genres)
+    try {
+        return await db.select({ id: genres.id, name: genres.name, slug: genres.slug }).from(genres)
+    } catch {
+        return []
+    }
 }
 
 export async function getAllPlatforms() {
-    return db.select({ id: platforms.id, name: platforms.name, slug: platforms.slug }).from(platforms)
+    try {
+        return await db.select({ id: platforms.id, name: platforms.name, slug: platforms.slug }).from(platforms)
+    } catch {
+        return []
+    }
 }
 
 export async function getDistinctEsrbRatings(): Promise<string[]> {
-    const rows = await db.select({ esrb_rating: games.esrbRating }).from(games)
-    return [...new Set(rows.map(row => row.esrb_rating))].filter((rating): rating is string => rating !== null).sort()
+    try {
+        const rows = await db.select({ esrb_rating: games.esrbRating }).from(games)
+        return [...new Set(rows.map(row => row.esrb_rating))].filter((rating): rating is string => rating !== null).sort()
+    } catch {
+        return []
+    }
 }
 
 type TaxonomyTable = 'developers' | 'publishers'
