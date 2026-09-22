@@ -61,12 +61,12 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
 
     const developerMap = await getDeveloperNameMap(profile.favorite_game_ids)
 
-    const recentReviews = await getRecentReviews(supabase, profile.id)
+    const recentReviews = await getRecentReviews(profile.id)
 
     const developerStats = await getLoadoutDeveloperStats(profile.id)
     const topDeveloperNames = developerStats.slice(0, 6).map(d => d.developer_name)
 
-    const ratingStats = await getUserRatings(supabase, profile.id)
+    const ratingStats = await getUserRatings(profile.id)
 
     const avgRating = ratingStats.length > 0 ? ratingStats.reduce((acc, r) => { return acc + r.rating }, 0) / ratingStats.length : 0
 

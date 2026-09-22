@@ -29,7 +29,7 @@ export async function POST() {
         return NextResponse.json({ error: 'slow down' }, { status: 429 })
     }
 
-    const input = await buildLoadoutInput(supabase, user.id, current.username)
+    const input = await buildLoadoutInput(user.id, current.username)
     if (input.totalRatings < 5) {
         return NextResponse.json({ error: 'not eligible' }, { status: 400 })
     }

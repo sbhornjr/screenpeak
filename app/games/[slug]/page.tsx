@@ -106,11 +106,11 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
         publishers: publisherList,
     } = await getGameTaxonomy(game.id)
 
-    const stats = await getGameRatingsStats(supabase, game.id)
-    const userReview = user ? await getUserRatingReviewForGame(supabase, game.id, user.id) : null
+    const stats = await getGameRatingsStats(game.id)
+    const userReview = user ? await getUserRatingReviewForGame(game.id, user.id) : null
     const libraryEntry = user ? await getLibraryEntry(user.id, game.id) : null
 
-    const { reviews: pagedReviews, count: otherReviewsCount } = await getGameReviewsForPage(supabase, game.id, {
+    const { reviews: pagedReviews, count: otherReviewsCount } = await getGameReviewsForPage(game.id, {
         limit: pageSizeQuery,
         offset: (pageQuery - 1) * pageSizeQuery,
         sort: sortQuery,

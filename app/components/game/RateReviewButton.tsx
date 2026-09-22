@@ -3,18 +3,17 @@
 import { useState } from "react"
 import AuthModal from "@/app/components/user/AuthModal"
 import { useUser } from "@/app/components/user/UserContext"
-import { createClient } from '@/lib/supabase-browser'
 import { useRouter } from "next/navigation"
 import Modal from "@/app/components/util/Modal"
-import { createRatingReview, updateRatingReview } from "@/lib/queries/review"
+import { submitRatingReview } from "@/app/review-actions"
 import { plus1 } from "@/lib/plus1"
 
-export default function RateReviewButton({ game_id, existing_rating_review } : 
-    { game_id: string, existing_rating_review: { rating: number, review: string | null, user_id: string, created_at: string, updated_at: string } | null | undefined}) {
+export default function RateReviewButton({ game_id, existing_rating_review } :
+    { game_id: string, existing_rating_review: { rating: number, review: string | null, user_id: string, created_at: string | null, updated_at: string | null } | null | undefined}) {
     const { user } = useUser()
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
     const [isRateReviewModalOpen, setIsRateReviewModalOpen] = useState(false)
-    const [existingRatingReview, setExistingRatingReview] = useState<{ rating: number, review: string | null, user_id: string, created_at: string, updated_at: string } | null | undefined>(existing_rating_review)
+    const [existingRatingReview, setExistingRatingReview] = useState<{ rating: number, review: string | null, user_id: string, created_at: string | null, updated_at: string | null } | null | undefined>(existing_rating_review)
     const [rating, setRating] = useState(existingRatingReview ? existingRatingReview.rating : "6")
     const [ratingLabel, setRatingLabel] = useState("")
     const [review, setReview] = useState(existingRatingReview?.review ?? "")
@@ -68,12 +67,9 @@ export default function RateReviewButton({ game_id, existing_rating_review } :
         if (!user) return
 
         setError("")
-        const supabase = createClient()
         const wasNew = !existingRatingReview
 
-        const { data, error: writeError } = existingRatingReview
-            ? await updateRatingReview(supabase, { userId: user.id, gameId: game_id, rating, review })
-            : await createRatingReview(supabase, { userId: user.id, gameId: game_id, rating, review })
+        const { data, error: writeError } = await submitRatingReview(game_id, rating, review, !wasNew)
 
         if (writeError) {
             setError(writeError)

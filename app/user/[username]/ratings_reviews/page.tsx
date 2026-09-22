@@ -42,7 +42,7 @@ export default async function RatingsPage({ params, searchParams }: RatingsPageP
     const profile = await getProfileSummaryByUsername(supabase, username)
 
     const [ratingsReviews, ratingsReviewsCounts] = await Promise.all([
-        getUserRatingsReviewsPage(supabase, {
+        getUserRatingsReviewsPage({
             userId: profile?.id,
             filter: filterValue,
             sort: sortValue,
@@ -50,7 +50,7 @@ export default async function RatingsPage({ params, searchParams }: RatingsPageP
             limit: currentPageSize,
             offset: (currentPage - 1) * currentPageSize
         }),
-        getUserRatingsReviewsCounts(supabase, profile?.id)
+        getUserRatingsReviewsCounts(profile?.id)
     ])
 
     const totalCount = ratingsReviews?.[0]?.total_count ?? 0

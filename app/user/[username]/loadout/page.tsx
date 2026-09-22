@@ -35,7 +35,7 @@ export default async function LoadoutPage({ params } : LoadoutPageProps) {
         if (!ownerSettings || !ownerSettings.loadout_public) redirect("/")
     }
 
-    const loadoutInput = await buildLoadoutInput(supabase, ownerId.id, username)
+    const loadoutInput = await buildLoadoutInput(ownerId.id, username)
     const totalGames = loadoutInput.totalGames
     const completedStat = loadoutInput.completedGames
     const avgRating = loadoutInput.avgRating
@@ -44,7 +44,7 @@ export default async function LoadoutPage({ params } : LoadoutPageProps) {
 
     const [highlights, ratingsReviews, currentLoadoutIdentity] = await Promise.all([
         getLoadoutRatingHighlights(ownerId.id),
-        getUserRatings(supabase, ownerId.id),
+        getUserRatings(ownerId.id),
         getCurrentLoadoutIdentity(supabase, ownerId.id)
     ])
 
@@ -54,8 +54,8 @@ export default async function LoadoutPage({ params } : LoadoutPageProps) {
     }))
 
     const developerMap = await getDeveloperNameMap(highlights.map(h => h.game_id))
-    const avgRatings = await getAvgRatingsForGames(supabase, highlights.map(h => h.game_id)) as AvgRatingsData[]
-    const viewerRatings = viewer ? await getUserRatingsForGames(supabase, viewer.id ?? "", highlights.map(h => h.game_id)) : []
+    const avgRatings = await getAvgRatingsForGames(highlights.map(h => h.game_id)) as AvgRatingsData[]
+    const viewerRatings = viewer ? await getUserRatingsForGames(viewer.id ?? "", highlights.map(h => h.game_id)) : []
 
     // Only sections with something to show get rendered — an empty labelled
     // section reads as broken.

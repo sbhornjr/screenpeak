@@ -1,6 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { logger } from './logger'
-import { SupabaseClient } from '@supabase/supabase-js'
 import { getLoadoutGenreStats, getLoadoutDeveloperStats, getLoadoutStatusBreakdown } from '@/lib/queries/stats'
 import { getUserRatings } from '@/lib/queries/review'
 
@@ -14,12 +13,12 @@ type LoadoutData = {
     topDevelopers: { developer_name: string, weighted_rating: number, rated_count: number, game_count: number }[]
 }
 
-export async function buildLoadoutInput(supabase: SupabaseClient, userId: string, username: string): Promise<LoadoutData> {
+export async function buildLoadoutInput(userId: string, username: string): Promise<LoadoutData> {
     const [genreStats, developerStats, statusStats, ratingsReviews] = await Promise.all([
         getLoadoutGenreStats(userId),
         getLoadoutDeveloperStats(userId),
         getLoadoutStatusBreakdown(userId),
-        getUserRatings(supabase, userId)
+        getUserRatings(userId)
     ])
 
     const totalGames = statusStats.reduce((a, s) => a + s.count, 0)

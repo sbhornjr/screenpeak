@@ -24,7 +24,7 @@ export default async function Home() {
         const [candidates, trendingGames, recentReviews] = await Promise.all([
             queryGames({ sort: 'metacritic_score', order: 'desc', limit: 40, userId: null }),
             getTrendingGames(null, 30),
-            getRecentReviewsGlobal(supabase, 3),
+            getRecentReviewsGlobal(3),
         ])
 
         const withBothScores = candidates.filter(g => g.metacritic_score && g.avg_ngplus_rating)
