@@ -1,9 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { createClient } from "@/lib/supabase-browser"
 import { useRouter } from "next/navigation"
-import { removeGameFromList } from "@/lib/queries/list"
+import { removeGameFromListAction } from "@/app/list-actions"
 
 export default function RemoveFromListButton({ listId, gameId } : { listId: string, gameId: string }) {
     const [error, setError] = useState("")
@@ -11,8 +10,7 @@ export default function RemoveFromListButton({ listId, gameId } : { listId: stri
 
     async function removeGame() {
         setError("")
-        const supabase = createClient()
-        const { error: removeError } = await removeGameFromList(supabase, listId, gameId)
+        const { error: removeError } = await removeGameFromListAction(listId, gameId)
         if (removeError) {
             setError(removeError)
             return

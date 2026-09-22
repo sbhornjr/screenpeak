@@ -24,7 +24,7 @@ export default async function ListPage({ params }: ListPageProps) {
 
     const profile = await getProfileSummaryByUsername(supabase, username)
 
-    const list = await getListById(supabase, listId)
+    const list = await getListById(listId)
 
     if (!list || !profile) notFound()
 
@@ -32,14 +32,14 @@ export default async function ListPage({ params }: ListPageProps) {
 
     if (!isOwnProfile && !list.is_public) notFound()
 
-    const games = await getListGames(supabase, list.id)
+    const games = await getListGames(list.id)
 
     let avgRatingMap = new Map()
     let userRatingMap = new Map()
     let developerMap = new Map()
     const gameIds = games.map(g => g.games.id)
 
-    const likesData = await getListLikes(supabase, [listId])
+    const likesData = await getListLikes([listId])
 
     const likeCount = likesData?.length ?? 0
     const userHasLiked = viewer ? likesData?.some(l => l.user_id === viewer.id) ?? false : false
@@ -84,7 +84,7 @@ export default async function ListPage({ params }: ListPageProps) {
 
                 {isOwnProfile && (
                     <div className="flex flex-wrap gap-2 mb-8">
-                        <CreateListButton userId={profile.id} type="update" current={{ listId: listId, name: list.name, description: list.description, isPinned: list.is_pinned, isPublic: list.is_public}} />
+                        <CreateListButton type="update" current={{ listId: listId, name: list.name, description: list.description, isPinned: list.is_pinned, isPublic: list.is_public}} />
                         <AddToListFromListButton listId={listId} currentGames={games.map(g => g.games)} />
                     </div>
                 )}

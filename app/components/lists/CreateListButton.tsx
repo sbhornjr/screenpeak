@@ -1,14 +1,13 @@
 "use client"
 
 import { useState } from "react"
-import { createClient } from "@/lib/supabase-browser"
 import { useRouter } from "next/navigation"
 import Modal from "@/app/components/util/Modal"
-import { createList, updateList } from "@/lib/queries/list"
+import { createOrUpdateList } from "@/app/list-actions"
 import { plus1 } from "@/lib/plus1"
 
-export default function CreateListButton({ userId, type, current, defaultListPrivacy } : 
-    { userId: string, type?: "create" | "update" | undefined, current?: { listId: string, name: string, description: string, isPublic: boolean, isPinned: boolean } | undefined, defaultListPrivacy?: boolean }) {
+export default function CreateListButton({ type, current, defaultListPrivacy } :
+    { type?: "create" | "update" | undefined, current?: { listId: string, name: string, description: string, isPublic: boolean, isPinned: boolean } | undefined, defaultListPrivacy?: boolean }) {
     const [name, setName] = useState(current ? current.name : "")
     const [description, setDescription] = useState(current ? current.description : "")
     const [isPinned, setIsPinned] = useState(current ? current.isPinned : false)
@@ -20,12 +19,9 @@ export default function CreateListButton({ userId, type, current, defaultListPri
 
     async function submitList() {
         setError("")
-        const supabase = createClient()
         const fields = { name, description, isPublic, isPinned }
 
-        const { error: writeError } = isUpdate && current
-            ? await updateList(supabase, current.listId, fields)
-            : await createList(supabase, userId, fields)
+        const { error: writeError } = await createOrUpdateList(fields, isUpdate && current ? current.listId : undefined)
 
         if (writeError) {
             setError(writeError)

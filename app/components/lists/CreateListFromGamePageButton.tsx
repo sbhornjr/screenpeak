@@ -1,13 +1,12 @@
 "use client"
 
 import { useState } from "react"
-import { createClient } from "@/lib/supabase-browser"
 import { useRouter } from "next/navigation"
 import Modal from "@/app/components/util/Modal"
-import { createList, addGameToList } from "@/lib/queries/list"
+import { createListAndAddGame } from "@/app/list-actions"
 import { plus1 } from "@/lib/plus1"
 
-export default function CreateListFromGamePageButton({ userId, gameId, close, defaultListPrivacy } : { userId: string, gameId: string, close: () => void, defaultListPrivacy?: boolean }) {
+export default function CreateListFromGamePageButton({ gameId, close, defaultListPrivacy } : { gameId: string, close: () => void, defaultListPrivacy?: boolean }) {
     const [name, setName] = useState("")
     const [description, setDescription] = useState("")
     const [isPinned, setIsPinned] = useState(false)
@@ -18,20 +17,11 @@ export default function CreateListFromGamePageButton({ userId, gameId, close, de
 
     async function submitList() {
         setError("")
-        const supabase = createClient()
 
-        const { data: list, error: createError } = await createList(supabase, userId, { name, description, isPublic, isPinned })
-        if (createError) {
-            setError(createError)
+        const { error } = await createListAndAddGame(gameId, { name, description, isPublic, isPinned })
+        if (error) {
+            setError(error)
             return
-        }
-
-        if (list) {
-            const { error: addError } = await addGameToList(supabase, list.id, gameId)
-            if (addError) {
-                setError(addError)
-                return
-            }
         }
 
         setIsCreateListModalOpen(false)

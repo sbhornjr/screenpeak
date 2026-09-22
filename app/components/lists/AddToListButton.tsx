@@ -1,12 +1,11 @@
 "use client"
 
-import { createClient } from "@/lib/supabase-browser"
 import { useState } from "react"
 import { useUser } from "../user/UserContext"
 import AuthModal from "@/app/components/user/AuthModal"
 import CreateListFromGamePageButton from "./CreateListFromGamePageButton"
 import Modal from "@/app/components/util/Modal"
-import { addGameToList, removeGameFromList } from "@/lib/queries/list"
+import { toggleGameInList } from "@/app/list-actions"
 import { plus1 } from "@/lib/plus1"
 
 export default function AddToListButton({ gameId, lists, listIdsGameIsIn, defaultListPrivacy } : 
@@ -19,15 +18,13 @@ export default function AddToListButton({ gameId, lists, listIdsGameIsIn, defaul
 
     async function handleListToggle(listId: string, alreadyInList: boolean) {
         setError("")
-        const supabase = createClient()
+
+        const { error } = await toggleGameInList(listId, gameId, alreadyInList)
+        if (error) { setError(error); return }
 
         if (alreadyInList) {
-            const { error: removeError } = await removeGameFromList(supabase, listId, gameId)
-            if (removeError) { setError(removeError); return }
             setListIdsGameIsInState(prev => { prev.delete(listId); return new Set(prev) })
         } else {
-            const { error: addError } = await addGameToList(supabase, listId, gameId)
-            if (addError) { setError(addError); return }
             setListIdsGameIsInState(prev => new Set(prev).add(listId))
             plus1("LISTED")
             setIsAddToListModalOpen(false)
@@ -86,7 +83,7 @@ export default function AddToListButton({ gameId, lists, listIdsGameIsIn, defaul
                         {error && (
                             <p className="text-sm font-semibold text-(--color-bad) mb-2">{error}</p>
                         )}
-                        {user && <CreateListFromGamePageButton gameId={gameId} userId={user.id} close={() => setIsAddToListModalOpen(false)} defaultListPrivacy={defaultListPrivacy ?? true}/>}
+                        {user && <CreateListFromGamePageButton gameId={gameId} close={() => setIsAddToListModalOpen(false)} defaultListPrivacy={defaultListPrivacy ?? true}/>}
                     </div>
                 </Modal>
             )}

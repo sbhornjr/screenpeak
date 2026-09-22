@@ -1,8 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase-browser'
-import { likeList, unlikeList } from '@/lib/queries/list'
+import { toggleListLike } from '@/app/list-actions'
 
 export default function LikeButton({ listId, initialCount, initialLiked, userId }: {
     listId: string
@@ -19,20 +18,11 @@ export default function LikeButton({ listId, initialCount, initialLiked, userId 
         if (loading) return
 
         setLoading(true)
-        const supabase = createClient()
+        const { error } = await toggleListLike(listId, liked)
 
-        if (liked) {
-            const { error } = await unlikeList(supabase, listId, userId)
-            if (!error) {
-                setLiked(false)
-                setCount(c => c - 1)
-            }
-        } else {
-            const { error } = await likeList(supabase, listId, userId)
-            if (!error) {
-                setLiked(true)
-                setCount(c => c + 1)
-            }
+        if (!error) {
+            setLiked(!liked)
+            setCount(c => liked ? c - 1 : c + 1)
         }
 
         setLoading(false)

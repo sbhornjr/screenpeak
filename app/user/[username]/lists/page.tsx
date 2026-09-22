@@ -25,16 +25,16 @@ export default async function ListsPage({ params, searchParams }: ListsPageProps
     const isOwnProfile = viewer?.id === profile.id
 
     const listsData = !tab || tab === 'user'
-        ? await getUserLists(supabase, profile.id, isOwnProfile)
-        : await getLikedLists(supabase, profile.id)
+        ? await getUserLists(profile.id, isOwnProfile)
+        : await getLikedLists(profile.id)
 
     const lists = listsData as ListWithOwner[]
 
     const listIds = lists.map(l => l.id) ?? []
 
-    const coversByList = await getListCoverMap(supabase, listIds)
+    const coversByList = await getListCoverMap(listIds)
 
-    const likesData = await getListLikes(supabase, listIds)
+    const likesData = await getListLikes(listIds)
 
     const userSettings = await getAccountSettings(supabase, profile.id)
 
@@ -77,7 +77,7 @@ export default async function ListsPage({ params, searchParams }: ListsPageProps
                         Liked Lists
                     </Link>
                 </div>
-                {viewer && viewer.id && isOwnProfile && <CreateListButton userId={viewer?.id} defaultListPrivacy={userSettings?.default_list_public ?? true} />}
+                {viewer && viewer.id && isOwnProfile && <CreateListButton defaultListPrivacy={userSettings?.default_list_public ?? true} />}
                 {lists.map(l =>
                     <ListPreview 
                         key={l.id} 

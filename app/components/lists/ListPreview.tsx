@@ -2,21 +2,19 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { createClient } from "@/lib/supabase-browser"
 import { useRouter } from "next/navigation"
 import LikeButton from "./LikeListButton"
 import CoverFan from "./CoverFan"
 import { GameCover } from "@/types"
-import { setListPinned } from "@/lib/queries/list"
+import { toggleListPinned } from "@/app/list-actions"
 
 export default function ListPreview({ listId, listName, gameCovers, isPinnable, isLikable, description, lastUpdated, username, listCount, isPinned, likeCount, userHasLiked, activeUserId, fullLength } :
     { listId: number, listName: string, gameCovers: GameCover[] | undefined, isPinnable: boolean, isLikable: boolean, description: string | null, lastUpdated: string, username: string, listCount: number, isPinned?: boolean, likeCount: number, userHasLiked: boolean, activeUserId: string | undefined, fullLength: boolean }) {
-    const [isPinnedNow, setIsPinnedNow] = useState(isPinned)
+    const [isPinnedNow, setIsPinnedNow] = useState<boolean | null | undefined>(isPinned)
     const router = useRouter()
 
     async function handlePinChange() {
-        const supabase = createClient()
-        const { isPinned: newPinned, error } = await setListPinned(supabase, listId, !isPinnedNow)
+        const { isPinned: newPinned, error } = await toggleListPinned(listId, !isPinnedNow)
         if (error) return // leave the pin state as it was — nothing changed server-side
         setIsPinnedNow(newPinned)
         router.refresh()

@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase-browser"
 import { Game } from "@/types"
 import Modal from "@/app/components/util/Modal"
 import { searchGamesByName } from "@/lib/queries/game"
-import { syncListGames } from "@/lib/queries/list"
+import { syncListGamesAction } from "@/app/list-actions"
 
 export default function AddToListFromListButton({ listId, currentGames } : { listId: string, currentGames: Game[]}) {
     const [isAddToListModalOpen, setIsAddToListModalOpen] = useState(false)
@@ -42,12 +42,11 @@ export default function AddToListFromListButton({ listId, currentGames } : { lis
 
     async function submitGames() {
         setError("")
-        const supabase = createClient()
 
         const toRemove = currentGames.filter(g => !selectedGames.some(s => s.id === g.id))
         const toAdd = selectedGames.filter(g => !currentGames.some(c => c.id === g.id))
 
-        const { error: syncError } = await syncListGames(supabase, listId, { toAdd, toRemove })
+        const { error: syncError } = await syncListGamesAction(listId, { toAdd, toRemove })
         if (syncError) {
             setError(syncError)
             return
