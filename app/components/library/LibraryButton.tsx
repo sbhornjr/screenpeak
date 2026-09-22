@@ -3,10 +3,9 @@
 import { useState, useEffect } from "react"
 import AuthModal from "@/app/components/user/AuthModal"
 import { useUser } from "@/app/components/user/UserContext"
-import { createClient } from '@/lib/supabase-browser'
 import { useRouter } from "next/navigation"
 import Modal from "@/app/components/util/Modal"
-import { getLibraryEntry, createLibraryEntry, updateLibraryEntry, deleteLibraryEntry } from "@/lib/queries/library"
+import { addOrUpdateLibraryEntry, removeLibraryEntry, fetchLibraryEntry } from "@/app/library-actions"
 import { plus1 } from "@/lib/plus1"
 
 export default function LibraryButton({ game_id }: { game_id: number }) {
@@ -26,13 +25,12 @@ export default function LibraryButton({ game_id }: { game_id: number }) {
         async function checkEntry() {
             if (!user) return
 
-            const supabase = createClient()
-            const data = await getLibraryEntry(supabase, user.id, game_id)
+            const data = await fetchLibraryEntry(game_id)
 
             setLibraryEntry(data ?? null)
             setStatus(data?.status ?? "")
             setIs100(data?.completed_all_achievements ?? false)
-            setHours(data?.hours_played ?? 0)
+            setHours(data?.hours_played != null ? Number(data.hours_played) : 0)
             setPlayedCount(data?.play_count ?? 1)
         }
 
@@ -42,21 +40,17 @@ export default function LibraryButton({ game_id }: { game_id: number }) {
     async function addToLibrary() {
         if (!user) return
 
-        const supabase = createClient()
-
         const fields = { status: currentStatus, is100, hours, playedCount }
 
         const wasNew = !libraryEntry
         const prevStatus = libraryEntry?.status
 
-        const data = wasNew
-            ? await createLibraryEntry(supabase, user.id, game_id, fields)
-            : await updateLibraryEntry(supabase, user.id, game_id, fields)
+        const data = await addOrUpdateLibraryEntry(game_id, fields)
 
         setLibraryEntry(data)
         setStatus(data?.status ?? "")
         setIs100(data?.completed_all_achievements ?? false)
-        setHours(data?.hours_played ?? 0)
+        setHours(data?.hours_played != null ? Number(data.hours_played) : 0)
         setPlayedCount(data?.play_count ?? 1)
 
         setIsLibraryModalOpen(false)
@@ -74,8 +68,7 @@ export default function LibraryButton({ game_id }: { game_id: number }) {
     async function removeFromLibrary() {
         if (!user || !libraryEntry) return
 
-        const supabase = createClient()
-        await deleteLibraryEntry(supabase, libraryEntry.id)
+        await removeLibraryEntry(libraryEntry.id)
 
         setLibraryEntry(null)
         setIsLibraryModalOpen(false)
@@ -124,7 +117,7 @@ export default function LibraryButton({ game_id }: { game_id: number }) {
                         >
                             <span className="text-lg w-6 text-center shrink-0">{icon}</span>
                             <div className="flex flex-col">
-                            <span className="text-sm font-semibold text-(--color-text) 
+                            <span className="text-sm font-semibold text-(--color-text)
                                 group-hover:text-(--color-accent) transition-colors duration-200
                                 font-(family-name:--font-display)">
                                 {label}
@@ -137,7 +130,7 @@ export default function LibraryButton({ game_id }: { game_id: number }) {
                         <button onClick={() => addToLibrary()} className="w-full rounded-[3px] bg-(--color-accent) text-(--color-bg) border mt-3 my-2 py-4">
                             {libraryEntry ? "Update Library Entry" : "Add to Library"}
                         </button>
-                        {libraryEntry && 
+                        {libraryEntry &&
                             <button onClick={() => removeFromLibrary()} className="w-full rounded-[3px] bg-(--color-bad) text-(--color-text) border border-(--color-bad-hover) my-2 py-4">
                                 Remove From Library
                             </button>
@@ -157,13 +150,13 @@ export default function LibraryButton({ game_id }: { game_id: number }) {
                                 >
                                     <div className={`w-5 h-5 rounded-[3px] border-2 flex items-center justify-center
                                         transition-all duration-200 shrink-0
-                                        ${is100 
-                                        ? 'bg-(--color-accent) border-(--color-accent)' 
+                                        ${is100
+                                        ? 'bg-(--color-accent) border-(--color-accent)'
                                         : 'bg-transparent border-(--color-border) hover:border-(--color-accent)'}`}
                                     >
                                         {is100 && (
                                             <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                                                <path d="M1 4L3.5 6.5L9 1" stroke="var(--color-bg)" strokeWidth="2" 
+                                                <path d="M1 4L3.5 6.5L9 1" stroke="var(--color-bg)" strokeWidth="2"
                                                 strokeLinecap="round" strokeLinejoin="round"/>
                                             </svg>
                                         )}
@@ -175,7 +168,7 @@ export default function LibraryButton({ game_id }: { game_id: number }) {
                                         <label className="text-xs font-semibold text-(--color-muted) uppercase tracking-wider">
                                             Hours Played
                                         </label>
-                                        <div className="flex items-center gap-2 bg-(--color-surface) border border-(--color-border) 
+                                        <div className="flex items-center gap-2 bg-(--color-surface) border border-(--color-border)
                                             rounded-[3px] px-3 py-2 focus-within:border-(--color-accent) transition-colors duration-200 w-32">
                                             <input
                                                 type="number"
@@ -186,7 +179,7 @@ export default function LibraryButton({ game_id }: { game_id: number }) {
                                                 onChange={e => setHours(e.target.value === '' ? null : Number(e.target.value))}
                                                 placeholder="0"
                                                 className="bg-transparent text-(--color-text) text-sm w-full outline-none
-                                                    [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none 
+                                                    [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none
                                                     [&::-webkit-inner-spin-button]:appearance-none"
                                             />
                                             <span className="text-xs text-(--color-muted) shrink-0">hrs</span>
@@ -196,12 +189,12 @@ export default function LibraryButton({ game_id }: { game_id: number }) {
                                         <label className="text-xs font-semibold text-(--color-muted) uppercase tracking-wider">
                                             Times Played
                                         </label>
-                                        <div className="flex items-center border border-(--color-border) rounded-[3px] 
+                                        <div className="flex items-center border border-(--color-border) rounded-[3px]
                                             overflow-hidden focus-within:border-(--color-accent) transition-colors duration-200">
                                             <button
                                                 type="button"
                                                 onClick={() => setPlayedCount(Math.max(1, (playedCount ?? 1) - 1))}
-                                                className="px-3 py-2 bg-(--color-surface-light) text-(--color-muted) hover:text-(--color-text) 
+                                                className="px-3 py-2 bg-(--color-surface-light) text-(--color-muted) hover:text-(--color-text)
                                                     hover:bg-(--color-border) transition-colors duration-200 text-sm font-bold"
                                             >
                                                 −
@@ -213,7 +206,7 @@ export default function LibraryButton({ game_id }: { game_id: number }) {
                                                 value={playedCount ?? 1}
                                                 onChange={e => setPlayedCount(Math.max(1, Number(e.target.value)))}
                                                 className="bg-(--color-surface) text-(--color-text) text-sm text-center w-12 py-2 outline-none
-                                                    [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none 
+                                                    [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none
                                                     [&::-webkit-inner-spin-button]:appearance-none"
                                             />
                                             <button

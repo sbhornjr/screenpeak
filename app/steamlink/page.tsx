@@ -42,7 +42,7 @@ export default async function SteamLinkPage() {
     const ngPlusGamesData = await getGamesFromSteamIds(steamGamesData.games.map(g => g.appid))
     const ngPlusGameIds = new Set(ngPlusGamesData.map(g => g.id))
     const libraryEntriesByGameId = new Map(
-        (await getLibraryEntries(supabase, viewer.id, {}))
+        (await getLibraryEntries(viewer.id, {}))
             .filter(le => ngPlusGameIds.has(le.game_id))
             .map(le => [le.game_id, le])
     )
@@ -55,7 +55,7 @@ export default async function SteamLinkPage() {
         const steamGame = steamGamesByAppid.get(game.steam_appid)
         const relevantLibraryEntry = libraryEntriesByGameId.get(game.id)
         const playtimeSteam = steamGame?.playtime_forever ?? 0 // minutes, per Steam's API
-        const playtimeHours = relevantLibraryEntry?.hours_played ?? Math.floor(playtimeSteam / 60)
+        const playtimeHours = relevantLibraryEntry?.hours_played != null ? Number(relevantLibraryEntry.hours_played) : Math.floor(playtimeSteam / 60)
         const status = relevantLibraryEntry ? relevantLibraryEntry.status : playtimeSteam > 0 ? "playing" : "backlog"
         const timesPlayed = relevantLibraryEntry?.play_count ? relevantLibraryEntry.play_count : playtimeSteam > 0 ? 1 : 0
         const completedAllAchievements = relevantLibraryEntry?.completed_all_achievements || fullyCompletedAppids.has(game.steam_appid)
@@ -74,7 +74,7 @@ export default async function SteamLinkPage() {
                 {unmatchedCount > 0 && (
                     <p className="text-center text-sm text-(--color-muted)">{unmatchedCount} game{unmatchedCount === 1 ? "" : "s"} in your Steam library couldn&apos;t be matched to our catalog and won&apos;t appear below.</p>
                 )}
-                <SteamLinkGamesSection userId={viewer.id} steamLinkEntries={steamLinkEntries} />
+                <SteamLinkGamesSection steamLinkEntries={steamLinkEntries} />
             </div>
         </main>
     )

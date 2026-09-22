@@ -4,10 +4,9 @@ import { SteamLinkEntry } from "@/types";
 import GameFromSteam from "../game/GameFromSteam";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { upsertLibraryEntries } from "@/lib/queries/library";
-import { createClient } from "@/lib/supabase-browser";
+import { importSteamLibraryEntries } from "@/app/library-actions";
 
-export default function SteamLinkGamesSection({ userId, steamLinkEntries } : { userId: string, steamLinkEntries: Map<number, SteamLinkEntry>}) {
+export default function SteamLinkGamesSection({ steamLinkEntries } : { steamLinkEntries: Map<number, SteamLinkEntry>}) {
     const [entries, setEntries] = useState(steamLinkEntries)
     const [isImporting, setIsImporting] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -17,13 +16,12 @@ export default function SteamLinkGamesSection({ userId, steamLinkEntries } : { u
         setEntries(prev => new Map(prev).set(appid, linkEntry))
     }
 
-    async function importGames(userId: string) {
+    async function importGames() {
         setIsImporting(true)
         setError(null)
 
         try {
-            const supabase = createClient()
-            await upsertLibraryEntries(supabase, userId, Array.from(entries.values()).filter(sle => sle.selected))
+            await importSteamLibraryEntries(Array.from(entries.values()).filter(sle => sle.selected))
             router.push("/settings")
         } catch {
             setError("Something went wrong importing your games. Please try again.")
@@ -38,7 +36,7 @@ export default function SteamLinkGamesSection({ userId, steamLinkEntries } : { u
             ))}
             {error && <p className="text-center text-sm text-(--color-bad)">{error}</p>}
             <button
-                onClick={() => importGames(userId)}
+                onClick={() => importGames()}
                 disabled={isImporting}
                 className="px-4 py-1 text-md bg-(--color-accent) text-(--color-bg) font-semibold rounded-[3px]
                     hover:bg-(--color-accent-hover) transition-colors duration-200

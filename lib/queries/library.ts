@@ -1,18 +1,29 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
+import { eq, and, desc, asc, sql } from 'drizzle-orm'
+import { db } from '@/lib/db'
+import { libraryEntries } from '@/db/schema'
 import { LibraryData, EsrbRatingsData } from '@/types'
 import { SteamLinkEntry } from '@/types'
 
-export async function getLibraryEntry(supabase: SupabaseClient, userId: string, gameId: string | number) {
-    // maybeSingle: "not in this user's library" is a valid answer, not an error.
-    // .single() here throws a 406 / PGRST116 on every game the viewer hasn't added.
-    const { data } = await supabase
-        .from('library_entries')
-        .select('id, status, completed_all_achievements, hours_played, play_count')
-        .eq('user_id', userId)
-        .eq('game_id', gameId)
-        .maybeSingle()
+const LIBRARY_ENTRY_COLUMNS = {
+    id: libraryEntries.id,
+    status: libraryEntries.status,
+    completed_all_achievements: libraryEntries.completedAllAchievements,
+    hours_played: libraryEntries.hoursPlayed,
+    play_count: libraryEntries.playCount,
+}
 
-    return data
+export async function getLibraryEntry(userId: string, gameId: string | number) {
+    try {
+        const rows = await db
+            .select(LIBRARY_ENTRY_COLUMNS)
+            .from(libraryEntries)
+            .where(and(eq(libraryEntries.userId, userId), eq(libraryEntries.gameId, String(gameId))))
+            .limit(1)
+
+        return rows[0] ?? null
+    } catch {
+        return null
+    }
 }
 
 type LibraryEntryFields = {
@@ -22,46 +33,81 @@ type LibraryEntryFields = {
     playedCount: number
 }
 
-export async function createLibraryEntry(supabase: SupabaseClient, userId: string, gameId: number, fields: LibraryEntryFields) {
-    const { data } = await supabase
-        .from('library_entries')
-        .insert({ user_id: userId, game_id: gameId, status: fields.status, completed_all_achievements: fields.is100, hours_played: fields.hours, play_count: fields.playedCount })
-        .select('id, status, completed_all_achievements, hours_played, play_count')
-        .single()
+export async function createLibraryEntry(userId: string, gameId: number, fields: LibraryEntryFields) {
+    try {
+        const rows = await db
+            .insert(libraryEntries)
+            .values({
+                userId,
+                gameId: String(gameId),
+                status: fields.status,
+                completedAllAchievements: fields.is100,
+                hoursPlayed: fields.hours != null ? String(fields.hours) : null,
+                playCount: fields.playedCount,
+            })
+            .returning(LIBRARY_ENTRY_COLUMNS)
 
-    return data
+        return rows[0] ?? null
+    } catch {
+        return null
+    }
 }
 
-export async function updateLibraryEntry(supabase: SupabaseClient, userId: string, gameId: number, fields: LibraryEntryFields) {
-    const { data } = await supabase
-        .from('library_entries')
-        .update({ status: fields.status, completed_all_achievements: fields.is100, hours_played: fields.hours, play_count: fields.playedCount })
-        .eq('user_id', userId)
-        .eq('game_id', gameId)
-        .select('id, status, completed_all_achievements, hours_played, play_count')
-        .single()
+export async function updateLibraryEntry(userId: string, gameId: number, fields: LibraryEntryFields) {
+    try {
+        const rows = await db
+            .update(libraryEntries)
+            .set({
+                status: fields.status,
+                completedAllAchievements: fields.is100,
+                hoursPlayed: fields.hours != null ? String(fields.hours) : null,
+                playCount: fields.playedCount,
+            })
+            .where(and(eq(libraryEntries.userId, userId), eq(libraryEntries.gameId, String(gameId))))
+            .returning(LIBRARY_ENTRY_COLUMNS)
 
-    return data
+        return rows[0] ?? null
+    } catch {
+        return null
+    }
 }
 
-export async function upsertLibraryEntries(supabase: SupabaseClient, userId: string, entries: SteamLinkEntry[]) {
-    const toUpsert = entries.map(sle => ({ user_id: userId, game_id: sle.gameId, status: sle.status, hours_played: sle.playtimeSelected, play_count: sle.timesPlayed ?? 0, completed_all_achievements: sle.completedAllAchievements }))
+export async function upsertLibraryEntries(userId: string, entries: SteamLinkEntry[]) {
+    const toUpsert = entries.map(sle => ({
+        userId,
+        gameId: String(sle.gameId),
+        status: sle.status,
+        hoursPlayed: sle.playtimeSelected != null ? String(sle.playtimeSelected) : null,
+        playCount: sle.timesPlayed ?? 0,
+        completedAllAchievements: sle.completedAllAchievements,
+    }))
 
-    const { data, error } = await supabase
-        .from("library_entries")
-        .upsert(toUpsert, { onConflict: "user_id,game_id"})
-        .select('id, status, completed_all_achievements, hours_played, play_count')
-
-    if (error) {
+    try {
+        return await db
+            .insert(libraryEntries)
+            .values(toUpsert)
+            .onConflictDoUpdate({
+                target: [libraryEntries.userId, libraryEntries.gameId],
+                set: {
+                    status: sql`excluded.status`,
+                    hoursPlayed: sql`excluded.hours_played`,
+                    playCount: sql`excluded.play_count`,
+                    completedAllAchievements: sql`excluded.completed_all_achievements`,
+                },
+            })
+            .returning(LIBRARY_ENTRY_COLUMNS)
+    } catch (error) {
         console.error("Failed to import library entries from Steam:", error)
         throw error
     }
-
-    return data
 }
 
-export async function deleteLibraryEntry(supabase: SupabaseClient, entryId: string) {
-    await supabase.from('library_entries').delete().eq('id', entryId)
+export async function deleteLibraryEntry(entryId: string) {
+    try {
+        await db.delete(libraryEntries).where(eq(libraryEntries.id, entryId))
+    } catch {
+        // Original supabase-js version never checked/surfaced delete errors either — fire and forget.
+    }
 }
 
 type LibraryEntriesFilter = {
@@ -71,49 +117,62 @@ type LibraryEntriesFilter = {
     order?: string
 }
 
-export async function getLibraryEntries(supabase: SupabaseClient, userId: string, filter: LibraryEntriesFilter) {
-    let query = supabase
-        .from('library_entries')
-        .select('game_id, status, created_at, completed_all_achievements, hours_played, play_count')
-        .eq('user_id', userId)
+export async function getLibraryEntries(userId: string, filter: LibraryEntriesFilter) {
+    const conditions = [eq(libraryEntries.userId, userId)]
+    if (filter.status) conditions.push(eq(libraryEntries.status, filter.status))
+    if (filter.is100) conditions.push(eq(libraryEntries.completedAllAchievements, true))
 
-    if (filter.status) query = query.eq('status', filter.status)
-    if (filter.is100) query = query.eq('completed_all_achievements', true)
-    if (filter.sort === 'date_added') query = query.order('created_at', { ascending: filter.order === 'asc' })
+    let query = db
+        .select({
+            game_id: libraryEntries.gameId,
+            status: libraryEntries.status,
+            created_at: libraryEntries.createdAt,
+            completed_all_achievements: libraryEntries.completedAllAchievements,
+            hours_played: libraryEntries.hoursPlayed,
+            play_count: libraryEntries.playCount,
+        })
+        .from(libraryEntries)
+        .where(and(...conditions))
+        .$dynamic()
 
-    const { data } = await query
-    return data ?? []
-}
+    if (filter.sort === 'date_added') {
+        query = query.orderBy(filter.order === 'asc' ? asc(libraryEntries.createdAt) : desc(libraryEntries.createdAt))
+    }
 
-export async function getLibraryFacets(supabase: SupabaseClient, userId: string) {
-    const [
-        { data: genresData },
-        { data: platformsData },
-        { data: developersData },
-        { data: publishersData },
-        { data: esrbRatingsData },
-    ] = await Promise.all([
-        supabase.rpc('get_library_genres', { p_user_id: userId }),
-        supabase.rpc('get_library_platforms', { p_user_id: userId }),
-        supabase.rpc('get_library_developers', { p_user_id: userId }),
-        supabase.rpc('get_library_publishers', { p_user_id: userId }),
-        supabase.rpc('get_library_esrb_ratings', { p_user_id: userId }),
-    ])
-
-    return {
-        genres: genresData as LibraryData[],
-        platforms: platformsData as LibraryData[],
-        developers: developersData as LibraryData[],
-        publishers: publishersData as LibraryData[],
-        esrbRatings: (esrbRatingsData as EsrbRatingsData[]).map(r => r.esrb_rating),
+    try {
+        return await query
+    } catch {
+        return []
     }
 }
 
-export async function getLibraryStatusBreakdown(supabase: SupabaseClient, userId: string) {
-    const { data: entries, count: totalCount } = await supabase
-        .from('library_entries')
-        .select('status', { count: 'exact' })
-        .eq('user_id', userId)
+export async function getLibraryFacets(userId: string) {
+    const [genresRows, platformsRows, developersRows, publishersRows, esrbRows] = await Promise.all([
+        db.execute(sql`select * from get_library_genres(p_user_id => ${userId})`).catch(() => []),
+        db.execute(sql`select * from get_library_platforms(p_user_id => ${userId})`).catch(() => []),
+        db.execute(sql`select * from get_library_developers(p_user_id => ${userId})`).catch(() => []),
+        db.execute(sql`select * from get_library_publishers(p_user_id => ${userId})`).catch(() => []),
+        db.execute(sql`select * from get_library_esrb_ratings(p_user_id => ${userId})`).catch(() => []),
+    ])
 
-    return { entries: entries ?? [], totalCount: totalCount ?? 0 }
+    return {
+        genres: genresRows as unknown as LibraryData[],
+        platforms: platformsRows as unknown as LibraryData[],
+        developers: developersRows as unknown as LibraryData[],
+        publishers: publishersRows as unknown as LibraryData[],
+        esrbRatings: (esrbRows as unknown as EsrbRatingsData[]).map(r => r.esrb_rating),
+    }
+}
+
+export async function getLibraryStatusBreakdown(userId: string) {
+    try {
+        const rows = await db
+            .select({ status: libraryEntries.status })
+            .from(libraryEntries)
+            .where(eq(libraryEntries.userId, userId))
+
+        return { entries: rows, totalCount: rows.length }
+    } catch {
+        return { entries: [], totalCount: 0 }
+    }
 }

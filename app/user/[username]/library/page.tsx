@@ -40,7 +40,7 @@ export default async function LibraryPage({ params, searchParams } : LibraryPage
         if (!ownerSettings || !ownerSettings.library_public) redirect("/")
     }
 
-    const { genres, platforms, developers, publishers, esrbRatings } = await getLibraryFacets(supabase, ownerId.id)
+    const { genres, platforms, developers, publishers, esrbRatings } = await getLibraryFacets(ownerId.id)
 
     if (genreQuery != '' && !genres.map((g) => g.slug).includes(genreQuery)) {
         redirect('/')
@@ -62,7 +62,7 @@ export default async function LibraryPage({ params, searchParams } : LibraryPage
         redirect('/')
     }
 
-    const libraryEntries = await getLibraryEntries(supabase, ownerId.id, { status: statusQuery, is100: is100Query, sort: sortQuery, order: orderQuery })
+    const libraryEntries = await getLibraryEntries(ownerId.id, { status: statusQuery, is100: is100Query, sort: sortQuery, order: orderQuery })
     const libraryGameIds = libraryEntries?.map(e => e.game_id) ?? []
 
     const games = await queryGames({
@@ -102,17 +102,20 @@ export default async function LibraryPage({ params, searchParams } : LibraryPage
                 {/* Game grid */}
                 {games && games.length > 0 ? (
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                        {games.map(game => (
-                            <GameCard 
-                                key={game.id} 
-                                game={{ id: String(game.id), name: game.name, slug: game.slug, cover_image_url: game.cover_image_url, metacritic_score: game.metacritic_score, released: game.released }} 
-                                developer={developerMap.get(String(game.id))}
-                                userRating={game.user_rating} 
-                                ngplusRating={game.avg_ngplus_rating}
-                                libraryStatus={libraryEntries?.find(le => le.game_id == game.id)?.status}
-                                advancedStats={{ is100: libraryEntries?.find(le => le.game_id == game.id)?.completed_all_achievements, hoursPlayed: libraryEntries?.find(le => le.game_id == game.id)?.hours_played, playCount: libraryEntries?.find(le => le.game_id == game.id)?.play_count }}
-                            />
-                        ))}
+                        {games.map(game => {
+                            const entry = libraryEntries?.find(le => le.game_id == String(game.id))
+                            return (
+                                <GameCard
+                                    key={game.id}
+                                    game={{ id: String(game.id), name: game.name, slug: game.slug, cover_image_url: game.cover_image_url, metacritic_score: game.metacritic_score, released: game.released }}
+                                    developer={developerMap.get(String(game.id))}
+                                    userRating={game.user_rating}
+                                    ngplusRating={game.avg_ngplus_rating}
+                                    libraryStatus={entry?.status}
+                                    advancedStats={{ is100: entry?.completed_all_achievements ?? false, hoursPlayed: entry?.hours_played != null ? Number(entry.hours_played) : null, playCount: entry?.play_count ?? 1 }}
+                                />
+                            )
+                        })}
                     </div>
                 ) : (
                     <EmptyState

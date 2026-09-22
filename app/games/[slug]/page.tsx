@@ -108,7 +108,7 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
 
     const stats = await getGameRatingsStats(supabase, game.id)
     const userReview = user ? await getUserRatingReviewForGame(supabase, game.id, user.id) : null
-    const libraryEntry = user ? await getLibraryEntry(supabase, user.id, game.id) : null
+    const libraryEntry = user ? await getLibraryEntry(user.id, game.id) : null
 
     const { reviews: pagedReviews, count: otherReviewsCount } = await getGameReviewsForPage(supabase, game.id, {
         limit: pageSizeQuery,
