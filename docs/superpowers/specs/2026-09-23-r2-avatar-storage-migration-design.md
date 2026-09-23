@@ -76,7 +76,7 @@ would need.
   (Auth calls) is untouched.
 - **`next.config.ts`** — `images.remotePatterns` drops the
   `*.supabase.co/storage/v1/object/public/**` entry, adds the R2 custom
-  domain hostname (e.g. `cdn.screenpeak.app`).
+  domain hostname (e.g. `cdn.screenpeak.gg`).
 
 ## Data flow
 
@@ -102,7 +102,7 @@ where each one comes from):
 | `R2_ACCESS_KEY_ID` | R2 API token, write access to the bucket |
 | `R2_SECRET_ACCESS_KEY` | R2 API token secret |
 | `R2_BUCKET_NAME` | bucket the app uploads avatars into |
-| `R2_PUBLIC_URL` | base URL avatars are served from, e.g. `https://cdn.screenpeak.app` (no trailing slash) |
+| `R2_PUBLIC_URL` | base URL avatars are served from, e.g. `https://cdn.screenpeak.gg` (no trailing slash) |
 
 New dependencies: `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner`.
 
@@ -146,12 +146,16 @@ from the repo:
    Account ID is shown in the right-hand panel (also visible in the R2
    dashboard URL: `dash.cloudflare.com/<account-id>/r2/overview`). That's
    `R2_ACCOUNT_ID`.
-4. **Bind a custom domain to the bucket.** Requires the domain (e.g.
-   `screenpeak.app`) to already be an active zone on this Cloudflare account.
-   Bucket → Settings → Custom Domains → Connect Domain → enter the subdomain
-   you want (e.g. `cdn.screenpeak.app`). Cloudflare provisions the CNAME and
-   SSL automatically; it can take a few minutes to go active. Once active,
-   `R2_PUBLIC_URL` is `https://<that subdomain>` (no trailing slash).
+4. **Bind a custom domain to the bucket — use a subdomain, not the apex.**
+   Requires `screenpeak.gg` to already be an active zone on this Cloudflare
+   account (it is). An R2 custom domain claims that exact hostname for
+   object-storage traffic, so it can't be the apex `screenpeak.gg` — that
+   hostname already routes to the app itself. Use a subdomain instead:
+   bucket → Settings → Custom Domains → Connect Domain → enter something like
+   `cdn.screenpeak.gg` (name is up to you — `images.`, `static.`, etc. all
+   work equally well). Cloudflare provisions the CNAME and SSL automatically;
+   it can take a few minutes to go active. Once active, `R2_PUBLIC_URL` is
+   `https://<that subdomain>` (no trailing slash).
 5. **Set a CORS policy on the bucket.** Bucket → Settings → CORS Policy → add
    a rule allowing `PUT` and `GET` (R2 also needs `OPTIONS` for the preflight)
    from your dev origin (`http://localhost:3000`) and your production origin.
