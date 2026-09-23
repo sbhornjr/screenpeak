@@ -37,7 +37,13 @@ No typecheck script — use `npx tsc --noEmit` for type checking.
     `steam/link` + `steam/callback` (Steam OpenID sign-in), `delete-account` (DELETE)
   - `app/auth/confirm/` — landing route for every Supabase auth email link
   - `app/feed-actions.ts` — server action, paginates the activity feed
-- `lib/` — shared logic: Supabase clients, DB queries (`lib/queries/`), utilities
+- `db/` — Drizzle schema (`schema.ts`, `relations.ts`) and hand-authored SQL
+  migrations (`db/migrations/`, tracked in `meta/_journal.json` like any
+  drizzle-kit migration, even the ones — like `0001_functions_and_triggers.sql`
+  and later fixes — that were captured/written by hand rather than generated
+  by `drizzle-kit generate`)
+- `lib/` — shared logic: Supabase clients, the Drizzle client (`lib/db.ts`),
+  `requireUser()` (`lib/auth.ts`), DB queries (`lib/queries/`), utilities
 - `scripts/` — standalone scripts (`seed-games.ts`, `inspect-rawg.ts`)
 - `test/` — Vitest suite; `types/` — shared TS types mirroring `lib/queries/`
 
@@ -54,9 +60,20 @@ Three different Supabase clients exist, plus a Drizzle client for direct Postgre
 
 Do **not** mix them. The server client is async (`await createClient()`). The browser client from `supabase-browser.ts` is sync. `db` connects directly to Postgres and bypasses RLS entirely (the pooler role has `BYPASSRLS`) — any Drizzle mutation must enforce its own authorization (see below), and any Drizzle read of a privacy-gated resource must be gated in application code, not left to a policy that no longer applies.
 
-A handful of functions in `lib/queries/user.ts` and `lib/queries/game.ts` intentionally stay on `supabase-js` instead of `db` — either because they're genuinely Auth/Storage calls (`getViewer`, `signInWithPassword`, `uploadAvatarImage`, etc.), or because they're called directly from a `'use client'` component and Drizzle cannot run in the browser (`getProfileSummaryById`, `searchTaxonomyTable`, `getTaxonomyNameBySlug`, `searchGamesByName`). Each is commented in place with the reason.
+Functions that intentionally stay on `supabase-js` instead of `db` live in their own dedicated files, never mixed into a Drizzle-backed `lib/queries/*` file — importing a single named export pulls in a module's *entire* top-level import graph, so one `supabase-js`-only function sharing a file with `import { db } from '@/lib/db'` drags Drizzle's `postgres()` client (and its `fs`/`net`/`tls` Node built-ins) into any client bundle that imports the file, breaking the build with `Module not found: Can't resolve 'fs'`. That's why these are split out:
+- `lib/queries/user-auth.ts` — genuine Auth/Storage calls (`getViewer`, `signInWithPassword`, `uploadAvatarImage`, `signOut`, etc.)
+- `lib/queries/game-search.ts` — read-only search functions called directly from `'use client'` components (`searchGamesByName`, `searchTaxonomyTable`, `getTaxonomyNameBySlug`)
+- `lib/queries/feed-constants.ts` — `FEED_PAGE_SIZE`, a plain constant re-exported from `feed.ts` for client callers, split out for the same reason
 
-Client-side mutations that used to call `lib/queries/*` directly with the browser client now go through Server Actions (`app/library-actions.ts`, `app/review-actions.ts`, `app/list-actions.ts`, `app/user-actions.ts`, `app/steam-actions.ts`), which derive the caller's identity from `requireUser()` (`lib/auth.ts`) instead of trusting a client-supplied id.
+Adding a new client-callable helper to `user.ts`, `game.ts`, or `feed.ts` reintroduces this bug — add it to the matching dedicated file instead, or create a new one for a different domain.
+
+Client-side mutations that used to call `lib/queries/*` directly with the browser client now go through Server Actions (`app/library-actions.ts`, `app/review-actions.ts`, `app/list-actions.ts`, `app/user-actions.ts`, `app/steam-actions.ts`), which derive the caller's identity from `requireUser()` (`lib/auth.ts`) instead of trusting a client-supplied id. If you find a component still doing `supabase.from(...).update(...)` with a client-supplied user id, that's a straggler from the pre-Drizzle architecture — move it onto a Server Action instead of leaving it, even if the table's RLS policy happens to make it non-exploitable today (ownership checks belong in one place, not "wherever RLS backstops a shortcut").
+
+### Drizzle gotchas
+
+- **Timestamps**: `postgres`-js returns `timestamptz` columns as `"YYYY-MM-DD HH:MM:SS.sss+00"` (space separator, 2-digit offset) instead of `supabase-js`/PostgREST's ISO-8601 `"YYYY-MM-DDTHH:MM:SS.sssZ"` — some engines' `Date` parsers (notably Safari) reject the former. Always parse a Drizzle-sourced timestamp through `parseDbTimestamp()` (`lib/dates.ts`) before doing date math or calling `.toISOString()`/`new Date(...)` on it directly.
+- **Array params to raw RPC calls**: interpolating a plain JS array into drizzle-orm's `sql` template tag (e.g. `` sql`select * from some_fn(p_ids => ${idsArray})` ``) expands it into an `IN`-list (`($1, $2)`), not a native Postgres array — that silently breaks any function parameter typed `uuid[]` (the query throws, and if it's wrapped in the usual `catch { return [] }`, the failure is invisible: no error, just an empty result). Use `uuidArrayParam()` (`lib/sql-helpers.ts`) to build a real `ARRAY[...]::uuid[]` literal instead. `lib/queries/game.ts`'s `queryGames` and `lib/queries/review.ts`'s `getAvgRatingsForGames` both hit this; check any new raw SQL RPC call that takes an array parameter.
+- **`SECURITY DEFINER` RPC functions bypass RLS and must repeat its checks by hand**: `get_feed()` (`db/migrations/0002_fix_get_feed_library_privacy.sql`) is the precedent — it joins against `users.library_public` before including a followed user's library activity, mirroring `library_entries`' own RLS policy, because as a `SECURITY DEFINER` function it never goes through RLS in the first place. Any new or modified RPC function that reads a privacy-gated table (`library_entries`, `lists`/`list_games` when `is_public = false`, etc.) needs the same manual check — there is no policy backstopping it.
 
 ## Auth & Middleware
 
