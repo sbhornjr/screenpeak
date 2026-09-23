@@ -7,14 +7,15 @@ import FeedListPreview from "@/app/components/feed/FeedListPreview"
 import Avatar from "@/app/components/user/Avatar"
 import FeedLibraryBatch from "./FeedLibraryBatch"
 import type { FeedItem as FeedItemType } from "@/types"
+import { parseDbTimestamp } from "@/lib/dates"
 
 export function timeAgo(date: string): string {
-    const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000)
+    const seconds = Math.floor((Date.now() - parseDbTimestamp(date).getTime()) / 1000)
     if (seconds < 60) return 'just now'
     if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
     if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
     if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`
-    return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    return parseDbTimestamp(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
 // A glyph per activity type so the feed is scannable without reading every line.

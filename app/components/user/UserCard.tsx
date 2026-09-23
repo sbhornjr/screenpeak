@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import Avatar from "@/app/components/user/Avatar"
+import { parseDbTimestamp } from "@/lib/dates"
 
 export default function UserCard({ username, avatarUrl, title, createdAt, followerCount, followingCount, gameCount, avgRating } : 
     { username: string, avatarUrl: string | null, title: string | null, createdAt: string, followerCount: number, followingCount: number, gameCount: number, avgRating: number }) {
@@ -22,7 +23,7 @@ export default function UserCard({ username, avatarUrl, title, createdAt, follow
                     {title ?? "Title-less Noob"}
                 </p>
                 <p className="text-xs text-(--color-muted)">
-                    Member since {new Date(createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                    Member since {parseDbTimestamp(createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
                 </p>
                 <p className="text-xs text-(--color-muted)">
                     {followerCount} followers · {followingCount} following

@@ -50,7 +50,10 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
     const viewer = await getViewer(supabase)
     const isOwnProfile = viewer?.id === profile.id
 
-    const { entries: libraryEntries, totalCount: totalGames } = await getLibraryStatusBreakdown(profile.id)
+    const canSeeLibrary = isOwnProfile || profile.library_public
+    const { entries: libraryEntries, totalCount: totalGames } = canSeeLibrary
+        ? await getLibraryStatusBreakdown(profile.id)
+        : { entries: [], totalCount: 0 }
 
     const favoriteGameIds = profile.favorite_game_ids ?? []
     const favoriteGamesData = favoriteGameIds.length > 0

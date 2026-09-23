@@ -73,6 +73,8 @@ export async function updateLibraryEntry(userId: string, gameId: number, fields:
 }
 
 export async function upsertLibraryEntries(userId: string, entries: SteamLinkEntry[]) {
+    if (entries.length === 0) return []
+
     const toUpsert = entries.map(sle => ({
         userId,
         gameId: String(sle.gameId),

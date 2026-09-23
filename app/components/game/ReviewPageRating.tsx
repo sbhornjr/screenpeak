@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import Image from "next/image"
+import { parseDbTimestamp } from "@/lib/dates"
 
 export default function Rating({ slug, name, cover, released, developer, rating, createdAt } : 
     { slug: string, name: string, cover: string, released: string, developer?: string | null, rating: number, createdAt: string}
@@ -37,7 +38,7 @@ export default function Rating({ slug, name, cover, released, developer, rating,
                 style={{ color: scoreColor(rating) }}>
                 {rating}<span className="text-xs text-(--color-muted) font-normal">/10</span>
                 </span>
-                <span className="text-xs text-(--color-muted)">{new Date(createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                <span className="text-xs text-(--color-muted)">{parseDbTimestamp(createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
             </div>
         </Link>
     )

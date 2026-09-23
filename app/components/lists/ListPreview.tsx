@@ -7,6 +7,7 @@ import LikeButton from "./LikeListButton"
 import CoverFan from "./CoverFan"
 import { GameCover } from "@/types"
 import { toggleListPinned } from "@/app/list-actions"
+import { parseDbTimestamp } from "@/lib/dates"
 
 export default function ListPreview({ listId, listName, gameCovers, isPinnable, isLikable, description, lastUpdated, username, listCount, isPinned, likeCount, userHasLiked, activeUserId, fullLength } :
     { listId: number, listName: string, gameCovers: GameCover[] | undefined, isPinnable: boolean, isLikable: boolean, description: string | null, lastUpdated: string, username: string, listCount: number, isPinned?: boolean, likeCount: number, userHasLiked: boolean, activeUserId: string | undefined, fullLength: boolean }) {
@@ -20,7 +21,7 @@ export default function ListPreview({ listId, listName, gameCovers, isPinnable, 
         router.refresh()
     }
 
-    const updated = new Date(lastUpdated)
+    const updated = parseDbTimestamp(lastUpdated)
     const covers = gameCovers?.filter(g => g.coverImageUrl) ?? []
 
     return (

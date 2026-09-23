@@ -41,17 +41,22 @@ No typecheck script — use `npx tsc --noEmit` for type checking.
 - `scripts/` — standalone scripts (`seed-games.ts`, `inspect-rawg.ts`)
 - `test/` — Vitest suite; `types/` — shared TS types mirroring `lib/queries/`
 
-## Supabase Clients
+## Supabase Clients & Drizzle
 
-Three different Supabase clients exist — use the right one for context:
+Three different Supabase clients exist, plus a Drizzle client for direct Postgres access — use the right one for context:
 
 | File | Context | Import |
 |------|---------|--------|
 | `lib/supabase-server.ts` | Server Components / Route Handlers | `import { createClient } from '@/lib/supabase-server'` (async) |
 | `lib/supabase-browser.ts` | Client Components via `@supabase/ssr` | `import { createClient } from '@/lib/supabase-browser'` |
 | `lib/supabase.ts` | Browser only — raw `supabase-js` client with debug logging | `import { supabase } from '@/lib/supabase'` |
+| `lib/db.ts` | Postgres queries outside Auth/Storage (`lib/queries/*`) | `import { db } from '@/lib/db'` (sync, module-scope singleton — never pass it as a function param) |
 
-Do **not** mix them. The server client is async (`await createClient()`). The browser client from `supabase-browser.ts` is sync.
+Do **not** mix them. The server client is async (`await createClient()`). The browser client from `supabase-browser.ts` is sync. `db` connects directly to Postgres and bypasses RLS entirely (the pooler role has `BYPASSRLS`) — any Drizzle mutation must enforce its own authorization (see below), and any Drizzle read of a privacy-gated resource must be gated in application code, not left to a policy that no longer applies.
+
+A handful of functions in `lib/queries/user.ts` and `lib/queries/game.ts` intentionally stay on `supabase-js` instead of `db` — either because they're genuinely Auth/Storage calls (`getViewer`, `signInWithPassword`, `uploadAvatarImage`, etc.), or because they're called directly from a `'use client'` component and Drizzle cannot run in the browser (`getProfileSummaryById`, `searchTaxonomyTable`, `getTaxonomyNameBySlug`, `searchGamesByName`). Each is commented in place with the reason.
+
+Client-side mutations that used to call `lib/queries/*` directly with the browser client now go through Server Actions (`app/library-actions.ts`, `app/review-actions.ts`, `app/list-actions.ts`, `app/user-actions.ts`, `app/steam-actions.ts`), which derive the caller's identity from `requireUser()` (`lib/auth.ts`) instead of trusting a client-supplied id.
 
 ## Auth & Middleware
 
@@ -77,6 +82,8 @@ link formats.
 Required in `.env.local` (gitignored):
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SECRET_KEY` (seed script + admin client in `delete-account`)
+- `DATABASE_URL` (session pooler — `drizzle-kit` tooling only, e.g. `npx drizzle-kit push`)
+- `DATABASE_POOL_URL` (transaction pooler — the app's runtime Drizzle client, `lib/db.ts`; throws at module load if unset)
 - `RAWG_API_KEY` (for seed script)
 - `ANTHROPIC_API_KEY` (for loadout generation)
 - `STEAM_API_KEY` (Steam library import + achievements)
