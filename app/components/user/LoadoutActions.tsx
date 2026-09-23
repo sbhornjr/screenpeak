@@ -2,13 +2,13 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase-browser"
 import { logger } from "@/lib/logger"
+import { saveLoadoutBio } from "@/app/user-actions"
 
 // Owner-only controls for the Read-out: generate/regenerate (POST /api/loadout,
 // no body — the route identifies the user by session) and save-to-bio. The two
 // buttons share a row; any error renders on its own full-width line below them.
-export default function LoadoutActions({ userId, identity }: { userId: string, identity: string }) {
+export default function LoadoutActions({ identity }: { identity: string }) {
     const router = useRouter()
     const [generating, setGenerating] = useState(false)
     const [savedBio, setSavedBio] = useState(false)
@@ -41,11 +41,7 @@ export default function LoadoutActions({ userId, identity }: { userId: string, i
     }
 
     async function saveBio() {
-        const supabase = await createClient()
-        const { error: saveError } = await supabase
-            .from("users")
-            .update({ profile_loadout_bio: identity })
-            .eq("id", userId)
+        const { error: saveError } = await saveLoadoutBio(identity)
 
         if (saveError) setError("Couldn't save to profile.")
         else setSavedBio(true)

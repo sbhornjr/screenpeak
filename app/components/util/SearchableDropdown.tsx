@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { createClient } from '@/lib/supabase-browser'
-import { searchTaxonomyTable, getTaxonomyNameBySlug } from '@/lib/queries/game'
+import { searchTaxonomyTable, getTaxonomyNameBySlug } from '@/lib/queries/game-search'
 
 type Option = { id: string, name: string, slug: string }
 

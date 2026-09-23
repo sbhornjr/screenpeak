@@ -14,7 +14,8 @@ import SectionHead from "@/app/components/util/SectionHead";
 import Eyebrow from "@/app/components/util/Eyebrow";
 import EmptyState from "@/app/components/util/EmptyState";
 import { GameData } from "@/types";
-import { getViewer, getFullProfile, getFollowers, getFollowing } from "@/lib/queries/user";
+import { getViewer } from "@/lib/queries/user-auth";
+import { getFullProfile, getFollowers, getFollowing } from "@/lib/queries/user";
 import { queryGames, getDeveloperNameMap } from "@/lib/queries/game";
 import { getLibraryStatusBreakdown } from "@/lib/queries/library";
 import { getRecentReviews, getUserRatings } from "@/lib/queries/review";
@@ -142,7 +143,7 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
                 {profile.user_bio
                     ? <p className="text-(--color-text) leading-relaxed max-w-2xl">{profile.user_bio}</p>
                     : <p className="text-(--color-muted) text-sm">{isOwnProfile ? "You haven't written a bio yet." : "No bio yet."}</p>}
-                <SectionHead action={isOwnProfile && <FavoriteGamePicker userId={profile.id} currentGames={favoriteGames.map(g => ({ id: String(g.id), name: g.name, slug: g.slug, cover_image_url: g.cover_image_url, metacritic_score: g.metacritic_score, released: g.released }))}/>}>Favorite Games</SectionHead>
+                <SectionHead action={isOwnProfile && <FavoriteGamePicker currentGames={favoriteGames.map(g => ({ id: String(g.id), name: g.name, slug: g.slug, cover_image_url: g.cover_image_url, metacritic_score: g.metacritic_score, released: g.released }))}/>}>Favorite Games</SectionHead>
                 {orderedFavorites.length > 0 ? (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
                         {orderedFavorites.map((g: GameData) =>

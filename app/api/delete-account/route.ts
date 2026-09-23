@@ -3,7 +3,7 @@ import { createClient as createServerClient } from '@/lib/supabase-server'
 import { createLoggingFetch } from '@/lib/supabase-logging'
 import { logger } from '@/lib/logger'
 import { NextResponse } from 'next/server'
-import { getViewer, deleteUserAccount } from '@/lib/queries/user'
+import { getViewer, deleteUserAccount } from '@/lib/queries/user-auth'
 
 export async function DELETE() {
     const supabase = await createServerClient()

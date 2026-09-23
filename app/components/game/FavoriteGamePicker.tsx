@@ -7,11 +7,11 @@ import { useRouter } from "next/navigation"
 import { Game } from "@/types"
 import Modal from "@/app/components/util/Modal"
 import EditTriggerButton from "@/app/components/util/EditTriggerButton"
-import { searchGamesByName } from "@/lib/queries/game"
+import { searchGamesByName } from "@/lib/queries/game-search"
 import { saveFavoriteGames } from "@/app/user-actions"
 import { plus1 } from "@/lib/plus1"
 
-export default function FavoriteGamePicker({ userId, currentGames } : { userId: string, currentGames: Game[]}) {
+export default function FavoriteGamePicker({ currentGames } : { currentGames: Game[]}) {
     const [searchQuery, setSearchQuery] = useState('')
     const [results, setResults] = useState<Game[]>([])
     const [isGamePickerModalOpen, setIsGamePickerModalOpen] = useState(false)

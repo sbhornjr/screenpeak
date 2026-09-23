@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { libraryEntries } from '@/db/schema'
 import { LibraryData, EsrbRatingsData } from '@/types'
 import { SteamLinkEntry } from '@/types'
+import { logger } from '@/lib/logger'
 
 const LIBRARY_ENTRY_COLUMNS = {
     id: libraryEntries.id,
@@ -99,7 +100,7 @@ export async function upsertLibraryEntries(userId: string, entries: SteamLinkEnt
             })
             .returning(LIBRARY_ENTRY_COLUMNS)
     } catch (error) {
-        console.error("Failed to import library entries from Steam:", error)
+        logger.error('queries:library', 'Failed to import library entries from Steam', { userId, error: error instanceof Error ? error.message : String(error) })
         throw error
     }
 }

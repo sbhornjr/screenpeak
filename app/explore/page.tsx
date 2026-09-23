@@ -3,7 +3,7 @@ import GameCard from "@/app/components/game/GameCard";
 import Link from "next/link";
 import ListPreview from "../components/lists/ListPreview";
 import UserCard from "../components/user/UserCard";
-import { getViewer } from "@/lib/queries/user";
+import { getViewer } from "@/lib/queries/user-auth";
 import SectionHead from "@/app/components/util/SectionHead";
 import Eyebrow from "@/app/components/util/Eyebrow";
 import { getTrendingGames, getTrendingLists, getExploreRecommendations } from "@/lib/queries/explore";

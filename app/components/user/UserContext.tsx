@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase-browser'
 import { User } from '@/types'
-import { getViewer, getProfileSummaryById, signOut as signOutQuery } from '@/lib/queries/user'
+import { getViewer, getProfileSummaryById, signOut as signOutQuery } from '@/lib/queries/user-auth'
 
 type UserContextType = {
     user: User | null

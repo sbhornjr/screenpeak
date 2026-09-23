@@ -4,7 +4,7 @@ import GameFilters from "../components/game/GameFilters";
 import Link from "next/link";
 import Pagination from "../components/util/Pagination";
 import EmptyState from "../components/util/EmptyState";
-import { getViewer } from "@/lib/queries/user";
+import { getViewer } from "@/lib/queries/user-auth";
 import { queryGames, getAllGenres, getAllPlatforms, getDistinctEsrbRatings, getDeveloperNameMap } from "@/lib/queries/game";
 
 type SearchPageProps = {

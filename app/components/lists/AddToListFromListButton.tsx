@@ -6,7 +6,7 @@ import Image from "next/image"
 import { createClient } from "@/lib/supabase-browser"
 import { Game } from "@/types"
 import Modal from "@/app/components/util/Modal"
-import { searchGamesByName } from "@/lib/queries/game"
+import { searchGamesByName } from "@/lib/queries/game-search"
 import { syncListGamesAction } from "@/app/list-actions"
 
 export default function AddToListFromListButton({ listId, currentGames } : { listId: string, currentGames: Game[]}) {

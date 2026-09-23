@@ -4,7 +4,7 @@ import { useState } from "react"
 import { createClient } from "@/lib/supabase-browser"
 import { useRouter } from "next/navigation"
 import Modal from "@/app/components/util/Modal"
-import { signInWithPassword, signUpWithPassword } from "@/lib/queries/user"
+import { signInWithPassword, signUpWithPassword } from "@/lib/queries/user-auth"
 import { emailSchema, usernameSchema, passwordSchema, parseOrError } from "@/lib/schemas"
 
 type AuthModalProps = {

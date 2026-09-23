@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { steamAccounts } from '@/db/schema'
+import { logger } from '@/lib/logger'
 
 export async function getSteamAccount(userId: string) {
     try {
@@ -42,7 +43,7 @@ export async function unlinkSteamAccount(userId: string) {
     try {
         await db.delete(steamAccounts).where(eq(steamAccounts.userId, userId))
     } catch (error) {
-        console.error("Failed to unlink Steam account:", error)
+        logger.error('queries:steam', 'Failed to unlink Steam account', { userId, error: error instanceof Error ? error.message : String(error) })
         throw error
     }
 }

@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import FeedItem from './FeedItem'
 import { fetchFeedPage } from '@/app/feed-actions'
-import { FEED_PAGE_SIZE } from '@/lib/queries/feed'
+import { FEED_PAGE_SIZE } from '@/lib/queries/feed-constants'
 import type { FeedItem as FeedItemType } from '@/types'
 
 function keyFor(item: FeedItemType, i: number) {

@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { ratingsReviews, users, games } from '@/db/schema'
 import { GameRatingReview, RatingReviewData, RatingReviewCounts, AvgRatingsData, GameRatingsStats } from '@/types'
 import { ratingReviewSchema, parseOrError } from '@/lib/schemas'
+import { uuidArrayParam } from '@/lib/sql-helpers'
 
 const DEFAULT_STATS: GameRatingsStats = {
     total_ratings: 0, total_reviews: 0, avg_rating: null,
@@ -144,7 +145,7 @@ export async function getUserRatings(userId: string) {
 
 export async function getAvgRatingsForGames(gameIds: (string | number)[]): Promise<AvgRatingsData[]> {
     try {
-        const rows = await db.execute(sql`select * from get_avg_ratings_for_games(p_game_ids => ${gameIds.map(String)})`)
+        const rows = await db.execute(sql`select * from get_avg_ratings_for_games(p_game_ids => ${uuidArrayParam(gameIds)})`)
         return rows as unknown as AvgRatingsData[]
     } catch {
         return []

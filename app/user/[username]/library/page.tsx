@@ -5,7 +5,8 @@ import LibraryFilters from "../../../components/library/LibraryFilters";
 import Link from "next/link";
 import EmptyState from "../../../components/util/EmptyState";
 import Eyebrow from "@/app/components/util/Eyebrow";
-import { getViewer, getUserIdFromUsername, getAccountSettings } from "@/lib/queries/user";
+import { getViewer } from "@/lib/queries/user-auth";
+import { getUserIdFromUsername, getAccountSettings } from "@/lib/queries/user";
 import { queryGames, getDeveloperNameMap } from "@/lib/queries/game";
 import { getLibraryFacets, getLibraryEntries } from "@/lib/queries/library";
 

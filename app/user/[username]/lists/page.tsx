@@ -4,7 +4,8 @@ import ListPreview from "@/app/components/lists/ListPreview";
 import CreateListButton from "@/app/components/lists/CreateListButton";
 import Link from "next/link";
 import { ListWithOwner } from "@/types";
-import { getViewer, getProfileSummaryByUsername, getAccountSettings } from "@/lib/queries/user";
+import { getViewer } from "@/lib/queries/user-auth";
+import { getProfileSummaryByUsername, getAccountSettings } from "@/lib/queries/user";
 import { getUserLists, getLikedLists, getListCoverMap, getListLikes } from "@/lib/queries/list";
 import Eyebrow from "@/app/components/util/Eyebrow";
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
-import { getViewer } from '@/lib/queries/user'
+import { getViewer } from '@/lib/queries/user-auth'
 import { verifySteamCallback } from '@/lib/steam-openid'
 import { upsertSteamAccount } from '@/lib/queries/steam'
 import { logger } from '@/lib/logger'

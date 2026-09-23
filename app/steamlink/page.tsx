@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase-server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { createLoggingFetch } from "@/lib/supabase-logging";
 import { redirect } from "next/navigation";
-import { getViewer } from "@/lib/queries/user";
+import { getViewer } from "@/lib/queries/user-auth";
 import { getSteamAccount } from "@/lib/queries/steam";
 import { getOwnedGames, getFullyCompletedAppids } from "@/lib/steam";
 import { importGamesFromSteam } from "@/lib/rawg";

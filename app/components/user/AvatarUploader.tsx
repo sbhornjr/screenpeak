@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase-browser'
 import { useRouter } from 'next/navigation'
-import { uploadAvatarImage } from '@/lib/queries/user'
+import { uploadAvatarImage } from '@/lib/queries/user-auth'
 import { saveAvatarUrl } from '@/app/user-actions'
 import Avatar from '@/app/components/user/Avatar'
 

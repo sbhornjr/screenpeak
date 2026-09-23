@@ -1,8 +1,9 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
-import { sql, eq, ilike, inArray } from 'drizzle-orm'
+import { sql, eq, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { games, gameGenres, gamePlatforms, gameDevelopers, gamePublishers, genres, platforms, developers, publishers } from '@/db/schema'
-import { Game, GameData } from '@/types'
+import { GameData } from '@/types'
+import { uuidArrayParam } from '@/lib/sql-helpers'
+import { logger } from '@/lib/logger'
 
 export async function getGameBySlug(slug: string) {
     try {
@@ -64,18 +65,6 @@ export async function getGameTaxonomy(gameId: string) {
     }
 }
 
-// Unchanged — called client-side (FavoriteGamePicker.tsx, AddToListFromListButton.tsx),
-// a public unauthenticated search with no mutation risk. Stays on supabase-js.
-export async function searchGamesByName(supabase: SupabaseClient, query: string, limit = 20): Promise<Game[]> {
-    const { data } = await supabase
-        .from('games')
-        .select('id, name, slug, cover_image_url, metacritic_score, released')
-        .ilike('name', `%${query}%`)
-        .limit(limit)
-
-    return data ?? []
-}
-
 // Maps game_id -> developer name for a set of games. Chunked — a large
 // library/catalog can push the filter past a query-size limit.
 export async function getDeveloperNameMap(gameIds: (string | number)[]): Promise<Map<string, string | null>> {
@@ -95,7 +84,7 @@ export async function getDeveloperNameMap(gameIds: (string | number)[]): Promise
                 if (!map.has(String(d.game_id))) map.set(String(d.game_id), d.name ?? null)
             }
         } catch (error) {
-            console.error('Failed to fetch developer names:', error)
+            logger.error('queries:game', 'Failed to fetch developer names', { error: error instanceof Error ? error.message : String(error) })
             continue
         }
     }
@@ -133,7 +122,7 @@ export async function queryGames(params: QueryGamesParams): Promise<GameData[]> 
                 p_limit => ${params.limit ?? 10},
                 p_offset => ${params.offset ?? 0},
                 p_user_id => ${params.userId ?? null},
-                p_game_ids => ${params.gameIds ?? null}
+                p_game_ids => ${uuidArrayParam(params.gameIds)}
             )
         `)
 
@@ -168,36 +157,6 @@ export async function getDistinctEsrbRatings(): Promise<string[]> {
     }
 }
 
-type TaxonomyTable = 'developers' | 'publishers'
-
-// Unchanged — called from SearchableDropdown.tsx ('use client'), stays on supabase-js.
-export async function searchTaxonomyTable(supabase: SupabaseClient, table: TaxonomyTable, query: string, limitToIds?: string[]) {
-    let q = supabase
-        .from(table)
-        .select('id, name, slug')
-        .ilike('name', `%${query}%`)
-        .order('name')
-        .limit(20)
-
-    if (limitToIds && limitToIds.length > 0) {
-        q = q.in('id', limitToIds)
-    }
-
-    const { data } = await q
-    return data ?? []
-}
-
-// Unchanged — called from SearchableDropdown.tsx ('use client'), stays on supabase-js.
-export async function getTaxonomyNameBySlug(supabase: SupabaseClient, table: TaxonomyTable, slug: string) {
-    const { data } = await supabase
-        .from(table)
-        .select('name')
-        .eq('slug', slug)
-        .single()
-
-    return data?.name ?? ''
-}
-
 export async function getGamesFromSteamIds(gameIds: number[]) {
     if (gameIds.length === 0) return []
 
@@ -221,7 +180,7 @@ export async function getGamesFromSteamIds(gameIds: number[]) {
 
             results.push(...(rows as unknown as typeof results))
         } catch (error) {
-            console.error('Failed to fetch games by steam appid:', error)
+            logger.error('queries:game', 'Failed to fetch games by steam appid', { error: error instanceof Error ? error.message : String(error) })
             throw error
         }
     }

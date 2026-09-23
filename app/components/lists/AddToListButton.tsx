@@ -8,8 +8,8 @@ import Modal from "@/app/components/util/Modal"
 import { toggleGameInList } from "@/app/list-actions"
 import { plus1 } from "@/lib/plus1"
 
-export default function AddToListButton({ gameId, lists, listIdsGameIsIn, defaultListPrivacy } : 
-    { gameId : string, lists : { listId: string, listName: string, listCount: number }[], listIdsGameIsIn: Set<string>, defaultListPrivacy?: boolean }) {
+export default function AddToListButton({ gameId, lists, listIdsGameIsIn, defaultListPrivacy } :
+    { gameId : string, lists : { listId: string, listName: string }[], listIdsGameIsIn: Set<string>, defaultListPrivacy?: boolean }) {
     const [isAddToListModalOpen, setIsAddToListModalOpen] = useState(false)
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
     const [listIdsGameIsInState, setListIdsGameIsInState] = useState(new Set(listIdsGameIsIn))

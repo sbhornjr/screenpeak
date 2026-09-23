@@ -2,8 +2,6 @@ import { sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { FeedItem } from '@/types'
 
-export const FEED_PAGE_SIZE = 12
-
 export async function getFeed(
     userId: string | undefined,
     limit?: number,

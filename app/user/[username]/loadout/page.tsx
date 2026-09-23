@@ -6,7 +6,8 @@ import LoadoutActions from "@/app/components/user/LoadoutActions";
 import DistributionChart from "@/app/components/util/DistributionChart";
 import SectionHead from "@/app/components/util/SectionHead";
 import Eyebrow from "@/app/components/util/Eyebrow";
-import { getViewer, getUserIdFromUsername, getAccountSettings, getCurrentLoadoutIdentity } from "@/lib/queries/user";
+import { getViewer } from "@/lib/queries/user-auth";
+import { getUserIdFromUsername, getAccountSettings, getCurrentLoadoutIdentity } from "@/lib/queries/user";
 import { getDeveloperNameMap } from "@/lib/queries/game";
 import { getLoadoutRatingHighlights } from "@/lib/queries/stats";
 import { getUserRatings, getAvgRatingsForGames, getUserRatingsForGames } from "@/lib/queries/review";
@@ -97,7 +98,7 @@ export default async function LoadoutPage({ params } : LoadoutPageProps) {
                                 </p>
                                 {isOwner && (
                                     <>
-                                        <LoadoutActions userId={ownerId.id} identity={loadoutIdentity} />
+                                        <LoadoutActions identity={loadoutIdentity} />
                                         <p className="mt-2 text-right text-[10px] uppercase tracking-[0.2em] text-(--color-muted) font-mono">
                                             drafted with AI · edit anytime
                                         </p>
@@ -132,7 +133,7 @@ export default async function LoadoutPage({ params } : LoadoutPageProps) {
                                 </p>
                                 {isOwner && (
                                     <>
-                                        <LoadoutActions userId={ownerId.id} identity="" />
+                                        <LoadoutActions identity="" />
                                         <p className="mt-2 text-right text-[10px] uppercase tracking-[0.2em] text-(--color-muted) font-mono">
                                             drafted with AI · edit anytime
                                         </p>
