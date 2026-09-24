@@ -87,7 +87,7 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
             <div className="w-full max-w-6xl mx-auto px-6 sm:px-8 pt-8 pb-16">
                 <div className="flex flex-col sm:flex-row gap-4 sm:gap-8 mb-4">
                     {isOwnProfile ? (
-                        <AvatarUploader userId={profile.id} username={username} currentAvatarUrl={profile.avatar_url} />
+                        <AvatarUploader username={username} currentAvatarUrl={profile.avatar_url} />
                     ) : (
                         <Avatar src={profile.avatar_url} alt={username} size="lg" />
                     )}

@@ -1,14 +1,11 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { createClient } from '@/lib/supabase-browser'
 import { useRouter } from 'next/navigation'
-import { uploadAvatarImage } from '@/lib/queries/user-auth'
-import { saveAvatarUrl } from '@/app/user-actions'
+import { createAvatarUploadUrl, saveAvatarUrl } from '@/app/user-actions'
 import Avatar from '@/app/components/user/Avatar'
 
-export default function AvatarUploader({ userId, currentAvatarUrl, username }: {
-    userId: string
+export default function AvatarUploader({ currentAvatarUrl, username }: {
     currentAvatarUrl: string | null
     username: string
 }) {
@@ -35,14 +32,27 @@ export default function AvatarUploader({ userId, currentAvatarUrl, username }: {
         setError('')
         setUploading(true)
 
-        const supabase = createClient()
-
+        let uploadUrl: string
         let publicUrl: string
         try {
-            publicUrl = await uploadAvatarImage(supabase, userId, file)
+            const result = await createAvatarUploadUrl(file.type)
+            uploadUrl = result.uploadUrl
+            publicUrl = result.publicUrl
         } catch (uploadError) {
             const message = uploadError instanceof Error ? uploadError.message : String(uploadError)
             setError('Upload failed: ' + message)
+            setUploading(false)
+            return
+        }
+
+        const putResponse = await fetch(uploadUrl, {
+            method: 'PUT',
+            body: file,
+            headers: { 'Content-Type': file.type },
+        })
+
+        if (!putResponse.ok) {
+            setError('Upload failed: could not reach storage')
             setUploading(false)
             return
         }

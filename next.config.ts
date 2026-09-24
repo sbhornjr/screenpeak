@@ -9,6 +9,10 @@ const nextConfig: NextConfig = {
             },
             {
                 protocol: 'https',
+                hostname: 'cdn.screenpeak.gg',
+            },
+            {
+                protocol: 'https',
                 hostname: '*.supabase.co',
                 pathname: '/storage/v1/object/public/**',
             },

@@ -38,7 +38,7 @@ export default async function Settings({ searchParams } : SettingsPageProps) {
                 <Eyebrow>System</Eyebrow>
                 <h1 className="text-4xl font-bold tracking-tight mb-6">Settings</h1>
                 <div className="flex gap-5 items-center mb-8">
-                    <AvatarUploader userId={user.id} username={user.username} currentAvatarUrl={user.avatar_url} />
+                    <AvatarUploader username={user.username} currentAvatarUrl={user.avatar_url} />
                     <div className="flex flex-col min-w-0">
                         <h2 className="text-2xl font-semibold font-(family-name:--font-display)">{user.username}</h2>
                         <p className="text-sm font-semibold text-(--color-muted)">{user.selected_title}</p>
