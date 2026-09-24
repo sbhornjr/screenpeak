@@ -26,22 +26,6 @@ export async function getProfileSummaryById(supabase: SupabaseClient, userId: st
     return data
 }
 
-export async function uploadAvatarImage(supabase: SupabaseClient, userId: string, file: File): Promise<string> {
-    const filePath = `${userId}/avatar.${file.name.split('.').pop()}`
-
-    const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file, { upsert: true })
-
-    if (uploadError) throw uploadError
-
-    const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath)
-
-    return publicUrl
-}
-
 export async function signInWithPassword(supabase: SupabaseClient, email: string, password: string) {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     return error

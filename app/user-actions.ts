@@ -2,6 +2,14 @@
 
 import { requireUser } from '@/lib/auth'
 import { updateAvatarUrl, updateFavoriteGames, updatePrivacy, updateUsername, updateSelectedTitle, updateBio, updateLoadoutBio, followUser, unfollowUser } from '@/lib/queries/user'
+import { createPresignedAvatarUploadUrl } from '@/lib/r2'
+
+export async function createAvatarUploadUrl(contentType: string) {
+    const user = await requireUser()
+    const result = await createPresignedAvatarUploadUrl(user.id, contentType)
+    if (!result) throw new Error('Unsupported image type')
+    return result
+}
 
 export async function saveAvatarUrl(url: string) {
     const user = await requireUser()
