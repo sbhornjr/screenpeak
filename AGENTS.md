@@ -93,11 +93,8 @@ link formats.
   Steam OpenID 2.0 sign-in (`lib/steam-openid.ts`); powers the `/steamlink` import flow
 - **Cloudflare R2** — user avatars, via a presigned direct-to-R2 upload (`lib/r2.ts`,
   `createAvatarUploadUrl` in `app/user-actions.ts`). Game cover art is RAWG-hosted, never
-  uploaded anywhere (remote patterns: `media.rawg.io`, plus the R2 custom domain in
-  `R2_PUBLIC_URL`). `*.supabase.co/storage/v1/object/public/**` stays in `next.config.ts`
-  too — avatars uploaded before this migration are not backfilled, so they keep rendering
-  from Supabase Storage until each user re-uploads; drop that pattern only once the old
-  bucket is decommissioned.
+  uploaded anywhere (remote patterns: `media.rawg.io`, plus the R2 custom domain — derived
+  from `R2_PUBLIC_URL` in `next.config.ts`, not hardcoded).
 
 ## Env Vars
 

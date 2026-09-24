@@ -1,5 +1,8 @@
 import type { NextConfig } from 'next'
 
+const r2PublicUrl = process.env.R2_PUBLIC_URL
+if (!r2PublicUrl) throw new Error('R2_PUBLIC_URL is not set')
+
 const nextConfig: NextConfig = {
     images: {
         remotePatterns: [
@@ -9,12 +12,9 @@ const nextConfig: NextConfig = {
             },
             {
                 protocol: 'https',
-                hostname: 'cdn.screenpeak.gg',
-            },
-            {
-                protocol: 'https',
-                hostname: '*.supabase.co',
-                pathname: '/storage/v1/object/public/**',
+                // Derived from R2_PUBLIC_URL rather than hardcoded, so the two
+                // can't drift if the bucket's custom domain ever changes.
+                hostname: new URL(r2PublicUrl).hostname,
             },
         ],
     },

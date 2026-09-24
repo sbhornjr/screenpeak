@@ -1,6 +1,6 @@
-// Split out of lib/queries/user.ts: these are Supabase Auth/Storage calls, not
+// Split out of lib/queries/user.ts: these are Supabase Auth calls, not
 // Postgres queries, and several are called directly from 'use client' components
-// (UserContext.tsx, AuthModal.tsx, ChangePasswordButton.tsx, AvatarUploader.tsx,
+// (UserContext.tsx, AuthModal.tsx, ChangePasswordButton.tsx,
 // DeleteUserButton.tsx, ChangeEmailButton.tsx). Keeping them in a file with zero
 // import of '@/lib/db' matters — that module constructs a Node-only `postgres`
 // client at module scope, and a bundler pulls in a whole module's top-level

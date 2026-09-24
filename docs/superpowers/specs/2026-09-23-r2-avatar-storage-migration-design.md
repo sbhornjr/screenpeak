@@ -14,14 +14,16 @@ server-side code that talks to storage, config (`next.config.ts`, env vars),
 and the R2-side setup steps required to support it.
 
 **Out of scope:**
-- Backfilling existing users' avatars from Supabase Storage to R2. Decided
-  explicitly: existing `avatar_url` values are left pointing at Supabase until
-  each user re-uploads, which then goes through R2. Anyone who never
-  re-uploads keeps a Supabase-hosted avatar until that bucket is decommissioned
-  (a separate, later decision).
-- Decommissioning the Supabase `avatars` bucket/policies. Not done as part of
-  this change, since old `avatar_url` values still depend on it per the point
-  above.
+- Backfilling existing users' avatars from Supabase Storage to R2. Originally
+  decided as: leave old `avatar_url` values pointing at Supabase until each
+  user re-uploads. Superseded in practice — only 2 active users had a
+  Supabase-hosted avatar, and both were manually cleared (avatar unset) before
+  the Supabase remote pattern was removed from `next.config.ts`. No user has a
+  Supabase-hosted `avatar_url` left, so this is now moot rather than deferred.
+- Decommissioning the Supabase `avatars` bucket/policies themselves (the
+  storage bucket and its RLS policies in Supabase, as opposed to the
+  `next.config.ts` remote pattern, which now only references R2). Not done as
+  part of this change.
 - Any change to game cover art handling (`media.rawg.io`) — untouched.
 
 ## Why presigned direct-to-R2 upload, not a server proxy
@@ -46,7 +48,10 @@ would need.
   (`@aws-sdk/client-s3`) configured with R2's endpoint
   (`https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`) and credentials from
   env vars. Plays the same "server-only client, never imported by a `'use
-  client'` file" role `lib/db.ts` plays for Postgres.
+  client'` file" role `lib/db.ts` plays for Postgres — enforced with an
+  `import 'server-only'` guard, which `lib/db.ts` doesn't have; this file
+  gets it because a mistaken client import here would leak R2 write
+  credentials into the browser bundle, not just break a build.
 - **`app/user-actions.ts`** (existing file) gains
   `createAvatarUploadUrl(contentType: string, contentLength: number)`,
   alongside the existing `requireUser()`-gated actions (`saveAvatarUrl`,
@@ -54,10 +59,9 @@ would need.
   1. Calls `requireUser()` — throws `Unauthenticated` if not logged in, same
      as every other action in this file.
   2. Validates `contentType` against an allow-list (`image/png`, `image/jpeg`,
-     `image/webp`) and maps it to a file extension itself — **not** the
-     client-supplied filename. (Today's `uploadAvatarImage` trusts
-     `file.name.split('.').pop()`; this closes that gap while we're already
-     rewriting the function.) Rejects anything else.
+     `image/webp`) — **not** trusting the client-supplied filename the way
+     the old `uploadAvatarImage` did (`file.name.split('.').pop()`). Rejects
+     anything else.
   3. Validates `contentLength` against `MAX_AVATAR_BYTES` (2MB, the same
      limit `AvatarUploader.tsx` already checked client-side — both now read
      the one constant in `lib/avatar-upload.ts` instead of duplicating the
@@ -78,22 +82,29 @@ would need.
      throwing. (`requireUser()`'s `Unauthenticated` throw is left as-is —
      that's the existing, file-wide pattern for every action here, not
      something this migration should change unilaterally.)
-  5. Derives the object key as `${user.id}/avatar.${ext}` from the session —
-     never client-supplied, so one user can't mint a URL that overwrites
-     another user's avatar key.
+  5. Derives the object key as `${user.id}/avatar` from the session — never
+     client-supplied, so one user can't mint a URL that overwrites another
+     user's avatar key. The key has **no file extension** and is the same
+     regardless of content type: R2 serves whatever `Content-Type` was signed
+     onto the object (step 6), not one inferred from the key, so a browser or
+     `next/image` renders it correctly either way. Found in code review that
+     an earlier, per-content-type key (`avatar.png`/`avatar.jpg`/`avatar.webp`)
+     left up to 2 stale objects behind whenever a user switched file types —
+     a single extension-less key removes that failure mode entirely rather
+     than mitigating it.
   6. Generates a presigned PUT URL via `@aws-sdk/s3-request-presigner`, TTL 5
-     minutes.
+     minutes, with the validated `contentType` and `contentLength` signed
+     into the `PutObjectCommand`.
   7. Returns `{ uploadUrl, publicUrl }`, where `publicUrl` is
      `${R2_PUBLIC_URL}/${key}?v=${version}` — `version` is a fresh token
-     (`Date.now()`) generated on every call. The key is stable per
-     user+content-type by design (overwrite in place, no orphaned objects),
-     so without a token that changes on every upload, re-uploading the same
-     content-type produces the exact same URL as last time — indistinguishable,
-     to a browser's HTTP cache or Next.js's built-in remote-image optimizer
-     cache, from a cache hit on the previous upload's bytes. Found live during
-     implementation: re-uploading the same content-type served stale cached
-     images instead of the new one, even though R2 correctly held the new
-     bytes and the DB correctly held the (unchanged) URL.
+     (`Date.now()`) generated on every call. The key is stable per user by
+     design (overwrite in place, no orphaned objects), so without a token
+     that changes on every upload, re-uploading produces the exact same URL
+     as last time — indistinguishable, to a browser's HTTP cache or Next.js's
+     built-in remote-image optimizer cache, from a cache hit on the old
+     bytes. Found live during implementation: re-uploading served stale
+     cached images instead of the new one, even though R2 correctly held the
+     new bytes and the DB correctly held the (unchanged) URL.
 - **`AvatarUploader.tsx`** — keeps its existing client-side type/size
   validation (now reading `MAX_AVATAR_BYTES` from `lib/avatar-upload.ts`
   instead of a hardcoded `2 * 1024 * 1024`). Replaces the
@@ -112,15 +123,13 @@ would need.
 - **`lib/queries/user-auth.ts`** — `uploadAvatarImage` is deleted (dead once
   `AvatarUploader.tsx` no longer calls it). Everything else in that file
   (Auth calls) is untouched.
-- **`next.config.ts`** — `images.remotePatterns` gains the R2 custom domain
-  hostname (e.g. `cdn.screenpeak.gg`) **alongside**, not instead of, the
-  existing `*.supabase.co/storage/v1/object/public/**` entry. The "no
-  backfill" decision above only holds if old avatars keep rendering until
-  each user re-uploads — dropping the Supabase pattern here would make
-  `next/image` reject every existing avatar immediately, which is a much
-  worse outcome than the deliberately-accepted one. Removing the Supabase
-  pattern is a later, separate decision, made only once the Supabase bucket
-  is actually decommissioned.
+- **`next.config.ts`** — `images.remotePatterns`'s R2 hostname is derived
+  as `new URL(R2_PUBLIC_URL).hostname` rather than a hardcoded string, so it
+  can't silently drift from the actual env var. The `*.supabase.co` entry is
+  removed entirely — originally kept so avatars uploaded before this
+  migration would keep rendering until each user re-uploaded, but with the 2
+  affected users' avatars manually cleared, nothing depends on it anymore
+  (see "Out of scope" above).
 
 ## Data flow
 
@@ -149,7 +158,7 @@ where each one comes from):
 | `R2_BUCKET_NAME` | bucket the app uploads avatars into |
 | `R2_PUBLIC_URL` | base URL avatars are served from, e.g. `https://cdn.screenpeak.gg` (no trailing slash) |
 
-New dependencies: `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner`.
+New dependencies: `@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner`, `server-only`.
 
 `AGENTS.md`'s "External APIs" and "Env Vars" sections get updated to describe
 R2 instead of "Supabase Storage — user avatars and game images" (game images

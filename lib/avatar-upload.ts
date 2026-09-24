@@ -1,13 +1,8 @@
-const AVATAR_CONTENT_TYPE_EXTENSIONS: Record<string, string> = {
-    'image/png': 'png',
-    'image/jpeg': 'jpg',
-    'image/webp': 'webp',
-}
+const ALLOWED_AVATAR_CONTENT_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
 
-export function getAvatarKeyForUpload(userId: string, contentType: string): { key: string; ext: string } | null {
-    const ext = AVATAR_CONTENT_TYPE_EXTENSIONS[contentType]
-    if (!ext) return null
-    return { key: `${userId}/avatar.${ext}`, ext }
+export function getAvatarKeyForUpload(userId: string, contentType: string): string | null {
+    if (!ALLOWED_AVATAR_CONTENT_TYPES.has(contentType)) return null
+    return `${userId}/avatar`
 }
 
 export function buildAvatarPublicUrl(publicBaseUrl: string, key: string, version?: string): string {
