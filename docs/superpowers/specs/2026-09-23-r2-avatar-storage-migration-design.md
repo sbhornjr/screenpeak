@@ -157,11 +157,25 @@ from the repo:
    it can take a few minutes to go active. Once active, `R2_PUBLIC_URL` is
    `https://<that subdomain>` (no trailing slash).
 5. **Set a CORS policy on the bucket.** Bucket → Settings → CORS Policy → add
-   a rule allowing `PUT` and `GET` (R2 also needs `OPTIONS` for the preflight)
-   from your dev origin (`http://localhost:3000`) and your production origin.
-   Without this, the browser's direct `PUT` to R2 will fail — this is the one
-   step that's easy to skip and only surfaces as a confusing upload failure
-   later.
+   a rule allowing only `PUT` (the presigned upload is the only request that
+   goes browser → R2 API directly; avatars are served afterward through the
+   custom domain as a plain `<img>`/`next/image` load, which isn't
+   CORS-gated, so `GET`/`POST`/`DELETE` aren't needed here). Don't add
+   `OPTIONS` — R2 answers CORS preflight automatically based on
+   `AllowedMethods`, it isn't a method you declare. Set `AllowedHeaders` to
+   `["*"]` — without it, the preflight fails because the upload sets a
+   `Content-Type` header that a default (empty) allow-list rejects:
+   ```json
+   [
+     {
+       "AllowedOrigins": ["http://localhost:3000", "https://screenpeak.gg"],
+       "AllowedMethods": ["PUT"],
+       "AllowedHeaders": ["*"]
+     }
+   ]
+   ```
+   Skipping this step is the one that's easy to miss and only surfaces later
+   as a confusing upload failure.
 6. **Add the five env vars to `.env.local`** (and to whatever hosts
    production env vars — Vercel project settings, etc.) once you have them
    from steps 1-4.
