@@ -63,7 +63,16 @@ would need.
   4. Generates a presigned PUT URL via `@aws-sdk/s3-request-presigner`, TTL 5
      minutes.
   5. Returns `{ uploadUrl, publicUrl }`, where `publicUrl` is
-     `${R2_PUBLIC_URL}/${key}`.
+     `${R2_PUBLIC_URL}/${key}?v=${version}` — `version` is a fresh token
+     (`Date.now()`) generated on every call. The key is stable per
+     user+content-type by design (overwrite in place, no orphaned objects),
+     so without a token that changes on every upload, re-uploading the same
+     content-type produces the exact same URL as last time — indistinguishable,
+     to a browser's HTTP cache or Next.js's built-in remote-image optimizer
+     cache, from a cache hit on the previous upload's bytes. Found live during
+     implementation: re-uploading the same content-type served stale cached
+     images instead of the new one, even though R2 correctly held the new
+     bytes and the DB correctly held the (unchanged) URL.
 - **`AvatarUploader.tsx`** — keeps its existing client-side type/size
   validation. Replaces the `uploadAvatarImage(supabase, userId, file)` call
   with: call `createAvatarUploadUrl(file.type)` → `fetch(uploadUrl, { method:

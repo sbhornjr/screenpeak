@@ -40,5 +40,11 @@ export async function createPresignedAvatarUploadUrl(
 
     const uploadUrl = await getSignedUrl(s3Client, command, { expiresIn: AVATAR_UPLOAD_TTL_SECONDS })
 
-    return { uploadUrl, publicUrl: buildAvatarPublicUrl(r2PublicUrl, target.key) }
+    // The object key is stable per user+content-type (overwrite in place, no
+    // orphaned objects), so the URL needs its own cache-busting token or a
+    // re-upload of the same content-type is indistinguishable, to a browser
+    // or the Next.js image optimizer, from a cache hit on the old bytes.
+    const version = Date.now().toString()
+
+    return { uploadUrl, publicUrl: buildAvatarPublicUrl(r2PublicUrl, target.key, version) }
 }

@@ -10,6 +10,7 @@ export function getAvatarKeyForUpload(userId: string, contentType: string): { ke
     return { key: `${userId}/avatar.${ext}`, ext }
 }
 
-export function buildAvatarPublicUrl(publicBaseUrl: string, key: string): string {
-    return `${publicBaseUrl.replace(/\/+$/, '')}/${key}`
+export function buildAvatarPublicUrl(publicBaseUrl: string, key: string, version?: string): string {
+    const url = `${publicBaseUrl.replace(/\/+$/, '')}/${key}`
+    return version ? `${url}?v=${version}` : url
 }

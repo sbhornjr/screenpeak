@@ -44,4 +44,19 @@ describe('buildAvatarPublicUrl', () => {
         expect(buildAvatarPublicUrl('https://cdn.screenpeak.gg/', 'user-1/avatar.png'))
             .toBe('https://cdn.screenpeak.gg/user-1/avatar.png')
     })
+
+    it('appends a cache-busting version query param when given one', () => {
+        expect(buildAvatarPublicUrl('https://cdn.screenpeak.gg', 'user-1/avatar.png', '1234'))
+            .toBe('https://cdn.screenpeak.gg/user-1/avatar.png?v=1234')
+    })
+
+    it('produces a different URL for two different versions of the same key', () => {
+        // The object key is stable per user+content-type by design (overwrite in
+        // place, no orphaned objects) — the version param is what lets a browser
+        // or the Next.js image optimizer tell "old upload" and "new upload" apart
+        // at the same key, instead of serving a stale cached response forever.
+        const first = buildAvatarPublicUrl('https://cdn.screenpeak.gg', 'user-1/avatar.png', 'aaa')
+        const second = buildAvatarPublicUrl('https://cdn.screenpeak.gg', 'user-1/avatar.png', 'bbb')
+        expect(first).not.toBe(second)
+    })
 })
