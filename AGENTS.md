@@ -61,7 +61,7 @@ Three different Supabase clients exist, plus a Drizzle client for direct Postgre
 Do **not** mix them. The server client is async (`await createClient()`). The browser client from `supabase-browser.ts` is sync. `db` connects directly to Postgres and bypasses RLS entirely (the pooler role has `BYPASSRLS`) — any Drizzle mutation must enforce its own authorization (see below), and any Drizzle read of a privacy-gated resource must be gated in application code, not left to a policy that no longer applies.
 
 Functions that intentionally stay on `supabase-js` instead of `db` live in their own dedicated files, never mixed into a Drizzle-backed `lib/queries/*` file — importing a single named export pulls in a module's *entire* top-level import graph, so one `supabase-js`-only function sharing a file with `import { db } from '@/lib/db'` drags Drizzle's `postgres()` client (and its `fs`/`net`/`tls` Node built-ins) into any client bundle that imports the file, breaking the build with `Module not found: Can't resolve 'fs'`. That's why these are split out:
-- `lib/queries/user-auth.ts` — genuine Auth/Storage calls (`getViewer`, `signInWithPassword`, `uploadAvatarImage`, `signOut`, etc.)
+- `lib/queries/user-auth.ts` — genuine Auth calls (`getViewer`, `signInWithPassword`, `signOut`, etc.) — avatar uploads moved to `lib/r2.ts` + `app/user-actions.ts`
 - `lib/queries/game-search.ts` — read-only search functions called directly from `'use client'` components (`searchGamesByName`, `searchTaxonomyTable`, `getTaxonomyNameBySlug`)
 - `lib/queries/feed-constants.ts` — `FEED_PAGE_SIZE`, a plain constant re-exported from `feed.ts` for client callers, split out for the same reason
 
@@ -91,8 +91,13 @@ link formats.
   Failures degrade to `''` — the paragraph is optional page content.
 - **Steam** — Web API for owned games + achievement completion (`lib/steam.ts`), behind
   Steam OpenID 2.0 sign-in (`lib/steam-openid.ts`); powers the `/steamlink` import flow
-- **Supabase Storage** — user avatars and game images (remote patterns: `media.rawg.io`,
-  `*.supabase.co/storage/v1/object/public/**`)
+- **Cloudflare R2** — user avatars, via a presigned direct-to-R2 upload (`lib/r2.ts`,
+  `createAvatarUploadUrl` in `app/user-actions.ts`). Game cover art is RAWG-hosted, never
+  uploaded anywhere (remote patterns: `media.rawg.io`, plus the R2 custom domain in
+  `R2_PUBLIC_URL`). `*.supabase.co/storage/v1/object/public/**` stays in `next.config.ts`
+  too — avatars uploaded before this migration are not backfilled, so they keep rendering
+  from Supabase Storage until each user re-uploads; drop that pattern only once the old
+  bucket is decommissioned.
 
 ## Env Vars
 
@@ -104,6 +109,8 @@ Required in `.env.local` (gitignored):
 - `RAWG_API_KEY` (for seed script)
 - `ANTHROPIC_API_KEY` (for loadout generation)
 - `STEAM_API_KEY` (Steam library import + achievements)
+- `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL`
+  (Cloudflare R2 — avatar uploads)
 - `NEXT_PUBLIC_SITE_URL` (metadataBase / OG tags; defaults to `http://localhost:3000`)
 
 ## Conventions
