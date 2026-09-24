@@ -4,6 +4,7 @@ import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createAvatarUploadUrl, saveAvatarUrl } from '@/app/user-actions'
 import Avatar from '@/app/components/user/Avatar'
+import { MAX_AVATAR_BYTES } from '@/lib/avatar-upload'
 
 export default function AvatarUploader({ currentAvatarUrl, username }: {
     currentAvatarUrl: string | null
@@ -24,7 +25,7 @@ export default function AvatarUploader({ currentAvatarUrl, username }: {
             setError('Please upload an image file')
             return
         }
-        if (file.size > 2 * 1024 * 1024) {
+        if (file.size > MAX_AVATAR_BYTES) {
             setError('Image must be under 2MB')
             return
         }
@@ -32,43 +33,40 @@ export default function AvatarUploader({ currentAvatarUrl, username }: {
         setError('')
         setUploading(true)
 
-        let uploadUrl: string
-        let publicUrl: string
         try {
-            const result = await createAvatarUploadUrl(file.type)
-            uploadUrl = result.uploadUrl
-            publicUrl = result.publicUrl
+            const result = await createAvatarUploadUrl(file.type, file.size)
+            if ('error' in result) {
+                setError(result.error)
+                return
+            }
+
+            const putResponse = await fetch(result.uploadUrl, {
+                method: 'PUT',
+                body: file,
+                headers: { 'Content-Type': file.type },
+            })
+
+            if (!putResponse.ok) {
+                setError('Upload failed: could not reach storage')
+                return
+            }
+
+            // Update user's avatar_url in the database
+            const updateError = await saveAvatarUrl(result.publicUrl)
+
+            if (updateError) {
+                setError('Failed to save avatar')
+                return
+            }
+
+            setPreview(result.publicUrl)
+            router.refresh()
         } catch (uploadError) {
             const message = uploadError instanceof Error ? uploadError.message : String(uploadError)
             setError('Upload failed: ' + message)
+        } finally {
             setUploading(false)
-            return
         }
-
-        const putResponse = await fetch(uploadUrl, {
-            method: 'PUT',
-            body: file,
-            headers: { 'Content-Type': file.type },
-        })
-
-        if (!putResponse.ok) {
-            setError('Upload failed: could not reach storage')
-            setUploading(false)
-            return
-        }
-
-        // Update user's avatar_url in the database
-        const updateError = await saveAvatarUrl(publicUrl)
-
-        if (updateError) {
-            setError('Failed to save avatar')
-            setUploading(false)
-            return
-        }
-
-        setPreview(publicUrl)
-        setUploading(false)
-        router.refresh()
     }
 
     return (

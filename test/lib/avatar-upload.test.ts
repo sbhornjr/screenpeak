@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getAvatarKeyForUpload, buildAvatarPublicUrl } from '@/lib/avatar-upload'
+import { getAvatarKeyForUpload, buildAvatarPublicUrl, isValidAvatarSize, MAX_AVATAR_BYTES } from '@/lib/avatar-upload'
 
 describe('getAvatarKeyForUpload', () => {
     it('maps image/png to a .png key', () => {
@@ -58,5 +58,24 @@ describe('buildAvatarPublicUrl', () => {
         const first = buildAvatarPublicUrl('https://cdn.screenpeak.gg', 'user-1/avatar.png', 'aaa')
         const second = buildAvatarPublicUrl('https://cdn.screenpeak.gg', 'user-1/avatar.png', 'bbb')
         expect(first).not.toBe(second)
+    })
+})
+
+describe('isValidAvatarSize', () => {
+    it('accepts a small, ordinary file size', () => {
+        expect(isValidAvatarSize(1024)).toBe(true)
+    })
+
+    it('accepts exactly the maximum size', () => {
+        expect(isValidAvatarSize(MAX_AVATAR_BYTES)).toBe(true)
+    })
+
+    it('rejects one byte over the maximum', () => {
+        expect(isValidAvatarSize(MAX_AVATAR_BYTES + 1)).toBe(false)
+    })
+
+    it('rejects zero and negative sizes', () => {
+        expect(isValidAvatarSize(0)).toBe(false)
+        expect(isValidAvatarSize(-1)).toBe(false)
     })
 })

@@ -14,3 +14,9 @@ export function buildAvatarPublicUrl(publicBaseUrl: string, key: string, version
     const url = `${publicBaseUrl.replace(/\/+$/, '')}/${key}`
     return version ? `${url}?v=${version}` : url
 }
+
+export const MAX_AVATAR_BYTES = 2 * 1024 * 1024
+
+export function isValidAvatarSize(contentLength: number): boolean {
+    return contentLength > 0 && contentLength <= MAX_AVATAR_BYTES
+}

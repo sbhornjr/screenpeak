@@ -47,7 +47,8 @@ would need.
   (`https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`) and credentials from
   env vars. Plays the same "server-only client, never imported by a `'use
   client'` file" role `lib/db.ts` plays for Postgres.
-- **`app/user-actions.ts`** (existing file) gains `createAvatarUploadUrl(contentType: string)`,
+- **`app/user-actions.ts`** (existing file) gains
+  `createAvatarUploadUrl(contentType: string, contentLength: number)`,
   alongside the existing `requireUser()`-gated actions (`saveAvatarUrl`,
   etc.). It:
   1. Calls `requireUser()` — throws `Unauthenticated` if not logged in, same
@@ -57,12 +58,32 @@ would need.
      client-supplied filename. (Today's `uploadAvatarImage` trusts
      `file.name.split('.').pop()`; this closes that gap while we're already
      rewriting the function.) Rejects anything else.
-  3. Derives the object key as `${user.id}/avatar.${ext}` from the session —
+  3. Validates `contentLength` against `MAX_AVATAR_BYTES` (2MB, the same
+     limit `AvatarUploader.tsx` already checked client-side — both now read
+     the one constant in `lib/avatar-upload.ts` instead of duplicating the
+     number). A client-only size check does nothing against a direct caller
+     of the Server Action, so the limit is also signed into the presigned
+     URL as `ContentLength` on the `PutObjectCommand` — R2 then rejects any
+     PUT whose actual `Content-Length` header doesn't match the value that
+     was signed for, not just whatever the client claimed when asking for
+     the URL.
+  4. Both validation failures return `{ error: string }` rather than
+     throwing. Found in code review: Next.js redacts a Server Action's
+     thrown error message in production builds (the dev server where this
+     was first manually verified does not redact them, which is exactly why
+     it was missed) — a thrown "Unsupported image type" reached the user
+     fine locally and became a generic, useless message in production. The
+     validation-failure case now returns a discriminated result instead,
+     the same way `saveAvatarUrl` already returns an error value rather than
+     throwing. (`requireUser()`'s `Unauthenticated` throw is left as-is —
+     that's the existing, file-wide pattern for every action here, not
+     something this migration should change unilaterally.)
+  5. Derives the object key as `${user.id}/avatar.${ext}` from the session —
      never client-supplied, so one user can't mint a URL that overwrites
      another user's avatar key.
-  4. Generates a presigned PUT URL via `@aws-sdk/s3-request-presigner`, TTL 5
+  6. Generates a presigned PUT URL via `@aws-sdk/s3-request-presigner`, TTL 5
      minutes.
-  5. Returns `{ uploadUrl, publicUrl }`, where `publicUrl` is
+  7. Returns `{ uploadUrl, publicUrl }`, where `publicUrl` is
      `${R2_PUBLIC_URL}/${key}?v=${version}` — `version` is a fresh token
      (`Date.now()`) generated on every call. The key is stable per
      user+content-type by design (overwrite in place, no orphaned objects),
@@ -74,12 +95,20 @@ would need.
      images instead of the new one, even though R2 correctly held the new
      bytes and the DB correctly held the (unchanged) URL.
 - **`AvatarUploader.tsx`** — keeps its existing client-side type/size
-  validation. Replaces the `uploadAvatarImage(supabase, userId, file)` call
-  with: call `createAvatarUploadUrl(file.type)` → `fetch(uploadUrl, { method:
-  'PUT', body: file, headers: { 'Content-Type': file.type } })` → on success,
-  call the existing `saveAvatarUrl(publicUrl)` unchanged. The browser Supabase
-  client import (`@/lib/supabase-browser`) is dropped from this file — it was
-  only used for the storage call.
+  validation (now reading `MAX_AVATAR_BYTES` from `lib/avatar-upload.ts`
+  instead of a hardcoded `2 * 1024 * 1024`). Replaces the
+  `uploadAvatarImage(supabase, userId, file)` call with: call
+  `createAvatarUploadUrl(file.type, file.size)` → check for `{ error }` →
+  `fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type':
+  file.type } })` → on success, call the existing `saveAvatarUrl(publicUrl)`
+  unchanged. The browser Supabase client import (`@/lib/supabase-browser`) is
+  dropped from this file — it was only used for the storage call. The whole
+  sequence (presign call, `PUT`, `saveAvatarUrl`) runs inside one
+  `try/catch/finally`: found in code review that the original version left
+  the `PUT`'s `fetch` call unguarded, so a network failure or CORS rejection
+  (a `fetch` rejection, not just a non-`ok` response) threw past the existing
+  error handling entirely — `setUploading(false)` never ran, and the button
+  stayed stuck on "Uploading..." with no error shown until reload.
 - **`lib/queries/user-auth.ts`** — `uploadAvatarImage` is deleted (dead once
   `AvatarUploader.tsx` no longer calls it). Everything else in that file
   (Auth calls) is untouched.
@@ -97,9 +126,10 @@ would need.
 
 1. User picks a file in `AvatarUploader.tsx`; existing client-side type/size
    checks run unchanged.
-2. Client calls `createAvatarUploadUrl(file.type)`.
-3. Server: `requireUser()` → validate content-type → derive key → presign PUT
-   URL → return `{ uploadUrl, publicUrl }`.
+2. Client calls `createAvatarUploadUrl(file.type, file.size)`.
+3. Server: `requireUser()` → validate content-type → validate size → derive
+   key → presign PUT URL (size signed in as `ContentLength`) → return
+   `{ uploadUrl, publicUrl }` or `{ error }`.
 4. Client `PUT`s the file directly to `uploadUrl` (goes straight to R2, never
    touches the Next.js server).
 5. On a successful PUT, client calls `saveAvatarUrl(publicUrl)` (existing
@@ -131,16 +161,22 @@ migration is a natural point to fix it).
 - `createAvatarUploadUrl` throws through `requireUser()`'s existing
   `Unauthenticated` error when logged out — same shape as every other action
   in `app/user-actions.ts`, no new error handling pattern introduced.
-- Disallowed content-types are rejected before any R2 call is made.
+- Disallowed content-types and oversized files are rejected before any R2
+  call is made, as a returned `{ error: string }` value — not thrown, since a
+  thrown Server Action error's message is redacted in production builds.
 - A failed direct PUT (expired presigned URL, CORS misconfiguration, network
   failure) surfaces through `AvatarUploader.tsx`'s existing `error` state —
-  no new UI needed; retry re-runs the whole flow and gets a fresh URL.
+  no new UI needed; retry re-runs the whole flow and gets a fresh URL. The
+  whole upload sequence runs inside one `try/catch/finally` so a rejected
+  `fetch` (not just a non-`ok` response) is caught too.
 
 ## Testing
 
-- New Vitest unit test for the content-type → extension allow-list logic in
-  `createAvatarUploadUrl` (pure function, no network) — matches the existing
-  characterization-suite style in `test/`.
+- Vitest unit tests for the pure logic in `lib/avatar-upload.ts`: the
+  content-type → extension allow-list, the public-URL builder (including the
+  cache-busting version param), and `isValidAvatarSize` against
+  `MAX_AVATAR_BYTES` — matches the existing characterization-suite style in
+  `test/`.
 - The end-to-end upload (presign → direct PUT → save) depends on real R2
   infrastructure (bucket, custom domain, CORS) and is verified manually in
   the browser once that infrastructure exists — not mocked in the unit suite.

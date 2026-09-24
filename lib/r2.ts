@@ -3,7 +3,7 @@
 // separation constraint lib/db.ts documents for the Drizzle/postgres client.
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
-import { getAvatarKeyForUpload, buildAvatarPublicUrl } from '@/lib/avatar-upload'
+import { getAvatarKeyForUpload, buildAvatarPublicUrl, isValidAvatarSize } from '@/lib/avatar-upload'
 
 function requireEnv(name: string): string {
     const value = process.env[name]
@@ -28,14 +28,17 @@ const AVATAR_UPLOAD_TTL_SECONDS = 300
 export async function createPresignedAvatarUploadUrl(
     userId: string,
     contentType: string,
-): Promise<{ uploadUrl: string; publicUrl: string } | null> {
+    contentLength: number,
+): Promise<{ uploadUrl: string; publicUrl: string } | { error: 'unsupported_type' | 'too_large' }> {
     const target = getAvatarKeyForUpload(userId, contentType)
-    if (!target) return null
+    if (!target) return { error: 'unsupported_type' }
+    if (!isValidAvatarSize(contentLength)) return { error: 'too_large' }
 
     const command = new PutObjectCommand({
         Bucket: bucketName,
         Key: target.key,
         ContentType: contentType,
+        ContentLength: contentLength,
     })
 
     const uploadUrl = await getSignedUrl(s3Client, command, { expiresIn: AVATAR_UPLOAD_TTL_SECONDS })
