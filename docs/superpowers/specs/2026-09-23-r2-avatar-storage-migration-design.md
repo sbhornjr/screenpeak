@@ -74,9 +74,15 @@ would need.
 - **`lib/queries/user-auth.ts`** — `uploadAvatarImage` is deleted (dead once
   `AvatarUploader.tsx` no longer calls it). Everything else in that file
   (Auth calls) is untouched.
-- **`next.config.ts`** — `images.remotePatterns` drops the
-  `*.supabase.co/storage/v1/object/public/**` entry, adds the R2 custom
-  domain hostname (e.g. `cdn.screenpeak.gg`).
+- **`next.config.ts`** — `images.remotePatterns` gains the R2 custom domain
+  hostname (e.g. `cdn.screenpeak.gg`) **alongside**, not instead of, the
+  existing `*.supabase.co/storage/v1/object/public/**` entry. The "no
+  backfill" decision above only holds if old avatars keep rendering until
+  each user re-uploads — dropping the Supabase pattern here would make
+  `next/image` reject every existing avatar immediately, which is a much
+  worse outcome than the deliberately-accepted one. Removing the Supabase
+  pattern is a later, separate decision, made only once the Supabase bucket
+  is actually decommissioned.
 
 ## Data flow
 
