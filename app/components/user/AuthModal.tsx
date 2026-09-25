@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from "react"
+import Link from "next/link"
 import { createClient } from "@/lib/supabase-browser"
 import { useRouter } from "next/navigation"
 import Modal from "@/app/components/util/Modal"
@@ -20,6 +21,7 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
     const [username, setUsername] = useState("")
     const [password, setPassword] = useState("")
     const [passwordAgain, setPasswordAgain] = useState("")
+    const [agreedToTerms, setAgreedToTerms] = useState(false)
     const [error, setError] = useState("")
     const [info, setInfo] = useState("")
     const router = useRouter()
@@ -80,6 +82,11 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
         }
         const passwordCheck = parseOrError(passwordSchema, password)
         if (!passwordCheck.success) { setError(passwordCheck.error); return }
+
+        if (!agreedToTerms) {
+            setError("You must confirm you're at least 16 and agree to the Privacy Policy to sign up.")
+            return
+        }
 
         setLoading(true)
         const supabase = createClient()
@@ -196,13 +203,27 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
                             onChange={(e) => setPasswordAgain(e.target.value)}
                             className="w-full bg-(--color-surface) text-(--color-text) placeholder:text-(--color-muted) border border-(--color-border) rounded-[3px] px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-accent) focus-visible:border-(--color-accent)"
                         />
+                        {/* "Terms" is plain text until app/terms/page.tsx exists — link it there once it does. */}
+                        <label className="flex items-start gap-2 text-xs text-(--color-muted) mt-3">
+                            <input
+                                type="checkbox"
+                                checked={agreedToTerms}
+                                onChange={(e) => setAgreedToTerms(e.target.checked)}
+                                className="mt-0.5 accent-(--color-accent)"
+                            />
+                            <span>
+                                I&apos;m at least 16 years old and agree to the{" "}
+                                <Link href="/policy" target="_blank" className="underline hover:text-(--color-accent) transition-colors duration-200">Privacy Policy</Link>
+                                {" "}and Terms.
+                            </span>
+                        </label>
                         {error && (
                             <p className="self-center font-semibold text-(--color-bad) mt-4">{error}</p>
                         )}
                         {info && (
                             <p className="self-center text-sm text-(--color-muted) mt-4">{info}</p>
                         )}
-                        <button type="submit" disabled={loading} className="font-semibold py-2 px-5 self-center my-4 rounded-[3px] bg-(--color-accent) text-(--color-bg) hover:bg-(--color-accent-hover) transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-accent) focus-visible:ring-offset-2 focus-visible:ring-offset-(--color-surface) disabled:opacity-60">
+                        <button type="submit" disabled={loading || !agreedToTerms} className="font-semibold py-2 px-5 self-center my-4 rounded-[3px] bg-(--color-accent) text-(--color-bg) hover:bg-(--color-accent-hover) transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-accent) focus-visible:ring-offset-2 focus-visible:ring-offset-(--color-surface) disabled:opacity-60">
                             {loading ? "..." : "Sign Up"}</button>
                         <button type="button" onClick={() => { setTab("signin"); setError(""); setInfo("") }} className="underline self-center hover:text-(--color-accent) transition-colors duration-200">Already have an account? Sign In.</button>
                     </form>

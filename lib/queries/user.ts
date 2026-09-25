@@ -90,6 +90,20 @@ export async function updateLoadoutBio(userId: string, bio: string) {
     }
 }
 
+export async function clearLoadoutIdentity(userId: string) {
+    try {
+        // profileLoadoutBio is nulled too — it's a saved copy of this same AI-generated
+        // text shown on the profile page (user.ts:136), so leaving it would mean
+        // "clearing" the Read-out doesn't actually remove the AI-generated content.
+        await db.update(users)
+            .set({ loadoutIdentity: null, loadoutIdentityAt: null, profileLoadoutBio: null })
+            .where(eq(users.id, userId))
+        return { error: null }
+    } catch (error) {
+        return { error: error instanceof Error ? error.message : String(error) }
+    }
+}
+
 export async function updateUsername(userId: string, username: string) {
     const parsed = parseOrError(usernameSchema, username)
     if (!parsed.success) return { data: null, error: parsed.error }

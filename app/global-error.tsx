@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { logger } from '@/lib/logger'
 import './globals.css'
+import * as Sentry from "@sentry/nextjs";
 
 export default function GlobalError({
     error,
@@ -17,6 +18,10 @@ export default function GlobalError({
             digest: error.digest,
         })
     }, [error])
+
+    useEffect(() => {
+        Sentry.captureException(error);
+    }, [error]);
 
     return (
         <html lang="en">

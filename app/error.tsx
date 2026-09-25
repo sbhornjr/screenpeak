@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { logger } from '@/lib/logger'
+import * as Sentry from '@sentry/nextjs'
 
 export default function Error({
     error,
@@ -15,6 +16,10 @@ export default function Error({
             message: error.message,
             digest: error.digest,
         })
+    }, [error])
+
+    useEffect(() => {
+        Sentry.captureException(error)
     }, [error])
 
     return (

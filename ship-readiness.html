@@ -130,7 +130,7 @@ hr{border:0;border-top:1px solid var(--border);margin:2.5rem 0}
   <p class="usenote">Check items off as you go — your progress is saved in this browser only (no account, nothing sent anywhere). Three tiers: <strong style="color:var(--blocker)">Blocker</strong> = fix before anyone can reach the site · <strong style="color:var(--soon)">Soon</strong> = want it in v1, a few days' slip harms no one · <strong style="color:var(--polish)">Polish</strong> = safe to ship without, do soon after. Items tagged <strong style="color:var(--done)">✓ Done</strong> are built and verified. The deploy runbook at the end is an ordered sequence.</p>
   <div style="margin-top:1.6rem;border:1px solid var(--soon);border-radius:6px;padding:1rem 1.25rem;max-width:var(--maxw)">
     <p style="margin:0 0 .4rem;font-family:var(--font-mono);font-size:.68rem;letter-spacing:.18em;text-transform:uppercase;color:var(--soon)">▶ Name settled — ScreenPeak</p>
-    <p style="margin:0;color:var(--ink-dim);font-size:.95rem">The name is now <strong>ScreenPeak</strong> (renamed from "NG+" over a trademark conflict) and the UI rebrand is done. <strong>Done so far:</strong> all four Blockers (B1–B4), Soon items S1–S5 + S7, Polish P1–P2, and the ScreenPeak rebrand. <strong>Still open, no longer blocked by the name:</strong> S6 (Sentry project), S8 (privacy/terms + contact email — still needs a jurisdiction + contact address), P3 (README + docs), P4 (real icons + full web manifest — a placeholder <code>app/icon.svg</code> now exists), and the deploy runbook (needs a domain).</p>
+    <p style="margin:0;color:var(--ink-dim);font-size:.95rem">The name is now <strong>ScreenPeak</strong> (renamed from "NG+" over a trademark conflict) and the UI rebrand is done. <strong>Done so far:</strong> all four Blockers (B1–B4), Soon items S1–S7, Polish P1–P3, and the ScreenPeak rebrand. <strong>In progress:</strong> S8 (Privacy Policy live at <code>/policy</code>, signup consent checkbox live, Terms being drafted — LLC formation + DMCA agent registration + <code>privacy@screenpeak.gg</code> still needed before publishing live). <strong>Still open:</strong> P4 (real icons + full web manifest — a placeholder <code>app/icon.svg</code> now exists), and the deploy runbook (needs a domain).</p>
   </div>
 </header>
 
@@ -152,13 +152,13 @@ hr{border:0;border-top:1px solid var(--border);margin:2.5rem 0}
       <a href="#S3"><span class="k">S3</span>✓ Per-page metadata</a>
       <a href="#S4"><span class="k">S4</span>✓ robots.ts + sitemap.ts</a>
       <a href="#S5"><span class="k">S5</span>✓ Security headers</a>
-      <a href="#S6"><span class="k">S6</span>⏸ Error monitoring</a>
+      <a href="#S6"><span class="k">S6</span>✓ Error monitoring</a>
       <a href="#S7"><span class="k">S7</span>✓ Server-side validation</a>
-      <a href="#S8"><span class="k">S8</span>⏸ Privacy + terms + consent</a>
+      <a href="#S8"><span class="k">S8</span>◐ Privacy + terms + consent</a>
       <h2>Polish</h2>
       <a href="#P1"><span class="k">P1</span>✓ Modal accessibility</a>
       <a href="#P2"><span class="k">P2</span>✓ Strip server console.logs</a>
-      <a href="#P3"><span class="k">P3</span>⏸ Repo &amp; docs hygiene</a>
+      <a href="#P3"><span class="k">P3</span>✓ Repo &amp; docs hygiene</a>
       <a href="#P4"><span class="k">P4</span>⏸ Icons + web manifest</a>
       <h2>Deploy runbook</h2>
       <a href="#deploy"><span class="k">§D</span>Overview</a>
@@ -423,7 +423,7 @@ const canGenerate = loadoutInput.totalRatings &gt;= 5</code></pre>
   <!-- ============ SOON ============ -->
   <section class="section" id="soon">
     <h2 class="sec"><span class="n">S</span>Soon — want these in v1</h2>
-    <p class="sec-intro">First-impression and safety-net work. A few days' slip won't hurt a user, but don't ship the "1.0" tweet without them. <strong>S1–S5 and S7 are done;</strong> S6 (error monitoring) and S8 (privacy/terms) are deliberately held until the project name and contact email are finalized.</p>
+    <p class="sec-intro">First-impression and safety-net work. A few days' slip won't hurt a user, but don't ship the "1.0" tweet without them. <strong>S1–S7 are done;</strong> S8 (privacy/terms) is in progress — Privacy Policy live, Terms being drafted, both gated on the LLC actually existing before going live for real.</p>
 
     <article class="item complete" data-sev="soon" id="S1">
       <div class="item-head">
@@ -660,50 +660,38 @@ export default function Loading() {
       </div>
     </article>
 
-    <article class="item deferred" data-sev="soon" id="S6">
+    <article class="item complete" data-sev="soon" id="S6">
       <div class="item-head">
         <input type="checkbox" class="chk" id="chk-S6">
-        <label for="chk-S6"><span class="tag">⏸ Deferred</span>S6 · Error monitoring</label>
+        <label for="chk-S6"><span class="tag">✓ Done</span>S6 · Error monitoring</label>
       </div>
       <div class="item-body">
         <div class="field">
-          <span class="flabel">Status — deferred until the name is settled</span>
-          <p>On hold pending the final project name + a real domain/email (NG+ has a trademark conflict). Sentry signup wants an account and creates a project keyed to the app; no point doing it twice. Pick it back up alongside <a href="#S8">S8</a> and the deploy runbook — the wizard needs a browser login, so it's a manual step regardless.</p>
+          <span class="flabel">Status — installed, verified, and gaps closed</span>
+          <p>Ran <code>npx @sentry/wizard@latest -i nextjs</code> against the Sentry account. It scaffolded <code>instrumentation.ts</code> / <code>instrumentation-client.ts</code> (client init moved here in newer SDK versions, replacing the old <code>sentry.client.config.ts</code>), <code>sentry.server.config.ts</code>, <code>sentry.edge.config.ts</code>, and wrapped <code>next.config.ts</code> in <code>withSentryConfig</code> for source-map upload. Threw a real error via the wizard's example page and confirmed it landed in the Sentry dashboard — the DSN, ingest, and build plugin are all live end to end.</p>
         </div>
         <div class="field">
-          <span class="flabel">What it is</span>
-          <p>Something that catches errors thrown on the server (ideally the client too) and sends them somewhere you'll actually see — a dashboard or a chat webhook — with the stack trace and which request caused it.</p>
-        </div>
-        <div class="field">
-          <span class="flabel">What <code>instrumentation.ts</code> + <code>onRequestError</code> are</span>
-          <p><span class="code">instrumentation.ts</span> is a Next file that runs once when the server process starts — the standard place to initialize a monitoring SDK. <code>onRequestError</code> is an optional function you export from it that Next calls on every unhandled server error, passing the error plus the route and request. That's the hook monitoring tools plug into.</p>
-        </div>
-        <div class="field">
-          <span class="flabel">Why it matters here</span>
-          <p>Your <code>error.tsx</code> and <code>global-error.tsx</code> currently only call <code>logger.error(...)</code>, which in production goes to the browser console — nowhere you'll ever look. The first you'd hear of a broken page is a user telling you.</p>
-        </div>
-        <div class="field">
-          <span class="flabel">How to do it — pick one</span>
+          <span class="flabel">Two gaps the wizard leaves behind, now fixed</span>
           <ul>
-            <li><strong>Sentry (most complete):</strong> run <code>npx @sentry/wizard@latest -i nextjs</code>. It scaffolds <code>instrumentation.ts</code>, client/server config, and a source-map upload step. Free tier is generous. Then have <code>error.tsx</code> also call <code>Sentry.captureException(error)</code>.</li>
-            <li><strong>Minimal, no dependency:</strong>
-              <pre><code>// instrumentation.ts
-export async function onRequestError(err: unknown, request: { path: string }) {
-  await fetch(process.env.ERROR_WEBHOOK_URL!, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      content: `⚠️ ${request.path}\n${err instanceof Error ? err.stack : String(err)}`,
-    }),
-  })
-}</code></pre>
-              Point <code>ERROR_WEBHOOK_URL</code> at a Discord or Slack incoming webhook.
-            </li>
+            <li><strong><code>app/error.tsx</code> wasn't wired up.</strong> The wizard only touches <code>global-error.tsx</code> (root-layout crashes only) — but <code>error.tsx</code> is the boundary that actually catches almost everything, since it wraps every route segment. Without it, a broken page anywhere except the root layout would still only log to <code>logger.error</code> and never reach Sentry. Added the same <code>useEffect(() =&gt; Sentry.captureException(error), [error])</code> pattern <code>global-error.tsx</code> already had.</li>
+            <li><strong>Removed <code>app/sentry-example-page/</code> and <code>app/api/sentry-example-api/</code>.</strong> These are wizard scaffolding for the exact test you just ran — a public, unauthenticated page + route whose only job is to throw on demand. Fine during setup, but no reason to ship it: it's dead weight in the route list and its "view on Sentry" link exposes your org/project slug.</li>
           </ul>
         </div>
         <div class="field">
-          <span class="flabel">Verify</span>
-          <p>Deploy, temporarily add a route that throws, hit it, confirm the error lands in Sentry / your webhook, then remove the throw.</p>
+          <span class="flabel">What <code>instrumentation.ts</code> + <code>onRequestError</code> are, concretely</span>
+          <p><code>instrumentation.ts</code> runs once when the server process starts and conditionally imports the server or edge config based on <code>NEXT_RUNTIME</code> — that's why there are two near-identical <code>sentry.*.config.ts</code> files instead of one. <code>export const onRequestError = Sentry.captureRequestError</code> is the hook Next calls on every <em>uncaught</em> exception in a route handler, Server Component, or Server Action, forwarding it to Sentry automatically — you don't call it yourself.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">A real limit worth knowing, not fixed here</span>
+          <p><code>onRequestError</code> only fires on <em>thrown, uncaught</em> errors. Most of this app's write paths (S7's <code>{ error }</code>-returning queries) deliberately catch Supabase errors and return them as data instead of throwing, so a failed insert that a user sees as an inline error message won't automatically appear in Sentry — only crashes will. That's fine for launch (crashes are the thing that needs paging; a validation error a user sees and can retry doesn't), but if you later want failed writes visible too, that's manual <code>Sentry.captureException()</code> calls added deliberately in specific query functions, not a blanket automatic thing.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">Follow-up at deploy time (see D5)</span>
+          <p>Locally, the build plugin reads <code>SENTRY_AUTH_TOKEN</code> from the gitignored <code>.env.sentry-build-plugin</code> file, which only exists on your machine. On Vercel, that file won't exist — add <code>SENTRY_AUTH_TOKEN</code> as a project environment variable there too, or production builds will still succeed but source maps won't upload, meaning stack traces in the dashboard will point at minified code instead of your actual source lines.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">Verified</span>
+          <p><code>npx tsc --noEmit</code>, <code>npm run lint</code>, and <code>npm run build</code> all pass after wiring <code>error.tsx</code> and deleting the example routes — the Sentry webpack plugin's <code>runAfterProductionCompile</code> step ran clean.</p>
         </div>
       </div>
     </article>
@@ -786,36 +774,24 @@ alter table ratings_reviews validate constraint review_length;</code></pre>
       </div>
     </article>
 
-    <article class="item deferred" data-sev="soon" id="S8">
+    <article class="item" data-sev="soon" id="S8">
       <div class="item-head">
         <input type="checkbox" class="chk" id="chk-S8">
-        <label for="chk-S8"><span class="tag">⏸ Deferred</span>S8 · Privacy policy, terms, and signup consent</label>
+        <label for="chk-S8"><span class="tag">In progress</span>S8 · Privacy policy, terms, and signup consent</label>
       </div>
       <div class="item-body">
         <div class="field">
-          <span class="flabel">Status — deferred until the name is settled</span>
-          <p>On hold pending the final name + contact email (NG+ has a trademark conflict). Both documents name the company/app and a contact address throughout, and the consent checkbox links to <code>/privacy</code> and <code>/terms</code> — cheaper to write once the name is real. Decisions still needed before drafting: operating jurisdiction (and whether EU users are allowed → GDPR sections), minimum signup age, contact email. Recommended baseline: run Termly, then hand-write the third-parties list (Supabase / Vercel / Anthropic / Valve) and the AI-disclosure paragraph.</p>
+          <span class="flabel">Status — Privacy Policy live, Terms in progress</span>
+          <p>Generated both through Termly (free tier — HTML export only). <strong>Privacy Policy is done and live at <code>/policy</code></strong> (<span class="code">app/policy/page.tsx</span> renders the exported <span class="code">app/policy/policy.html</span> inside a light card, since Termly's stylesheet assumes a white background). Reviewed line-by-line against the actual app and hand-corrected four things the free-tier export got wrong or left as unresolved template artifacts: a claimed mobile app that doesn't exist yet, a generic "marketing partners" sourcing paragraph that should've described Steam import, a false claim of permitting third-party ad-tracking cookies, and a literal unfilled address blank. Minimum age unified at 16 across the policy and the signup checkbox. <strong>Signup consent checkbox is live</strong> in <code>AuthModal</code> — blocks Sign Up until checked, links to <code>/policy</code>, references Terms as plain text pending the page below. <strong>Terms and Conditions — in progress</strong>, being built the same way (Termly export reviewed against the app, not published as-is).</p>
         </div>
         <div class="field">
-          <span class="flabel">What it is</span>
-          <p>A <code>/privacy</code> page describing what personal data you collect and why, a <code>/terms</code> page with the usage rules, and a checkbox at signup where the user agrees to both.</p>
-        </div>
-        <div class="field">
-          <span class="flabel">Why it matters here</span>
-          <p>You collect email, uploaded avatars, free-text reviews, <strong>and the user's entire Steam owned-games library + Steam ID</strong>, and you send profile data to Anthropic (a third-party "processor"). In most jurisdictions that triggers a disclosure obligation; app stores and some payment providers also require a public privacy policy to exist. The Steam import in particular raises what users reasonably expect to be told.</p>
-        </div>
-        <div class="field">
-          <span class="flabel">How to do it</span>
+          <span class="flabel">Outstanding, not blocked on the name anymore</span>
           <ul>
-            <li>Two pages — <span class="code">app/privacy/page.tsx</span> and <span class="code">app/terms/page.tsx</span> (plain JSX or MDX). The privacy page should name: <em>account data</em> (email, username, avatar), <em>activity</em> (ratings, reviews, lists), <em>Steam</em> (library + Steam ID, only if the user connects it), <em>AI</em> (your aggregate stats are sent to Anthropic to generate the Loadout text), how to delete everything (you already have <code>/api/delete-account</code> — link it), and a contact email.</li>
-            <li>In <code>AuthModal</code>'s signup branch: <code>&lt;label&gt;&lt;input type="checkbox" required&gt; I agree to the &lt;a href="/terms"&gt;Terms&lt;/a&gt; and &lt;a href="/privacy"&gt;Privacy Policy&lt;/a&gt;&lt;/label&gt;</code>, blocking submit until checked.</li>
-            <li>Link both in the site footer.</li>
-            <li>A reputable policy generator gets you ~80% there; write the "AI &amp; third parties" paragraph yourself, since that's the non-standard part.</li>
+            <li><strong>Register a DMCA designated agent with the U.S. Copyright Office once the LLC exists.</strong> $6 fee, fully online (<a href="https://www.copyright.gov/dmca-directory/" target="_blank" rel="noopener">copyright.gov/dmca-directory</a>), renews every 3 years. Worth doing (not just the generic "email us about copyright" clause) specifically because the app hosts user-uploaded avatars — the DMCA safe harbor requires actual registration, a ToS clause alone doesn't get you the liability shield. Needs the LLC's name/address, so it's gated on formation.</li>
+            <li>Form "I'm a Teapot LLC" — gates the DMCA registration above, the privacy policy's legal name (currently accurate to draft, not yet accurate to publish live), and the corporate address.</li>
+            <li>Get <code>privacy@screenpeak.gg</code> actually working before publishing live — both documents reference it as the contact channel.</li>
+            <li>Build <span class="code">app/terms/page.tsx</span> once the Terms review is finished, then update the <code>AuthModal</code> checkbox's plain-text "Terms" into a real link.</li>
           </ul>
-        </div>
-        <div class="field">
-          <span class="flabel">Verify</span>
-          <p>Signup is blocked with the box unchecked; <code>/privacy</code> and <code>/terms</code> render and are linked in the footer.</p>
         </div>
       </div>
     </article>
@@ -826,7 +802,7 @@ alter table ratings_reviews validate constraint review_length;</code></pre>
   <!-- ============ POLISH ============ -->
   <section class="section" id="polish">
     <h2 class="sec"><span class="n">P</span>Polish — v1.1</h2>
-    <p class="sec-intro">Genuinely fine to ship without. Worth doing in the first week or two after.</p>
+    <p class="sec-intro">Genuinely fine to ship without. Worth doing in the first week or two after. <strong>P1–P3 are done;</strong> P4 (icons) needs a real logo mark first.</p>
 
     <article class="item complete" data-sev="polish" id="P1">
       <div class="item-head">
@@ -886,32 +862,23 @@ alter table ratings_reviews validate constraint review_length;</code></pre>
       </div>
     </article>
 
-    <article class="item deferred" data-sev="polish" id="P3">
+    <article class="item complete" data-sev="polish" id="P3">
       <div class="item-head">
         <input type="checkbox" class="chk" id="chk-P3">
-        <label for="chk-P3"><span class="tag">⏸ Deferred</span>P3 · Repo &amp; docs hygiene</label>
+        <label for="chk-P3"><span class="tag">✓ Done</span>P3 · Repo &amp; docs hygiene</label>
       </div>
       <div class="item-body">
         <div class="field">
-          <span class="flabel">Status — deferred (but name-independent)</span>
-          <p>Parked with the rest during the pause, but none of this needs the name — the <code>STEAM_API_KEY</code> line, the stale "no test framework" line, and the boilerplate <code>public/*.svg</code> are all one-minute fixes, and the README can be written now (just leave the project name as a placeholder). A good warm-up task when you sit back down.</p>
+          <span class="flabel">Status — done</span>
+          <p>Three of the four original items turned out already fixed by the time this was picked back up — <code>README.md</code> is now a real, substantial doc (tech stack, env vars, setup, project structure, architecture notes covering the Drizzle + Server Actions migration), and <code>AGENTS.md</code>'s stale "no test framework" line is already replaced with an accurate description of the Vitest suite and lists <code>STEAM_API_KEY</code> plus the newer R2 / <code>DATABASE_URL</code> / <code>DATABASE_POOL_URL</code> vars. Only the boilerplate SVGs were still there — deleted <code>public/{file,globe,next,vercel,window}.svg</code> after confirming zero references anywhere in <code>app/</code> or <code>lib/</code>. <code>npm run build</code> passes with <code>public/</code> otherwise empty.</p>
         </div>
         <div class="field">
           <span class="flabel">What it is</span>
           <p>Loose ends a new contributor (or future you) will trip on.</p>
         </div>
         <div class="field">
-          <span class="flabel">The list</span>
-          <ul>
-            <li><code>STEAM_API_KEY</code> is used in the Steam routes but missing from the env-var list in <span class="code">AGENTS.md</span> — add it.</li>
-            <li><span class="code">README.md</span> is still the <code>create-next-app</code> template — replace with: what the app is, local setup, the <code>npm run</code> commands, required env vars.</li>
-            <li>The <span class="code">AGENTS.md</span> line "No test framework is configured" is now false — there's a Vitest suite (<code>npm test</code>, 14 files under <code>test/</code>). Update it.</li>
-            <li>Delete the unused <code>create-next-app</code> SVGs in <code>public/</code> (<code>next.svg</code>, <code>vercel.svg</code>, etc.) once nothing references them.</li>
-          </ul>
-        </div>
-        <div class="field">
           <span class="flabel">Verify</span>
-          <p>Fresh clone + follow your new README's setup steps → app runs.</p>
+          <p>Fresh clone + follow the README's setup steps → app runs. <code>ls public/</code> shows nothing but what the app actually serves.</p>
         </div>
       </div>
     </article>
@@ -1057,6 +1024,7 @@ STEAM_API_KEY=</code></pre>
             <li><code>NEXT_PUBLIC_SUPABASE_URL</code>, <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> — public; safe here, they're in the browser bundle by design.</li>
             <li><code>NEXT_PUBLIC_SITE_URL</code> — your production URL, e.g. <code>https://ngplus.vercel.app</code> (or your custom domain). Used by <code>metadataBase</code> (S3), <code>robots.ts</code>/<code>sitemap.ts</code> (S4), and the auth <code>redirectTo</code> (B2).</li>
             <li><code>SUPABASE_SECRET_KEY</code>, <code>ANTHROPIC_API_KEY</code>, <code>RAWG_API_KEY</code>, <code>STEAM_API_KEY</code> — secret; server-only, never prefixed <code>NEXT_PUBLIC</code>.</li>
+            <li><code>SENTRY_AUTH_TOKEN</code> (see <a href="#S6">S6</a>) — locally it's read from the gitignored <code>.env.sentry-build-plugin</code>, which won't exist on the host. Without it here, builds still succeed but source maps never upload, so Sentry stack traces point at minified code.</li>
           </ul>
         </div>
         <div class="field">
@@ -1154,11 +1122,20 @@ STEAM_API_KEY=</code></pre>
     <p><strong style="color:var(--done)">Done &amp; verified this round:</strong></p>
     <ul>
       <li><strong>Blockers B1–B4.</strong> Loadout AI is opt-in &amp; owner-only (B1); forgot-password + <code>/auth/confirm</code> + <code>/auth/update-password</code> shipped (B2/B3); RLS audited, UPDATE <code>with_check</code> + storage-bucket gaps closed (B4).</li>
-      <li><strong>Soon S1–S5, S7.</strong> Branded 404, loading skeletons (root + 5 targeted), per-page share metadata, robots/sitemap, six security headers, and zod validation on every write path (91 tests).</li>
-      <li><strong>Polish P1–P2.</strong> Modal accessibility + the scroll/header rebuild; server <code>console.log</code>s stripped.</li>
+      <li><strong>Soon S1–S7.</strong> Branded 404, loading skeletons (root + 5 targeted), per-page share metadata, robots/sitemap, six security headers, zod validation on every write path (91 tests), and Sentry error monitoring wired into both error boundaries and verified end to end.</li>
+      <li><strong>Polish P1–P3.</strong> Modal accessibility + the scroll/header rebuild; server <code>console.log</code>s stripped; README/AGENTS.md accuracy confirmed and unused boilerplate SVGs removed.</li>
+      <li><strong>The ScreenPeak rebrand.</strong> Name settled, trademark conflict resolved.</li>
+      <li><strong>S8 (partial).</strong> Privacy Policy drafted, reviewed against the actual app, and live at <code>/policy</code>; signup consent checkbox live in <code>AuthModal</code>; Terms and Conditions in progress.</li>
     </ul>
-    <p><strong style="color:var(--soon)">Deferred until the name is settled:</strong> S6 (Sentry), S8 (privacy/terms), P3 (docs), P4 (icons), and the deploy runbook (D1–D9 — needs a domain).</p>
-    <p><strong>Three things you can do any time — no name required:</strong></p>
+    <p><strong style="color:var(--soon)">Still open:</strong> P4 (real icons + manifest — needs a logo mark) and the deploy runbook (D1–D9 — needs a domain).</p>
+    <p><strong>Before S8's documents can actually go live (not just exist as drafts):</strong></p>
+    <ul>
+      <li><strong>Form "I'm a Teapot LLC."</strong> The policy currently names it as the operating entity — until it's formed, that's not accurate, and you're personally the operating entity by default.</li>
+      <li><strong>Register a DMCA designated agent</strong> once the LLC exists — $6, fully online at <a href="https://www.copyright.gov/dmca-directory/" target="_blank" rel="noopener">copyright.gov/dmca-directory</a>. Worth doing for real, not just the ToS clause, since the app hosts user-uploaded avatars.</li>
+      <li><strong>Get <code>privacy@screenpeak.gg</code> actually receiving mail</strong> before publishing — both documents name it as the contact channel.</li>
+      <li><strong>Build <code>app/terms/page.tsx</code></strong> once Terms review is done, then link it from the <code>AuthModal</code> checkbox (currently plain text).</li>
+    </ul>
+    <p><strong>Three things you can do any time:</strong></p>
     <ul>
       <li><strong>Supabase redirect allowlist.</strong> Authentication → URL Configuration → add <code>http://localhost:3000/**</code> and set Site URL. Until this is in, the forgot-password / confirm links dead-end.</li>
       <li><strong>Run B4's CHECK-constraint SQL</strong> (in the B4 card) — check for violations first, then add + validate.</li>

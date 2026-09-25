@@ -1,7 +1,7 @@
 'use server'
 
 import { requireUser } from '@/lib/auth'
-import { updateAvatarUrl, updateFavoriteGames, updatePrivacy, updateUsername, updateSelectedTitle, updateBio, updateLoadoutBio, followUser, unfollowUser } from '@/lib/queries/user'
+import { updateAvatarUrl, updateFavoriteGames, updatePrivacy, updateUsername, updateSelectedTitle, updateBio, updateLoadoutBio, clearLoadoutIdentity, followUser, unfollowUser } from '@/lib/queries/user'
 import { createPresignedAvatarUploadUrl } from '@/lib/r2'
 
 export async function createAvatarUploadUrl(contentType: string, contentLength: number) {
@@ -46,6 +46,11 @@ export async function saveSelectedTitle(title: string) {
 export async function saveLoadoutBio(bio: string) {
     const user = await requireUser()
     return updateLoadoutBio(user.id, bio)
+}
+
+export async function clearLoadout() {
+    const user = await requireUser()
+    return clearLoadoutIdentity(user.id)
 }
 
 export async function toggleFollow(targetUserId: string, isFollowing: boolean) {
