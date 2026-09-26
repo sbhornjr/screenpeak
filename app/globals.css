@@ -13,6 +13,9 @@
   --color-surface-light: #21252b;
   --color-border: #313640;
   --color-border-bright: #495060;
+  /* Faint catch-light along the top edge of a raised surface (Panel's inset
+     shadow). Derived from the body text so it stays the same cool neutral. */
+  --color-highlight: color-mix(in srgb, var(--color-text) 5%, transparent);
 
   /* The accent is phosphor, not ink — glows on interactive elements, carries the seam */
   --color-accent: #47c6dd;
@@ -40,6 +43,21 @@ body {
   background-color: var(--color-bg);
   color: var(--color-text);
   -webkit-font-smoothing: antialiased;
+}
+
+/* House style for every lucide-react icon (each renders with class="lucide").
+   A lighter stroke and square caps / mitred joins pull Lucide's rounded
+   defaults toward Chakra Petch's cut corners. CSS beats the SVG's own
+   presentation attributes, so this holds in server and client components
+   alike. It sits in the base layer so a Tailwind utility (e.g. [stroke-width:2.5])
+   can still override it per icon; the strokeWidth prop cannot. */
+@layer base {
+  .lucide {
+    stroke-width: 1.5;
+    stroke-linecap: square;
+    stroke-linejoin: miter;
+    flex-shrink: 0;
+  }
 }
 
 h1, h2, h3, h4, h5, h6 {

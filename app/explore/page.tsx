@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase-server";
 import GameCard from "@/app/components/game/GameCard";
 import Link from "next/link";
@@ -10,6 +11,11 @@ import { getTrendingGames, getTrendingLists, getExploreRecommendations } from "@
 
 type ExplorePageProps = {
     searchParams: Promise<{ range?: string }>
+}
+
+export const metadata: Metadata = {
+    title: "Explore",
+    description: "Trending games, top-rated picks, and what players on ScreenPeak are playing right now.",
 }
 
 export default async function Explore({ searchParams }: ExplorePageProps) {

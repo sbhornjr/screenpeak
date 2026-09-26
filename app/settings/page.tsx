@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase-server";
 import { redirect } from "next/navigation";
 import AvatarUploader from "../components/user/AvatarUploader";
@@ -15,6 +16,11 @@ import Eyebrow from "@/app/components/util/Eyebrow";
 
 type SettingsPageProps = {
     searchParams: Promise<{ steam_error?: string }>
+}
+
+export const metadata: Metadata = {
+    title: "Settings",
+    robots: { index: false },
 }
 
 export default async function Settings({ searchParams } : SettingsPageProps) {

@@ -19,7 +19,7 @@ export default function PolicyPage() {
             <div className="mx-auto max-w-4xl px-6 py-12 font-(family-name:--font-body)">
                 <Eyebrow>Legal</Eyebrow>
                 <div
-                    className="mt-4 rounded-md bg-white px-6 py-8 sm:px-12 sm:py-12 shadow-lg"
+                    className="mt-4 rounded-md bg-white px-6 py-8 sm:px-12 sm:py-12"
                     dangerouslySetInnerHTML={{ __html: html }}
                 />
             </div>

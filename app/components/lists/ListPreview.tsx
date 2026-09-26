@@ -8,6 +8,7 @@ import CoverFan from "./CoverFan"
 import { GameCover } from "@/types"
 import { toggleListPinned } from "@/app/list-actions"
 import { parseDbTimestamp } from "@/lib/dates"
+import { Pin } from "lucide-react"
 
 export default function ListPreview({ listId, listName, gameCovers, isPinnable, isLikable, description, lastUpdated, username, listCount, isPinned, likeCount, userHasLiked, activeUserId, fullLength } :
     { listId: number, listName: string, gameCovers: GameCover[] | undefined, isPinnable: boolean, isLikable: boolean, description: string | null, lastUpdated: string, username: string, listCount: number, isPinned?: boolean, likeCount: number, userHasLiked: boolean, activeUserId: string | undefined, fullLength: boolean }) {
@@ -76,20 +77,8 @@ export default function ListPreview({ listId, listName, gameCovers, isPinnable, 
                                     bg-transparent hover:bg-(--color-accent)/10"
                                 title={isPinnedNow ? 'Unpin list' : 'Pin list'}
                             >
-                                <svg
-                                    width="16"
-                                    height="16"
-                                    viewBox="0 0 24 24"
-                                    fill={isPinnedNow ? 'var(--color-accent)' : 'none'}
-                                    stroke={isPinnedNow ? 'var(--color-accent)' : 'var(--color-muted)'}
-                                    strokeWidth="2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    className="transition-all duration-200 group-hover/pin:stroke-(--color-accent)"
-                                >
-                                    <line x1="12" y1="17" x2="12" y2="22"/>
-                                    <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/>
-                                </svg>
+                                <Pin size={16} aria-hidden fill={isPinnedNow ? "currentColor" : "none"}
+                                    className={`transition-colors duration-200 group-hover/pin:text-(--color-accent) ${isPinnedNow ? "text-(--color-accent)" : "text-(--color-muted)"}`} />
                             </button>
                         )}
                     </div>

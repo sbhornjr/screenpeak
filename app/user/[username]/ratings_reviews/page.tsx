@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Rating from "@/app/components/game/ReviewPageRating";
 import Review from "@/app/components/game/ReviewPageReview";
 import Pagination from "@/app/components/util/Pagination";
@@ -8,10 +9,19 @@ import { getProfileSummaryByUsername } from "@/lib/queries/user";
 import { getUserRatingsReviewsPage, getUserRatingsReviewsCounts } from "@/lib/queries/review";
 import { getDeveloperNameMap } from "@/lib/queries/game";
 import Eyebrow from "@/app/components/util/Eyebrow";
+import { ArrowLeft } from "lucide-react"
 
 type RatingsPageProps = {
     params: Promise<{ username: string }>
     searchParams: Promise<{ filter: string, sort: string, order: string, page: number, pageSize: number }>
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ username: string }> }): Promise<Metadata> {
+    const { username } = await params
+    return {
+        title: `${username}'s Ratings & Reviews`,
+        description: `Every game ${username} has rated and reviewed on ScreenPeak.`,
+    }
 }
 
 export default async function RatingsPage({ params, searchParams }: RatingsPageProps) {
@@ -60,8 +70,8 @@ export default async function RatingsPage({ params, searchParams }: RatingsPageP
         <main>
             <div className="w-full max-w-4xl mx-auto px-6 sm:px-8 pt-8 pb-16 flex flex-col gap-2">
                 <Link href={`/user/${username}`} className="inline-flex items-center gap-2 text-(--color-muted)
-                    text-sm font-semibold mb-6 group hover:text-(--color-accent) transition-colors duration-200 font-(family-name:--font-display)">
-                    <span className="group-hover:-translate-x-0.5 transition-transform duration-200 text-lg">←</span>
+                    text-sm font-semibold mb-6 hover:text-(--color-accent) transition-colors duration-200 font-(family-name:--font-display)">
+                    <ArrowLeft size={16} aria-hidden />
                     {username}&apos;s profile
                 </Link>
                 <Eyebrow>All reviews</Eyebrow>

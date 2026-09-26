@@ -12,7 +12,7 @@ export default function Review({ slug, name, cover, released, developer, rating,
     const scoreColor = (score: number) => score >= 8 ? 'var(--color-good)' : score >= 6 ? 'var(--color-mid)' : 'var(--color-bad)'
 
     return (
-        <div className="border-l-2 border-(--color-accent) pl-3 py-1">
+        <div className="py-1">
             <Link href={`/games/${slug}`}
                 className="flex items-center gap-3 px-3 py-2 rounded-[3px]
                     hover:bg-(--color-surface-light)/50 transition-colors duration-200 group w-full">

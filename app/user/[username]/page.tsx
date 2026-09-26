@@ -160,7 +160,7 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
                     <EmptyState
                         dense
                         title="No favorite games yet"
-                        description={isOwnProfile ? "Pin a few games you love — they'll show up here." : "This player hasn't picked any favorites yet."}
+                        description={isOwnProfile ? "Pin a few games you love and they'll show up here." : "This player hasn't picked any favorites yet."}
                     />
                 )}
                 <div className="flex flex-col">

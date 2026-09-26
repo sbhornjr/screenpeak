@@ -1,6 +1,7 @@
 "use client"
 
 import Link from 'next/link';
+import { ChevronLeft, ChevronRight } from "lucide-react"
 
 export default function Pagination({ page, maxPages, params, url }: { page: number, maxPages: number, params: Record<string, string>, url: string }) {
 
@@ -39,8 +40,8 @@ export default function Pagination({ page, maxPages, params, url }: { page: numb
     return (
         <div className="flex flex-row flex-wrap gap-0.5 items-center justify-center">
             {page > 1
-                ? <Link href={hrefFor(page - 1)} aria-label="Previous page" className={arrow}>←</Link>
-                : <span className={arrowOff} aria-hidden="true">←</span>
+                ? <Link href={hrefFor(page - 1)} aria-label="Previous page" className={arrow}><ChevronLeft size={16} aria-hidden /></Link>
+                : <span className={arrowOff} aria-hidden="true"><ChevronLeft size={16} /></span>
             }
             {getPageNumbers(page, maxPages).map((n, i) =>
                 n === null
@@ -58,8 +59,8 @@ export default function Pagination({ page, maxPages, params, url }: { page: numb
                     </Link>
             )}
             {page < maxPages
-                ? <Link href={hrefFor(page + 1)} aria-label="Next page" className={arrow}>→</Link>
-                : <span className={arrowOff} aria-hidden="true">→</span>
+                ? <Link href={hrefFor(page + 1)} aria-label="Next page" className={arrow}><ChevronRight size={16} aria-hidden /></Link>
+                : <span className={arrowOff} aria-hidden="true"><ChevronRight size={16} /></span>
             }
         </div>
     )

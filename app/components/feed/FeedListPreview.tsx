@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import CoverFan from "@/app/components/lists/CoverFan"
+import { Heart } from "lucide-react"
 
 export default function FeedListPreview({ listId, listName, listDescription, listOwnerUsername, listGameCount, listLikeCount, listCoverUrls } :
     { listId: string | null, listName: string | null, listDescription: string | null, listOwnerUsername: string | null, listGameCount: number | null, listLikeCount: number | null, listCoverUrls: string[] | null }) {
@@ -22,7 +23,7 @@ export default function FeedListPreview({ listId, listName, listDescription, lis
                     )}
                 </div>
                 <div className="flex items-center gap-3 text-sm text-(--color-muted) shrink-0">
-                    <span>♥ {listLikeCount ?? 0}</span>
+                    <span className="inline-flex items-center gap-1"><Heart size={13} aria-hidden />{listLikeCount ?? 0}<span className="sr-only">likes</span></span>
                     <span>· {listGameCount ?? 0} games</span>
                 </div>
             </div>

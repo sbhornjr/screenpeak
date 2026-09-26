@@ -1,5 +1,6 @@
 import Link from "next/link"
 import { ReactNode } from "react"
+import { Save } from "lucide-react"
 
 type EmptyStateProps = {
     icon?: ReactNode
@@ -11,18 +12,9 @@ type EmptyStateProps = {
     dense?: boolean
 }
 
-/* Default mark: an empty save-slot glyph — a floppy outline with a hollow label,
-   reading as "slot with nothing written to it yet". SVG rather than emoji (emoji
-   render inconsistently across platforms and read as placeholder art). */
+/* Default mark: an empty save slot, "nothing written here yet". */
 function DefaultIcon({ size }: { size: number }) {
-    return (
-        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true"
-            className="text-(--color-muted)">
-            <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h11l3.5 3.5v11A1.5 1.5 0 0 1 18.5 20h-13A1.5 1.5 0 0 1 4 18.5v-13Z" stroke="currentColor" strokeWidth="1.5" />
-            <path d="M8 4v4h7V4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            <rect x="8" y="12" width="8" height="5" rx="0.75" stroke="currentColor" strokeWidth="1.5" strokeDasharray="1.5 2" />
-        </svg>
-    )
+    return <Save size={size} aria-hidden className="text-(--color-muted)" />
 }
 
 export default function EmptyState({ icon, title, description, actionHref, actionLabel, dense = false }: EmptyStateProps) {

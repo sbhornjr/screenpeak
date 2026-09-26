@@ -1,6 +1,7 @@
 'use client'
 
 import { ReactNode, useEffect, useId, useRef } from "react"
+import { X } from "lucide-react"
 
 type ModalProps = {
     onClose: () => void
@@ -127,9 +128,7 @@ export default function Modal({
                         aria-label="Close"
                         className="mb-2 self-end grid place-items-center size-8 rounded-full text-(--color-muted) border border-(--color-border) bg-(--color-surface-light) hover:text-(--color-text) hover:border-(--color-muted) transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-accent)"
                     >
-                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                            <path d="M1 1L13 13M13 1L1 13" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
-                        </svg>
+                        <X size={16} aria-hidden />
                     </button>
                     {title && (
                         <h2 id={titleId} className={titleClassName}>

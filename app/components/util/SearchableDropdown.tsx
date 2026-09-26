@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { createClient } from '@/lib/supabase-browser'
 import { searchTaxonomyTable, getTaxonomyNameBySlug } from '@/lib/queries/game-search'
+import { ChevronDown, X } from "lucide-react"
 
 type Option = { id: string, name: string, slug: string }
 
@@ -92,10 +93,11 @@ export default function SearchableDropdown({ table, value, onChange, placeholder
                 <button
                     type="button"
                     onClick={e => { e.stopPropagation(); handleClear() }}
-                    className="text-(--color-muted) hover:text-(--color-text) transition-colors ml-2 text-xs shrink-0"
-                >✕</button>
+                    aria-label="Clear"
+                    className="text-(--color-muted) hover:text-(--color-text) transition-colors ml-2 shrink-0"
+                ><X size={14} aria-hidden /></button>
                 ) : (
-                <span className="text-(--color-muted) text-xs ml-2 shrink-0">▾</span>
+                <ChevronDown size={14} aria-hidden className="text-(--color-muted) ml-2" />
                 )}
             </div>
 

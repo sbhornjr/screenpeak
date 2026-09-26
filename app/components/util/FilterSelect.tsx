@@ -1,6 +1,7 @@
 "use client"
 
 import { ChangeEvent } from 'react';
+import { ChevronDown } from "lucide-react"
 
 const selectClass = `
     bg-(--color-surface) text-(--color-text) text-sm
@@ -12,7 +13,7 @@ const selectClass = `
     w-full
 `
 
-const arrowClass = "absolute right-2.5 top-1/2 -translate-y-1/2 text-(--color-muted) text-xs pointer-events-none"
+const arrowClass = "absolute right-2.5 top-1/2 -translate-y-1/2 text-(--color-muted) pointer-events-none"
 
 export default function FilterSelect({ value, onChange, children, width } : {
     value: string, onChange: (e: ChangeEvent<HTMLSelectElement>) => void, children: React.ReactNode, width?: string
@@ -26,7 +27,7 @@ export default function FilterSelect({ value, onChange, children, width } : {
             >
                 {children}
             </select>
-            <span className={arrowClass}>▾</span>
+            <ChevronDown size={14} aria-hidden className={arrowClass} />
         </div>
     )
 }

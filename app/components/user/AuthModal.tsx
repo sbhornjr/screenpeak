@@ -105,7 +105,7 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
             (!error && !!data.user && (data.user.identities?.length ?? 0) === 0)
 
         if (alreadyRegistered) {
-            setError("That email already has an account — sign in instead.")
+            setError("That email already has an account. Sign in instead.")
             setTab("signin")
             return
         }
@@ -203,7 +203,6 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
                             onChange={(e) => setPasswordAgain(e.target.value)}
                             className="w-full bg-(--color-surface) text-(--color-text) placeholder:text-(--color-muted) border border-(--color-border) rounded-[3px] px-2 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-accent) focus-visible:border-(--color-accent)"
                         />
-                        {/* "Terms" is plain text until app/terms/page.tsx exists — link it there once it does. */}
                         <label className="flex items-start gap-2 text-xs text-(--color-muted) mt-3">
                             <input
                                 type="checkbox"
@@ -214,7 +213,8 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
                             <span>
                                 I&apos;m at least 16 years old and agree to the{" "}
                                 <Link href="/policy" target="_blank" className="underline hover:text-(--color-accent) transition-colors duration-200">Privacy Policy</Link>
-                                {" "}and Terms.
+                                {" "}and{" "}
+                                <Link href="/terms" target="_blank" className="underline hover:text-(--color-accent) transition-colors duration-200">Terms</Link>.
                             </span>
                         </label>
                         {error && (

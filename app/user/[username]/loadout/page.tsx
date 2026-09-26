@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase-server";
 import GameCard from "@/app/components/game/GameCard";
 import Link from "next/link";
@@ -6,6 +7,7 @@ import LoadoutActions from "@/app/components/user/LoadoutActions";
 import DistributionChart from "@/app/components/util/DistributionChart";
 import SectionHead from "@/app/components/util/SectionHead";
 import Eyebrow from "@/app/components/util/Eyebrow";
+import { panelClass } from "@/app/components/util/Panel";
 import { getViewer } from "@/lib/queries/user-auth";
 import { getUserIdFromUsername, getAccountSettings, getCurrentLoadoutIdentity } from "@/lib/queries/user";
 import { getDeveloperNameMap } from "@/lib/queries/game";
@@ -20,6 +22,14 @@ type LoadoutPageProps = {
 
 function tierColor(rating: number) {
     return rating >= 8 ? 'var(--color-good)' : rating >= 6 ? 'var(--color-mid)' : 'var(--color-bad)'
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ username: string }> }): Promise<Metadata> {
+    const { username } = await params
+    return {
+        title: `${username}'s Loadout`,
+        description: `${username}'s gamer identity on ScreenPeak: favorite genres, developers, and how they rate.`,
+    }
 }
 
 export default async function LoadoutPage({ params } : LoadoutPageProps) {
@@ -88,7 +98,7 @@ export default async function LoadoutPage({ params } : LoadoutPageProps) {
 
                 {/* Analyst's note beside the rating breakdown — two halves of "who is this player" */}
                 <div className="grid md:grid-cols-[1.4fr_1fr] gap-8 md:gap-12 mb-14 items-start">
-                    <div className="border border-(--color-border) bg-(--color-surface) rounded-md px-7 py-6 shadow-[inset_0_1px_0_rgba(239,232,215,0.05)]">
+                    <div className={`${panelClass} px-7 py-6`}>
                         <Eyebrow className="!text-[10px] !mb-3">The Read-out</Eyebrow>
 
                         {loadoutIdentity ? (
@@ -153,7 +163,7 @@ export default async function LoadoutPage({ params } : LoadoutPageProps) {
                 <SectionHead>Favorite Genres</SectionHead>
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mb-14">
                         {genreFavs.map(g => (
-                            <div key={g.genre_name} className="bg-(--color-surface) border border-(--color-border) rounded-md shadow-[inset_0_1px_0_rgba(239,232,215,0.05)] p-4 flex flex-col gap-2">
+                            <div key={g.genre_name} className={`${panelClass} p-4 flex flex-col gap-2`}>
                                 <h3 className="text-base text-(--color-text) font-(family-name:--font-display)">
                                     {g.genre_name}
                                 </h3>
@@ -178,7 +188,7 @@ export default async function LoadoutPage({ params } : LoadoutPageProps) {
                 <SectionHead>Favorite Developers</SectionHead>
                     <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-14">
                         {developerFavs.map(d => (
-                            <div key={d.developer_name} className="bg-(--color-surface) border border-(--color-border) rounded-md shadow-[inset_0_1px_0_rgba(239,232,215,0.05)] p-4 flex flex-col gap-2">
+                            <div key={d.developer_name} className={`${panelClass} p-4 flex flex-col gap-2`}>
                                 <h3 className="text-base text-(--color-text) font-(family-name:--font-display)">
                                     {d.developer_name}
                                 </h3>

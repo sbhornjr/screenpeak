@@ -7,6 +7,7 @@ import CreateListFromGamePageButton from "./CreateListFromGamePageButton"
 import Modal from "@/app/components/util/Modal"
 import { toggleGameInList } from "@/app/list-actions"
 import { plus1 } from "@/lib/plus1"
+import { Check } from "lucide-react"
 
 export default function AddToListButton({ gameId, lists, listIdsGameIsIn, defaultListPrivacy } :
     { gameId : string, lists : { listId: string, listName: string }[], listIdsGameIsIn: Set<string>, defaultListPrivacy?: boolean }) {
@@ -71,11 +72,7 @@ export default function AddToListButton({ gameId, lists, listIdsGameIsIn, defaul
                                 >
                                     <span>{list.listName}</span>
                                     {alreadyInList && (
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                                        stroke="currentColor" strokeWidth="2.5"
-                                        strokeLinecap="round" strokeLinejoin="round">
-                                            <polyline points="20 6 9 17 4 12"/>
-                                        </svg>
+                                        <Check size={14} aria-hidden className="[stroke-width:2.5]" />
                                     )}
                                 </button>
                             )

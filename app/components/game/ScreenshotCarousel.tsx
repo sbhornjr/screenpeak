@@ -2,6 +2,7 @@
 
 import Image from 'next/image'
 import { useState } from 'react'
+import { ChevronLeft, ChevronRight } from "lucide-react"
 
 const arrowBtn = `absolute top-1/2 -translate-y-1/2 grid place-items-center size-9 rounded-full
     bg-black/55 text-white backdrop-blur-[2px] border border-white/20
@@ -16,7 +17,7 @@ export default function ScreenshotCarousel({ screenshots }: { screenshots: strin
 
     return (
         <div>
-            <div className="relative aspect-video w-full overflow-hidden rounded-[6px] border border-(--color-border) bg-(--color-surface) shadow-[0_10px_30px_-12px_rgba(0,0,0,0.7)]">
+            <div className="relative aspect-video w-full overflow-hidden rounded-[6px] border border-(--color-border) bg-(--color-surface)">
                 <a href={screenshots[index]} target="_blank" rel="noopener noreferrer" aria-label="Open screenshot full size" className="absolute inset-0 block">
                     <Image
                         key={screenshots[index]}
@@ -31,14 +32,10 @@ export default function ScreenshotCarousel({ screenshots }: { screenshots: strin
                 {screenshots.length > 1 && (
                     <>
                         <button type="button" onClick={() => go(index - 1)} aria-label="Previous screenshot" className={`left-2 ${arrowBtn}`}>
-                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                                <path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
+                            <ChevronLeft size={18} aria-hidden />
                         </button>
                         <button type="button" onClick={() => go(index + 1)} aria-label="Next screenshot" className={`right-2 ${arrowBtn}`}>
-                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                                <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
+                            <ChevronRight size={18} aria-hidden />
                         </button>
                     </>
                 )}

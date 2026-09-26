@@ -34,12 +34,12 @@ export default function LoadoutActions({ identity }: { identity: string }) {
                     error: body?.error,
                 })
                 if (res.status === 401) setError("You need to be logged in.")
-                else if (res.status === 429) setError("Just generated one — wait a minute and try again.")
+                else if (res.status === 429) setError("Just generated one. Wait a minute and try again.")
                 else if (res.status === 400) setError("Rate at least 5 games first.")
                 else setError("Couldn't generate right now. Try again shortly.")
             }
         } catch {
-            setError("Network error — try again shortly.")
+            setError("Network error. Try again shortly.")
         } finally {
             setGenerating(false)
         }
@@ -98,7 +98,7 @@ export default function LoadoutActions({ identity }: { identity: string }) {
                 <Modal onClose={() => setConfirmingClear(false)} title="Clear your Read-out?" panelClassName="w-full max-w-md p-8">
                     <p className="text-(--color-muted)">
                         This removes your generated Read-out and any saved copy of it on your profile.
-                        You can generate a new one anytime — this isn&apos;t permanent, just gone until
+                        You can generate a new one anytime. This isn&apos;t permanent, just gone until
                         you choose to make another.
                     </p>
                     <div className="mt-4 flex justify-end gap-3">

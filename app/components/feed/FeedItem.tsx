@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { Star, MessageSquare, List, Heart, Bookmark } from "lucide-react"
 import FeedGameCard from "@/app/components/feed/FeedGameCard"
 import FeedReview from "@/app/components/feed/FeedReview"
 import FeedListPreview from "@/app/components/feed/FeedListPreview"
@@ -20,19 +21,12 @@ export function timeAgo(date: string): string {
 
 // A glyph per activity type so the feed is scannable without reading every line.
 function ActivityIcon({ type }: { type: string }) {
-    const common = { width: 13, height: 13, viewBox: "0 0 16 16", fill: "none", "aria-hidden": true, className: "text-(--color-muted) shrink-0" } as const
-    switch (type) {
-        case "rating":
-            return <svg {...common}><path d="M8 1.5l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.3 4.2 13.3l.7-4.3-3.1-3 4.3-.6z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" /></svg>
-        case "review":
-            return <svg {...common}><path d="M2 3.5h12v7H6l-3 2.5v-2.5H2z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" /></svg>
-        case "list_created":
-            return <svg {...common}><path d="M5 4h9M5 8h9M5 12h9M2 4h.01M2 8h.01M2 12h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
-        case "list_liked":
-            return <svg {...common}><path d="M8 13.5S2 10 2 6.2A3.2 3.2 0 018 4.3a3.2 3.2 0 016 1.9C14 10 8 13.5 8 13.5z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" /></svg>
-        default: // library_add
-            return <svg {...common}><path d="M4 2h8v12l-4-2.2L4 14z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" /></svg>
-    }
+    const Icon = type === "rating" ? Star
+        : type === "review" ? MessageSquare
+        : type === "list_created" ? List
+        : type === "list_liked" ? Heart
+        : Bookmark // library_add
+    return <Icon size={13} aria-hidden className="text-(--color-muted)" />
 }
 
 export default function FeedItem({ item }: { item: FeedItemType }) {

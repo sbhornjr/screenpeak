@@ -1,5 +1,7 @@
 'use client'
 
+import { Pencil } from "lucide-react"
+
 export default function EditTriggerButton({ onClick, label = "Edit" }: { onClick: () => void, label?: string }) {
     return (
         <button
@@ -11,9 +13,7 @@ export default function EditTriggerButton({ onClick, label = "Edit" }: { onClick
                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-accent) rounded-[3px]
                 transition-colors duration-200"
         >
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <path d="M11.5 2.5l2 2L6 12l-3 1 1-3 7.5-7.5z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
-            </svg>
+            <Pencil size={12} aria-hidden />
             {label}
         </button>
     )

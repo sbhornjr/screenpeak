@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation"
 import Modal from "@/app/components/util/Modal"
 import { addOrUpdateLibraryEntry, removeLibraryEntry, fetchLibraryEntry } from "@/app/library-actions"
 import { plus1 } from "@/lib/plus1"
+import { Check, Layers, Play, X } from "lucide-react"
 
 export default function LibraryButton({ game_id }: { game_id: number }) {
     const { user } = useUser()
@@ -103,11 +104,11 @@ export default function LibraryButton({ game_id }: { game_id: number }) {
                 <Modal onClose={() => setIsLibraryModalOpen(false)} title={libraryEntry ? "Manage Game" : "Add to Library"}>
                         <div className="grid grid-cols-2 gap-4 items-center">
                         {[
-                        { status: 'backlog', icon: '📚', label: 'Backlog', description: "I'll get to it..." },
-                        { status: 'playing', icon: '▶', label: 'Playing', description: 'Currently playing it' },
-                        { status: 'completed', icon: '✓', label: 'Completed', description: 'Done and satisfied' },
-                        { status: 'abandoned', icon: '✕', label: 'Abandoned', description: "Couldn't get into it" },
-                        ].map(({ status, icon, label, description }) => (
+                        { status: 'backlog', icon: Layers, label: 'Backlog', description: "I'll get to it..." },
+                        { status: 'playing', icon: Play, label: 'Playing', description: 'Currently playing it' },
+                        { status: 'completed', icon: Check, label: 'Completed', description: 'Done and satisfied' },
+                        { status: 'abandoned', icon: X, label: 'Abandoned', description: "Couldn't get into it" },
+                        ].map(({ status, icon: Icon, label, description }) => (
                         <button
                             key={status}
                             onClick={() => setStatus(status)}
@@ -115,7 +116,7 @@ export default function LibraryButton({ game_id }: { game_id: number }) {
                             border border-(--color-border) hover:border-(--color-accent) hover:bg-(--color-accent)/5
                             transition-all duration-200 group text-left ${status === currentStatus && "border-(--color-accent) bg-(--color-accent)/5"}`}
                         >
-                            <span className="text-lg w-6 text-center shrink-0">{icon}</span>
+                            <Icon size={20} aria-hidden className={`w-6 ${status === currentStatus ? "text-(--color-accent)" : "text-(--color-muted)"} group-hover:text-(--color-accent) transition-colors duration-200`} />
                             <div className="flex flex-col">
                             <span className="text-sm font-semibold text-(--color-text)
                                 group-hover:text-(--color-accent) transition-colors duration-200
@@ -155,10 +156,7 @@ export default function LibraryButton({ game_id }: { game_id: number }) {
                                         : 'bg-transparent border-(--color-border) hover:border-(--color-accent)'}`}
                                     >
                                         {is100 && (
-                                            <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                                                <path d="M1 4L3.5 6.5L9 1" stroke="var(--color-bg)" strokeWidth="2"
-                                                strokeLinecap="round" strokeLinejoin="round"/>
-                                            </svg>
+                                            <Check size={12} aria-hidden className="text-(--color-bg) [stroke-width:2.5]" />
                                         )}
                                     </div>
                                     <span className="text-sm font-semibold text-(--color-text)">100% Achievements Completed</span>

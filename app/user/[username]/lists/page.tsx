@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase-server";
 import { notFound } from "next/navigation";
 import ListPreview from "@/app/components/lists/ListPreview";
@@ -12,6 +13,14 @@ import Eyebrow from "@/app/components/util/Eyebrow";
 type ListsPageProps = {
     params: Promise<{ username: string, tab?: string }>
     searchParams: Promise<{ tab?: string }>
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ username: string }> }): Promise<Metadata> {
+    const { username } = await params
+    return {
+        title: `${username}'s Lists`,
+        description: `Game lists curated by ${username} on ScreenPeak.`,
+    }
 }
 
 export default async function ListsPage({ params, searchParams }: ListsPageProps) {

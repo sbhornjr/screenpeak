@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase-server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { createLoggingFetch } from "@/lib/supabase-logging";
@@ -10,6 +11,11 @@ import { getGamesFromSteamIds, getDeveloperNameMap } from "@/lib/queries/game";
 import { getLibraryEntries } from "@/lib/queries/library";
 import { SteamLinkEntry } from "@/types";
 import SteamLinkGamesSection from "../components/settings/SteamLinkGamesSection";
+
+export const metadata: Metadata = {
+    title: "Import from Steam",
+    robots: { index: false },
+}
 
 export default async function SteamLinkPage() {
     const supabase = await createClient()

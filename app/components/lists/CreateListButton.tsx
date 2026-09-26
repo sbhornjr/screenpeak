@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import Modal from "@/app/components/util/Modal"
 import { createOrUpdateList } from "@/app/list-actions"
 import { plus1 } from "@/lib/plus1"
+import { Check } from "lucide-react"
 
 export default function CreateListButton({ type, current, defaultListPrivacy } :
     { type?: "create" | "update" | undefined, current?: { listId: string, name: string, description: string, isPublic: boolean, isPinned: boolean } | undefined, defaultListPrivacy?: boolean }) {
@@ -86,10 +87,7 @@ export default function CreateListButton({ type, current, defaultListPrivacy } :
                                         : 'bg-transparent border-(--color-border) hover:border-(--color-accent)'}`}
                                     >
                                         {value && (
-                                        <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                                            <path d="M1 4L3.5 6.5L9 1" stroke="var(--color-bg)" strokeWidth="2" 
-                                            strokeLinecap="round" strokeLinejoin="round"/>
-                                        </svg>
+                                        <Check size={12} aria-hidden className="text-(--color-bg) [stroke-width:2.5]" />
                                         )}
                                     </div>
                                     <span className="text-sm font-semibold text-(--color-text)">{label}</span>

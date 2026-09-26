@@ -2,6 +2,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { Game, AdvancedStats } from '@/types'
 import Seal from '@/app/components/game/Seal'
+import { Check } from "lucide-react"
 
 // Library status is neutral chrome, not a verdict — it never borrows the
 // blue/amber/red rating hues. Brass marks the one "active" state; the rest
@@ -106,7 +107,7 @@ export default function GameCard({ game, developer, ngplusRating, userRating, ad
                                         ? 'bg-(--color-accent)/15 border-(--color-accent)/50 text-(--color-accent)'
                                         : 'invisible border-transparent'}`}
                             >
-                                ✓ 100%
+                                <Check size={10} aria-hidden className="[stroke-width:2.5]" />100%
                             </span>
                         </div>
                     )}

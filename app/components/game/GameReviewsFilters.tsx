@@ -2,6 +2,7 @@
 
 import FilterSelect from "../util/FilterSelect"
 import { useRouter } from "next/navigation"
+import { ArrowDownWideNarrow, ArrowUpNarrowWide } from "lucide-react"
 
 export default function GameReviewsFilters({ gameSlug, pageSize, sort, order, page } :
     { gameSlug: string, pageSize: string, sort: "date" | "rating", order: "asc" | "desc", page: string }) {
@@ -55,7 +56,7 @@ export default function GameReviewsFilters({ gameSlug, pageSize, sort, order, pa
                     transition-all duration-200"
                 aria-label={order === 'desc' ? 'Sort descending — tap for ascending' : 'Sort ascending — tap for descending'}
                 >
-                {order === 'desc' ? '↓' : '↑'}
+                {order === 'desc' ? <ArrowDownWideNarrow size={18} aria-hidden /> : <ArrowUpNarrowWide size={18} aria-hidden />}
             </button>
         </div>
     )

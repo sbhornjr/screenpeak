@@ -4,6 +4,7 @@ import './globals.css'
 import NavBar from "@/app/components/util/NavBar"
 import Plus1Layer from "@/app/components/util/Plus1Layer"
 import UserProvider from "@/app/components/user/UserContext"
+import Footer from "@/app/components/util/Footer"
 
 const chakraPetch = Chakra_Petch({
     subsets: ['latin'],
@@ -48,6 +49,7 @@ export default function RootLayout({
                     <div className="min-h-screen bg-(--color-bg) text-(--color-text)">
                         {children}
                     </div>
+                    <Footer />
                 </UserProvider>
             </body>
         </html>

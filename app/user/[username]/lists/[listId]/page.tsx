@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase-server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -13,9 +14,22 @@ import { getProfileSummaryByUsername } from "@/lib/queries/user";
 import { getListById, getListGames, getListLikes } from "@/lib/queries/list";
 import { getAvgRatingsForGames, getUserRatingsForGames } from "@/lib/queries/review";
 import { getDeveloperNameMap } from "@/lib/queries/game";
+import { ArrowLeft } from "lucide-react"
 
 type ListPageProps = {
     params: Promise<{ username: string, listId: string }>
+}
+
+// Link previews are fetched logged out, so a private list's name never
+// reaches the title or OG tags, even for its owner.
+export async function generateMetadata({ params }: ListPageProps): Promise<Metadata> {
+    const { username, listId } = await params
+    const list = await getListById(listId)
+    if (!list?.is_public) return { title: "List", robots: { index: false } }
+    return {
+        title: `${list.name} by ${username}`,
+        description: list.description || `A game list by ${username} on ScreenPeak.`,
+    }
 }
 
 export default async function ListPage({ params }: ListPageProps) {
@@ -61,8 +75,8 @@ export default async function ListPage({ params }: ListPageProps) {
         <main>
             <div className="w-full max-w-6xl mx-auto px-6 sm:px-8 pt-8 pb-16">
                 <Link href={`/user/${username}/lists`} className="inline-flex items-center gap-2 text-(--color-muted)
-                    text-sm font-semibold mb-8 group hover:text-(--color-accent) transition-colors duration-200 font-(family-name:--font-display)">
-                    <span className="group-hover:-translate-x-0.5 transition-transform duration-200 text-lg">←</span>
+                    text-sm font-semibold mb-8 hover:text-(--color-accent) transition-colors duration-200 font-(family-name:--font-display)">
+                    <ArrowLeft size={16} aria-hidden />
                     {username}&apos;s lists
                 </Link>
 

@@ -28,7 +28,7 @@ export default function StickyGameActions({ gameName, children }: { gameName: st
             <div ref={sentinel} aria-hidden="true" className="h-px w-full" />
 
             <div
-                className={`fixed inset-x-0 top-0 z-40 border-b-2 border-(--rule-strong) bg-(--color-bg)/95 backdrop-blur
+                className={`fixed inset-x-0 top-0 z-40 border-b-2 border-(--color-border-bright) bg-(--color-bg)/95 backdrop-blur
                     transition-transform duration-200 motion-reduce:transition-none
                     ${stuck ? 'translate-y-0' : '-translate-y-full pointer-events-none'}`}
             >

@@ -5,6 +5,7 @@ import { useState } from "react"
 import AuthModal from "@/app/components/user/AuthModal"
 import { useUser } from "@/app/components/user/UserContext"
 import Wordmark from "@/app/components/util/Wordmark"
+import { ChevronDown } from "lucide-react"
 
 export default function NavBar() {
     const [isModalOpen, setIsModalOpen] = useState(false)
@@ -52,7 +53,7 @@ export default function NavBar() {
                         className="flex items-center gap-1.5 min-h-11 mx-1 sm:mx-4 text-xl sm:text-2xl font-bold font-(family-name:--font-display) tracking-tight hover:text-(--color-accent) transition-colors duration-200 cursor-pointer"
                     >
                         <span className="max-w-[9rem] sm:max-w-[16rem] truncate">{user.username}</span>
-                        <span className={`text-base pointer-events-none transition-transform duration-200 ${menuOpen ? "rotate-180" : ""}`} aria-hidden="true">▾</span>
+                        <ChevronDown size={18} aria-hidden className={`pointer-events-none transition-transform duration-200 ${menuOpen ? "rotate-180" : ""}`} />
                     </button>
                     {menuOpen && (
                         <>

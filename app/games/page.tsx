@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase-server";
 import GameCard from "@/app/components/game/GameCard";
 import GameFilters from "../components/game/GameFilters";
@@ -9,6 +10,11 @@ import { queryGames, getAllGenres, getAllPlatforms, getDistinctEsrbRatings, getD
 
 type SearchPageProps = {
     searchParams: Promise<{ q?: string, genre?: string, platform?: string, developer?: string, publisher?: string, esrb?: string, page?: number, pageSize?: string, sort?: string, order?: string }>
+}
+
+export const metadata: Metadata = {
+    title: "Games",
+    description: "Search and filter every game on ScreenPeak by genre, platform, and score.",
 }
 
 export default async function SearchPage({ searchParams } : SearchPageProps) {

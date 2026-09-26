@@ -19,6 +19,7 @@
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.2",
     "drizzle-orm": "^0.45.3",
+    "lucide-react": "^1.48.0",
     "next": "^16.2.12",
     "openid": "^2.0.17",
     "postgres": "^3.4.9",

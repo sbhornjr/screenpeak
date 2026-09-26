@@ -8,7 +8,7 @@ export default function NotFound() {
                 Game Over
             </h1>
             <p className="mt-3 text-(--color-muted)">
-                That page, game, or profile doesn&apos;t exist — or was made private.
+                That page, game, or profile doesn&apos;t exist, or it was made private.
             </p>
             <Link href="/" className="mt-6 inline-block rounded-[3px] bg-(--color-accent) px-4 py-2 text-sm font-semibold text-(--color-bg)">
                 Back to the feed

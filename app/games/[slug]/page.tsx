@@ -22,6 +22,7 @@ import { getGameRatingsStats, getUserRatingReviewForGame, getGameReviewsForPage 
 import { getUserLists, getGameListMembership } from "@/lib/queries/list";
 import { getLibraryEntry } from "@/lib/queries/library";
 import { Metadata } from "next";
+import { ChevronLeft } from "lucide-react"
 
 type GamePageProps = {
     params: Promise<{ slug: string }>
@@ -60,10 +61,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     return {
         title: game.name,
         description: `Ratings and reviews for ${game.name} on ScreenPeak.`,
-        openGraph: {
-            title: game.name,
-            images: game.cover_image_url ? [game.cover_image_url] : [],
-        },
+        // The share image comes from ./opengraph-image.tsx
+        openGraph: { title: game.name },
     }
 }
 
@@ -141,12 +140,12 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
         : null
 
     return (
-        <main style={{ background: "radial-gradient(120% 55% at 50% -8%, rgba(71,198,221,0.07), transparent 60%), var(--color-bg)" }}>
+        <main>
             <div className="w-full max-w-5xl mx-auto px-6 md:px-10 pt-6 pb-24">
 
                 <div className="flex items-center justify-between mb-8 font-mono text-[0.6875rem] uppercase tracking-[0.2em] text-(--color-muted)">
-                    <Link href="/games" className="inline-flex items-center gap-2 hover:text-(--color-accent) transition-colors duration-200 group">
-                        <span className="group-hover:-translate-x-0.5 transition-transform duration-200">&#9666;</span>
+                    <Link href="/games" className="inline-flex items-center gap-2 hover:text-(--color-accent) transition-colors duration-200">
+                        <ChevronLeft size={12} aria-hidden />
                         Games
                     </Link>
                     <span className="inline-flex items-center gap-2"><span className="w-[2px] h-[0.8rem] bg-(--color-accent)" aria-hidden="true" /><span className="text-(--color-text)">ScreenPeak</span></span>
@@ -169,7 +168,7 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
 
                     {/* Left rail — cover + your file */}
                     <div className="flex flex-col gap-5 order-2 md:order-1">
-                        <div className="rounded-md overflow-hidden border border-(--color-border) shadow-[0_10px_30px_-12px_rgba(0,0,0,0.7)]">
+                        <div className="rounded-md overflow-hidden border border-(--color-border)">
                             {/* cover_image_url is nullable in the schema, but every game reaching this
                                 page came from a RAWG-backed import that always populates it. */}
                             <Image src={game.cover_image_url!} alt={game.name} width={256} height={340} className="w-full h-auto object-cover" priority />

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase-server";
 import GameCard from "@/app/components/game/GameCard";
 import { redirect } from "next/navigation"
@@ -14,6 +15,14 @@ type LibraryPageProps = {
     params: Promise<{ username: string }>
     searchParams: Promise<{ q?: string,genre?: string, platform?: string, developer?: string,
         publisher?: string, esrb?: string, sort?: string, order?: string, status?: string, is100?: string }>
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ username: string }> }): Promise<Metadata> {
+    const { username } = await params
+    return {
+        title: `${username}'s Library`,
+        description: `Every game in ${username}'s library on ScreenPeak: playing, completed, backlog, and abandoned.`,
+    }
 }
 
 export default async function LibraryPage({ params, searchParams } : LibraryPageProps) {

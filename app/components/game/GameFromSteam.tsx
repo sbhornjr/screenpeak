@@ -4,6 +4,7 @@ import { useState } from "react"
 import { SteamLinkEntry } from "@/types"
 import Image from "next/image"
 import FilterSelect from "../util/FilterSelect"
+import { Check } from "lucide-react"
 
 export default function GameFromSteam({ appid, linkEntry, onUpdate } : { appid: number, linkEntry: SteamLinkEntry, onUpdate: (appid: number, linkEntry: SteamLinkEntry) => void }) {
     const [status, setStatus] = useState(linkEntry.status)
@@ -176,10 +177,7 @@ export default function GameFromSteam({ appid, linkEntry, onUpdate } : { appid: 
                             : 'bg-transparent border-(--color-border) hover:border-(--color-accent)'}`}
                         >
                             {completedAllAchievements && (
-                                <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                                    <path d="M1 4L3.5 6.5L9 1" stroke="var(--color-bg)" strokeWidth="2"
-                                    strokeLinecap="round" strokeLinejoin="round"/>
-                                </svg>
+                                <Check size={12} aria-hidden className="text-(--color-bg) [stroke-width:2.5]" />
                             )}
                         </div>
                     </button>

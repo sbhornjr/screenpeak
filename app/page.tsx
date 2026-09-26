@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase-server";
 import FeedList from "@/app/components/feed/FeedList";
+import FeedReview from "@/app/components/feed/FeedReview";
 import GameCard from "@/app/components/game/GameCard";
 import Seal from "@/app/components/game/Seal";
 import Avatar from "@/app/components/user/Avatar";
@@ -12,9 +13,15 @@ import Link from "next/link";
 import { getViewer } from "@/lib/queries/user-auth";
 import { getFeed } from "@/lib/queries/feed";
 import { FEED_PAGE_SIZE } from "@/lib/queries/feed-constants";
-import { queryGames } from "@/lib/queries/game";
+import { getHeroGame } from "@/lib/queries/game";
 import { getTrendingGames } from "@/lib/queries/explore";
 import { getRecentReviewsGlobal } from "@/lib/queries/review";
+import { tierColor } from "@/lib/rating-tier";
+import { parseDbTimestamp } from "@/lib/dates";
+import { getFeaturedLoadout } from "@/lib/queries/user";
+
+// Whose real, saved Loadout the logged-out landing page shows as its sample.
+const FEATURED_LOADOUT_USERNAME = "hornflakes"
 
 export default async function Home() {
     const supabase = await createClient()
@@ -22,27 +29,23 @@ export default async function Home() {
     const viewer = await getViewer(supabase)
 
     if (!viewer) {
-        const [candidates, trendingGames, recentReviews] = await Promise.all([
-            queryGames({ sort: 'metacritic_score', order: 'desc', limit: 40, userId: null }),
+        const [heroGame, trendingGames, recentReviews, featuredLoadout] = await Promise.all([
+            getHeroGame(),
             getTrendingGames(null, 30),
             getRecentReviewsGlobal(3),
+            getFeaturedLoadout(FEATURED_LOADOUT_USERNAME),
         ])
-
-        const withBothScores = candidates.filter(g => g.metacritic_score && g.avg_ngplus_rating)
-        const heroGame = [...withBothScores].sort((a, b) =>
-            Math.abs(b.metacritic_score - b.avg_ngplus_rating * 10) - Math.abs(a.metacritic_score - a.avg_ngplus_rating * 10)
-        )[0]
 
         return (
             <main>
                 {/* Hero — the tri-source rating tension, made concrete with a real game */}
-                <section className="w-full max-w-6xl mx-auto px-6 pt-16 pb-20 grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+                <section className={`w-full max-w-6xl mx-auto px-6 pt-16 pb-20 grid grid-cols-1 gap-12 items-center ${heroGame ? "md:grid-cols-2" : ""}`}>
                     <div>
                         <Eyebrow className="!mb-4">{heroGame ? heroGame.name : 'Every game, three scores'}</Eyebrow>
                         {heroGame ? (
                             <h1 className="text-4xl sm:text-5xl md:text-6xl font-(family-name:--font-display) text-(--color-text) leading-[1.1] mb-6">
-                                Metacritic said <span className="text-(--color-good)">{heroGame.metacritic_score}</span>.
-                                {' '}ScreenPeak said <span className="text-(--color-mid)">{heroGame.avg_ngplus_rating}</span>.
+                                Metacritic said <span style={{ color: tierColor(heroGame.metacritic_score, 100) }}>{heroGame.metacritic_score}</span>.
+                                {' '}ScreenPeak said <span style={{ color: tierColor(heroGame.avg_ngplus_rating) }}>{heroGame.avg_ngplus_rating}</span>.
                             </h1>
                         ) : (
                             <h1 className="text-4xl sm:text-5xl md:text-6xl font-(family-name:--font-display) text-(--color-text) leading-[1.1] mb-6">
@@ -57,13 +60,13 @@ export default async function Home() {
                                 <StatCompare
                                     critic={heroGame.metacritic_score}
                                     community={heroGame.avg_ngplus_rating}
-                                    communityCount={0}
+                                    communityCount={heroGame.rating_count}
                                     you={null}
                                 />
                             </div>
                         )}
                         <p className="text-(--color-muted) mb-8 max-w-md leading-relaxed">
-                            ScreenPeak stamps every game you log with three scores — the critics&apos; verdict, the community&apos;s, and yours. Track your library, rate what you&apos;ve played, and see where you land.
+                            ScreenPeak stamps every game you log with three scores: the critics&apos; verdict, the community&apos;s, and yours. Track your library, rate what you&apos;ve played, and see where you land.
                         </p>
                         <LandingCTA primaryLabel="Start Your Library" />
                     </div>
@@ -92,35 +95,33 @@ export default async function Home() {
                     </h2>
 
                     {recentReviews.length > 0 && (
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-14">
+                        <ol className="max-w-6xl mb-14 border-y border-(--color-border) divide-y divide-(--color-border)">
                             {recentReviews.map(r => (
-                                <div key={`${r.user_id}-${r.games.slug}`} className="bg-(--color-surface) border border-(--color-border)
-                                    rounded-[3px] p-4 flex flex-col gap-3">
-                                    <div className="flex items-center gap-2">
+                                <li key={`${r.user_id}-${r.games.slug}`} className="py-4">
+                                    <div className="flex items-center gap-2 px-3 mb-1">
                                         <Avatar src={r.users.avatar_url} alt={r.users.username} size="sm" bordered />
-                                        <div className="min-w-0 flex-1">
+                                        <p className="text-sm text-(--color-muted) flex-1 min-w-0 truncate">
                                             <Link href={`/user/${r.users.username}`}
-                                                className="text-sm font-semibold text-(--color-text) hover:text-(--color-accent) transition-colors duration-200 block truncate">
+                                                className="text-(--color-text) font-semibold hover:text-(--color-accent) transition-colors duration-200">
                                                 {r.users.username}
                                             </Link>
-                                            <Link href={`/games/${r.games.slug}`}
-                                                className="text-xs text-(--color-muted) hover:text-(--color-accent) transition-colors duration-200 truncate block">
-                                                {r.games.name}
-                                            </Link>
-                                        </div>
-                                        <span
-                                            className="text-sm font-mono shrink-0"
-                                            style={{ color: r.rating >= 8 ? 'var(--color-good)' : r.rating >= 6 ? 'var(--color-mid)' : 'var(--color-bad)' }}
-                                        >
-                                            {r.rating}/10
-                                        </span>
+                                            {' '}reviewed {r.games.name}
+                                        </p>
+                                        <time dateTime={parseDbTimestamp(r.created_at).toISOString()}
+                                            className="shrink-0 text-xs text-(--color-muted) font-mono">
+                                            {parseDbTimestamp(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                        </time>
                                     </div>
-                                    <p className="text-sm text-(--color-muted) line-clamp-4 leading-relaxed">
-                                        {r.review}
-                                    </p>
-                                </div>
+                                    <FeedReview
+                                        gameSlug={r.games.slug}
+                                        gameName={r.games.name}
+                                        gameCoverImageUrl={r.games.cover_image_url}
+                                        rating={r.rating}
+                                        review={r.review}
+                                    />
+                                </li>
                             ))}
-                        </div>
+                        </ol>
                     )}
 
                     {trendingGames.length > 0 && (
@@ -144,14 +145,24 @@ export default async function Home() {
                     <h2 className="text-3xl font-(family-name:--font-display) text-(--color-text) mb-8">
                         Rate five games. We&apos;ll tell you who you are.
                     </h2>
-                    <div className="text-left max-w-xl mx-auto mb-10">
-                        <div className="border border-(--color-border) bg-(--color-surface) rounded-[3px] px-7 py-6 shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
-                            <Eyebrow className="!text-[10px] !mb-3">Your read-out, previewed</Eyebrow>
-                            <p className="text-lg leading-relaxed text-(--color-text) font-(family-name:--font-body) italic">
-                                &ldquo;You&apos;ve completed 41 games and rated 28 of them — averaging an 8.1, which says you don&apos;t waste time finishing things you don&apos;t like. RPGs dominate your library, but your highest-rated games are all tight, three-hour puzzle boxes.&rdquo;
-                            </p>
-                        </div>
-                    </div>
+                    {featuredLoadout && (
+                        <figure className="text-left max-w-xl mx-auto mb-10 border border-(--color-border) bg-(--color-surface) rounded-[3px] px-7 py-6">
+                            <Eyebrow className="!text-[10px] !mb-3">A real read-out</Eyebrow>
+                            <blockquote className="text-lg leading-relaxed text-(--color-text) font-(family-name:--font-body) italic">
+                                &ldquo;{featuredLoadout.loadout_identity}&rdquo;
+                            </blockquote>
+                            <figcaption className="mt-4 flex items-center gap-2 text-sm text-(--color-muted)">
+                                <Avatar src={featuredLoadout.avatar_url} alt={featuredLoadout.username} size="sm" bordered />
+                                <span>
+                                    <Link href={`/user/${featuredLoadout.username}/loadout`}
+                                        className="font-semibold text-(--color-text) hover:text-(--color-accent) transition-colors duration-200">
+                                        {featuredLoadout.username}
+                                    </Link>
+                                    &apos;s Loadout
+                                </span>
+                            </figcaption>
+                        </figure>
+                    )}
                     <LandingCTA primaryLabel="Get Your Loadout" className="justify-center" />
                 </section>
             </main>

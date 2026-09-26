@@ -200,6 +200,24 @@ export async function unfollowUser(followerId: string, followingId: string) {
     }
 }
 
+// The landing page's sample Loadout. `db` bypasses RLS, so the loadout_public
+// check lives here: a private or never-generated Loadout returns null and the
+// section hides itself.
+export async function getFeaturedLoadout(username: string) {
+    try {
+        const rows = await db
+            .select({ username: users.username, avatar_url: users.avatarUrl, loadout_identity: users.loadoutIdentity })
+            .from(users)
+            .where(and(eq(users.username, username), eq(users.loadoutPublic, true)))
+            .limit(1)
+
+        const row = rows[0]
+        return row?.loadout_identity ? { ...row, loadout_identity: row.loadout_identity } : null
+    } catch {
+        return null
+    }
+}
+
 export async function getCurrentLoadoutIdentity(userId: string) {
     try {
         const rows = await db

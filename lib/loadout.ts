@@ -58,7 +58,7 @@ async function requestLoadoutIdentity(data: LoadoutData): Promise<string> {
         `${d.developer_name} (${d.weighted_rating} avg, ${d.rated_count} rated)`
     ).join(', ')
 
-    const prompt = `You are writing a short, punchy "gamer identity" paragraph for a user's gaming profile page called a Loadout. Based on their gaming data, write 2-3 sentences that capture who they are as a gamer. Be specific, use their actual data, and make it feel personal and a little fun — like a character description. Don't be generic. Don't use phrases like "based on your data" or "according to your stats." Just describe them directly as a gamer. Write in second person — use "you" and "your", not "they" or "their". Address the user directly.
+    const prompt = `You are writing a short, punchy "gamer identity" paragraph for a user's gaming profile page called a Loadout. Based on their gaming data, write 2-3 sentences that capture who they are as a gamer. Be specific, use their actual data, and make it feel personal and a little fun, like a character description. Don't be generic. Don't use phrases like "based on your data" or "according to your stats." Just describe them directly as a gamer. Write in second person. Use "you" and "your", not "they" or "their". Address the user directly. Never use em dashes or en dashes; use commas, colons, or separate sentences instead.
 
 Here is their data:
 - Username: ${data.username}

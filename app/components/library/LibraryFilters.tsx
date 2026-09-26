@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import FilterSelect from "@/app/components/util/FilterSelect"
 import SearchInput from '../util/SearchInput';
 import SearchableDropdown from '../util/SearchableDropdown';
+import { ArrowDownWideNarrow, ArrowUpNarrowWide } from "lucide-react"
 
 export default function LibraryFilters({ current, genres, platforms, developers, publishers, esrb_ratings, username }:
     { current: {query: string, genre: string, platform: string, developer: string, publisher: string, esrb: string, sort: string, order: string, status: string, is100: string},
@@ -128,7 +129,7 @@ export default function LibraryFilters({ current, genres, platforms, developers,
                         transition-all duration-200"
                     aria-label={selectedOrder === 'desc' ? 'Sort descending — tap for ascending' : 'Sort ascending — tap for descending'}
                     >
-                    {selectedOrder === 'desc' ? '↓' : '↑'}
+                    {selectedOrder === 'desc' ? <ArrowDownWideNarrow size={18} aria-hidden /> : <ArrowUpNarrowWide size={18} aria-hidden />}
                 </button>
                 <div className="flex-1 min-w-[10rem]">
                     <SearchInput searchQuery={searchQuery} onChange={setSearchQuery} onSubmit={handleSubmit} />
