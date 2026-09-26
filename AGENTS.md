@@ -15,21 +15,42 @@ This version has breaking changes — APIs, conventions, and file structure may 
 <!-- END:nextjs-agent-rules -->
 
 
+## Monorepo layout
+
+npm workspaces (`"workspaces": ["apps/*", "packages/*"]` in the root `package.json`):
+
+- `apps/web/` — the Next.js site (`@screenpeak/web`). Every tool config
+  (`next.config.ts`, `tsconfig.json`, ESLint, PostCSS, Vitest, Drizzle, Sentry)
+  and `.env.local` live here, next to its `package.json`.
+- `apps/mobile/` — the Expo app (`@screenpeak/mobile`), per `build-plan.md` Phase 0.
+- `packages/` — shared workspace packages (planned: `packages/shared`).
+- Root keeps only the workspace `package.json`, the **single** `package-lock.json`
+  (never add one inside an app — Next.js uses it to find the monorepo root), the
+  hoisted `node_modules/`, and repo-wide docs (`AGENTS.md`, `DESIGN.md`, `build-plan.md`).
+
+**Unless noted, every path in the rest of this file is relative to `apps/web/`**
+(e.g. `lib/db.ts` means `apps/web/lib/db.ts`), and so is the `@/` import alias —
+write `@/lib/db`, never `@/apps/web/lib/db`. Run `npm install` from the root only.
+
 ## Commands
 
+From the repo root (the root scripts forward to the web workspace, which runs
+with `apps/web/` as its working directory, so `process.cwd()` paths still resolve):
+
 ```bash
-npm run dev        # dev server on :3000
-npm run build      # production build
-npm run lint       # eslint (core-web-vitals + typescript)
-npm run seed       # seed games from RAWG API (requires .env.local with RAWG_API_KEY + SUPABASE_SECRET_KEY)
-npm test           # vitest run (one-off)
-npm run test:watch # vitest in watch mode
+npm run dev                          # web dev server on :3000
+npm run build                        # web production build
+npm run lint                         # eslint (core-web-vitals + typescript)
+npm test                             # vitest run (one-off)
+npm run mobile                       # expo start for apps/mobile
+npm run seed -w @screenpeak/web      # seed games from RAWG API (requires apps/web/.env.local with RAWG_API_KEY + SUPABASE_SECRET_KEY)
+npm run test:watch -w @screenpeak/web # vitest in watch mode
 ```
 
 Tests: Vitest characterization suite in `test/` — see `test/README.md` for scope.
-No typecheck script — use `npx tsc --noEmit` for type checking.
+No typecheck script — use `npx tsc --noEmit -p apps/web` for type checking.
 
-## Structure
+## Structure (`apps/web/`)
 
 - `app/` — Next.js App Router pages and API routes
   - `app/components/` — UI components organized by domain (user, game, library, lists, feed, settings, util)
@@ -46,6 +67,7 @@ No typecheck script — use `npx tsc --noEmit` for type checking.
   `requireUser()` (`lib/auth.ts`), DB queries (`lib/queries/`), utilities
 - `scripts/` — standalone scripts (`seed-games.ts`, `inspect-rawg.ts`)
 - `test/` — Vitest suite; `types/` — shared TS types mirroring `lib/queries/`
+- `assets/fonts/` — OFL fonts read by `lib/og.tsx` via `process.cwd()` for OG images
 
 ## Supabase Clients & Drizzle
 
@@ -142,5 +164,4 @@ Required in `.env.local` (gitignored):
 - Reusable UI lives in `app/components/util/` — prefer `Eyebrow`, `SectionHead`,
   `Wordmark`, `EmptyState`, `StatGrid`, `DistributionChart`, `Pagination`,
   `Panel`, `Modal` (and `app/components/user/Avatar`) over re-rolling one.
-- Path alias: `@/*` maps to project root
-- No monorepo — single package
+- Path alias: `@/*` maps to `apps/web/` (not the repo root) — see Monorepo layout
