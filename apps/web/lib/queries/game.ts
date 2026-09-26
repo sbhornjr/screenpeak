@@ -126,12 +126,7 @@ export async function queryGames(params: QueryGamesParams): Promise<GameData[]> 
             )
         `)
 
-        // Postgres numerics arrive from postgres-js as strings ("4.00"); coerce
-        // so the type is honest and `typeof x === "number"` checks hold.
-        return (rows as unknown as GameData[]).map(g => ({
-            ...g,
-            avg_ngplus_rating: g.avg_ngplus_rating == null ? g.avg_ngplus_rating : Number(g.avg_ngplus_rating),
-        }))
+        return rows as unknown as GameData[]
     } catch {
         return []
     }
