@@ -1,6 +1,7 @@
 import { type EmailOtpType } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
+import { safeNextPath } from '@/lib/safe-redirect'
 
 // Landing point for every Supabase auth email link: signup confirmation,
 // password reset (type=recovery), and email-change confirmation.
@@ -10,7 +11,9 @@ import { createClient } from '@/lib/supabase-server'
 //   ?code=…                → Supabase's DEFAULT template, after its own /auth/v1/verify
 export async function GET(request: NextRequest) {
     const { searchParams, origin } = request.nextUrl
-    const next = searchParams.get('next') ?? '/'
+    // `next` is attacker-controllable (anyone can craft a confirm link around a
+    // token they own) — only ever redirect to a same-origin path.
+    const next = safeNextPath(searchParams.get('next'), origin)
     const token_hash = searchParams.get('token_hash')
     const type = searchParams.get('type') as EmailOtpType | null
     const code = searchParams.get('code')
