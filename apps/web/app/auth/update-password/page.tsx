@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase-browser"
-import { passwordSchema, parseOrError } from "@/lib/schemas"
+import { passwordSchema, parseOrError } from "@screenpeak/shared/schemas"
 import Eyebrow from "@/app/components/util/Eyebrow"
 
 // Reached only from a password-reset link: /auth/confirm verifies the recovery

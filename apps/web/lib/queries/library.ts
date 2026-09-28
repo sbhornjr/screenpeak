@@ -1,8 +1,8 @@
 import { eq, and, desc, asc, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { libraryEntries } from '@/db/schema'
-import { LibraryData, EsrbRatingsData } from '@/types'
-import { SteamLinkEntry } from '@/types'
+import { LibraryData, EsrbRatingsData } from '@screenpeak/shared/types'
+import { SteamLinkEntry } from '@screenpeak/shared/types'
 import { logger } from '@/lib/logger'
 
 const LIBRARY_ENTRY_COLUMNS = {

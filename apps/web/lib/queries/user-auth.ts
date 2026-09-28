@@ -9,7 +9,7 @@
 // `import { db } from '@/lib/db'`) broke every single page in the app, trying to
 // bundle the Postgres driver's Node built-ins ('fs', 'net', etc.) into the browser.
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { emailSchema, passwordSchema, parseOrError } from '@/lib/schemas'
+import { emailSchema, passwordSchema, parseOrError } from '@screenpeak/shared/schemas'
 
 export async function getViewer(supabase: SupabaseClient) {
     const { data: { user } } = await supabase.auth.getUser()

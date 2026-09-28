@@ -9,7 +9,7 @@ import { getOwnedGames, getFullyCompletedAppids } from "@/lib/steam";
 import { importGamesFromSteam } from "@/lib/rawg";
 import { getGamesFromSteamIds, getDeveloperNameMap } from "@/lib/queries/game";
 import { getLibraryEntries } from "@/lib/queries/library";
-import { SteamLinkEntry } from "@/types";
+import { SteamLinkEntry } from "@screenpeak/shared/types";
 import SteamLinkGamesSection from "../components/settings/SteamLinkGamesSection";
 
 export const metadata: Metadata = {

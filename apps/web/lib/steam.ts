@@ -1,4 +1,4 @@
-import { SteamOwnedGames } from "@/types/steam"
+import { SteamOwnedGames } from "@screenpeak/shared/types/steam"
 import { logger } from "./logger";
 
 const STEAM_API_BASE = 'https://api.steampowered.com'

@@ -7,7 +7,7 @@ import FeedReview from "@/app/components/feed/FeedReview"
 import FeedListPreview from "@/app/components/feed/FeedListPreview"
 import Avatar from "@/app/components/user/Avatar"
 import FeedLibraryBatch from "./FeedLibraryBatch"
-import type { FeedItem as FeedItemType } from "@/types"
+import type { FeedItem as FeedItemType } from "@screenpeak/shared/types"
 import { parseDbTimestamp } from "@/lib/dates"
 
 export function timeAgo(date: string): string {

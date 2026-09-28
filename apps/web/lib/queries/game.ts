@@ -1,7 +1,7 @@
 import { sql, eq, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { games, ratingsReviews, gameGenres, gamePlatforms, gameDevelopers, gamePublishers, genres, platforms, developers, publishers } from '@/db/schema'
-import { GameData } from '@/types'
+import { GameData } from '@screenpeak/shared/types'
 import { uuidArrayParam } from '@/lib/sql-helpers'
 import { logger } from '@/lib/logger'
 

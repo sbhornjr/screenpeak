@@ -3,8 +3,8 @@
 import { useState, useTransition } from 'react'
 import FeedItem from './FeedItem'
 import { fetchFeedPage } from '@/app/feed-actions'
-import { FEED_PAGE_SIZE } from '@/lib/queries/feed-constants'
-import type { FeedItem as FeedItemType } from '@/types'
+import { FEED_PAGE_SIZE } from '@screenpeak/shared/constants'
+import type { FeedItem as FeedItemType } from '@screenpeak/shared/types'
 
 function keyFor(item: FeedItemType, i: number) {
     return `${item.activity_type}-${item.actor_id}-${item.game_id ?? item.list_id ?? 'x'}-${item.created_at}-${i}`

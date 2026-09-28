@@ -12,7 +12,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { getViewer } from "@/lib/queries/user-auth";
 import { getFeed } from "@/lib/queries/feed";
-import { FEED_PAGE_SIZE } from "@/lib/queries/feed-constants";
+import { FEED_PAGE_SIZE } from "@screenpeak/shared/constants";
 import { getHeroGame } from "@/lib/queries/game";
 import { getTrendingGames } from "@/lib/queries/explore";
 import { getRecentReviewsGlobal } from "@/lib/queries/review";

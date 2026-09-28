@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import ListPreview from "@/app/components/lists/ListPreview";
 import CreateListButton from "@/app/components/lists/CreateListButton";
 import Link from "next/link";
-import { ListWithOwner } from "@/types";
+import { ListWithOwner } from "@screenpeak/shared/types";
 import { getViewer } from "@/lib/queries/user-auth";
 import { getProfileSummaryByUsername, getAccountSettings } from "@/lib/queries/user";
 import { getUserLists, getLikedLists, getListCoverMap, getListLikes } from "@/lib/queries/list";

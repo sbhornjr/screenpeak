@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { SteamLinkEntry } from "@/types"
+import { SteamLinkEntry } from "@screenpeak/shared/types"
 import Image from "next/image"
 import FilterSelect from "../util/FilterSelect"
 import { Check } from "lucide-react"

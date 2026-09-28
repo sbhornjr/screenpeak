@@ -23,7 +23,12 @@ npm workspaces (`"workspaces": ["apps/*", "packages/*"]` in the root `package.js
   (`next.config.ts`, `tsconfig.json`, ESLint, PostCSS, Vitest, Drizzle, Sentry)
   and `.env.local` live here, next to its `package.json`.
 - `apps/mobile/` — the Expo app (`@screenpeak/mobile`), per `build-plan.md` Phase 0.
-- `packages/` — shared workspace packages (planned: `packages/shared`).
+- `packages/shared/` (`@screenpeak/shared`) — code **both** apps import, shipped
+  as TypeScript source (web compiles it via `transpilePackages`). Import by
+  subpath: `@screenpeak/shared/types`, `/types/<file>`, `/schemas` (zod),
+  `/constants` (`FEED_PAGE_SIZE`), `/tokens`. It must never import `db`,
+  `postgres`, `next/*`, React, or anything server-only — everything in it ships
+  inside the phone app.
 - Root keeps only the workspace `package.json`, the **single** `package-lock.json`
   (never add one inside an app — Next.js uses it to find the monorepo root), the
   hoisted `node_modules/`, and repo-wide docs (`AGENTS.md`, `DESIGN.md`, `build-plan.md`).
@@ -75,7 +80,8 @@ No typecheck script — use `npx tsc --noEmit -p apps/web` for type checking.
 - `lib/` — shared logic: Supabase clients, the Drizzle client (`lib/db.ts`),
   `requireUser()` (`lib/auth.ts`), DB queries (`lib/queries/`), utilities
 - `scripts/` — standalone scripts (`seed-games.ts`, `inspect-rawg.ts`)
-- `test/` — Vitest suite; `types/` — shared TS types mirroring `lib/queries/`
+- `test/` — Vitest suite. Shared TS types (mirroring `lib/queries/`) and the zod
+  schemas live in `packages/shared`, not here — see Monorepo layout
 - `assets/fonts/` — OFL fonts read by `lib/og.tsx` via `process.cwd()` for OG images
 
 ## Supabase Clients & Drizzle
@@ -94,7 +100,7 @@ Do **not** mix them. The server client is async (`await createClient()`). The br
 Functions that intentionally stay on `supabase-js` instead of `db` live in their own dedicated files, never mixed into a Drizzle-backed `lib/queries/*` file — importing a single named export pulls in a module's *entire* top-level import graph, so one `supabase-js`-only function sharing a file with `import { db } from '@/lib/db'` drags Drizzle's `postgres()` client (and its `fs`/`net`/`tls` Node built-ins) into any client bundle that imports the file, breaking the build with `Module not found: Can't resolve 'fs'`. That's why these are split out:
 - `lib/queries/user-auth.ts` — genuine Auth calls (`getViewer`, `signInWithPassword`, `signOut`, etc.) — avatar uploads moved to `lib/r2.ts` + `app/user-actions.ts`
 - `lib/queries/game-search.ts` — read-only search functions called directly from `'use client'` components (`searchGamesByName`, `searchTaxonomyTable`, `getTaxonomyNameBySlug`)
-- `lib/queries/feed-constants.ts` — `FEED_PAGE_SIZE`, a plain constant re-exported from `feed.ts` for client callers, split out for the same reason
+- `FEED_PAGE_SIZE` — a plain constant client callers need, split out of `feed.ts` for the same reason; it now lives in `@screenpeak/shared/constants` (dependency-free by design, like everything in `packages/shared`)
 
 Adding a new client-callable helper to `user.ts`, `game.ts`, or `feed.ts` reintroduces this bug — add it to the matching dedicated file instead, or create a new one for a different domain.
 
@@ -150,7 +156,9 @@ Required in `.env.local` (gitignored):
   you) sit side by side like players sharing a screen. All colour, type, and
   spacing go through CSS custom properties in `app/globals.css`; reference them
   as Tailwind arbitrary properties, e.g. `bg-(--color-bg)`, `text-(--color-text)`,
-  `border-(--color-border)`. Do **not** hardcode hex.
+  `border-(--color-border)`. Do **not** hardcode hex. `packages/shared/tokens.ts`
+  is a hand-copy of these values for the phone app — **change a colour in both
+  places**; `test/shared/tokens.test.ts` fails if they drift.
   - Ground / surfaces: `--color-bg` `#101215`, `--color-surface` `#181b20`,
     `--color-surface-light` `#21252b`, `--color-border` `#313640`
   - Text: `--color-text` `#dfe3ea` (body), `--color-muted` `#8b919d`

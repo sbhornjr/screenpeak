@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { FeedItem } from '@/types'
+import { FeedItem } from '@screenpeak/shared/types'
 
 export async function getFeed(
     userId: string | undefined,

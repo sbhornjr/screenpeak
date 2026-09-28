@@ -5,6 +5,8 @@ const r2PublicUrl = process.env.R2_PUBLIC_URL
 if (!r2PublicUrl) throw new Error('R2_PUBLIC_URL is not set')
 
 const nextConfig: NextConfig = {
+    // packages/shared ships TypeScript source, not built JS — Next has to compile it.
+    transpilePackages: ['@screenpeak/shared'],
     images: {
         remotePatterns: [
             {

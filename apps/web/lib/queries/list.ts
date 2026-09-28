@@ -1,8 +1,8 @@
 import { eq, and, inArray, desc, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { lists, listGames, listLikes, games } from '@/db/schema'
-import { GameCover, ListDetail, ListGameEntry } from '@/types'
-import { listFieldsSchema, parseOrError } from '@/lib/schemas'
+import { GameCover, ListDetail, ListGameEntry } from '@screenpeak/shared/types'
+import { listFieldsSchema, parseOrError } from '@screenpeak/shared/schemas'
 
 export async function getUserLists(userId: string | null | undefined, includePrivate: boolean) {
     try {

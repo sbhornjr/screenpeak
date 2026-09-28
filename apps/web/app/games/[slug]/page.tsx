@@ -14,7 +14,7 @@ import Avatar from "@/app/components/user/Avatar";
 import ExpandableText from "@/app/components/util/ExpandableText";
 import SectionHead from "@/app/components/util/SectionHead";
 import Panel from "@/app/components/util/Panel";
-import { ListSummary, GameRatingsStats } from "@/types";
+import { ListSummary, GameRatingsStats } from "@screenpeak/shared/types";
 import { getViewer } from "@/lib/queries/user-auth";
 import { getAccountSettings } from "@/lib/queries/user";
 import { getGameBySlug, getGameTaxonomy } from "@/lib/queries/game";

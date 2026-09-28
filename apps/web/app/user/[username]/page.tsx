@@ -13,7 +13,7 @@ import StatGrid from "@/app/components/util/StatGrid";
 import SectionHead from "@/app/components/util/SectionHead";
 import Eyebrow from "@/app/components/util/Eyebrow";
 import EmptyState from "@/app/components/util/EmptyState";
-import { GameData } from "@/types";
+import { GameData } from "@screenpeak/shared/types";
 import { getViewer } from "@/lib/queries/user-auth";
 import { getFullProfile, getFollowers, getFollowing } from "@/lib/queries/user";
 import { queryGames, getDeveloperNameMap } from "@/lib/queries/game";

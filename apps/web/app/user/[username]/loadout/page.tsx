@@ -13,7 +13,7 @@ import { getUserIdFromUsername, getAccountSettings, getCurrentLoadoutIdentity } 
 import { getDeveloperNameMap } from "@/lib/queries/game";
 import { getLoadoutRatingHighlights } from "@/lib/queries/stats";
 import { getUserRatings, getAvgRatingsForGames, getUserRatingsForGames } from "@/lib/queries/review";
-import { AvgRatingsData } from "@/types";
+import { AvgRatingsData } from "@screenpeak/shared/types";
 import { buildLoadoutInput } from "@/lib/loadout";
 
 type LoadoutPageProps = {

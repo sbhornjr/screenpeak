@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase-browser"
 import { useRouter } from "next/navigation"
 import Modal from "@/app/components/util/Modal"
 import { signInWithPassword, signUpWithPassword } from "@/lib/queries/user-auth"
-import { emailSchema, usernameSchema, passwordSchema, parseOrError } from "@/lib/schemas"
+import { emailSchema, usernameSchema, passwordSchema, parseOrError } from "@screenpeak/shared/schemas"
 
 type AuthModalProps = {
     isOpen: boolean

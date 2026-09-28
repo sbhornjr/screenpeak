@@ -10,7 +10,7 @@ import {
     favoriteGameIdsSchema,
     privacyTypeSchema,
     parseOrError,
-} from '@/lib/schemas'
+} from '@screenpeak/shared/schemas'
 
 describe('emailSchema', () => {
     it('accepts a normal address and trims surrounding whitespace', () => {

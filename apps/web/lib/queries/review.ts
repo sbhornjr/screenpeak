@@ -1,8 +1,8 @@
 import { eq, and, ne, desc, asc, inArray, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { ratingsReviews, users, games } from '@/db/schema'
-import { GameRatingReview, RatingReviewData, RatingReviewCounts, AvgRatingsData, GameRatingsStats } from '@/types'
-import { ratingReviewSchema, parseOrError } from '@/lib/schemas'
+import { GameRatingReview, RatingReviewData, RatingReviewCounts, AvgRatingsData, GameRatingsStats } from '@screenpeak/shared/types'
+import { ratingReviewSchema, parseOrError } from '@screenpeak/shared/schemas'
 import { uuidArrayParam } from '@/lib/sql-helpers'
 
 const DEFAULT_STATS: GameRatingsStats = {

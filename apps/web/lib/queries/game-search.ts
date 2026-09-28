@@ -9,7 +9,7 @@
 // since the bundler tried to include the Postgres driver (and its 'fs'/'net'/etc.
 // Node built-ins) in the browser bundle.
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { Game } from '@/types'
+import { Game } from '@screenpeak/shared/types'
 
 export async function searchGamesByName(supabase: SupabaseClient, query: string, limit = 20): Promise<Game[]> {
     const { data } = await supabase

@@ -4,7 +4,7 @@ import { users, follows } from '@/db/schema'
 import {
     usernameSchema, bioSchema,
     selectedTitleSchema, favoriteGameIdsSchema, privacyTypeSchema, parseOrError,
-} from '@/lib/schemas'
+} from '@screenpeak/shared/schemas'
 
 export async function getProfileSummaryByUsername(username: string) {
     try {

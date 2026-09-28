@@ -1,6 +1,6 @@
 "use client"
 
-import { SteamLinkEntry } from "@/types";
+import { SteamLinkEntry } from "@screenpeak/shared/types";
 import GameFromSteam from "../game/GameFromSteam";
 import { useState } from "react";
 import { useRouter } from "next/navigation";

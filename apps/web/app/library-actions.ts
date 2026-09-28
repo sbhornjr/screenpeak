@@ -2,7 +2,7 @@
 
 import { requireUser } from '@/lib/auth'
 import { createLibraryEntry, updateLibraryEntry, deleteLibraryEntry, getLibraryEntry, upsertLibraryEntries } from '@/lib/queries/library'
-import type { SteamLinkEntry } from '@/types'
+import type { SteamLinkEntry } from '@screenpeak/shared/types'
 
 type LibraryEntryFields = {
     status: string

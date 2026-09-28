@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { GenreStatType, DeveloperStatType, StatusStatType, HighlightType } from '@/types'
+import { GenreStatType, DeveloperStatType, StatusStatType, HighlightType } from '@screenpeak/shared/types'
 
 export async function getLoadoutGenreStats(userId: string): Promise<GenreStatType[]> {
     try {
