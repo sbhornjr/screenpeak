@@ -28,6 +28,15 @@ npm workspaces (`"workspaces": ["apps/*", "packages/*"]` in the root `package.js
   (never add one inside an app — Next.js uses it to find the monorepo root), the
   hoisted `node_modules/`, and repo-wide docs (`AGENTS.md`, `DESIGN.md`, `build-plan.md`).
 
+**One React for the whole monorepo.** `react`/`react-dom` are pinned to the
+exact version the Expo SDK requires (React Native's renderer checks for an exact
+match), in both apps' `package.json` *and* the root `overrides`. npm hoists into
+one shared `node_modules`, so a different web React lands at the root and gets
+bundled into the mobile app next to its own copy ("Invalid hook call"). On an
+Expo SDK upgrade: run `npx expo install --fix` in `apps/mobile`, then copy its
+`react` version into `apps/web/package.json` and the root `overrides`, and
+confirm with `npx expo-doctor`. Never bump React in the web app alone.
+
 **Unless noted, every path in the rest of this file is relative to `apps/web/`**
 (e.g. `lib/db.ts` means `apps/web/lib/db.ts`), and so is the `@/` import alias —
 write `@/lib/db`, never `@/apps/web/lib/db`. Run `npm install` from the root only.
@@ -42,7 +51,7 @@ npm run dev                          # web dev server on :3000
 npm run build                        # web production build
 npm run lint                         # eslint (core-web-vitals + typescript)
 npm test                             # vitest run (one-off)
-npm run mobile                       # expo start for apps/mobile
+npm run mobile                       # expo start for apps/mobile (flags pass through: npm run mobile -- --clear)
 npm run seed -w @screenpeak/web      # seed games from RAWG API (requires apps/web/.env.local with RAWG_API_KEY + SUPABASE_SECRET_KEY)
 npm run test:watch -w @screenpeak/web # vitest in watch mode
 ```

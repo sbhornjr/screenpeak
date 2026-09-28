@@ -23,8 +23,8 @@
     "next": "^16.2.12",
     "openid": "^2.0.17",
     "postgres": "^3.4.9",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
     "recharts": "^3.10.0",
     "server-only": "^0.0.1",
     "zod": "^4.5.4"
