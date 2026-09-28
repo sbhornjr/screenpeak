@@ -22,7 +22,14 @@ npm workspaces (`"workspaces": ["apps/*", "packages/*"]` in the root `package.js
 - `apps/web/` — the Next.js site (`@screenpeak/web`). Every tool config
   (`next.config.ts`, `tsconfig.json`, ESLint, PostCSS, Vitest, Drizzle, Sentry)
   and `.env.local` live here, next to its `package.json`.
-- `apps/mobile/` — the Expo app (`@screenpeak/mobile`), per `build-plan.md` Phase 0.
+- `apps/mobile/` — the Expo app (`@screenpeak/mobile`, Expo SDK 57, Expo Router).
+  Its own `AGENTS.md` covers Expo rules. Screens in `src/app/`, the tab bar in
+  `src/components/app-tabs.tsx`, and `@/` there means `apps/mobile/src/`.
+  **Styling is `StyleSheet` + tokens** (NativeWind was rejected in the Phase 0
+  spike): import values from `@/theme`, which re-exports
+  `packages/shared/tokens.ts` plus the font mapping — pick a font weight by
+  `fontFamily` (`face.mono[600]`), never `fontWeight`. `Eyebrow`, `Seal` and
+  `GameCard` are ported in `src/components/`.
 - `packages/shared/` (`@screenpeak/shared`) — code **both** apps import, shipped
   as TypeScript source (web compiles it via `transpilePackages`). Import by
   subpath: `@screenpeak/shared/types`, `/types/<file>`, `/schemas` (zod),

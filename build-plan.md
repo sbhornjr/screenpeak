@@ -267,8 +267,8 @@ UI is the biggest *chunk of work*, but the differences that bite are about
 | Routing | Expo Router | File-based; tabs + stacks |
 | Server state | TanStack Query | Caching, infinite scroll (feed), optimistic updates (likes/follows), refetch on focus |
 | Auth | `@supabase/supabase-js` + `expo-secure-store` | Sign in/up/out/reset happen directly against Supabase Auth, just like the web |
-| Styling | Decide in the Phase 0 spike: NativeWind *(Tailwind classes on RN; check its Tailwind v4 support status)* vs `StyleSheet` + `tokens.ts` | Either way the tokens come from `packages/shared/tokens.ts`, mirroring `globals.css` |
-| Fonts | `expo-font` + `@expo-google-fonts/{chakra-petch,ibm-plex-sans,ibm-plex-mono}` | Same three families as the web |
+| Styling | **`StyleSheet` + `tokens.ts`** (decided in the Phase 0 spike — NativeWind v5 doesn't build yet; see Phase 0 step 5) | Tokens come from `packages/shared/tokens.ts`, mirroring `globals.css`; mobile imports them via `@/theme` |
+| Fonts | `expo-font` + `@expo-google-fonts/{chakra-petch,ibm-plex-sans,ibm-plex-mono}` | Same three families and weights as the web; per-weight imports, weight chosen by `fontFamily` |
 | Images | `expo-image` | Caching for RAWG cover art + R2 avatars |
 | Charts | `victory-native` or `react-native-gifted-charts` | Replaces recharts (DistributionChart, Loadout stats) |
 | Icons | `lucide-react-native` | Same icon set the web uses |
@@ -479,14 +479,36 @@ behaving on localhost exactly as it did before the move.
      `package.json`, env files (A.3).
    - Re-run the baseline and compare (A.4). **Don't continue until it matches.**
    - Update AGENTS.md paths.
+
+   > **Done** (`182f582`). Route table, test counts and the A.1 checklist all
+   > matched. Gotcha: the editor's "update imports on move" rewrote `@/x` to
+   > `@/apps/web/x` in 71 files — `@/` is relative to `apps/web/`, so undo that.
 3. **Create the app**:
    `npx create-expo-app@latest --template default@sdk-56 apps/mobile`, then
    `npm install` from the **root**. Run `npx expo start` in `apps/mobile`, open
    on your phone.
+
+   > **Done — on SDK 57** (Expo Go required it; use `default@sdk-57` and add
+   > `--no-install` so the template doesn't install on its own and create a
+   > second lockfile). Two things the upgrade broke, both now fixed:
+   > duplicate native modules, because npm hoists one shared `node_modules` and
+   > the web's React sat at the root (see step 5 — React is now pinned
+   > monorepo-wide); and stale lockfile placements left SDK 56 copies at the root
+   > / Expo packages nested under `apps/mobile`, so `expo start` couldn't find
+   > `expo-router`. If `npx expo-doctor` reports duplicates after an upgrade,
+   > delete the stale `package-lock.json` entries for those packages and reinstall.
+   > Root scripts end in ` --` so flags pass through: `npm run mobile -- --clear`.
 4. **Create `packages/shared`**: move `types/`, `lib/schemas.ts`, and
    `FEED_PAGE_SIZE` in; add `tokens.ts` (hand-copy the values from
    `globals.css` — it's ~20 values). Import from both apps to prove the wiring.
    Add `import 'server-only'` to `apps/web/lib/db.ts` in the same step.
+
+   > **Done.** `@screenpeak/shared` exports `./types`, `./types/*`, `./schemas`,
+   > `./constants` (`FEED_PAGE_SIZE`) and `./tokens` — import those paths, e.g.
+   > `@screenpeak/shared/types`. Web pulls it in via `transpilePackages`.
+   > `apps/web/test/shared/tokens.test.ts` fails if a colour in `tokens.ts`
+   > drifts from `globals.css`, so the hand-copy can't silently go stale.
+   > `server-only` was already on `db.ts`.
 5. **Spikes** (throwaway code, 1 day each max):
    - Styling: build the `Eyebrow` + a game card in NativeWind *and* in
      `StyleSheet` + tokens. Pick one.
@@ -494,6 +516,29 @@ behaving on localhost exactly as it did before the move.
    - React versions: check that Expo SDK and Next.js want compatible React
      versions; if they differ, keep each pinned in its own app's `package.json`
      and make sure `packages/shared` has **no** React dependency.
+
+   > **Done.**
+   > - **Styling → `StyleSheet` + tokens.** NativeWind v5 (Tailwind v4, still a
+   >   release candidate) fails to build here: its CSS compiler breaks on the
+   >   `lightningcss@1.32` that Tailwind 4.3 pins, and npm can't give the two
+   >   separate copies. NativeWind v4 needs Tailwind v3 beside the web's v4 — the
+   >   same two-versions-in-one-`node_modules` problem as React. Even working, fonts
+   >   need a class per weight file and the palette a third copy in CSS. Revisit
+   >   when v5 is stable. Mobile styles import from `@/theme` (`apps/mobile/src/theme`),
+   >   which re-exports `packages/shared/tokens.ts`; `Eyebrow`, `Seal` and
+   >   `GameCard` are ported in `apps/mobile/src/components/`.
+   > - **Fonts → work in Expo Go**, loaded at runtime with `useFonts` in the root
+   >   layout (splash stays up until they're ready). Import each weight from its
+   >   own entry point (`@expo-google-fonts/chakra-petch/600SemiBold`) — the
+   >   package index bundles all 38 files. Pick weights by `fontFamily`
+   >   (`face.mono[600]`), never `fontWeight`. Before release, consider the
+   >   `expo-font` config plugin to embed them (no load delay; needs a dev build).
+   > - **React versions → they differ, and per-app pinning doesn't work.** npm
+   >   workspaces share one hoisted `node_modules`, so the web's React landed at
+   >   the root and got bundled next to mobile's ("Invalid hook call"). React
+   >   Native's renderer needs an *exact* match, so React is pinned to the Expo
+   >   SDK's version in both apps **and** the root `overrides`; AGENTS.md has the
+   >   upgrade steps. `packages/shared` has no React dependency.
 
 ### Phase 1 — API layer on the web backend (≈2–3 weeks)
 
@@ -636,7 +681,8 @@ git switch -c mobile/monorepo
 # 2. Baseline, move, re-verify — follow Appendix A top to bottom.
 
 # 3. Create the Expo app and install from the root
-npx create-expo-app@latest --template default@sdk-56 apps/mobile
+#    (done on SDK 57 — see Phase 0 step 3; use the current SDK and --no-install)
+npx create-expo-app@latest --template default@sdk-57 apps/mobile --no-install
 npm install
 
 # 4. Run it — install "Expo Go" on your phone and scan the QR code
@@ -661,7 +707,8 @@ Query → native screen) proves out every layer before you repeat the pattern
 - **Bundle contamination.** `packages/shared` must stay free of server imports
   (see AGENTS.md on `game-search.ts`).
 - **Duplicate React** in the monorepo — the classic "Invalid hook call" error.
-  Fix by pinning React per app, not hoisting.
+  Per-app pins don't survive npm hoisting: pin one exact React (the Expo SDK's)
+  in both apps *and* the root `overrides`, and bump it on every SDK upgrade.
 - **Scope creep.** v1 of the app = parity with the website. Push notifications
   and offline mode can wait for 1.1.
 - **AGENTS.md drift.** Update it after the monorepo move and after the API
@@ -694,14 +741,14 @@ npm run start                                                # serves the build 
 Then click through this checklist and note anything already broken, so you
 don't blame the move for it later:
 
-- [ ] `/` signed out, then sign in → `/` shows the feed; scroll loads page 2
-- [ ] `/explore`, `/games` (apply a filter), `/games/<some-slug>`
-- [ ] `/user/<you>` and each tab: library, lists, a list detail, ratings & reviews, loadout
-- [ ] `/settings`, `/steamlink`, `/policy` ← reads `app/policy/policy.html` via `process.cwd()`
-- [ ] `/opengraph-image` and `/games/<slug>/opengraph-image` ← read `assets/fonts` via `process.cwd()`
-- [ ] One write of each kind: rate a game, change library status, like a list, follow someone
-- [ ] Search in the favorite-game picker (exercises `game-search.ts`)
-- [ ] Upload an avatar (R2 presigned PUT)
+- [x] `/` signed out, then sign in → `/` shows the feed; scroll loads page 2
+- [x] `/explore`, `/games` (apply a filter), `/games/<some-slug>`
+- [x] `/user/<you>` and each tab: library, lists, a list detail, ratings & reviews, loadout
+- [x] `/settings`, `/steamlink`, `/policy` ← reads `app/policy/policy.html` via `process.cwd()`
+- [x] `/opengraph-image` and `/games/<slug>/opengraph-image` ← read `assets/fonts` via `process.cwd()`
+- [x] One write of each kind: rate a game, change library status, like a list, follow someone
+- [x] Search in the favorite-game picker (exercises `game-search.ts`)
+- [x] Upload an avatar (R2 presigned PUT)
 
 ### A.2 What moves and what stays
 
@@ -765,7 +812,7 @@ with the app it configures.
    `/build` → `build/`, `/coverage` → `coverage/`. (`.env*`, `*.tsbuildinfo`,
    `.vercel` already match anywhere.)
 3. **Reinstall from the root:** `rm -rf node_modules apps/web/node_modules && npm install`.
-4. **Later, when `packages/shared` exists (Phase 0 step 4):** add
+4. **(Done in Phase 0 step 4.) Later, when `packages/shared` exists:** add
    `"@screenpeak/shared": "*"` to `apps/web/package.json` dependencies and
    `transpilePackages: ['@screenpeak/shared']` to `next.config.ts` — the
    package ships TypeScript source, so Next has to compile it.
