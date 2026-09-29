@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
-import { createClient } from "@/lib/supabase-server";
 import GameCard from "@/app/components/game/GameCard";
 import GameFilters from "../components/game/GameFilters";
 import Link from "next/link";
 import Pagination from "../components/util/Pagination";
 import EmptyState from "../components/util/EmptyState";
-import { getViewer } from "@/lib/queries/user-auth";
+import { getOptionalUser } from "@/lib/auth";
 import { queryGames, getAllGenres, getAllPlatforms, getDistinctEsrbRatings, getDeveloperNameMap } from "@/lib/queries/game";
 
 type SearchPageProps = {
@@ -29,9 +28,8 @@ export default async function SearchPage({ searchParams } : SearchPageProps) {
     const sortQuery = sort?.trim() || 'ngplus_rating';
     const orderQuery = order?.trim() ?? "desc";
     const esrbQuery = esrb?.trim() ?? '';
-    const supabase = await createClient()
 
-    const user = await getViewer(supabase)
+    const user = await getOptionalUser()
 
     const games = await queryGames({
         q: query || null,

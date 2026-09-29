@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase-server'
-import { getViewer } from '@/lib/queries/user-auth'
+import { getOptionalUser } from '@/lib/auth'
 import { verifySteamCallback } from '@/lib/steam-openid'
 import { upsertSteamAccount } from '@/lib/queries/steam'
 import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
-    const supabase = await createClient()
-    const user = await getViewer(supabase)
+    const user = await getOptionalUser()
 
     if (!user) {
         return NextResponse.redirect(new URL('/', request.url))

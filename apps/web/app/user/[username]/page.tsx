@@ -1,4 +1,3 @@
-import { createClient } from "@/lib/supabase-server";
 import { notFound } from "next/navigation";
 import TitleSelectButton from "@/app/components/user/TitleSelectButton";
 import AvatarUploader from "@/app/components/user/AvatarUploader";
@@ -14,7 +13,7 @@ import SectionHead from "@/app/components/util/SectionHead";
 import Eyebrow from "@/app/components/util/Eyebrow";
 import EmptyState from "@/app/components/util/EmptyState";
 import { GameData } from "@screenpeak/shared/types";
-import { getViewer } from "@/lib/queries/user-auth";
+import { getOptionalUser } from "@/lib/auth";
 import { getFullProfile, getFollowers, getFollowing } from "@/lib/queries/user";
 import { queryGames, getDeveloperNameMap } from "@/lib/queries/game";
 import { getLibraryStatusBreakdown } from "@/lib/queries/library";
@@ -42,13 +41,12 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
 
 export default async function ProfilePage({ params }: ProfilePageProps) {
     const { username } = await params;
-    const supabase = await createClient()
 
     const profile = await getFullProfile(username)
 
     if (!profile) notFound()
 
-    const viewer = await getViewer(supabase)
+    const viewer = await getOptionalUser()
     const isOwnProfile = viewer?.id === profile.id
 
     const canSeeLibrary = isOwnProfile || profile.library_public

@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { createClient } from "@/lib/supabase-server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import Avatar from "@/app/components/user/Avatar";
@@ -9,7 +8,7 @@ import RemoveFromListButton from "@/app/components/lists/RemoveFromListButton";
 import LikeListButton from "@/app/components/lists/LikeListButton";
 import CreateListButton from "@/app/components/lists/CreateListButton";
 import EmptyState from "@/app/components/util/EmptyState";
-import { getViewer } from "@/lib/queries/user-auth";
+import { getOptionalUser } from "@/lib/auth";
 import { getProfileSummaryByUsername } from "@/lib/queries/user";
 import { getListById, getListGames, getListLikes } from "@/lib/queries/list";
 import { getAvgRatingsForGames, getUserRatingsForGames } from "@/lib/queries/review";
@@ -34,8 +33,7 @@ export async function generateMetadata({ params }: ListPageProps): Promise<Metad
 
 export default async function ListPage({ params }: ListPageProps) {
     const { username, listId } = await params;
-    const supabase = await createClient()
-    const viewer = await getViewer(supabase)
+    const viewer = await getOptionalUser()
 
     const profile = await getProfileSummaryByUsername(username)
 

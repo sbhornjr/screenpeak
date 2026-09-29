@@ -1,4 +1,3 @@
-import { createClient } from "@/lib/supabase-server";
 import FeedList from "@/app/components/feed/FeedList";
 import FeedReview from "@/app/components/feed/FeedReview";
 import GameCard from "@/app/components/game/GameCard";
@@ -10,7 +9,7 @@ import StatCompare from "@/app/components/game/StatCompare";
 import Eyebrow from "@/app/components/util/Eyebrow";
 import Image from "next/image";
 import Link from "next/link";
-import { getViewer } from "@/lib/queries/user-auth";
+import { getOptionalUser } from "@/lib/auth";
 import { getFeed } from "@/lib/queries/feed";
 import { FEED_PAGE_SIZE } from "@screenpeak/shared/constants";
 import { getHeroGame } from "@/lib/queries/game";
@@ -24,9 +23,8 @@ import { getFeaturedLoadout } from "@/lib/queries/user";
 const FEATURED_LOADOUT_USERNAME = "hornflakes"
 
 export default async function Home() {
-    const supabase = await createClient()
 
-    const viewer = await getViewer(supabase)
+    const viewer = await getOptionalUser()
 
     if (!viewer) {
         const [heroGame, trendingGames, recentReviews, featuredLoadout] = await Promise.all([

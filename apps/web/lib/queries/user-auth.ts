@@ -11,10 +11,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { emailSchema, passwordSchema, parseOrError } from '@screenpeak/shared/schemas'
 
-export async function getViewer(supabase: SupabaseClient) {
-    const { data: { user } } = await supabase.auth.getUser()
-    return user
-}
+// "Who's signed in?" is not here: on the server use getOptionalUser() /
+// requireUser() from lib/auth.ts; in a 'use client' component call the browser
+// client's `supabase.auth.getUser()` directly.
 
 export async function getProfileSummaryById(supabase: SupabaseClient, userId: string) {
     const { data } = await supabase

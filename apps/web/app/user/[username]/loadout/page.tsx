@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { createClient } from "@/lib/supabase-server";
 import GameCard from "@/app/components/game/GameCard";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -8,7 +7,7 @@ import DistributionChart from "@/app/components/util/DistributionChart";
 import SectionHead from "@/app/components/util/SectionHead";
 import Eyebrow from "@/app/components/util/Eyebrow";
 import { panelClass } from "@/app/components/util/Panel";
-import { getViewer } from "@/lib/queries/user-auth";
+import { getOptionalUser } from "@/lib/auth";
 import { getUserIdFromUsername, getAccountSettings, getCurrentLoadoutIdentity } from "@/lib/queries/user";
 import { getDeveloperNameMap } from "@/lib/queries/game";
 import { getLoadoutRatingHighlights } from "@/lib/queries/stats";
@@ -34,9 +33,8 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
 
 export default async function LoadoutPage({ params } : LoadoutPageProps) {
     const { username } = await params;
-    const supabase = await createClient()
     
-    const viewer = await getViewer(supabase)
+    const viewer = await getOptionalUser()
     const ownerId = await getUserIdFromUsername(username)
 
     if (!ownerId) redirect("/")

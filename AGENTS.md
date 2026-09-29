@@ -93,19 +93,20 @@ No typecheck script — use `npx tsc --noEmit -p apps/web` for type checking.
 
 ## Supabase Clients & Drizzle
 
-Three different Supabase clients exist, plus a Drizzle client for direct Postgres access — use the right one for context:
+Four different Supabase clients exist, plus a Drizzle client for direct Postgres access — use the right one for context:
 
 | File | Context | Import |
 |------|---------|--------|
 | `lib/supabase-server.ts` | Server Components / Route Handlers | `import { createClient } from '@/lib/supabase-server'` (async) |
 | `lib/supabase-browser.ts` | Client Components via `@supabase/ssr` | `import { createClient } from '@/lib/supabase-browser'` |
 | `lib/supabase.ts` | Browser only — raw `supabase-js` client with debug logging | `import { supabase } from '@/lib/supabase'` |
+| `lib/supabase-stateless.ts` | Server — verifying a bearer token (`auth.getUser(token)`); no cookies, no session storage. Only `lib/auth.ts` should need it | `import { createStatelessClient } from '@/lib/supabase-stateless'` (sync, one per request) |
 | `lib/db.ts` | Postgres queries outside Auth/Storage (`lib/queries/*`) | `import { db } from '@/lib/db'` (sync, module-scope singleton — never pass it as a function param) |
 
 Do **not** mix them. The server client is async (`await createClient()`). The browser client from `supabase-browser.ts` is sync. `db` connects directly to Postgres and bypasses RLS entirely (the pooler role has `BYPASSRLS`) — any Drizzle mutation must enforce its own authorization (see below), and any Drizzle read of a privacy-gated resource must be gated in application code, not left to a policy that no longer applies.
 
 Functions that intentionally stay on `supabase-js` instead of `db` live in their own dedicated files, never mixed into a Drizzle-backed `lib/queries/*` file — importing a single named export pulls in a module's *entire* top-level import graph, so one `supabase-js`-only function sharing a file with `import { db } from '@/lib/db'` drags Drizzle's `postgres()` client (and its `fs`/`net`/`tls` Node built-ins) into any client bundle that imports the file, breaking the build with `Module not found: Can't resolve 'fs'`. That's why these are split out:
-- `lib/queries/user-auth.ts` — genuine Auth calls (`getViewer`, `signInWithPassword`, `signOut`, etc.) — avatar uploads moved to `lib/r2.ts` + `app/user-actions.ts`
+- `lib/queries/user-auth.ts` — genuine Auth calls (`signInWithPassword`, `signOut`, etc.) — avatar uploads moved to `lib/r2.ts` + `app/user-actions.ts`. "Who's signed in?" is *not* here: see "Who's calling" below
 - `lib/queries/game-search.ts` — read-only search functions called directly from `'use client'` components (`searchGamesByName`, `searchTaxonomyTable`, `getTaxonomyNameBySlug`)
 - `FEED_PAGE_SIZE` — a plain constant client callers need, split out of `feed.ts` for the same reason; it now lives in `@screenpeak/shared/constants` (dependency-free by design, like everything in `packages/shared`)
 
@@ -127,6 +128,31 @@ Client-side mutations that used to call `lib/queries/*` directly with the browse
 Supabase auth email links (signup, recovery, email change) all land on
 `app/auth/confirm/route.ts`, which handles both the `token_hash`+`type` and `code`
 link formats.
+
+### Who's calling (`lib/auth.ts`) and the `/api/v1` error shape (`lib/api.ts`)
+
+- **On the server, anywhere** (Server Components, Server Actions, Route Handlers):
+  `getOptionalUser()` → `{ id, email } | null`, or `requireUser()` → `{ id, email }`
+  (throws 401 when signed out). No arguments — they read the current request via
+  Next's `headers()` / `cookies()`: `Authorization: Bearer <access_token>` if present
+  (the phone app sends it), else the Supabase session cookie (the browser sends it).
+- **In a `'use client'` component:** these are server-only; call the browser
+  client's `supabase.auth.getUser()` (as `UserContext` / `ChangePasswordButton` do).
+- Every path verifies with the Auth server (`getUser`), never the token's claims
+  locally, so sign-out / account deletion take effect immediately. (The project
+  signs with ES256, so `getClaims()` could verify locally and skip the round trip —
+  at the cost of revoked tokens working until they expire.)
+- **A bad bearer token fails closed** — 401 `invalid_token`, never a fallback to a
+  cookie, and it throws even from `getOptionalUser()`. An unreachable Auth
+  server is **503 `auth_unavailable`, never 401** (a 401 makes the app sign the user out);
+  in a page, either error renders `app/error.tsx`.
+- Every `/api/v1` error body is `{ error: { code, message } }`, typed as
+  `ApiErrorBody` / `ApiErrorCode` in `@screenpeak/shared/api/errors` (the phone app's
+  contract — add new codes there). Throw an `ApiError` (or `UnauthenticatedError` /
+  `AuthUnavailableError`) and wrap the handler:
+  `export const GET = withAuth(async (req, ctx: RouteContext<'/api/v1/…'>) => { … })`.
+  `withAuth` renders any `ApiError`; anything else is logged and becomes a generic
+  500 `internal` — never put internals in an `ApiError` message.
 
 ## External APIs
 

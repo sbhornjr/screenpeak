@@ -1,4 +1,3 @@
-import { createClient } from "@/lib/supabase-server";
 import { notFound } from "next/navigation";
 import Image from 'next/image'
 import Link from 'next/link'
@@ -15,7 +14,7 @@ import ExpandableText from "@/app/components/util/ExpandableText";
 import SectionHead from "@/app/components/util/SectionHead";
 import Panel from "@/app/components/util/Panel";
 import { ListSummary, GameRatingsStats } from "@screenpeak/shared/types";
-import { getViewer } from "@/lib/queries/user-auth";
+import { getOptionalUser } from "@/lib/auth";
 import { getAccountSettings } from "@/lib/queries/user";
 import { getGameBySlug, getGameTaxonomy } from "@/lib/queries/game";
 import { getGameRatingsStats, getUserRatingReviewForGame, getGameReviewsForPage } from "@/lib/queries/review";
@@ -93,9 +92,8 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
     const pageSizeQuery = pageSize ? Number(pageSize) : 10
     const sortQuery: "date" | "rating" = sort === "rating" ? "rating" : "date"
     const orderQuery: "asc" | "desc" = order === "asc" ? "asc" : "desc"
-    const supabase = await createClient()
 
-    const user = await getViewer(supabase)
+    const user = await getOptionalUser()
     const game = await getGameBySlug(slug)
     if (!game) notFound()
 

@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
-import { createClient } from "@/lib/supabase-server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { createLoggingFetch } from "@/lib/supabase-logging";
 import { redirect } from "next/navigation";
-import { getViewer } from "@/lib/queries/user-auth";
+import { getOptionalUser } from "@/lib/auth";
 import { getSteamAccount } from "@/lib/queries/steam";
 import { getOwnedGames, getFullyCompletedAppids } from "@/lib/steam";
 import { importGamesFromSteam } from "@/lib/rawg";
@@ -18,8 +17,7 @@ export const metadata: Metadata = {
 }
 
 export default async function SteamLinkPage() {
-    const supabase = await createClient()
-    const viewer = await getViewer(supabase)
+    const viewer = await getOptionalUser()
 
     if (!viewer) redirect("/")
 

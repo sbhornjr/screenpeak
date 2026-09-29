@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
-import { createClient } from "@/lib/supabase-server";
 import GameCard from "@/app/components/game/GameCard";
 import Link from "next/link";
 import ListPreview from "../components/lists/ListPreview";
 import UserCard from "../components/user/UserCard";
-import { getViewer } from "@/lib/queries/user-auth";
+import { getOptionalUser } from "@/lib/auth";
 import SectionHead from "@/app/components/util/SectionHead";
 import Eyebrow from "@/app/components/util/Eyebrow";
 import { getTrendingGames, getTrendingLists, getExploreRecommendations } from "@/lib/queries/explore";
@@ -20,9 +19,8 @@ export const metadata: Metadata = {
 
 export default async function Explore({ searchParams }: ExplorePageProps) {
     const { range } = await searchParams;
-    const supabase = await createClient()
 
-    const viewer = await getViewer(supabase)
+    const viewer = await getOptionalUser()
 
     const rangeToDays: Record<string, number> = {
         week: 7,

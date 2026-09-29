@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { createClient } from "@/lib/supabase-server";
 import { redirect } from "next/navigation";
 import AvatarUploader from "../components/user/AvatarUploader";
 import ChangeUsernameButton from "../components/settings/ChangeUsernameButton";
@@ -7,7 +6,7 @@ import ChangeEmailButton from "../components/settings/ChangeEmailButton";
 import ChangePasswordButton from "../components/settings/ChangePasswordButton";
 import DeleteAccountButton from "../components/settings/DeleteUserButton";
 import ChangePrivacyButton from "../components/settings/ChangePrivacyButton";
-import { getViewer } from "@/lib/queries/user-auth";
+import { getOptionalUser } from "@/lib/auth";
 import { getAccountSettings } from "@/lib/queries/user";
 import { getSteamAccount } from "@/lib/queries/steam";
 import UnlinkSteamAccountButton from "../components/settings/UnlinkSteamAccountButton";
@@ -25,8 +24,7 @@ export const metadata: Metadata = {
 
 export default async function Settings({ searchParams } : SettingsPageProps) {
     const { steam_error } = await searchParams
-    const supabase = await createClient()
-    const viewer = await getViewer(supabase)
+    const viewer = await getOptionalUser()
 
     if (!viewer) redirect("/")
 

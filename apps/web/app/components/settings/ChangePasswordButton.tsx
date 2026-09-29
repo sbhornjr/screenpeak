@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/app/components/util/Modal";
 import EditTriggerButton from "@/app/components/util/EditTriggerButton";
-import { getViewer, signInWithPassword, updatePassword } from "@/lib/queries/user-auth";
+import { signInWithPassword, updatePassword } from "@/lib/queries/user-auth";
 
 export default function ChangePasswordButton() {
     const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false)
@@ -18,7 +18,7 @@ export default function ChangePasswordButton() {
         setErrorMsg("")
         const supabase = createClient()
 
-        const viewer = await getViewer(supabase)
+        const { data: { user: viewer } } = await supabase.auth.getUser()
         const signInError = await signInWithPassword(supabase, viewer!.email!, oldPassword)
 
         if (signInError) {

@@ -39,7 +39,7 @@ equivalent API route is the same three lines with a different wrapper:
 ```ts
 // app/api/v1/lists/[listId]/like/route.ts
 export async function POST(req: NextRequest, ctx: RouteContext<'/api/v1/lists/[listId]/like'>) {
-    const user = await requireUserFromRequest(req)
+    const user = await requireUser()          // bearer token (the app) or cookie (the site)
     const { listId } = await ctx.params
     return NextResponse.json(await likeList(listId, user.id))
 }
@@ -75,11 +75,11 @@ What *does* change on the web side (small, and it helps both clients):
    privacy gating must live** — remember `db` bypasses RLS, so if the library
    page checks `library_public` in `page.tsx`, the API route would silently skip
    that check unless the check moves into the shared loader.
-2. **Make auth accept a bearer token.** `requireUser()` (`lib/auth.ts`) reads
+2. **Make auth accept a bearer token.** `requireUser()` (`lib/auth.ts`) read
    the Supabase session from cookies. The mobile app sends
-   `Authorization: Bearer <access_token>` instead. Add
-   `requireUserFromRequest(req)` that checks the header first, falls back to
-   cookies.
+   `Authorization: Bearer <access_token>` instead, so `requireUser()` /
+   `getOptionalUser()` check that header first (via Next's `headers()`) and fall
+   back to cookies — one pair of helpers for pages, actions and routes.
 
 > Why can't the mobile app just call Server Actions directly? They *are* HTTP
 > POST endpoints under the hood, but they're addressed by an opaque ID that
@@ -284,34 +284,29 @@ Phone ── signInWithPassword ──► Supabase Auth ──► access + refre
   │                                                 auto-refreshed)
   └── fetch /api/v1/…  Authorization: Bearer <access_token>
                               │
-                    requireUserFromRequest(req)
-                      → supabase.auth.getUser(token)   (or getClaims)
-                      → { id }
+                    requireUser() / getOptionalUser()
+                      → supabase.auth.getUser(token)   (never trusts claims locally)
+                      → { id, email }
 ```
 
-`requireUserFromRequest` (new, in `lib/auth.ts`):
+As built in Phase 1 step 1 (`lib/auth.ts`) — two helpers, no `req` parameter,
+because Next's `headers()` / `cookies()` read the current request from Server
+Components, Server Actions and Route Handlers alike:
 
 ```ts
-export async function requireUserFromRequest(req: NextRequest): Promise<{ id: string }> {
-    const header = req.headers.get('authorization')
-    if (header?.startsWith('Bearer ')) {
-        const supabase = createStatelessClient()           // plain supabase-js, no cookies
-        const { data: { user } } = await supabase.auth.getUser(header.slice(7))
-        if (!user) throw new UnauthenticatedError()
-        return user
-    }
-    return requireUser()                                   // cookie path: web callers
-}
+getOptionalUser(): Promise<{ id, email } | null>  // null = signed out (read endpoints: a game page, a public profile)
+requireUser():     Promise<{ id, email }>         // throws UnauthenticatedError (401) when signed out
 ```
 
-Most **read** endpoints work signed out too (a game page, a public profile),
-so add a sibling `getOptionalUserFromRequest(req): Promise<{ id } | null>` that
-returns `null` instead of throwing — the loader then fills `viewer: null`.
+Both check `Authorization: Bearer` first (the app), else the session cookie (the
+site), and verify with the Auth server. A bad bearer token is a 401
+`invalid_token` even from `getOptionalUser()` — it never falls back to a cookie —
+and an Auth outage is a 503 `auth_unavailable`, never a 401.
 
-Pair it with a small `withAuth(handler)` wrapper that turns
-`UnauthenticatedError` into a `401` JSON response, so every route doesn't
-repeat try/catch. Native apps don't enforce CORS, so no CORS config is needed
-for the mobile client.
+Route handlers are wrapped in `withAuth(handler)` (`lib/api.ts`), which turns a
+thrown `ApiError` into the standard `{ error: { code, message } }` JSON response,
+so every route doesn't repeat try/catch. Native apps don't enforce CORS, so no
+CORS config is needed for the mobile client.
 
 **Email links** (confirm signup, password reset) keep landing on the website's
 `/auth/confirm` for v1. Later, iOS Universal Links / Android App Links can make
@@ -412,7 +407,7 @@ loaders):
 
 | Endpoint | Loader wraps | Web page |
 |---|---|---|
-| `GET /me` | `getViewer`, `getProfileSummaryById` | layout/nav |
+| `GET /me` | `getOptionalUser`, `getProfileSummaryById` | layout/nav |
 | `GET /feed?offset=` | `getFeed` (replaces the `fetchFeedPage` action for mobile) | `/` (signed-in) |
 | `GET /explore` | `getTrendingGames`, `getTrendingLists`, `getExploreRecommendations`, `getHeroGame` | `/explore`, `/` |
 | `GET /games?…filters` | `queryGames`, `getAllGenres`, `getAllPlatforms`, `getDistinctEsrbRatings` | `/games` |
@@ -445,7 +440,7 @@ Writes (auth required):
 | `POST /me/avatar/upload-url`, `PUT /me/avatar` | `createAvatarUploadUrl`, `saveAvatarUrl` |
 | `POST` / `DELETE /users/[userId]/follow` | `toggleFollow` |
 | `POST /me/steam/link-intent`, `DELETE /me/steam` | new, `unlinkSteamAccountAction` |
-| `POST /api/loadout`, `DELETE /api/delete-account` | existing — just switch to `requireUserFromRequest` |
+| `POST /api/loadout` | existing — just switch to `requireUser()` + `withAuth` (`DELETE /api/delete-account` and `GET /api/steam/link` already did) |
 
 Note on write semantics: the web actions are "toggle" style
 (`toggleListLike(listId, liked)`). The API uses explicit verbs
@@ -480,7 +475,7 @@ behaving on localhost exactly as it did before the move.
    - Re-run the baseline and compare (A.4). **Don't continue until it matches.**
    - Update AGENTS.md paths.
 
-   > **Done** (`182f582`). Route table, test counts and the A.1 checklist all
+   > **Done** (`182f582`). Rte table, test counts and the A.1 checklist all
    > matched. Gotcha: the editor's "update imports on move" rewrote `@/x` to
    > `@/apps/web/x` in 71 files — `@/` is relative to `apps/web/`, so undo that.
 3. **Create the app**:
@@ -545,9 +540,22 @@ behaving on localhost exactly as it did before the move.
 Goal: every screen's data and every mutation available over `/api/v1`, with
 tests. The website is unchanged for users.
 
-1. `requireUserFromRequest` + `withAuth` + a standard JSON error shape
+1. Bearer-token auth (`requireUser` / `getOptionalUser`) + `withAuth` + a standard JSON error shape
    (`{ error: { code, message } }`). Tests: bearer valid / expired / missing /
    cookie fallback.
+   > **Done.** `lib/auth.ts` (`getOptionalUser`, `requireUser` — planned as
+   > `…FromRequest(req)`, but `headers()` makes the `req` parameter unnecessary, so
+   > the same two helpers serve pages, actions and routes; `getViewer` is gone),
+   > `lib/api.ts` (`ApiError`, `withAuth`, `apiError`), `lib/supabase-stateless.ts`, and the error contract in
+   > `@screenpeak/shared/api/errors`. Verified with `getUser` (not `getClaims`) so
+   > revocation is immediate. Beyond the four named cases: a bad bearer fails
+   > closed (no cookie fallback), `getOptionalUser` still rejects a bad token, and an
+   > Auth outage is 503 `auth_unavailable` — never a 401 that signs the app out.
+   > Checked live against Supabase via a throwaway route (401s, `WWW-Authenticate`,
+   > `RouteContext` typing). AGENTS.md "Who's calling" has the usage rules.
+   > `DELETE /api/delete-account` and `GET /api/steam/link` use `requireUser()` +
+   > `withAuth`; `POST /api/loadout` still has its own ad-hoc check — switch it
+   > when step 4 reaches it (see the endpoint table).
 2. Extract loaders, one page at a time: move data gathering from `page.tsx` into
    `lib/loaders/*.ts`, point the page at it, confirm the page still renders,
    then add the `GET` route. Start with `games/[slug]` (most complex, most
@@ -690,7 +698,7 @@ cd apps/mobile && npx expo start
 ```
 
 Then do the Phase 0 spikes. When those are done, the first real task is
-Phase 1 step 1 (`requireUserFromRequest`) followed by the `games/[slug]`
+Phase 1 step 1 (bearer-token auth) followed by the `games/[slug]`
 loader + endpoint, and then the Game detail screen. Getting that one vertical
 slice working end-to-end (Postgres → loader → route → shared types → TanStack
 Query → native screen) proves out every layer before you repeat the pattern
@@ -857,10 +865,8 @@ the *shape* of the question and the answer.
 ```tsx
 export default async function GamePage({ params, searchParams }) {
     const { slug } = await params
-    const supabase = await createClient()
-
     // job 1: who's asking?
-    const user = await getViewer(supabase)
+    const user = await getOptionalUser()
 
     // job 2: fetch the data (8 sequential awaits, all hitting db)
     const game = await getGameBySlug(slug)
@@ -963,7 +969,7 @@ contract — rename a field without updating `GamePageData` and the build fails.
 ```tsx
 export default async function GamePage({ params, searchParams }) {
     const { slug } = await params
-    const user = await getViewer(await createClient())          // job 1 (cookies, as today)
+    const user = await getOptionalUser()                        // job 1 (cookie, as today)
 
     const data = await loadGamePage(slug, user?.id ?? null)     // job 2 → loader, plain function call
     if (!data) notFound()
@@ -981,7 +987,7 @@ The website calls the loader **directly** — no HTTP, no `/api/v1`.
 ```ts
 export async function GET(req: NextRequest, ctx: RouteContext<'/api/v1/games/[slug]'>) {
     const { slug } = await ctx.params
-    const user = await getOptionalUserFromRequest(req)          // job 1 (bearer token, or cookie)
+    const user = await getOptionalUser()                        // job 1 (bearer token, or cookie)
 
     const data = await loadGamePage(slug, user?.id ?? null)     // job 2 → the SAME loader
     if (!data) return NextResponse.json({ error: { code: 'not_found' } }, { status: 404 })

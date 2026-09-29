@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
-import { createClient } from "@/lib/supabase-server";
 import { notFound } from "next/navigation";
 import ListPreview from "@/app/components/lists/ListPreview";
 import CreateListButton from "@/app/components/lists/CreateListButton";
 import Link from "next/link";
 import { ListWithOwner } from "@screenpeak/shared/types";
-import { getViewer } from "@/lib/queries/user-auth";
+import { getOptionalUser } from "@/lib/auth";
 import { getProfileSummaryByUsername, getAccountSettings } from "@/lib/queries/user";
 import { getUserLists, getLikedLists, getListCoverMap, getListLikes } from "@/lib/queries/list";
 import Eyebrow from "@/app/components/util/Eyebrow";
@@ -26,8 +25,7 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
 export default async function ListsPage({ params, searchParams }: ListsPageProps) {
     const { username } = await params;
     const { tab } = await searchParams;
-    const supabase = await createClient()
-    const viewer = await getViewer(supabase)
+    const viewer = await getOptionalUser()
 
     const profile = await getProfileSummaryByUsername(username)
 

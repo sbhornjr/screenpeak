@@ -1,17 +1,13 @@
 import { createClient } from '@supabase/supabase-js'
-import { createClient as createServerClient } from '@/lib/supabase-server'
+import { NextResponse } from 'next/server'
 import { createLoggingFetch } from '@/lib/supabase-logging'
 import { logger } from '@/lib/logger'
-import { NextResponse } from 'next/server'
-import { getViewer, deleteUserAccount } from '@/lib/queries/user-auth'
+import { deleteUserAccount } from '@/lib/queries/user-auth'
+import { requireUser } from '@/lib/auth'
+import { apiError, withAuth } from '@/lib/api'
 
-export async function DELETE() {
-    const supabase = await createServerClient()
-    const user = await getViewer(supabase)
-
-    if (!user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+export const DELETE = withAuth(async () => {
+    const user = await requireUser()
 
     const adminClient = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -23,9 +19,9 @@ export async function DELETE() {
 
     if (error) {
         logger.error('api:delete-account', 'Failed to delete user account', { userId: user.id, error: error.message })
-        return NextResponse.json({ error: error.message }, { status: 500 })
+        return apiError(500, 'internal', 'Could not delete the account. Please try again.')
     }
 
     logger.info('api:delete-account', 'User account deleted', { userId: user.id })
     return NextResponse.json({ success: true })
-}
+})

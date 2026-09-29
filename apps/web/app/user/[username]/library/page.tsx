@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
-import { createClient } from "@/lib/supabase-server";
 import GameCard from "@/app/components/game/GameCard";
 import { redirect } from "next/navigation"
 import LibraryFilters from "../../../components/library/LibraryFilters";
 import Link from "next/link";
 import EmptyState from "../../../components/util/EmptyState";
 import Eyebrow from "@/app/components/util/Eyebrow";
-import { getViewer } from "@/lib/queries/user-auth";
+import { getOptionalUser } from "@/lib/auth";
 import { getUserIdFromUsername, getAccountSettings } from "@/lib/queries/user";
 import { queryGames, getDeveloperNameMap } from "@/lib/queries/game";
 import { getLibraryFacets, getLibraryEntries } from "@/lib/queries/library";
@@ -38,9 +37,8 @@ export default async function LibraryPage({ params, searchParams } : LibraryPage
     const orderQuery = order?.trim() ?? 'desc';
     const statusQuery = status?.trim() ?? ''
     const is100Query = is100?.trim() === 'true'
-    const supabase = await createClient()
 
-    const viewer = await getViewer(supabase)
+    const viewer = await getOptionalUser()
     const ownerId = await getUserIdFromUsername(username)
 
     if (!ownerId) redirect("/")

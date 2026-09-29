@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase-browser'
 import { User } from '@screenpeak/shared/types'
-import { getViewer, getProfileSummaryById, signOut as signOutQuery } from '@/lib/queries/user-auth'
+import { getProfileSummaryById, signOut as signOutQuery } from '@/lib/queries/user-auth'
 
 type UserContextType = {
     user: User | null
@@ -22,7 +22,7 @@ export default function UserProvider({ children }: { children: React.ReactNode }
 
         // Fetch initial session
         async function loadUser() {
-            const authUser = await getViewer(supabase)
+            const { data: { user: authUser } } = await supabase.auth.getUser()
             if (authUser) {
                 const profile = await getProfileSummaryById(supabase, authUser.id)
                 setUser(profile ?? null)
