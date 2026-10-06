@@ -33,6 +33,17 @@ export async function getGameBySlug(slug: string) {
     }
 }
 
+// Just the id, for endpoints addressed by slug that don't need the game itself
+// (e.g. GET /api/v1/games/[slug]/reviews).
+export async function getGameIdBySlug(slug: string): Promise<string | null> {
+    try {
+        const rows = await db.select({ id: games.id }).from(games).where(eq(games.slug, slug)).limit(1)
+        return rows[0]?.id ?? null
+    } catch {
+        return null
+    }
+}
+
 export async function getGameTaxonomy(gameId: string) {
     const [genreRows, platformRows, developerRows, publisherRows] = await Promise.all([
         db.select({ id: genres.id, name: genres.name, slug: genres.slug })

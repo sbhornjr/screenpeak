@@ -66,6 +66,22 @@ export async function getAccountSettings(userId: string) {
     }
 }
 
+// Just the one setting the game page needs (whether a list created there starts
+// public), so a game page view doesn't select the whole settings row.
+export async function getDefaultListPublic(userId: string): Promise<boolean | null> {
+    try {
+        const rows = await db
+            .select({ default_list_public: users.defaultListPublic })
+            .from(users)
+            .where(eq(users.id, userId))
+            .limit(1)
+
+        return rows[0]?.default_list_public ?? null
+    } catch {
+        return null
+    }
+}
+
 export async function updateBio(userId: string, bio: string) {
     const parsed = parseOrError(bioSchema, bio)
     if (!parsed.success) return { error: parsed.error }

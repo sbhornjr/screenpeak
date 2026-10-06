@@ -10,7 +10,7 @@ import { plus1 } from "@/lib/plus1"
 import { Check } from "lucide-react"
 
 export default function AddToListButton({ gameId, lists, listIdsGameIsIn, defaultListPrivacy } :
-    { gameId : string, lists : { listId: string, listName: string }[], listIdsGameIsIn: Set<string>, defaultListPrivacy?: boolean }) {
+    { gameId : string, lists : { listId: string, listName: string }[], listIdsGameIsIn: Iterable<string>, defaultListPrivacy?: boolean }) {
     const [isAddToListModalOpen, setIsAddToListModalOpen] = useState(false)
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
     const [listIdsGameIsInState, setListIdsGameIsInState] = useState(new Set(listIdsGameIsIn))

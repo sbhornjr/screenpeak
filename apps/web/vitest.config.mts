@@ -1,10 +1,14 @@
 import { defineConfig } from 'vitest/config'
 
 // Test runner config. Deliberately isolated from next.config.ts / tsconfig
-// build settings — the suite only needs the `@/*` path alias resolved.
+// build settings — the suite only needs the `@/*` path alias resolved, plus
+// `server-only` stubbed (see test/stubs/server-only.ts).
 export default defineConfig({
     resolve: {
-        alias: { '@': import.meta.dirname },
+        alias: {
+            '@': import.meta.dirname,
+            'server-only': `${import.meta.dirname}/test/stubs/server-only.ts`,
+        },
     },
     test: {
         globals: true,

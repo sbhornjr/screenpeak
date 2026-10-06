@@ -2,6 +2,8 @@ import { eq, and, ne, desc, asc, inArray, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { ratingsReviews, users, games } from '@/db/schema'
 import { GameRatingReview, RatingReviewData, RatingReviewCounts, AvgRatingsData, GameRatingsStats } from '@screenpeak/shared/types'
+import type { GameReviewsPage } from '@screenpeak/shared/api/games'
+import type { GameReviewsQuery } from '@/lib/game-reviews-query'
 import { ratingReviewSchema, parseOrError } from '@screenpeak/shared/schemas'
 import { uuidArrayParam } from '@/lib/sql-helpers'
 
@@ -44,45 +46,56 @@ export async function getUserRatingReviewForGame(gameId: string, userId: string)
     }
 }
 
-type GameReviewsPageParams = {
-    limit: number
-    offset: number
-    sort: "date" | "rating"
-    order: "asc" | "desc"
-    excludeUserId?: string
-}
-
-// Paginated, written reviews for a game (rating rows with no review text are excluded).
-export async function getGameReviewsForPage(gameId: string, { limit, offset, sort, order, excludeUserId }: GameReviewsPageParams) {
+// One page of a game's written reviews (rating rows with no review text are
+// excluded), in the shared GameReviewsPage shape — the game page renders it and
+// GET /api/v1/games/[slug]/reviews returns it as-is. Reviews are public: no
+// privacy gate. Signed in, the viewer's own review is left out (they see it
+// separately, as `viewer.review`).
+//
+// Unlike most queries here, a DB error THROWS rather than returning an empty
+// page: through the API, an outage must be a 500, not "this game has no
+// reviews". The web page catches it and shows the empty list, as it always has.
+export async function getGameReviewsForPage(gameId: string, query: GameReviewsQuery, viewerId: string | null): Promise<GameReviewsPage> {
+    const { page, pageSize, sort, order } = query
     const conditions = [eq(ratingsReviews.gameId, gameId), ne(ratingsReviews.review, '')]
-    if (excludeUserId) conditions.push(ne(ratingsReviews.userId, excludeUserId))
+    if (viewerId) conditions.push(ne(ratingsReviews.userId, viewerId))
 
     const sortColumn = sort === "rating" ? ratingsReviews.rating : ratingsReviews.updatedAt
     const orderFn = order === "asc" ? asc : desc
 
-    try {
-        const [rows, countRows] = await Promise.all([
-            db
-                .select({
-                    user_id: ratingsReviews.userId,
-                    rating: ratingsReviews.rating,
-                    review: ratingsReviews.review,
-                    created_at: ratingsReviews.createdAt,
-                    updated_at: ratingsReviews.updatedAt,
-                    users: { username: users.username, display_name: users.displayName, avatar_url: users.avatarUrl },
-                })
-                .from(ratingsReviews)
-                .innerJoin(users, eq(ratingsReviews.userId, users.id))
-                .where(and(...conditions))
-                .orderBy(orderFn(sortColumn))
-                .limit(limit)
-                .offset(offset),
-            db.select({ count: sql<number>`count(*)::int` }).from(ratingsReviews).where(and(...conditions)),
-        ])
+    const [rows, countRows] = await Promise.all([
+        db
+            // Exactly the contract's fields — this select is what the API sends
+            .select({
+                user_id: ratingsReviews.userId,
+                rating: ratingsReviews.rating,
+                review: ratingsReviews.review,
+                created_at: ratingsReviews.createdAt,
+                updated_at: ratingsReviews.updatedAt,
+                users: { username: users.username, display_name: users.displayName, avatar_url: users.avatarUrl },
+            })
+            .from(ratingsReviews)
+            .innerJoin(users, eq(ratingsReviews.userId, users.id))
+            .where(and(...conditions))
+            // Tie-breakers make the order total: many reviews share a rating, and
+            // with OFFSET paging an unstable order repeats some rows across pages
+            // and skips others. Most recently edited first among equal ratings,
+            // then the row id (unique) as the final word.
+            .orderBy(
+                orderFn(sortColumn),
+                ...(sort === "rating" ? [desc(ratingsReviews.updatedAt)] : []),
+                asc(ratingsReviews.id),
+            )
+            .limit(pageSize)
+            .offset((page - 1) * pageSize),
+        db.select({ count: sql<number>`count(*)::int` }).from(ratingsReviews).where(and(...conditions)),
+    ])
 
-        return { reviews: rows as unknown as GameRatingReview[], count: countRows[0]?.count ?? 0 }
-    } catch {
-        return { reviews: [], count: 0 }
+    const total = countRows[0]?.count ?? 0
+    return {
+        reviews: rows as unknown as GameRatingReview[],
+        total,
+        totalPages: Math.ceil(total / pageSize),
     }
 }
 

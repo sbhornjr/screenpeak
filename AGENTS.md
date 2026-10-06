@@ -85,7 +85,8 @@ No typecheck script — use `npx tsc --noEmit -p apps/web` for type checking.
   and later fixes — that were captured/written by hand rather than generated
   by `drizzle-kit generate`)
 - `lib/` — shared logic: Supabase clients, the Drizzle client (`lib/db.ts`),
-  `requireUser()` (`lib/auth.ts`), DB queries (`lib/queries/`), utilities
+  `requireUser()` (`lib/auth.ts`), DB queries (`lib/queries/`), page loaders
+  (`lib/loaders/`), utilities
 - `scripts/` — standalone scripts (`seed-games.ts`, `inspect-rawg.ts`)
 - `test/` — Vitest suite. Shared TS types (mirroring `lib/queries/`) and the zod
   schemas live in `packages/shared`, not here — see Monorepo layout
@@ -153,6 +154,42 @@ link formats.
   `export const GET = withAuth(async (req, ctx: RouteContext<'/api/v1/…'>) => { … })`.
   `withAuth` renders any `ApiError`; anything else is logged and becomes a generic
   500 `internal` — never put internals in an `ApiError` message.
+
+### Loaders (`lib/loaders/`) and the `/api/v1` contract
+
+A loader is a page's data gathering lifted out of `page.tsx`, so the page and its
+`GET /api/v1/...` route return the same thing (`lib/loaders/game-page.ts` is the
+reference). **Write one only when it earns its keep** — it combines several
+queries, gates privacy, or reshapes rows into the contract. A single query that can
+return the contract type itself is called directly by both the page and the route
+(`getGameReviewsForPage` → `GET /api/v1/games/[slug]/reviews`). Either way:
+- Return a type **declared in `@screenpeak/shared/api/*`** (never inferred from the
+  loader or query), and treat it as public: old app versions keep calling it, so change it
+  additively.
+- **Build the response field by field** — or, for a query returned as-is, make its
+  `select` list exactly the contract's columns. Extra columns leak silently
+  (TypeScript won't flag them); send only what the screen needs, not whole rows
+  like account settings.
+- **Queries an API route calls must throw on a DB error**, not `catch { return [] }`
+  like most of `lib/queries/*`: through the API an outage has to be a 500, not a
+  plausible empty result. A web page that wants the old forgiving behaviour
+  `.catch()`es at the call site.
+- **Everything must survive `JSON.stringify`**: no `Set`/`Map` (→ `{}`), no `Date`;
+  convert `numeric` strings to numbers. Loader tests check a JSON round trip.
+- **Privacy gates live in the loader**, never in `page.tsx` — `db` bypasses RLS and
+  the route would skip a page-level check.
+- Viewer-specific data goes in a `viewer` block that's `null` when signed out, and
+  its queries don't run at all then. URL-paged data (reviews) gets its own endpoint.
+- **Paged queries need a total order** (`ORDER BY sort_col, …, id`): with `OFFSET`
+  paging, ties in the sort column otherwise repeat or skip rows between pages.
+- **Query params:** parse them with zod in a small module both callers import, **strict** for the API
+  (throw `ApiError(400, 'invalid_request', message naming the param)`) and **lenient**
+  for the web page (per-field `.catch(default)`, as hand-edited URLs always have been) —
+  `lib/game-reviews-query.ts` is the reference. Shared limits go in
+  `@screenpeak/shared/constants`.
+- The route: `withAuth` → `getOptionalUser()`/`requireUser()` → loader → `404
+  not_found` or `Response.json(data)` with `Cache-Control: private, no-store` when
+  it contains viewer data.
 
 ## External APIs
 

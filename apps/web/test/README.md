@@ -9,7 +9,9 @@ npm run test:watch
 
 Config lives in `vitest.config.mts` at the repo root. Node is the default
 environment; DOM specs opt in per-file with a `// @vitest-environment jsdom`
-docblock.
+docblock. `server-only` is aliased to an empty stub (`test/stubs/server-only.ts`)
+so server modules (`lib/db.ts`, loaders) can be imported in tests; the Next
+build still enforces the real guard.
 
 ## What is covered, and why
 
@@ -29,6 +31,11 @@ is mocked — logging behaviour is asserted through real `console` spies.
 | `lib/safe-redirect.test.ts` | `safeNextPath` | `/auth/confirm`'s `next` param is reduced to a same-origin path: `/auth/update-password` and query/hash pass through; missing/empty → `/`; userinfo (`@evil.com`), subdomain (`.evil.com`), absolute, protocol-relative (`//`, `/\`), tab-normalised and `javascript:` targets all fall back to `/` |
 | `lib/plus1.test.ts` / `plus1.ssr.test.ts` | `plus1` | Dispatches `screenpeak:plus1` with `{label, n}` (default `n=1`); no-ops when `window` is undefined |
 | `lib/schemas.test.ts` | `emailSchema`, `passwordSchema`, `usernameSchema`, `ratingReviewSchema`, `listFieldsSchema`, `bioSchema`, `selectedTitleSchema`, `favoriteGameIdsSchema`, `privacyTypeSchema`, `parseOrError` | Trim/normalise; length + charset bounds (username 3–20, review ≤5000, list name ≤80, bio ≤500); rating coerced to int 1–10; empty review is valid; ≤5 favourite ids; fixed privacy section names; `parseOrError` returns first-issue message |
+| `lib/loaders/game-page.test.ts` | `loadGamePage` | Unknown slug → `null` with no other queries; signed out → `viewer: null` and no viewer queries run; signed in → viewer block from the viewer's own rows (private lists included), list membership as an array, lists narrowed to `{ id, name, game_count }`, `defaultListPrivacy` defaulting to `true`, `hours_played` numeric string → number, nullable library columns normalised; `game` has exactly the contract's fields (no `steam_appid`); result survives a JSON round trip. `lib/queries/*` mocked |
+| `lib/game-reviews-query.test.ts` | `parseGameReviewsQuery`, `parseGameReviewsQueryLenient` | Strict (API): defaults (page 1, 10, date, desc), URL-string coercion, `pageSize` ≤ 100, and 400-worthy values (`0`, `1.5`, `abc`, `101`, unknown sort/order) rejected naming the param. Lenient (web page): per-field fallback |
+| `lib/queries.review.test.ts` | `getGameReviewsForPage` | Returns exactly the `GameReviewsPage` shape (`reviews`, `total`, `totalPages`; rounding up; empty game); page → `LIMIT`/`OFFSET`; viewer's own review excluded from page and count; total ordering for stable paging (rating → `updated_at` → id; date → id); throws on a DB error. `db` mocked, SQL fragments rendered with Drizzle's `PgDialect` |
+| `api/games-slug-reviews.test.ts` | `GET /api/v1/games/[slug]/reviews` | Defaults on a bare request; parsed query + viewer id reach the loader; `private, no-store`; bad param → 400 `invalid_request` before any lookup; unknown slug → 404; bad bearer → 401; a DB error → 500 `internal` (detail not leaked). Auth and both queries mocked; real query parser |
+| `api/games-slug.test.ts` | `GET /api/v1/games/[slug]` | Loader data as JSON (signed out → `viewer` null; signed in → viewer id passed); `Cache-Control: private, no-store`; unknown slug → 404 `not_found` error shape; a bad bearer → 401 before the loader runs. Auth + loader mocked |
 | `lib/auth.test.ts` | `getOptionalUser`, `requireUser` | Bearer valid / expired (403 `bad_jwt`) / empty / deleted-user → `{ id, email }` or 401 `invalid_token`; an invalid bearer never falls back to a valid cookie (fails closed); no bearer (or a non-Bearer scheme) → cookie session, else 401 `unauthenticated`; `getOptionalUser` returns `null` when signed out but still rejects a bad token; an Auth outage (`AuthRetryableFetchError`) is 503 `auth_unavailable` on every path. `next/headers` and both Supabase clients mocked; real supabase-js error classes |
 | `lib/api.test.ts` | `apiError`, `withAuth` | `{ error: { code, message } }` body; handler + route context passed through; `UnauthenticatedError` → 401 with `WWW-Authenticate: Bearer` / `Bearer error="invalid_token"`; `AuthUnavailableError` → 503 + `Retry-After`; any `ApiError` rendered as-is; unexpected errors → generic 500 `internal` with the detail logged, never in the body |
 | `lib/supabase-logging.test.ts` | `createLoggingFetch` | Response passed through with body still readable (uses `.clone()`); error line on non-ok; request-body redaction; oversized-body truncation; network errors rethrown after logging |

@@ -13,13 +13,12 @@ import Avatar from "@/app/components/user/Avatar";
 import ExpandableText from "@/app/components/util/ExpandableText";
 import SectionHead from "@/app/components/util/SectionHead";
 import Panel from "@/app/components/util/Panel";
-import { ListSummary, GameRatingsStats } from "@screenpeak/shared/types";
+import { GameRatingsStats } from "@screenpeak/shared/types";
 import { getOptionalUser } from "@/lib/auth";
-import { getAccountSettings } from "@/lib/queries/user";
-import { getGameBySlug, getGameTaxonomy } from "@/lib/queries/game";
-import { getGameRatingsStats, getUserRatingReviewForGame, getGameReviewsForPage } from "@/lib/queries/review";
-import { getUserLists, getGameListMembership } from "@/lib/queries/list";
-import { getLibraryEntry } from "@/lib/queries/library";
+import { loadGamePage } from "@/lib/loaders/game-page";
+import { parseGameReviewsQueryLenient } from "@/lib/game-reviews-query";
+import { getGameBySlug } from "@/lib/queries/game";
+import { getGameReviewsForPage } from "@/lib/queries/review";
 import { Metadata } from "next";
 import { ChevronLeft } from "lucide-react"
 
@@ -87,35 +86,33 @@ function Log({ row, own = false }: { row: LogRow, own?: boolean }) {
 
 export default async function GamePage({ params, searchParams }: GamePageProps) {
     const { slug } = await params;
-    const { page, pageSize, sort, order } = await searchParams;
-    const pageQuery = page ? Number(page) : 1
-    const pageSizeQuery = pageSize ? Number(pageSize) : 10
-    const sortQuery: "date" | "rating" = sort === "rating" ? "rating" : "date"
-    const orderQuery: "asc" | "desc" = order === "asc" ? "asc" : "desc"
+    // Lenient: a bad value in a hand-edited URL falls back to its default
+    const reviewsQuery = parseGameReviewsQueryLenient(await searchParams)
+    const { page: pageQuery, pageSize: pageSizeQuery, sort: sortQuery, order: orderQuery } = reviewsQuery
 
     const user = await getOptionalUser()
-    const game = await getGameBySlug(slug)
-    if (!game) notFound()
+    // Same loader as GET /api/v1/games/[slug] — the phone gets this data as JSON
+    const data = await loadGamePage(slug, user?.id ?? null)
+    if (!data) notFound()
 
     const {
-        genres: genreList,
-        platforms: platformList,
-        developers: developerList,
-        publishers: publisherList,
-    } = await getGameTaxonomy(game.id)
+        game,
+        taxonomy: { genres: genreList, platforms: platformList, developers: developerList, publishers: publisherList },
+        stats,
+        viewer,
+    } = data
+    const userReview = viewer?.review ?? null
+    const libraryEntry = viewer?.libraryEntry ?? null
 
-    const stats = await getGameRatingsStats(game.id)
-    const userReview = user ? await getUserRatingReviewForGame(game.id, user.id) : null
-    const libraryEntry = user ? await getLibraryEntry(user.id, game.id) : null
-
-    const { reviews: pagedReviews, count: otherReviewsCount } = await getGameReviewsForPage(game.id, {
-        limit: pageSizeQuery,
-        offset: (pageQuery - 1) * pageSizeQuery,
-        sort: sortQuery,
-        order: orderQuery,
-        excludeUserId: user?.id,
-    })
-    const otherReviewsTotalPages = Math.ceil(otherReviewsCount / pageSizeQuery)
+    // Paged by the URL, so not part of the loader — the same query as GET
+    // /api/v1/games/[slug]/reviews. It throws on a DB error (the API needs a 500);
+    // here that just means an empty review list, as it always has.
+    const {
+        reviews: pagedReviews,
+        total: otherReviewsCount,
+        totalPages: otherReviewsTotalPages,
+    } = await getGameReviewsForPage(game.id, reviewsQuery, user?.id ?? null)
+        .catch(() => ({ reviews: [], total: 0, totalPages: 0 }))
 
     const count = stats.total_ratings
     const reviewCount = stats.total_reviews
@@ -127,9 +124,7 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
     }))
     const maxCount = Math.max(...distribution.map(d => d.count), 1)
 
-    const lists = user ? (await getUserLists(user?.id, true)) as ListSummary[] : []
-    const listIdsGameIsIn = await getGameListMembership(game.id, lists.map(l => l.id))
-    const userSettings = user ? await getAccountSettings(user.id) : null
+    const lists = viewer?.lists ?? []
 
     const year = game.released ? new Date(game.released).getFullYear() : null
     const inFile = !!(userReview || libraryEntry)
@@ -207,9 +202,9 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
                                     <LibraryButton game_id={game.id as unknown as number} />
                                     <AddToListButton
                                         gameId={game.id}
-                                        lists={lists.map(l => ({ listId: String(l.id), listName: l.name, listCount: l.game_count }))}
-                                        listIdsGameIsIn={listIdsGameIsIn}
-                                        defaultListPrivacy={userSettings?.default_list_public ?? true}
+                                        lists={lists.map(l => ({ listId: l.id, listName: l.name, listCount: l.game_count }))}
+                                        listIdsGameIsIn={viewer?.listIdsGameIsIn ?? []}
+                                        defaultListPrivacy={viewer?.defaultListPrivacy ?? true}
                                     />
                                 </StickyGameActions>
                             </div>

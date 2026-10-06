@@ -560,6 +560,30 @@ tests. The website is unchanged for users.
    `lib/loaders/*.ts`, point the page at it, confirm the page still renders,
    then add the `GET` route. Start with `games/[slug]` (most complex, most
    valuable).
+
+   > **`games/[slug]` done.** `lib/loaders/game-page.ts` (`loadGamePage` +
+   > `loadViewerState`), contract `GamePageData` in `@screenpeak/shared/api/games`,
+   > `GET /api/v1/games/[slug]` (`private, no-store`). The page renders from the
+   > loader — visible text identical before/after for two games. Changes vs.
+   > Appendix B: the viewer block sends `defaultListPrivacy` (not the whole
+   > settings row) and `listIdsGameIsIn` as an array (the query's `Set` becomes
+   > `{}` in JSON); lists are narrowed to `{ id, name, game_count }`; `game` is
+   > built field by field so extra columns (`steam_appid`) don't leak; library
+   > `hours_played` is a number.
+   >
+   > **`games/[slug]/reviews` done** — no loader: a single query needs none.
+   > `getGameReviewsForPage` (`lib/queries/review.ts`) returns the shared
+   > `GameReviewsPage` (`reviews`, `total`, `totalPages` — the request params aren't
+   > echoed: the app already knows them, and bad values are rejected, never
+   > adjusted), and both the page and `GET /api/v1/games/[slug]/reviews` call it.
+   > It throws on a DB error (the API answers 500, not "no reviews"); the page
+   > catches that and shows an empty list as before. URL parsing lives in
+   > `lib/game-reviews-query.ts`.
+   > Query params are strict in the API (bad value → 400 `invalid_request`, page
+   > size ≤ 100 to match the web's menu) and lenient on the web page (per-field
+   > fallback). Fixed unstable paging: the query now tie-breaks (rating →
+   > `updated_at` → row id), so tied ratings no longer repeat/skip across pages.
+   > Both game-page endpoints are done; next loader: another page.
 3. **Privacy audit pass**: for every read endpoint, write a test that a
    non-owner cannot see a private library / private list. This is the #1 way
    this phase can go wrong — `db` bypasses RLS.
@@ -959,6 +983,9 @@ export async function loadGamePage(slug: string, viewerId: string | null): Promi
     return { game, taxonomy, stats, viewer }
 }
 ```
+
+> Built in Phase 1 step 2 as `apps/web/lib/loaders/game-page.ts` — see the
+> step 2 note for how the real contract differs from this sketch.
 
 **This is where `db` is used** (through `lib/queries/*`, as today). The return
 type is imported from shared, so the loader is type-checked against the

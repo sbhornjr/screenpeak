@@ -10,6 +10,8 @@ export type ApiErrorCode =
     | 'invalid_token'
     /** 503 — Supabase Auth couldn't be reached to verify the caller. Retry; do NOT sign out. */
     | 'auth_unavailable'
+    /** 400 — a query parameter or body field is missing or out of range; `message` says which */
+    | 'invalid_request'
     /** 404 */
     | 'not_found'
     /** 500 — unexpected server error (details are in the server logs only) */

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import GameCard from "@/app/components/game/GameCard";
+import GameCard from "../components/game/GameCard";
 import GameFilters from "../components/game/GameFilters";
 import Link from "next/link";
 import Pagination from "../components/util/Pagination";
