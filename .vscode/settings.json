@@ -1,0 +1,9 @@
+{
+  // Use the repo's TypeScript (the hoisted root copy, which apps/web builds with)
+  // instead of VS Code's bundled one, so the editor sees what `tsc` and `next build`
+  // see and can load Next's TypeScript plugin. VS Code then offers
+  // "TypeScript: Select TypeScript Version" → "Use Workspace Version".
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+  "js/ts.tsdk.path": "node_modules/typescript/lib"
+}

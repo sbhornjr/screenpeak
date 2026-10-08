@@ -39,7 +39,7 @@ equivalent API route is the same three lines with a different wrapper:
 ```ts
 // app/api/v1/lists/[listId]/like/route.ts
 export async function POST(req: NextRequest, ctx: RouteContext<'/api/v1/lists/[listId]/like'>) {
-    const user = await requireUserFromRequest(req)
+    const user = await requireUser()          // bearer token (the app) or cookie (the site)
     const { listId } = await ctx.params
     return NextResponse.json(await likeList(listId, user.id))
 }
@@ -75,11 +75,11 @@ What *does* change on the web side (small, and it helps both clients):
    privacy gating must live** — remember `db` bypasses RLS, so if the library
    page checks `library_public` in `page.tsx`, the API route would silently skip
    that check unless the check moves into the shared loader.
-2. **Make auth accept a bearer token.** `requireUser()` (`lib/auth.ts`) reads
+2. **Make auth accept a bearer token.** `requireUser()` (`lib/auth.ts`) read
    the Supabase session from cookies. The mobile app sends
-   `Authorization: Bearer <access_token>` instead. Add
-   `requireUserFromRequest(req)` that checks the header first, falls back to
-   cookies.
+   `Authorization: Bearer <access_token>` instead, so `requireUser()` /
+   `getOptionalUser()` check that header first (via Next's `headers()`) and fall
+   back to cookies — one pair of helpers for pages, actions and routes.
 
 > Why can't the mobile app just call Server Actions directly? They *are* HTTP
 > POST endpoints under the hood, but they're addressed by an opaque ID that
@@ -267,8 +267,8 @@ UI is the biggest *chunk of work*, but the differences that bite are about
 | Routing | Expo Router | File-based; tabs + stacks |
 | Server state | TanStack Query | Caching, infinite scroll (feed), optimistic updates (likes/follows), refetch on focus |
 | Auth | `@supabase/supabase-js` + `expo-secure-store` | Sign in/up/out/reset happen directly against Supabase Auth, just like the web |
-| Styling | Decide in the Phase 0 spike: NativeWind *(Tailwind classes on RN; check its Tailwind v4 support status)* vs `StyleSheet` + `tokens.ts` | Either way the tokens come from `packages/shared/tokens.ts`, mirroring `globals.css` |
-| Fonts | `expo-font` + `@expo-google-fonts/{chakra-petch,ibm-plex-sans,ibm-plex-mono}` | Same three families as the web |
+| Styling | **`StyleSheet` + `tokens.ts`** (decided in the Phase 0 spike — NativeWind v5 doesn't build yet; see Phase 0 step 5) | Tokens come from `packages/shared/tokens.ts`, mirroring `globals.css`; mobile imports them via `@/theme` |
+| Fonts | `expo-font` + `@expo-google-fonts/{chakra-petch,ibm-plex-sans,ibm-plex-mono}` | Same three families and weights as the web; per-weight imports, weight chosen by `fontFamily` |
 | Images | `expo-image` | Caching for RAWG cover art + R2 avatars |
 | Charts | `victory-native` or `react-native-gifted-charts` | Replaces recharts (DistributionChart, Loadout stats) |
 | Icons | `lucide-react-native` | Same icon set the web uses |
@@ -284,34 +284,29 @@ Phone ── signInWithPassword ──► Supabase Auth ──► access + refre
   │                                                 auto-refreshed)
   └── fetch /api/v1/…  Authorization: Bearer <access_token>
                               │
-                    requireUserFromRequest(req)
-                      → supabase.auth.getUser(token)   (or getClaims)
-                      → { id }
+                    requireUser() / getOptionalUser()
+                      → supabase.auth.getUser(token)   (never trusts claims locally)
+                      → { id, email }
 ```
 
-`requireUserFromRequest` (new, in `lib/auth.ts`):
+As built in Phase 1 step 1 (`lib/auth.ts`) — two helpers, no `req` parameter,
+because Next's `headers()` / `cookies()` read the current request from Server
+Components, Server Actions and Route Handlers alike:
 
 ```ts
-export async function requireUserFromRequest(req: NextRequest): Promise<{ id: string }> {
-    const header = req.headers.get('authorization')
-    if (header?.startsWith('Bearer ')) {
-        const supabase = createStatelessClient()           // plain supabase-js, no cookies
-        const { data: { user } } = await supabase.auth.getUser(header.slice(7))
-        if (!user) throw new UnauthenticatedError()
-        return user
-    }
-    return requireUser()                                   // cookie path: web callers
-}
+getOptionalUser(): Promise<{ id, email } | null>  // null = signed out (read endpoints: a game page, a public profile)
+requireUser():     Promise<{ id, email }>         // throws UnauthenticatedError (401) when signed out
 ```
 
-Most **read** endpoints work signed out too (a game page, a public profile),
-so add a sibling `getOptionalUserFromRequest(req): Promise<{ id } | null>` that
-returns `null` instead of throwing — the loader then fills `viewer: null`.
+Both check `Authorization: Bearer` first (the app), else the session cookie (the
+site), and verify with the Auth server. A bad bearer token is a 401
+`invalid_token` even from `getOptionalUser()` — it never falls back to a cookie —
+and an Auth outage is a 503 `auth_unavailable`, never a 401.
 
-Pair it with a small `withAuth(handler)` wrapper that turns
-`UnauthenticatedError` into a `401` JSON response, so every route doesn't
-repeat try/catch. Native apps don't enforce CORS, so no CORS config is needed
-for the mobile client.
+Route handlers are wrapped in `withAuth(handler)` (`lib/api.ts`), which turns a
+thrown `ApiError` into the standard `{ error: { code, message } }` JSON response,
+so every route doesn't repeat try/catch. Native apps don't enforce CORS, so no
+CORS config is needed for the mobile client.
 
 **Email links** (confirm signup, password reset) keep landing on the website's
 `/auth/confirm` for v1. Later, iOS Universal Links / Android App Links can make
@@ -412,7 +407,7 @@ loaders):
 
 | Endpoint | Loader wraps | Web page |
 |---|---|---|
-| `GET /me` | `getViewer`, `getProfileSummaryById` | layout/nav |
+| `GET /me` | `getOptionalUser`, `getProfileSummaryById` | layout/nav |
 | `GET /feed?offset=` | `getFeed` (replaces the `fetchFeedPage` action for mobile) | `/` (signed-in) |
 | `GET /explore` | `getTrendingGames`, `getTrendingLists`, `getExploreRecommendations`, `getHeroGame` | `/explore`, `/` |
 | `GET /games?…filters` | `queryGames`, `getAllGenres`, `getAllPlatforms`, `getDistinctEsrbRatings` | `/games` |
@@ -445,7 +440,7 @@ Writes (auth required):
 | `POST /me/avatar/upload-url`, `PUT /me/avatar` | `createAvatarUploadUrl`, `saveAvatarUrl` |
 | `POST` / `DELETE /users/[userId]/follow` | `toggleFollow` |
 | `POST /me/steam/link-intent`, `DELETE /me/steam` | new, `unlinkSteamAccountAction` |
-| `POST /api/loadout`, `DELETE /api/delete-account` | existing — just switch to `requireUserFromRequest` |
+| `POST /api/loadout` | existing — just switch to `requireUser()` + `withAuth` (`DELETE /api/delete-account` and `GET /api/steam/link` already did) |
 
 Note on write semantics: the web actions are "toggle" style
 (`toggleListLike(listId, liked)`). The API uses explicit verbs
@@ -479,14 +474,36 @@ behaving on localhost exactly as it did before the move.
      `package.json`, env files (A.3).
    - Re-run the baseline and compare (A.4). **Don't continue until it matches.**
    - Update AGENTS.md paths.
+
+   > **Done** (`182f582`). Rte table, test counts and the A.1 checklist all
+   > matched. Gotcha: the editor's "update imports on move" rewrote `@/x` to
+   > `@/apps/web/x` in 71 files — `@/` is relative to `apps/web/`, so undo that.
 3. **Create the app**:
    `npx create-expo-app@latest --template default@sdk-56 apps/mobile`, then
    `npm install` from the **root**. Run `npx expo start` in `apps/mobile`, open
    on your phone.
+
+   > **Done — on SDK 57** (Expo Go required it; use `default@sdk-57` and add
+   > `--no-install` so the template doesn't install on its own and create a
+   > second lockfile). Two things the upgrade broke, both now fixed:
+   > duplicate native modules, because npm hoists one shared `node_modules` and
+   > the web's React sat at the root (see step 5 — React is now pinned
+   > monorepo-wide); and stale lockfile placements left SDK 56 copies at the root
+   > / Expo packages nested under `apps/mobile`, so `expo start` couldn't find
+   > `expo-router`. If `npx expo-doctor` reports duplicates after an upgrade,
+   > delete the stale `package-lock.json` entries for those packages and reinstall.
+   > Root scripts end in ` --` so flags pass through: `npm run mobile -- --clear`.
 4. **Create `packages/shared`**: move `types/`, `lib/schemas.ts`, and
    `FEED_PAGE_SIZE` in; add `tokens.ts` (hand-copy the values from
    `globals.css` — it's ~20 values). Import from both apps to prove the wiring.
    Add `import 'server-only'` to `apps/web/lib/db.ts` in the same step.
+
+   > **Done.** `@screenpeak/shared` exports `./types`, `./types/*`, `./schemas`,
+   > `./constants` (`FEED_PAGE_SIZE`) and `./tokens` — import those paths, e.g.
+   > `@screenpeak/shared/types`. Web pulls it in via `transpilePackages`.
+   > `apps/web/test/shared/tokens.test.ts` fails if a colour in `tokens.ts`
+   > drifts from `globals.css`, so the hand-copy can't silently go stale.
+   > `server-only` was already on `db.ts`.
 5. **Spikes** (throwaway code, 1 day each max):
    - Styling: build the `Eyebrow` + a game card in NativeWind *and* in
      `StyleSheet` + tokens. Pick one.
@@ -495,18 +512,78 @@ behaving on localhost exactly as it did before the move.
      versions; if they differ, keep each pinned in its own app's `package.json`
      and make sure `packages/shared` has **no** React dependency.
 
+   > **Done.**
+   > - **Styling → `StyleSheet` + tokens.** NativeWind v5 (Tailwind v4, still a
+   >   release candidate) fails to build here: its CSS compiler breaks on the
+   >   `lightningcss@1.32` that Tailwind 4.3 pins, and npm can't give the two
+   >   separate copies. NativeWind v4 needs Tailwind v3 beside the web's v4 — the
+   >   same two-versions-in-one-`node_modules` problem as React. Even working, fonts
+   >   need a class per weight file and the palette a third copy in CSS. Revisit
+   >   when v5 is stable. Mobile styles import from `@/theme` (`apps/mobile/src/theme`),
+   >   which re-exports `packages/shared/tokens.ts`; `Eyebrow`, `Seal` and
+   >   `GameCard` are ported in `apps/mobile/src/components/`.
+   > - **Fonts → work in Expo Go**, loaded at runtime with `useFonts` in the root
+   >   layout (splash stays up until they're ready). Import each weight from its
+   >   own entry point (`@expo-google-fonts/chakra-petch/600SemiBold`) — the
+   >   package index bundles all 38 files. Pick weights by `fontFamily`
+   >   (`face.mono[600]`), never `fontWeight`. Before release, consider the
+   >   `expo-font` config plugin to embed them (no load delay; needs a dev build).
+   > - **React versions → they differ, and per-app pinning doesn't work.** npm
+   >   workspaces share one hoisted `node_modules`, so the web's React landed at
+   >   the root and got bundled next to mobile's ("Invalid hook call"). React
+   >   Native's renderer needs an *exact* match, so React is pinned to the Expo
+   >   SDK's version in both apps **and** the root `overrides`; AGENTS.md has the
+   >   upgrade steps. `packages/shared` has no React dependency.
+
 ### Phase 1 — API layer on the web backend (≈2–3 weeks)
 
 Goal: every screen's data and every mutation available over `/api/v1`, with
 tests. The website is unchanged for users.
 
-1. `requireUserFromRequest` + `withAuth` + a standard JSON error shape
+1. Bearer-token auth (`requireUser` / `getOptionalUser`) + `withAuth` + a standard JSON error shape
    (`{ error: { code, message } }`). Tests: bearer valid / expired / missing /
    cookie fallback.
+   > **Done.** `lib/auth.ts` (`getOptionalUser`, `requireUser` — planned as
+   > `…FromRequest(req)`, but `headers()` makes the `req` parameter unnecessary, so
+   > the same two helpers serve pages, actions and routes; `getViewer` is gone),
+   > `lib/api.ts` (`ApiError`, `withAuth`, `apiError`), `lib/supabase-stateless.ts`, and the error contract in
+   > `@screenpeak/shared/api/errors`. Verified with `getUser` (not `getClaims`) so
+   > revocation is immediate. Beyond the four named cases: a bad bearer fails
+   > closed (no cookie fallback), `getOptionalUser` still rejects a bad token, and an
+   > Auth outage is 503 `auth_unavailable` — never a 401 that signs the app out.
+   > Checked live against Supabase via a throwaway route (401s, `WWW-Authenticate`,
+   > `RouteContext` typing). AGENTS.md "Who's calling" has the usage rules.
+   > `DELETE /api/delete-account` and `GET /api/steam/link` use `requireUser()` +
+   > `withAuth`; `POST /api/loadout` still has its own ad-hoc check — switch it
+   > when step 4 reaches it (see the endpoint table).
 2. Extract loaders, one page at a time: move data gathering from `page.tsx` into
    `lib/loaders/*.ts`, point the page at it, confirm the page still renders,
    then add the `GET` route. Start with `games/[slug]` (most complex, most
    valuable).
+
+   > **`games/[slug]` done.** `lib/loaders/game-page.ts` (`loadGamePage` +
+   > `loadViewerState`), contract `GamePageData` in `@screenpeak/shared/api/games`,
+   > `GET /api/v1/games/[slug]` (`private, no-store`). The page renders from the
+   > loader — visible text identical before/after for two games. Changes vs.
+   > Appendix B: the viewer block sends `defaultListPrivacy` (not the whole
+   > settings row) and `listIdsGameIsIn` as an array (the query's `Set` becomes
+   > `{}` in JSON); lists are narrowed to `{ id, name, game_count }`; `game` is
+   > built field by field so extra columns (`steam_appid`) don't leak; library
+   > `hours_played` is a number.
+   >
+   > **`games/[slug]/reviews` done** — no loader: a single query needs none.
+   > `getGameReviewsForPage` (`lib/queries/review.ts`) returns the shared
+   > `GameReviewsPage` (`reviews`, `total`, `totalPages` — the request params aren't
+   > echoed: the app already knows them, and bad values are rejected, never
+   > adjusted), and both the page and `GET /api/v1/games/[slug]/reviews` call it.
+   > It throws on a DB error (the API answers 500, not "no reviews"); the page
+   > catches that and shows an empty list as before. URL parsing lives in
+   > `lib/game-reviews-query.ts`.
+   > Query params are strict in the API (bad value → 400 `invalid_request`, page
+   > size ≤ 100 to match the web's menu) and lenient on the web page (per-field
+   > fallback). Fixed unstable paging: the query now tie-breaks (rating →
+   > `updated_at` → row id), so tied ratings no longer repeat/skip across pages.
+   > Both game-page endpoints are done; next loader: another page.
 3. **Privacy audit pass**: for every read endpoint, write a test that a
    non-owner cannot see a private library / private list. This is the #1 way
    this phase can go wrong — `db` bypasses RLS.
@@ -636,7 +713,8 @@ git switch -c mobile/monorepo
 # 2. Baseline, move, re-verify — follow Appendix A top to bottom.
 
 # 3. Create the Expo app and install from the root
-npx create-expo-app@latest --template default@sdk-56 apps/mobile
+#    (done on SDK 57 — see Phase 0 step 3; use the current SDK and --no-install)
+npx create-expo-app@latest --template default@sdk-57 apps/mobile --no-install
 npm install
 
 # 4. Run it — install "Expo Go" on your phone and scan the QR code
@@ -644,7 +722,7 @@ cd apps/mobile && npx expo start
 ```
 
 Then do the Phase 0 spikes. When those are done, the first real task is
-Phase 1 step 1 (`requireUserFromRequest`) followed by the `games/[slug]`
+Phase 1 step 1 (bearer-token auth) followed by the `games/[slug]`
 loader + endpoint, and then the Game detail screen. Getting that one vertical
 slice working end-to-end (Postgres → loader → route → shared types → TanStack
 Query → native screen) proves out every layer before you repeat the pattern
@@ -661,7 +739,8 @@ Query → native screen) proves out every layer before you repeat the pattern
 - **Bundle contamination.** `packages/shared` must stay free of server imports
   (see AGENTS.md on `game-search.ts`).
 - **Duplicate React** in the monorepo — the classic "Invalid hook call" error.
-  Fix by pinning React per app, not hoisting.
+  Per-app pins don't survive npm hoisting: pin one exact React (the Expo SDK's)
+  in both apps *and* the root `overrides`, and bump it on every SDK upgrade.
 - **Scope creep.** v1 of the app = parity with the website. Push notifications
   and offline mode can wait for 1.1.
 - **AGENTS.md drift.** Update it after the monorepo move and after the API
@@ -694,14 +773,14 @@ npm run start                                                # serves the build 
 Then click through this checklist and note anything already broken, so you
 don't blame the move for it later:
 
-- [ ] `/` signed out, then sign in → `/` shows the feed; scroll loads page 2
-- [ ] `/explore`, `/games` (apply a filter), `/games/<some-slug>`
-- [ ] `/user/<you>` and each tab: library, lists, a list detail, ratings & reviews, loadout
-- [ ] `/settings`, `/steamlink`, `/policy` ← reads `app/policy/policy.html` via `process.cwd()`
-- [ ] `/opengraph-image` and `/games/<slug>/opengraph-image` ← read `assets/fonts` via `process.cwd()`
-- [ ] One write of each kind: rate a game, change library status, like a list, follow someone
-- [ ] Search in the favorite-game picker (exercises `game-search.ts`)
-- [ ] Upload an avatar (R2 presigned PUT)
+- [x] `/` signed out, then sign in → `/` shows the feed; scroll loads page 2
+- [x] `/explore`, `/games` (apply a filter), `/games/<some-slug>`
+- [x] `/user/<you>` and each tab: library, lists, a list detail, ratings & reviews, loadout
+- [x] `/settings`, `/steamlink`, `/policy` ← reads `app/policy/policy.html` via `process.cwd()`
+- [x] `/opengraph-image` and `/games/<slug>/opengraph-image` ← read `assets/fonts` via `process.cwd()`
+- [x] One write of each kind: rate a game, change library status, like a list, follow someone
+- [x] Search in the favorite-game picker (exercises `game-search.ts`)
+- [x] Upload an avatar (R2 presigned PUT)
 
 ### A.2 What moves and what stays
 
@@ -765,7 +844,7 @@ with the app it configures.
    `/build` → `build/`, `/coverage` → `coverage/`. (`.env*`, `*.tsbuildinfo`,
    `.vercel` already match anywhere.)
 3. **Reinstall from the root:** `rm -rf node_modules apps/web/node_modules && npm install`.
-4. **Later, when `packages/shared` exists (Phase 0 step 4):** add
+4. **(Done in Phase 0 step 4.) Later, when `packages/shared` exists:** add
    `"@screenpeak/shared": "*"` to `apps/web/package.json` dependencies and
    `transpilePackages: ['@screenpeak/shared']` to `next.config.ts` — the
    package ships TypeScript source, so Next has to compile it.
@@ -810,10 +889,8 @@ the *shape* of the question and the answer.
 ```tsx
 export default async function GamePage({ params, searchParams }) {
     const { slug } = await params
-    const supabase = await createClient()
-
     // job 1: who's asking?
-    const user = await getViewer(supabase)
+    const user = await getOptionalUser()
 
     // job 2: fetch the data (8 sequential awaits, all hitting db)
     const game = await getGameBySlug(slug)
@@ -907,6 +984,9 @@ export async function loadGamePage(slug: string, viewerId: string | null): Promi
 }
 ```
 
+> Built in Phase 1 step 2 as `apps/web/lib/loaders/game-page.ts` — see the
+> step 2 note for how the real contract differs from this sketch.
+
 **This is where `db` is used** (through `lib/queries/*`, as today). The return
 type is imported from shared, so the loader is type-checked against the
 contract — rename a field without updating `GamePageData` and the build fails.
@@ -916,7 +996,7 @@ contract — rename a field without updating `GamePageData` and the build fails.
 ```tsx
 export default async function GamePage({ params, searchParams }) {
     const { slug } = await params
-    const user = await getViewer(await createClient())          // job 1 (cookies, as today)
+    const user = await getOptionalUser()                        // job 1 (cookie, as today)
 
     const data = await loadGamePage(slug, user?.id ?? null)     // job 2 → loader, plain function call
     if (!data) notFound()
@@ -934,7 +1014,7 @@ The website calls the loader **directly** — no HTTP, no `/api/v1`.
 ```ts
 export async function GET(req: NextRequest, ctx: RouteContext<'/api/v1/games/[slug]'>) {
     const { slug } = await ctx.params
-    const user = await getOptionalUserFromRequest(req)          // job 1 (bearer token, or cookie)
+    const user = await getOptionalUser()                        // job 1 (bearer token, or cookie)
 
     const data = await loadGamePage(slug, user?.id ?? null)     // job 2 → the SAME loader
     if (!data) return NextResponse.json({ error: { code: 'not_found' } }, { status: 404 })
