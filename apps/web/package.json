@@ -9,7 +9,8 @@
     "lint": "eslint",
     "seed": "tsx --env-file=.env.local scripts/seed-games.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "audit:igdb": "tsx scripts/audit-igdb.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

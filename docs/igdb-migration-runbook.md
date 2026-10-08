@@ -1,0 +1,238 @@
+# IGDB migration runbook
+
+Updated 2026-10-08. The app is unshipped and all existing data is personal test data.
+
+## Available now
+
+The read-only audit is implemented. It obtains its own Twitch bearer token, checks Steam app-ID coverage, expands selected game metadata, and writes an optional JSON report. It never connects to Supabase/Postgres, seeds games, edits libraries, or resets anything.
+
+- CLI: apps/web/scripts/audit-igdb.ts
+- Audit/HTTP logic: apps/web/scripts/igdb-audit.ts
+- Tests: apps/web/test/scripts/igdb-audit.test.ts
+- Full migration: [implementation plan](superpowers/plans/2026-10-06-rawg-to-igdb.md)
+
+A separate read-only database inventory command is also available (see the recorded baseline below). The migration/reset tooling described below is still planned, not implemented by either audit command.
+
+## Credentials
+
+Put these in apps/web/.env.local, or export them in the shell:
+
+```dotenv
+TWITCH_CLIENT_ID=your-client-id
+TWITCH_CLIENT_SECRET=your-client-secret
+```
+
+Do not paste a bearer token into the script. Each process obtains one through POST https://id.twitch.tv/oauth2/token with URL-encoded query parameters client_id, client_secret and grant_type=client_credentials, as requested. Token expiry is tracked with a 60-second margin; an API 401 triggers one token replacement/retry. Credentials and token responses are never printed or included in reports. Existing environment values take precedence over .env.local.
+
+No RAWG key, Steam API key, DATABASE_POOL_URL or Supabase key is needed for file/app-ID auditing. No dependencies were added.
+
+## Run from the repository root
+
+```bash
+# Usage; does not need credentials or make network calls
+npm run audit:igdb -w @screenpeak/web -- --help
+
+# Small known-ID smoke test
+npm run audit:igdb -w @screenpeak/web -- --appids 292030,1145360
+
+# Actual library coverage, with a report outside git
+npm run audit:igdb -w @screenpeak/web -- --input /absolute/path/steam-library.json --output /tmp/screenpeak-igdb-library.json
+
+# Optional catalogue sample: main games ONLY
+npm run audit:igdb -w @screenpeak/web -- --main-games 20 --output /tmp/screenpeak-igdb-main-games.json
+```
+
+Choose exactly one input mode. --appids accepts comma-separated positive integer app IDs. --main-games accepts 1–100 and fetches a deterministic ID-ordered sample with game_type = 0; it is not a popular-games seed. Steam matching deliberately applies no main-game filter, since the audit must reveal edition/DLC mappings rather than hide them.
+
+Relative input/output paths resolve against the directory from which npm was invoked (INIT_CWD), or the current directory for direct execution. The output directory must already exist. Reports are created with owner-only permissions and exclusive creation; an existing report is never overwritten. Use a new filename on subsequent runs.
+
+Without --output, the script emits JSON to stdout. npm adds its own command banner; use --output for a clean machine-readable file instead of redirecting the entire npm output.
+
+## Input format
+
+Either a simplified array:
+
+```json
+[
+  { "appid": 292030, "name": "The Witcher 3: Wild Hunt" },
+  { "appid": 1145360, "name": "Hades" }
+]
+```
+
+Or the actual JSON from Steam GetOwnedGames, wrapped in response.games (or an unwrapped games object). Use include_appinfo=true if collecting names. Export the response yourself from an authorized library; this script does not retrieve another person's library or read account credentials from the database.
+
+Names are optional; matching uses app IDs only, with no fuzzy fallback in this audit. Duplicate app IDs are counted once. Missing/private-library responses are rejected rather than counted as zero games. An explicit game_count: 0 represents an empty library.
+
+Input names and Steam user IDs are not copied to the report. Reports still reveal app IDs and IGDB game names, so they remain personal-library data: keep full reports outside git. The temporary docs/audit-igdb.txt is exploration material, not an input parser format or a test fixture.
+
+## Reading the report
+
+Steam mode reports:
+
+| Field | Meaning |
+| --- | --- |
+| summary.total | Unique input Steam app IDs |
+| exactMatches | Apps resolving to exactly one IGDB game; not proof every provider association is semantically correct |
+| ambiguous | Apps resolving to multiple distinct IGDB games |
+| unmatched | No mapping after every result page completed successfully |
+| errors | Apps in mapping batches that could not be fully checked |
+| coveragePercent | exactMatches / total, rounded to two decimals; null for empty input or any mapping error |
+| metadataErrors | Input apps whose candidate metadata was unavailable/invalid, distinct from mapping failures |
+| results | Per-app status, candidate IDs, candidate metadata and sanitized errors |
+| sharedGames | Multiple input Steam app IDs mapping to the same IGDB game |
+| timing | Mapping, hydration and total elapsed milliseconds |
+| requests | OAuth/API attempts, retries and API counts by endpoint |
+
+Metadata includes game type, first release date in UTC, ESRB labels/conflicts, genres/platforms, company roles, cover URL, screenshot count, landscape artwork count and missing-field flags. ESRB absence is not an HTTP failure. Multiple distinct ESRB labels are flagged; no arbitrary first rating is chosen. A missing game_type stays null rather than being assumed main-game.
+
+Images request both url and image_id. Reports retain normalized HTTPS source URLs and derived display URLs; validate the IGDB CDN/path and flag mismatched IDs or absent/invalid URLs. Source thumbnail URLs are changed to suitable cover/screenshot renditions. This checks URL structure, not image availability or artistic suitability; no image downloads occur. Artworks are only potential landscape assets; a count does not establish visual suitability. Summary is checked for availability; storyline, external scores, keywords and other future-feature data are not imported.
+
+A matched mapping with a metadata error remains an exact mapping for coverage, but is not ready to ingest. Never turn 429/5xx/schema failures into permanent no-match entries.
+
+Exit codes:
+- 0: Audit completed (unmatched/ambiguous games or missing optional fields are findings, not process failures).
+- 1: Invalid arguments/input, missing credentials, global setup/source-verification failure, failed main-game query or output write failure.
+- 2: Steam audit wrote a partial report with mapping or metadata failures. Fix/retry before treating it as a coverage baseline.
+
+## Request behavior and limits
+
+The script verifies external_game_sources ID 1 is Steam, looks up external_games.uid in batches of 100, follows 500-row pages in stable ID order, deduplicates game candidates, and hydrates 50 games at a time with explicit nested fields. Company role flags and the referenced company are expanded together; cover, genres, platforms and ESRB references do not each trigger per-record HTTP calls.
+
+Requests run sequentially with at least 300ms between starts and a 10-second timeout. Transient network/429/5xx failures retry at most three attempts per operation, with backoff and Retry-After support. Cooldowns over 30 seconds fail visibly instead of retrying early. Unexpected statuses or malformed JSON/schema data produce sanitized errors. There is a 50,000-result safety ceiling per external-ID batch.
+
+This budget is process-local. Run one audit at a time and avoid other IGDB traffic using the same client credentials during measurement. It is not the distributed limiter planned for eventual application ingestion. No token/data/miss cache persists between audit processes; reruns deliberately measure fresh reads.
+
+A one-game smoke test cannot establish real-library coverage. For the baseline, inspect at least 20 exact mappings when available, every ambiguous mapping, same-name remakes, editions, missing metadata and sharedGames. Compare IDs/game types rather than trusting names alone. Record input count, exact/ambiguous/unmatched/errors, metadata errors, call counts, runtime and the manual review findings.
+
+## Catalogue import policy
+
+For future non-Steam bulk catalogue imports, use game_type = 0 (main game), including filters on any curated seed hydration. DLC and expansions are also game records; endpoint selection alone cannot exclude them. Never silently relax this filter for remakes, remasters or editions. Specific Steam-ID matching remains separate and audits all returned types.
+
+Use first_release_date for ScreenPeak's single date, not the first release_dates array element. Missing remains null. Region/platform dates and partial-date precision are a later explicit policy. Resolve age-rating organization/category references; preserve company developer/publisher roles independently.
+
+Defer bundles, DLC relationships, franchises, engines, modes, themes, perspectives, keywords and similar-game features. Keep the IGDB ID so these can be retrieved later. All displayed scores remain You / Community; IGDB user/critic scores are not replacements.
+
+## Subsequent migration procedure (not executable yet)
+
+Confirmed 2026-10-08: reset the catalogue and all game-linked test data; retain accounts, settings and social data. There is no salvage requirement.
+
+1. Inventory the exact development DB, reconcile absent migration history, and create a fresh restorable schema/data backup outside git.
+2. Stage and validate the curated IGDB main-game catalogue before deleting anything.
+3. Show the current loss report: clear all library entries, ratings/reviews, list memberships and favourites. Keep Auth, profiles/settings, list definitions, follows, likes, Steam links and authored bios.
+4. Stop writers, verify fingerprints, apply preparation schema and atomically replace the catalogue/joins with fresh UUIDs while clearing game-linked data and generated Loadout fields. No crosswalk, old-UUID reuse or linked-row restoration.
+5. Apply coordinated API/SQL cleanup: required IGDB IDs, no RAWG/Metacritic or obsolete single Steam-ID fields. Update web/mobile consumers together.
+6. Verify preserved independent data, empty linked tables, valid new relations, UI empty states, imports, images and sitemap. Rehearse full-backup recovery before actual cutover.
+7. Resume the mobile roadmap only after the full plan passes acceptance checks.
+
+This runbook does not supply a reset command because the reset tool is not implemented yet. Task 1 did not perform a reset.
+
+## Verification
+
+```bash
+npm test -w @screenpeak/web -- test/scripts/igdb-audit.test.ts
+npx tsc --noEmit --incremental false -p apps/web
+npm run lint
+```
+
+Official references: [IGDB API and expansion](https://api-docs.igdb.com/#expander), [Twitch client credentials](https://dev.twitch.tv/docs/authentication/getting-tokens-oauth/#client-credentials-grant-flow).
+
+## Recorded smoke checks — 2026-10-07
+
+Live requests used the configured Twitch app credentials; no catalogue/database writes occurred.
+
+- Steam sample: 292030 (The Witcher 3: Wild Hunt → IGDB 1942) and 1145360 (Hades → IGDB 113112). Both matched exactly; no ambiguity, mapping errors or metadata errors.
+- Steam sample request counts: one token request, one source verification, one external-ID batch and one expanded games batch. No retries.
+- Image checks: supplied cover/screenshot URLs and image IDs agreed for both games; reports contain both normalized source URLs and larger display renditions. This does not assert CDN availability or visual quality.
+- Main-game sample: IGDB IDs 1, 2 and 3, each game_type 0; one token request and one expanded games request.
+- These initial samples validate the live endpoint fields and query shapes. The subsequent representative-library baseline is recorded below.
+
+
+## Task 1 library baseline and manual review — 2026-10-08
+
+The authorized library export contained 428 unique Steam apps. Direct external-ID lookup matched 423 (98.83%), with zero ambiguous mappings, zero mapping errors, zero metadata errors and five misses. Those 423 apps resolve to 421 distinct IGDB games. This is measured coverage for this library, not a guarantee for other libraries or proof of semantic correctness for every provider mapping.
+
+- Requests: one OAuth request and 15 IGDB requests (one source check, five external-ID batches, nine metadata batches); zero retries.
+- Elapsed: external-ID mapping 1,304ms; metadata hydration 14,286ms; total 16,620ms (includes setup).
+- Name matching: not run; zero name-search requests. Missing mappings do not block the migration.
+- Missing fields across 421 unique games: ESRB 50, developer six, publisher six, release date one, platforms one. All had genres, covers and screenshots. Ten lacked landscape artwork. No image URL validation issues or conflicting ESRB labels. CDN availability and visual suitability are not tested.
+- Manually inspected 24 direct mappings against the Steam export, IGDB identity, edition/type, release date and PC platform. The private review records each pair and outcome. Examples include the Resident Evil remakes, a Resident Evil remaster, ABZÛ/Abzu, Nongünz/Nongunz, Öoo, editions, and both shared-game groups. No ambiguous mappings required adjudication.
+- Multiple app IDs: 2520/2525 resolve to IGDB 15623; 412020/1449560 resolve to IGDB 37016. Preserve external mappings separately and deduplicate local library entries.
+- Sixty distinct matches have a nonzero game type. Do not apply the main-game-only seed filter to Steam matching.
+- Five misses: Hitman: Sniper Challenge, Aseprite, Wallpaper Engine, 1BITDRAGON, The Jackbox Megapicker. The user supplied IGDB game 5567 for Hitman with no Steam external mapping and accepts leaving it unmatched, with manual addition later if needed. No guessed crosswalk was installed.
+
+Additional explicit edge probes, separate from the library denominator:
+
+| Steam app | IGDB result | Review outcome |
+| --- | --- | --- |
+| 247750, The Stanley Parable Demo | 3035, The Stanley Parable, type 10 | **Semantic exception:** Steam identifies this as a demo, but IGDB associates it with the full game. Do not interpret this mapping as full-game ownership. |
+| 378648, The Witcher 3: Blood and Wine | 13166, type 2 | DLC/expansion lookup works without the main-game filter. |
+| 211420, Dark Souls: Prepare to Die Edition | 21040, type 3 | Delisted edition still resolves directly. |
+
+All three probes returned one candidate each, with no API/metadata errors, one OAuth plus three IGDB requests, zero retries, and 1,211ms total. Thus 100% external-ID coverage here is explicitly NOT 100% accepted full-game matches. Task 6 must test the demo case and reject known demo/software/launcher inputs before adding full-game ownership, even when the returned IGDB record looks like a normal game. GetOwnedGames is the normal source; arbitrary app-ID probes deliberately exercise cases outside that normal list.
+
+Primary evidence for probe classification: [Steam demo metadata](https://store.steampowered.com/api/appdetails?appids=247750), [Steam DLC metadata](https://store.steampowered.com/api/appdetails?appids=378648), [Steam delisting notice](https://store.steampowered.com/app/211420/).
+
+## Task 1 database baseline — 2026-10-08
+
+Read the development database selected by apps/web/.env.local DATABASE_POOL_URL. Its project identity was cross-checked with NEXT_PUBLIC_SUPABASE_URL. Exact host/project/role are in the private snapshot, not source control. The export verified PostgreSQL read_only=on and repeatable read isolation. No database rows, schema, credentials or migration history were changed.
+
+Reproduce from the repository root (choose a new output directory each time; its parent must exist):
+
+```bash
+node --import tsx apps/web/scripts/inventory-igdb-baseline.ts \
+  --output-dir "$HOME/screenpeak-igdb-baseline-YYYY-MM-DD-new"
+```
+
+The command refuses exports inside this checkout, resolves parent symlinks, creates a new owner-only directory, and writes snapshot.json plus manifest.json with owner-only permissions. The manifest records a SHA-256 checksum, row counts and local migration hashes. It exports all public-schema table rows, column/constraint/index/policy/trigger metadata, and any recognized database migration journals. Auth users are counted only; their credentials and sessions are not exported. The command has no reset or restoration operation.
+
+Private artifacts are in `~/screenpeak-igdb-baseline-2026-10-08/`:
+
+- snapshot.json, manifest.json: consistent database baseline and checksum.
+- steam-library.json, igdb-coverage.json, edge-cases.json: preserved inputs/results, originally under /tmp.
+- manual-mapping-review.json: 24 inspected direct mappings and explicit exceptions.
+- retention-review.mjs, retention-loss.json: reproducible offline planning dry run. Run `node "$HOME/screenpeak-igdb-baseline-2026-10-08/retention-review.mjs" retention-loss-new.json` to recompute from the saved snapshot/report; it verifies the snapshot checksum and refuses overwrite.
+- artifact-checksums.json: hashes for the saved artifacts.
+
+Snapshot SHA-256: `2fa953dc34e6f47ab72f92129a76940e4e801badb0ef786f5ec076fd2d89f967`.
+
+**This is an inventory/data export, not a complete disaster-recovery backup.** Auth data, storage and complete executable schema definitions are not backed up here. Task 4/8 still require a fresh, restorable backup and recovery rehearsal before any destructive cutover. The Task 1 snapshot will also become stale if test data changes.
+
+| Data | Baseline count |
+| --- | ---: |
+| Games | 502 |
+| Genres / platforms | 19 / 37 |
+| Developers / publishers | 527 / 363 |
+| Genre / platform joins | 1,288 / 2,109 |
+| Developer / publisher joins | 802 / 760 |
+| Library entries / ratings and reviews / list memberships | 420 / 35 / 29 |
+| Public profiles / Auth users | 4 / 4 |
+| List definitions / follows / list likes / Steam links | 11 / 5 / 7 / 1 |
+| Favourite references / generated Loadout values | 2 / 2 |
+
+All five catalogue tables have no duplicate slugs in this snapshot. Of 502 games, 395 have Steam IDs, all present in the audited library; 107 have none. Actual foreign keys confirm that deleting games cascades into library_entries, ratings_reviews, list_games and the four taxonomy joins. Favourite UUID arrays need explicit cleanup. List definitions and their likes have no dependency on game rows.
+
+**Migration-history finding:** neither drizzle.__drizzle_migrations nor supabase_migrations.schema_migrations exists in this database. The repository has three journaled SQL files (0000 through 0002); hashes are captured in the manifest. Their presence in source control does not prove they were applied. Before running migrations, Tasks 3/8 must compare the actual schema/functions with the baseline and establish a migration strategy on an isolated copy. Do not replay 0000 against this existing database or stamp history blindly.
+
+## Superseded preservation analysis and confirmed reset loss
+
+The user subsequently chose to discard all game-linked test data. The following candidate analysis is retained only as historical audit evidence; do not implement it as a restoration requirement.
+
+The initial preservation analysis found 372 old games with a unique external-ID candidate and matching normalized names; four old games collide on two IGDB IDs, 16 need name/edition review, three have genuine provider misses, and 107 lack Steam-ID evidence. These are candidates only, not an approved restoration map.
+
+| Game-linked data | Total at risk if reset without restoration | Candidate rows | Unresolved rows |
+| --- | ---: | ---: | ---: |
+| Library entries | 420 | 374 | 46 |
+| Ratings/reviews | 35 | 12 | 23 |
+| List memberships | 29 | 14 | 15 |
+| Favourite references | 2 | 2 | 0 |
+
+The dry run found no dangling game references in these tables/arrays. Candidate counts do not promise retention: they have not passed a staged restore. The existing catalogue contains suspected old name-matcher errors: GRID (2019) carries Steam 12750 (Race Driver: Grid), Resident Evil 2 (1998) carries the remake's 883710, and Dead Space (2008) carries the remake's 1693980. These must not be silently treated as identity-equivalent during any restoration.
+
+The confirmed catalogue-and-game-linked-data reset will retain four profiles/Auth accounts, 11 list definitions, five follows, seven list likes and one Steam link independently; clear the two favourite references and invalidate two generated Loadout values. Keep the user-authored profile Loadout bio. A broader reset would have a different loss scope and must be specified separately.
+
+
+## Task 1 completion and remaining boundaries
+
+Completed: audit implementation/credentials, representative library benchmark, 24 manual mapping checks, demo/DLC/delisted probes, read-only database inventory/export, reset-loss report, and confirmed reset/score decisions. Tests: 227 passing across 28 files; web typecheck and ESLint pass. A separate code review found no important correctness/privacy/safety issues.
+
+The latest reset decision removes all salvage work from Tasks 3/4/8. At this snapshot the approved future reset loss is 420 library entries, 35 ratings/reviews, 29 list memberships and two favourites, in addition to replacing catalogue/taxonomy and clearing two generated Loadouts. Counts must be refreshed before apply. No live data has been cleared. Adapter implementation, migration-history reconciliation, full backup/recovery rehearsal and actual reset remain later tasks.
