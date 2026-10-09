@@ -10,11 +10,13 @@
 
 **Design basis:** User request and pasted Grok audit, checked against this checkout at cdd8e19 on 2026-10-06 (including the pre-existing uncommitted mobile-plan edits). The design brief below is part of this plan. Grok's full report at /workspace/lens/screenpeak/rawg-to-igdb-field-audit.md was not available locally. The original planning pass performed no live operations. Task 1 subsequently completed read-only database inventory and credentialed IGDB audits on 2026-10-08; no migration/reset has occurred.
 
-**Status:** Task 1 complete on 2026-10-08 (inventory, private export, measured coverage, 24 manual checks and explicit edge probes). The user confirmed a simpler reset: discard all catalogue and game-linked test data; retain accounts, settings and social data. Remove salvage/reconciliation work from later tasks. You / Community remains the score design. Tasks 2–8 and the actual reset remain unimplemented.
+**Status:** Task 1 complete on 2026-10-08 (inventory, private export, measured coverage, 24 manual checks and explicit edge probes). The user confirmed a simpler reset: discard all catalogue and game-linked test data; retain accounts, settings and social data. Remove salvage/reconciliation work from later tasks. You / Community remains the score design. Task 2 adapter work is complete; Tasks 3–8 and the actual reset remain unimplemented. The private limiter migration has been applied only to disposable local Postgres, not the development Supabase database.
 
 ## Priority and boundaries
 
 This migration is the next implementation milestone, ahead of the unfinished feature work in build-plan.md and other chats. Resume that work after the cutover acceptance checklist passes. This document records sequencing; it does not pause or message other chats.
+
+Branch workflow: each migration task branches from and merges into `igdb-integration`; only the completed migration merges to `main`. Task 2 branch: `codex/igdb-task-2`. The integration branch includes Task 1’s existing monorepo/mobile ancestry.
 
 The root build-plan.md already had uncommitted edits when this audit began. Preserve those edits. Add only a migration prerequisite notice; do not rewrite its mobile roadmap.
 
@@ -80,7 +82,7 @@ Deleting games cascades into library_entries, ratings_reviews and list_games. us
 
 - Keep Supabase Auth, users, follows, lists (definitions/IDs/privacy), list likes, Steam account links and account settings.
 - Take a restorable schema/data backup outside git before deletion. Task 1's public-schema inventory export is not this complete backup.
-- Stage the new IGDB seed catalogue before any destructive step. Do not carry forward old RAWG records, mappings or UUIDs.
+- An empty catalogue after reset is valid; Steam import can populate it. If optional seed records are selected for cutover, stage and validate them before any destructive step. Do not carry forward old RAWG records, mappings or UUIDs.
 - Clear library_entries, ratings_reviews and list_games; clear every favourite array. Existing lists remain empty. Show current loss counts before apply; Task 1 measured 420 library entries, 35 ratings/reviews, 29 memberships and two favourites.
 - Rebuild all five catalogue tables and joins with fresh local UUIDs and IGDB IDs. No old-to-new crosswalk, salvage search or linked-row restoration.
 - Clear generated loadout_identity/loadout_identity_at. Preserve authored profile_loadout_bio, user_bio and selected_title; a stale selected title is not silently rewritten.
@@ -108,7 +110,7 @@ Deleting games cascades into library_entries, ratings_reviews and list_games. us
 | rawg_id, metacritic_score | Removed from the final live schema and contracts. Old values remain only in the backup, historical migrations and reset report. |
 | name, description | IGDB name and summary; optional storyline remains separate/deferred. Treat text as plain text. |
 | released | first_release_date converted from Unix seconds in UTC; missing stays null. Do not multiply twice or use local timezone dates. |
-| cover_image_url | HTTPS portrait cover URL generated from an image ID. Missing cover gets the existing placeholder. |
+| cover_image_url | Validate the supplied cover.url, normalize HTTPS and select the cover rendition; use image_id only as a consistency check. Missing cover gets the existing placeholder. |
 | artwork_image_url | Landscape artwork, otherwise screenshot, otherwise null. Public OG falls back to branded art. |
 | screenshots | Stable ordered HTTPS URLs, deduplicated. Validate the returned payload before replacing existing values. |
 | esrb_rating | Resolve the ESRB organization and rating label from current age-rating tables. Do not accidentally use a PEGI number as ESRB. |
@@ -158,6 +160,7 @@ export type CatalogGame = {
   igdbId: number
   name: string
   providerSlug: string
+  gameType: number | null
   released: string | null
   description: string | null
   coverImageUrl: string | null
@@ -183,7 +186,7 @@ it('keeps missing images absent and interprets release time as seconds', () => {
   const game = normalizeIgdbGame({
     id: 1, name: 'Example', slug: 'example',
     first_release_date: 86400,
-  })
+  }, verifiedLookups) // fixture or lookup tables resolved by the provider
   expect(game.released).toBe('1970-01-02')
   expect(game.coverImageUrl).toBeNull()
   expect(game.artworkImageUrl).toBeNull()
@@ -222,26 +225,30 @@ Run real-database acceptance tests against a dedicated TEST_DATABASE_URL. Never 
 
 ## Task 2 — Build the authenticated, rate-coordinated IGDB adapter
 
-**Create:** apps/web/lib/igdb/{auth,client,schema,normalize}.ts, apps/web/lib/catalog/types.ts, apps/web/lib/queries/igdb-budget.ts, apps/web/test/lib/igdb/{auth,client,normalize}.test.ts.
+**Completed 2026-10-08:** 33 adapter unit tests, four real-Postgres integration tests (including independent Node processes), and live 428-app audit. 423 exact matches, 421 normalized games, no errors/retries. See runbook for reproduction and migration-application boundaries.
+
+**Create:** apps/web/lib/igdb/{auth,client,schema,normalize}.ts, apps/web/lib/igdb/{http,provider}.ts, apps/web/lib/catalog/types.ts, apps/web/lib/queries/igdb-budget.ts, apps/web/test/lib/igdb/{auth,client,normalize}.test.ts.
 **Modify:** apps/web/db/schema.ts and the next available Drizzle migration for private throttle state; apps/web/lib/logger.ts only if secret redaction needs coverage.
 
 **Interfaces:**
 - getIgdbToken(): Promise<string>
-- igdbRequest<T>(endpoint: string, body: string, schema: ZodType<T>): Promise<T>
-- normalizeIgdbGame(input: validated provider game): CatalogGame
+- igdbRequest<T>(endpoint: string, body: string, schema: ZodType<T>): Promise<T> (server-internal transport; product callers use validated provider query builders)
+- normalizeIgdbGame(input: validated provider game, lookups: IgdbLookups): CatalogGame
 - CatalogGame is defined by the starter contract below; it is server-only and contains no viewer data. Task 2 creates lib/catalog/types.ts before Task 3 consumes it.
 
-- [ ] Add HTTP-boundary tests for cached tokens, expiry skew, simultaneous token requests sharing one refresh, one retry after 401, 429 handling, timeout, non-JSON and invalid schema. Ordinary validation/4xx errors do not retry.
-- [ ] Add normalizer fixtures for missing cover/date, epoch seconds, dual-role companies, absent taxonomy, ESRB versus PEGI and landscape fallbacks.
-- [ ] Run the failing tests with npm test -w @screenpeak/web -- test/lib/igdb.
-- [ ] Implement server-only authentication with a 60-second expiry margin, 10-second request abort, at most three attempts for transient errors, exponential backoff with jitter, and bounded Retry-After handling.
-- [ ] Coordinate the request budget across web processes and seed scripts sharing the same credentials. Use a private Postgres lease/reservation mechanism: space starts by at least 300ms, cap active leases at four, expire abandoned leases after the request deadline plus margin, and never hold a transaction open across HTTP. Reject/retry acquisition if the DB is unavailable; do not bypass the budget. Keep tables inaccessible to anon/authenticated roles.
-- [ ] Test two independent clients sharing the same budget with a real disposable Postgres instance; assert no rolling second exceeds four starts, no more than four active requests, and abandoned leases recover. Unit tests with one in-memory counter are insufficient.
-- [ ] Only accept allowlisted endpoints and construct bodies internally. Validate integer IDs; JSON-escape search strings. Never accept raw APICalypse from a client.
-- [ ] Fetch and validate current lookup tables for source/type/age-rating identifiers. Do not copy deprecated numeric enum meanings into new code.
-- [ ] Run tests, then the live audit from Task 1. Commit.
+- [x] Add HTTP-boundary tests for cached tokens, expiry skew, simultaneous token requests sharing one refresh, one retry after 401, 429 handling, timeout, non-JSON and invalid schema. Ordinary validation/4xx errors do not retry.
+- [x] Add normalizer fixtures for missing cover/date, epoch seconds, dual-role companies, absent taxonomy, ESRB versus PEGI and landscape fallbacks.
+- [x] Run the failing tests with npm test -w @screenpeak/web -- test/lib/igdb.
+- [x] Implement server-only authentication with a 60-second expiry margin, 10-second request abort, at most three attempts for transient errors, exponential backoff with jitter, and bounded Retry-After handling.
+- [x] Coordinate the request budget across web processes and seed scripts sharing the same credentials. Use a private Postgres lease/reservation mechanism: reserve grants 650ms apart with a conservative 350ms local dispatch deadline (including DB round trip), guaranteeing at least 300ms between dispatch windows; cap active leases at four, expire abandoned leases after 15 seconds versus the 10-second HTTP deadline, and never hold a transaction open across HTTP. Reject/retry acquisition if the DB is unavailable; do not bypass the budget. Keep tables inaccessible to anon/authenticated roles.
+- [x] Test two independent clients sharing the same budget with a real disposable Postgres instance; assert no rolling second exceeds four starts, no more than four active requests, and abandoned leases recover. Unit tests with one in-memory counter are insufficient.
+- [x] Only accept allowlisted endpoints and construct bodies internally. Validate integer IDs; JSON-escape search strings. Never accept raw APICalypse from a client.
+- [x] Fetch and validate current lookup tables for source/type/age-rating identifiers. Do not copy deprecated numeric enum meanings into new code.
+- [x] Run tests, then the live audit from Task 1. Commit.
 
 **Exit:** Seed/import share one bounded, validated transport. Logs contain status, endpoint and timing without tokens.
+
+**Rulings:** Use the already requested Task 2 branch in the current checkout; preserve unrelated edits. Use an isolated local Postgres 17 cluster because TEST_DATABASE_URL was not configured; never implicitly reuse DATABASE_POOL_URL for tests. Migration 0003 is hand-authored and journaled under repository convention, with private Drizzle schema definitions. Schema-history reconciliation for the existing Supabase DB remains a prerequisite to applying it there. Lookup labels come from live tables (including Subreddit), and historical release timestamps may be negative. Existing standalone Task 1 audit remains independent; do not run its process-local limiter concurrently with production ingestion.
 
 ## Task 3 — Prepare IGDB-only catalogue storage and transactional ingestion
 
@@ -271,8 +278,8 @@ Run real-database acceptance tests against a dedicated TEST_DATABASE_URL. Never 
 **Interfaces:** Reset CLI supports --dry-run (default), --apply and an explicit staged manifest path. A committed run must never be replayed. No reconcile module, salvage map, restoreGameId parameter or per-row restoration path.
 
 - [ ] Take a fresh restorable schema/data backup and record database identity, code revision, checksum and migration state outside git. Reconcile the Task 1 finding of absent database migration history before applying new migrations.
-- [ ] Build a checked-in curated IGDB-ID seed manifest instead of the Metacritic 60–100 filter. Stage fully hydrated records with game_type = 0 for every non-Steam bulk import, including curated seed hydration. Steam-ID matching remains a separate path with all types available for review.
-- [ ] Fetch and validate staged metadata before deletion. Any provider failure aborts preparation; no partially populated reset.
+- [ ] Keep a small reusable optional seed script accepting explicit IGDB IDs, using the same adapter and catalogue writer as Steam ingestion. No mandatory starting catalogue or separate taxonomy seeding: Steam import can populate an empty catalogue. Enforce game_type = 0 for all non-Steam bulk seed hydration. A future prelaunch import of roughly 5,000 games may combine rating, minimum rating count and popularity; choose/test that selection policy separately, without storing external scores as ScreenPeak ratings.
+- [ ] When optional seed data is selected for cutover, fetch and validate it before deletion; any provider failure aborts preparation. An explicitly empty initial catalogue needs no provider call.
 - [ ] Produce a dry-run report with current catalogue/taxonomy and new staged counts, exact library/review/list-membership/favourite counts to clear, and Auth/account/list/social/settings identities to retain.
 - [ ] Stop the app and DB writers, verify snapshot fingerprints, and use one transaction to clear game-linked children, favourites, catalogue joins and all five catalogue tables in dependency order; load staged IGDB records with fresh UUIDs. Clear obsolete external mappings/cache when present. Do not use TRUNCATE CASCADE or delete Auth/accounts/list definitions/social tables.
 - [ ] Clear generated Loadout identity/timestamp. Preserve authored bios, selected titles and account settings. Retained lists are empty; library/review-derived stats and rating averages reflect the empty state.
@@ -390,4 +397,4 @@ Scope reduced 2026-10-08: remove the salvage matcher, manual crosswalk adjudicat
 
 Order: inventory/export → adapter → preparation schema/writer → stage fresh catalogue and reset-loss report → scoring/contracts → Steam → imagery/sitemap → isolated reset rehearsal → development reset and final schema cleanup. Task 1 credentials and standalone live baseline are validated; later production-adapter/import acceptance must still run.
 
-Recommended execution: implement this in the current chat task by task, with a reviewable commit at each task boundary. Task 1 was explicitly authorized and completed; stop at that task boundary until further implementation is requested.
+Recommended execution: implement this in the current chat task by task, with a reviewable commit at each task boundary. Tasks 1 and 2 were explicitly authorized and completed. Merge completed task branches into igdb-integration; do not merge to main until the full migration is accepted. Do not start Task 3 as part of Task 2.

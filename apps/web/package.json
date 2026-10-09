@@ -10,7 +10,9 @@
     "seed": "tsx --env-file=.env.local scripts/seed-games.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "audit:igdb": "tsx scripts/audit-igdb.ts"
+    "audit:igdb": "tsx scripts/audit-igdb.ts",
+    "test:igdb-integration": "vitest run --config vitest.igdb-integration.config.mts",
+    "audit:igdb:adapter": "node --conditions=react-server --import tsx scripts/audit-igdb-adapter.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

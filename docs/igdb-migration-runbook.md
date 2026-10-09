@@ -117,7 +117,7 @@ Defer bundles, DLC relationships, franchises, engines, modes, themes, perspectiv
 Confirmed 2026-10-08: reset the catalogue and all game-linked test data; retain accounts, settings and social data. There is no salvage requirement.
 
 1. Inventory the exact development DB, reconcile absent migration history, and create a fresh restorable schema/data backup outside git.
-2. Stage and validate the curated IGDB main-game catalogue before deleting anything.
+2. Choose an empty initial catalogue (Steam import populates it later), or stage/validate optional main-game seed records before deleting anything. Taxonomy is ingested with each game; no independent taxonomy seed is required.
 3. Show the current loss report: clear all library entries, ratings/reviews, list memberships and favourites. Keep Auth, profiles/settings, list definitions, follows, likes, Steam links and authored bios.
 4. Stop writers, verify fingerprints, apply preparation schema and atomically replace the catalogue/joins with fresh UUIDs while clearing game-linked data and generated Loadout fields. No crosswalk, old-UUID reuse or linked-row restoration.
 5. Apply coordinated API/SQL cleanup: required IGDB IDs, no RAWG/Metacritic or obsolete single Steam-ID fields. Update web/mobile consumers together.
@@ -236,3 +236,44 @@ The confirmed catalogue-and-game-linked-data reset will retain four profiles/Aut
 Completed: audit implementation/credentials, representative library benchmark, 24 manual mapping checks, demo/DLC/delisted probes, read-only database inventory/export, reset-loss report, and confirmed reset/score decisions. Tests: 227 passing across 28 files; web typecheck and ESLint pass. A separate code review found no important correctness/privacy/safety issues.
 
 The latest reset decision removes all salvage work from Tasks 3/4/8. At this snapshot the approved future reset loss is 420 library entries, 35 ratings/reviews, 29 list memberships and two favourites, in addition to replacing catalogue/taxonomy and clearing two generated Loadouts. Counts must be refreshed before apply. No live data has been cleared. Adapter implementation, migration-history reconciliation, full backup/recovery rehearsal and actual reset remain later tasks.
+
+
+## Task 2 production adapter — 2026-10-08
+
+Implemented server-only authentication, bounded HTTP transport, provider schema validation, current lookup resolution, game normalization, and a shared Postgres request budget. `lib/igdb/provider.ts` exposes `getGamesByIds`, `lookupSteamApps`, `searchGames` and `getLookups`. These retrieve/normalize data only; Task 3 supplies the database writer and Task 6 wires Steam import. Search results are candidates, never automatic Steam associations. Credentials are required on requests, not module import/local rendering.
+
+Authentication shares one refresh per process, caches until 60 seconds before expiry and conditionally refreshes a rejected token once. Requests have a ten-second deadline including response-body reading; transient network/429/5xx failures get at most three attempts with jitter and Retry-After support. Cooldowns exceeding 30 seconds fail visibly. Logs contain endpoint/status/duration only; tokens, raw errors, SQL and response bodies are not logged. Provider IDs, current table references and supplied image URLs are validated. Pre-1970 release timestamps are supported. External ratings are not part of CatalogGame.
+
+Migration `0003_igdb_request_budget.sql` creates a non-exposed `igdb_private` schema with RLS and no PUBLIC/anon/authenticated schema, table or function privileges. Runtime queries use the existing server Drizzle client. This migration was tested on a disposable local Postgres 17 database only; **it has not been applied to the development Supabase database**. Reconcile that database's absent migration history before applying migrations; do not replay 0000 blindly. New adapter calls fail closed until the selected budget DB has this schema. No existing RAWG page/import flow has been switched yet.
+
+Each credential scope is keyed by a SHA-256 hash of the Twitch client ID. A short database transaction reserves one of four leases; HTTP occurs after the transaction ends. Reservations are 650ms apart and usable only within a conservative 350ms window measured from before the database query. This leaves at least 300ms between dispatch windows despite variable DB latency. Slow/stale reservations are released and retried, never dispatched late. HTTP has ten seconds; leases expire after fifteen seconds if a process disappears. Acquisition waits at most approximately 30 seconds, with bounded SQL statements. All production imports/scripts using the same credentials must share the same budget database. The old standalone audit has only a process-local limiter and must not run alongside ingestion.
+
+### Verification and reproduction
+
+```bash
+npm test
+npx tsc --noEmit --incremental false -p apps/web
+npm run lint
+
+# Separate suite: requires explicit local disposable DB ending in _test.
+# Never falls back to the app's DATABASE_POOL_URL.
+TEST_DATABASE_URL=postgresql://YOUR_USER@127.0.0.1:55439/screenpeak_igdb_test \
+  npm run test:igdb-integration -w @screenpeak/web
+
+# Live IGDB calls, with request-budget writes only in the selected DB.
+# The budget schema must already exist. Output must be a new file.
+TEST_DATABASE_URL=postgresql://YOUR_USER@127.0.0.1:55439/screenpeak_igdb_test \
+  npm run audit:igdb:adapter -w @screenpeak/web -- \
+  --input /absolute/path/steam-library.json \
+  --output /tmp/igdb-adapter-coverage-new.json --budget-db-env TEST_DATABASE_URL
+```
+
+The integration suite applies 0003 only when `igdb_private` is absent in that dedicated test DB, creates browser-role stand-ins as needed, and removes its unique test-scope rows. It tests independent DB connections and actual adapters in separate Node processes, four active leases, abandoned-lease expiry and browser-role denial. It does not apply/reset the application's catalogue schema. A dedicated Postgres 17 instance was started under /tmp/screenpeak-igdb-task2, listening only on loopback port 55439; no persistent service was enabled.
+
+Live production-adapter result (same authorized Task 1 library): 428 apps, 423 unique external-ID matches (98.83%), zero ambiguous mappings, five misses, 421 normalized games, no mapping/metadata errors and no retries. Total 13,231ms: lookup tables 3,241ms, mapping 3,238ms, hydration 6,752ms. One OAuth request plus 19 API requests: five lookup tables, five mapping batches, nine metadata batches. This is one measured run, not a performance guarantee. Resolved current values: Steam source 1, Main Game 0, ESRB organization 1, Subreddit website type 14. The implementation resolves these names from the tables rather than copying deprecated enums.
+
+Report: /tmp/igdb-adapter-coverage-2026-10-08.json (private, not committed). Scope remains app-ID coverage plus normalized metadata; demo-to-full-game semantics found in Task 1 still require the Task 6 eligibility guard.
+
+### Optional catalogue population
+
+An empty post-reset catalogue is supported. Linking/importing the owner's Steam library can populate roughly 421 distinct games from the measured sample, including genres/platforms/company roles. Keep an optional seed script for explicit IGDB IDs and repeatable setup; it shares the adapter/writer rather than duplicating ingestion. A larger prelaunch import around 5,000 games is a reasonable later option, but should use a deliberate rating-count/popularity policy instead of ranking by raw average alone. No large import, automatic schedule or external-score UI is implemented in Task 2.

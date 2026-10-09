@@ -13,5 +13,5 @@ export default defineConfig({
   dbCredentials: {
     url: databaseUrl,
   },
-  schemaFilter: ['public'],
+  schemaFilter: ['public', 'igdb_private'],
 });
