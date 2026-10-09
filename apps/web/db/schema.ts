@@ -1,4 +1,4 @@
-import { pgTable, pgSchema, unique, pgPolicy, uuid, integer, text, timestamp, date, foreignKey, check, boolean, numeric, smallint, primaryKey } from "drizzle-orm/pg-core"
+import { pgTable, pgSchema, unique, pgPolicy, uuid, integer, text, timestamp, date, foreignKey, check, boolean, numeric, smallint, primaryKey, index } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 // Reference-only stub for the auth schema Supabase provisions and owns.
@@ -347,3 +347,17 @@ export const listGames = pgTable("list_games", {
    FROM lists
   WHERE ((lists.id = list_games.list_id) AND (lists.user_id = auth.uid()))))` }),
 ]);
+
+
+// Non-exposed operational schema. Runtime role owns/bypasses RLS; browser roles
+// have no schema/table/function grants (see 0003). Never expose through API routes.
+const igdbPrivate = pgSchema('igdb_private')
+export const igdbRequestBudgets = igdbPrivate.table('request_budgets', {
+    credentialKey: text('credential_key').primaryKey(),
+    nextStartAt: timestamp('next_start_at', { withTimezone: true, mode: 'string' }).notNull().default(sql`'-infinity'::timestamptz`),
+}, table => [check('request_budgets_credential_key_check', sql`${table.credentialKey} ~ '^[0-9a-f]{64}$'`)]).enableRLS()
+export const igdbRequestLeases = igdbPrivate.table('request_leases', {
+    id: uuid().primaryKey().defaultRandom(),
+    credentialKey: text('credential_key').notNull().references(() => igdbRequestBudgets.credentialKey, { onDelete: 'cascade' }),
+    expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'string' }).notNull(),
+}, table => [index('request_leases_scope_expiry_idx').on(table.credentialKey, table.expiresAt)]).enableRLS()
