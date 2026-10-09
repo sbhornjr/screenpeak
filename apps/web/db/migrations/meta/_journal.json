@@ -29,6 +29,13 @@
       "when": 1791491677092,
       "tag": "0003_igdb_request_budget",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791491677093,
+      "tag": "0004_igdb_catalog_preparation",
+      "breakpoints": true
     }
   ]
 }

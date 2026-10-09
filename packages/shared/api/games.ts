@@ -11,7 +11,8 @@ export type GameDetail = {
     id: string
     name: string
     slug: string
-    rawg_id: number
+    /** Transitional preparation schema; removed by the coordinated prelaunch IGDB contract change. */
+    rawg_id: number | null
     cover_image_url: string | null
     /** "YYYY-MM-DD" */
     released: string | null
