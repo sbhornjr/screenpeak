@@ -14,8 +14,8 @@ function picture(image: z.infer<typeof imageSchema> | undefined, rendition: stri
         return url.toString()
     } catch { return null }
 }
-function taxa(values: { id: number; name: string; slug?: string }[]): CatalogTaxon[] {
-    return [...new Map(values.map(t => [t.id, { igdbId: t.id, name: t.name, slug: t.slug ?? 'igdb-' + t.id }])).values()]
+function taxa(values: { id: number; name: string; slug?: string; updated_at?: number }[]): CatalogTaxon[] {
+    return [...new Map(values.map(t => [t.id, { igdbId: t.id, name: t.name, slug: t.slug ?? 'igdb-' + t.id, providerUpdatedAt: t.updated_at === undefined ? null : new Date(t.updated_at * 1000).toISOString() }])).values()]
 }
 export function normalizeIgdbGame(game: IgdbGame, lookups: IgdbLookups): CatalogGame {
     if (game.game_type !== undefined && !lookups.gameTypes.has(game.game_type)) throw new IgdbError('game type lookup is missing; refresh lookups.')

@@ -31,3 +31,15 @@ it('accepts historical releases before the Unix epoch',()=>{
     const game=normalizeIgdbGame(gameSchema.parse({id:1,name:'Historical game',slug:'historical-game',first_release_date:-353894400}),lookups)
     expect(game.released).toBe('1958-10-15')
 })
+
+it('carries each taxonomy entity timestamp independently from the game timestamp', () => {
+    const game = normalizeIgdbGame(gameSchema.parse({ id: 1, name: 'Game', slug: 'game', updated_at: 86400,
+        genres: [{ id: 3, name: 'Genre', slug: 'genre', updated_at: 172800 }],
+        platforms: [{ id: 4, name: 'Platform', updated_at: 259200 }],
+        involved_companies: [{ developer: true, publisher: true, company: { id: 5, name: 'Studio', updated_at: 345600 } }],
+    }), lookups)
+    expect(game.genres[0].providerUpdatedAt).toBe('1970-01-03T00:00:00.000Z')
+    expect(game.platforms[0].providerUpdatedAt).toBe('1970-01-04T00:00:00.000Z')
+    expect(game.developers[0].providerUpdatedAt).toBe('1970-01-05T00:00:00.000Z')
+    expect(game.publishers).toEqual(game.developers)
+})

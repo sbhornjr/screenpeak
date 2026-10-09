@@ -1,6 +1,6 @@
 import 'server-only'
 
-export type CatalogTaxon = { igdbId: number; name: string; slug: string }
+export type CatalogTaxon = { igdbId: number; name: string; slug: string; providerUpdatedAt?: string | null }
 export type CatalogGame = {
     igdbId: number
     name: string

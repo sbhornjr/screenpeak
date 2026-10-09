@@ -6,7 +6,7 @@ export default defineConfig({
     } },
     test: {
         environment: 'node', setupFiles: ['test/setup.ts'],
-        include: ['test/integration/igdb-budget.integration.ts'],
+        include: ['test/integration/*.integration.ts'],
         fileParallelism: false, testTimeout: 30_000, hookTimeout: 30_000,
     },
 })

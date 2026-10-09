@@ -11,38 +11,51 @@ export const usersInAuth = authSchema.table("users", {
 
 export const genres = pgTable("genres", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
-	rawgId: integer("rawg_id").notNull(),
+	rawgId: integer("rawg_id"),
+	igdbId: integer("igdb_id"),
+	providerUpdatedAt: timestamp("provider_updated_at", { withTimezone: true, mode: 'string' }),
 	name: text().notNull(),
 	slug: text().notNull(),
 }, (table) => [
 	unique("genres_rawg_id_key").on(table.rawgId),
+	unique("genres_igdb_id_key").on(table.igdbId),
+	check("genres_igdb_id_positive", sql`${table.igdbId} > 0`),
 	pgPolicy("Public read access", { as: "permissive", for: "select", to: ["public"], using: sql`true` }),
 ]);
 
 export const platforms = pgTable("platforms", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
-	rawgId: integer("rawg_id").notNull(),
+	rawgId: integer("rawg_id"),
+	igdbId: integer("igdb_id"),
+	providerUpdatedAt: timestamp("provider_updated_at", { withTimezone: true, mode: 'string' }),
 	name: text().notNull(),
 	slug: text().notNull(),
 }, (table) => [
 	unique("platforms_rawg_id_key").on(table.rawgId),
+	unique("platforms_igdb_id_key").on(table.igdbId),
+	check("platforms_igdb_id_positive", sql`${table.igdbId} > 0`),
 	pgPolicy("Public read access", { as: "permissive", for: "select", to: ["public"], using: sql`true` }),
 ]);
 
 export const developers = pgTable("developers", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
-	rawgId: integer("rawg_id").notNull(),
+	rawgId: integer("rawg_id"),
+	igdbId: integer("igdb_id"),
+	providerUpdatedAt: timestamp("provider_updated_at", { withTimezone: true, mode: 'string' }),
 	name: text().notNull(),
 	slug: text().notNull(),
 }, (table) => [
 	unique("developers_rawg_id_key").on(table.rawgId),
+	unique("developers_igdb_id_key").on(table.igdbId),
+	check("developers_igdb_id_positive", sql`${table.igdbId} > 0`),
 	pgPolicy("Public read access", { as: "permissive", for: "select", to: ["public"], using: sql`true` }),
 ]);
 
 export const games = pgTable("games", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
-	rawgId: integer("rawg_id").notNull(),
+	rawgId: integer("rawg_id"),
+	igdbId: integer("igdb_id"),
 	name: text().notNull(),
 	slug: text().notNull(),
 	coverImageUrl: text("cover_image_url"),
@@ -53,19 +66,32 @@ export const games = pgTable("games", {
 	redditUrl: text("reddit_url"),
 	screenshots: text().array(),
 	steamAppid: integer("steam_appid"),
+	gameType: integer("game_type"),
+	artworkImageUrl: text("artwork_image_url"),
+	providerSlug: text("provider_slug"),
+	providerUpdatedAt: timestamp("provider_updated_at", { withTimezone: true, mode: 'string' }),
+	metadataSyncedAt: timestamp("metadata_synced_at", { withTimezone: true, mode: 'string' }),
+	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
 }, (table) => [
 	unique("games_rawg_id_key").on(table.rawgId),
+	unique("games_igdb_id_key").on(table.igdbId),
+	check("games_igdb_id_positive", sql`${table.igdbId} > 0`),
 	unique("games_steam_appid_key").on(table.steamAppid),
+	unique("games_slug_key").on(table.slug),
 	pgPolicy("Public read access", { as: "permissive", for: "select", to: ["public"], using: sql`true` }),
 ]);
 
 export const publishers = pgTable("publishers", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
-	rawgId: integer("rawg_id").notNull(),
+	rawgId: integer("rawg_id"),
+	igdbId: integer("igdb_id"),
+	providerUpdatedAt: timestamp("provider_updated_at", { withTimezone: true, mode: 'string' }),
 	name: text().notNull(),
 	slug: text().notNull(),
 }, (table) => [
 	unique("publishers_rawg_id_key").on(table.rawgId),
+	unique("publishers_igdb_id_key").on(table.igdbId),
+	check("publishers_igdb_id_positive", sql`${table.igdbId} > 0`),
 	pgPolicy("Public read access", { as: "permissive", for: "select", to: ["public"], using: sql`true` }),
 ]);
 
@@ -361,3 +387,36 @@ export const igdbRequestLeases = igdbPrivate.table('request_leases', {
     credentialKey: text('credential_key').notNull().references(() => igdbRequestBudgets.credentialKey, { onDelete: 'cascade' }),
     expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'string' }).notNull(),
 }, table => [index('request_leases_scope_expiry_idx').on(table.credentialKey, table.expiresAt)]).enableRLS()
+
+// Server-managed mappings; no browser access (0004 revokes default grants).
+export const gameExternalIds = pgTable('game_external_ids', {
+    provider: text().notNull(),
+    externalId: text('external_id').notNull(),
+    gameId: uuid('game_id').notNull().references(() => games.id, { onDelete: 'cascade' }),
+    matchMethod: text('match_method').notNull(),
+    verifiedAt: timestamp('verified_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
+}, table => [
+    unique('game_external_ids_provider_external_id_key').on(table.provider, table.externalId),
+    index('game_external_ids_game_id_idx').on(table.gameId),
+    check('game_external_ids_provider_check', sql`${table.provider} <> ''`),
+    check('game_external_ids_external_id_check', sql`${table.externalId} <> ''`),
+    check('game_external_ids_match_method_check', sql`${table.matchMethod} = 'igdb_external_id'`),
+]).enableRLS()
+export const steamMatchCache = igdbPrivate.table('steam_match_cache', {
+    steamAppId: integer('steam_app_id').notNull(),
+    matcherVersion: text('matcher_version').notNull(),
+    status: text().notNull(),
+    checkedAt: timestamp('checked_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
+    retryAfter: timestamp('retry_after', { withTimezone: true, mode: 'string' }).notNull(),
+}, table => [
+    primaryKey({ columns: [table.steamAppId, table.matcherVersion] }),
+    check('steam_match_cache_steam_app_id_check', sql`${table.steamAppId} > 0`),
+    check('steam_match_cache_matcher_version_check', sql`${table.matcherVersion} <> ''`),
+    check('steam_match_cache_status_check', sql`${table.status} IN ('unmatched', 'ambiguous')`),
+    check('steam_match_cache_check', sql`${table.retryAfter} >= ${table.checkedAt}`),
+]).enableRLS()
+export const catalogResetRuns = igdbPrivate.table('catalog_reset_runs', {
+    runId: uuid('run_id').primaryKey(),
+    manifestChecksum: text('manifest_checksum').notNull(),
+    committedAt: timestamp('committed_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
+}, table => [check('catalog_reset_runs_manifest_checksum_check', sql`${table.manifestChecksum} ~ '^[0-9a-f]{64}$'`)]).enableRLS()

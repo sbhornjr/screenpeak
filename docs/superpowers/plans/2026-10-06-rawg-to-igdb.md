@@ -10,7 +10,7 @@
 
 **Design basis:** User request and pasted Grok audit, checked against this checkout at cdd8e19 on 2026-10-06 (including the pre-existing uncommitted mobile-plan edits). The design brief below is part of this plan. Grok's full report at /workspace/lens/screenpeak/rawg-to-igdb-field-audit.md was not available locally. The original planning pass performed no live operations. Task 1 subsequently completed read-only database inventory and credentialed IGDB audits on 2026-10-08; no migration/reset has occurred.
 
-**Status:** Task 1 complete on 2026-10-08 (inventory, private export, measured coverage, 24 manual checks and explicit edge probes). The user confirmed a simpler reset: discard all catalogue and game-linked test data; retain accounts, settings and social data. Remove salvage/reconciliation work from later tasks. You / Community remains the score design. Task 2 adapter work is complete; Tasks 3–8 and the actual reset remain unimplemented. The private limiter migration has been applied only to disposable local Postgres, not the development Supabase database.
+**Status:** Task 1 complete on 2026-10-08 (inventory, private export, measured coverage, 24 manual checks and explicit edge probes). The user confirmed a simpler reset: discard all catalogue and game-linked test data; retain accounts, settings and social data. Remove salvage/reconciliation work from later tasks. You / Community remains the score design. Task 2 adapter work is complete and merged. Task 3 preparation/writer work is complete and tested on isolated local databases; Tasks 4–8 and the actual reset remain unimplemented. The private limiter migration has been applied only to disposable local Postgres, not the development Supabase database.
 
 ## Priority and boundaries
 
@@ -253,20 +253,22 @@ Run real-database acceptance tests against a dedicated TEST_DATABASE_URL. Never 
 ## Task 3 — Prepare IGDB-only catalogue storage and transactional ingestion
 
 **Modify:** apps/web/db/schema.ts, apps/web/db/relations.ts, apps/web/db/migrations/meta/_journal.json.
-**Create:** next numbered preparation migration and final cleanup migration; apps/web/lib/catalog/upsert.ts; apps/web/test/lib/catalog/upsert.test.ts; apps/web/test/integration/catalog-migration.test.ts.
+**Create:** next numbered preparation migration and guarded final cleanup draft (journal with Task 5/8 RPC cleanup); apps/web/lib/catalog/upsert.ts; apps/web/test/lib/catalog/upsert.test.ts; apps/web/test/integration/catalog-migration.test.ts.
 
-- [ ] Reconcile the actual schema and absent database migration journals on an isolated copy; do not blindly replay or mark 0000–0002 applied.
-- [ ] Prepare a temporary unique nullable igdb_id on each of the five catalogue tables and relax rawg_id during the reset transition. The final cleanup migration requires positive unique IGDB IDs and removes rawg_id plus its constraints. Never populate igdb_id by copying a RAWG value.
-- [ ] Add games.artwork_image_url, provider_slug, provider_updated_at, metadata_synced_at and updated_at. The final catalogue enforces unique game slugs; regenerate fresh slugs and resolve conflicts deterministically with an IGDB-ID suffix.
-- [ ] Create game_external_ids with provider, external_id (text), game_id, match_method, verified_at, unique(provider, external_id), and an index on game_id. Retain old games.steam_appid only in the backup; rebuild live mappings from verified IGDB data. Remove the old games.steam_appid column after all readers use this mapping table.
-- [ ] Create server-only match-cache storage keyed by Steam app ID and matcher version, with status, checked_at and retry_after. Enable RLS and revoke browser mutation access to ingestion-only tables. Keep developers and publishers as separate role tables, both using IGDB company IDs.
-- [ ] Expose upsertCatalogGame(game: CatalogGame): Promise<{ id: string; slug: string }>. Upsert by igdb_id; allocate a new local UUID on insert. No caller-supplied restoration UUID.
-- [ ] Fetch/validate outside transactions; write the game, fresh taxonomy and complete relation sets atomically. Recover concurrent inserts through unique provider IDs. Failed imports preserve the last good IGDB snapshot.
-- [ ] Test repeat imports, transaction rollback, simultaneous upserts, distinct games with identical names and browser write denial.
-- [ ] Test the preparation migration against a copy of current data. Test final cleanup against an empty/new database and a successfully rebuilt database; it must refuse null/invalid IGDB IDs. Never silently delete unmapped rows inside a schema migration.
-- [ ] Add private catalog_reset_runs storage with run_id primary key, manifest checksum and committed_at, accessible only to the operational role. Write its completion row in the same reset transaction; Task 4 uses it to reject destructive replay.
-- [ ] Keep the destructive data-reset operation explicit in Task 4. Schema migrations must not hide a test-data wipe inside an ordinary deployment command.
-- [ ] Verify final constraints/grants and absence of all five rawg_id columns, games.metacritic_score and games.steam_appid after Task 8's cleanup. Commit.
+- [x] Reconcile the actual schema and absent database migration journals on an isolated copy; do not blindly replay or mark 0000–0002 applied.
+- [x] Prepare a temporary unique nullable igdb_id on each of the five catalogue tables and relax rawg_id during the reset transition. The final cleanup migration requires positive unique IGDB IDs and removes rawg_id plus its constraints. Never populate igdb_id by copying a RAWG value.
+- [x] Add games.artwork_image_url, provider_slug, provider_updated_at, metadata_synced_at and updated_at. The final catalogue enforces unique game slugs; regenerate fresh slugs and resolve conflicts deterministically with an IGDB-ID suffix.
+- [x] Create game_external_ids with provider, external_id (text), game_id, match_method, verified_at, unique(provider, external_id), and an index on game_id. Retain old games.steam_appid only in the backup; rebuild live mappings from verified IGDB data. Remove the old games.steam_appid column after all readers use this mapping table.
+- [x] Create server-only match-cache storage keyed by Steam app ID and matcher version, with status, checked_at and retry_after. Enable RLS and revoke browser mutation access to ingestion-only tables. Keep developers and publishers as separate role tables, both using IGDB company IDs.
+- [x] Expose upsertCatalogGame(game: CatalogGame): Promise<{ id: string; slug: string }>. Upsert by igdb_id; allocate a new local UUID on insert. No caller-supplied restoration UUID.
+- [x] Fetch/validate outside transactions; write the game, fresh taxonomy and complete relation sets atomically. Recover concurrent inserts through unique provider IDs. Failed imports preserve the last good IGDB snapshot.
+- [x] Test repeat imports, transaction rollback, simultaneous upserts, distinct games with identical names and browser write denial.
+- [x] Test the preparation migration against a copy of current data. Test final cleanup against an empty/new database and a successfully rebuilt database; it must refuse null/invalid IGDB IDs. Never silently delete unmapped rows inside a schema migration.
+- [x] Add private catalog_reset_runs storage with run_id primary key, manifest checksum and committed_at, accessible only to the operational role. Write its completion row in the same reset transaction; Task 4 uses it to reject destructive replay.
+- [x] Keep the destructive data-reset operation explicit in Task 4. Schema migrations must not hide a test-data wipe inside an ordinary deployment command.
+- [x] Verify final constraints/grants and absence of all five rawg_id columns, games.metacritic_score and games.steam_appid on cleaned fixtures; verify them again on the selected development DB after Task 8's cleanup. Commit.
+
+**Task 3 execution notes (2026-10-09):** Preparation is 0004. Cleanup remains an unjournaled guarded draft until Tasks 5/8 replace RPCs and allocate the final sequence. No live migration/reset or journal stamping occurred. Shared taxonomy freshness uses each entity’s own provider timestamp. See the runbook/report for verified baseline equivalence, preservation rehearsal and file inventory.
 
 **Exit:** Tested preparation and final-schema paths, with the reset kept explicit and no production compatibility layer.
 

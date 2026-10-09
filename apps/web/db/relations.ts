@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm/relations";
-import { games, ratingsReviews, users, libraryEntries, lists, steamAccounts, usersInAuth, gameGenres, genres, gamePlatforms, platforms, developers, gameDevelopers, gamePublishers, publishers, listLikes, follows, listGames } from "./schema";
+import { games, ratingsReviews, users, libraryEntries, lists, steamAccounts, usersInAuth, gameGenres, genres, gamePlatforms, platforms, developers, gameDevelopers, gamePublishers, publishers, listLikes, follows, listGames, gameExternalIds } from "./schema";
 
 export const ratingsReviewsRelations = relations(ratingsReviews, ({one}) => ({
 	game: one(games, {
@@ -20,6 +20,7 @@ export const gamesRelations = relations(games, ({many}) => ({
 	gameDevelopers: many(gameDevelopers),
 	gamePublishers: many(gamePublishers),
 	listGames: many(listGames),
+	gameExternalIds: many(gameExternalIds),
 }));
 
 export const usersRelations = relations(users, ({one, many}) => ({
@@ -164,4 +165,7 @@ export const listGamesRelations = relations(listGames, ({one}) => ({
 		fields: [listGames.listId],
 		references: [lists.id]
 	}),
+}));
+export const gameExternalIdsRelations = relations(gameExternalIds, ({ one }) => ({
+    game: one(games, { fields: [gameExternalIds.gameId], references: [games.id] }),
 }));
