@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { assertAuthStubSafe } from './database-url'
 
 export const BASELINE_TAGS = [
     '0000_illegal_kinsey_walden',
@@ -32,6 +33,7 @@ export function readMigrations(folder = join(process.cwd(), 'db/migrations')): M
 }
 
 export async function ensureLocalAuthStubs(sql: MigrationSql): Promise<void> {
+    await assertAuthStubSafe(sql)
     await sql.unsafe(`DO $$ BEGIN
         IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN CREATE ROLE anon; END IF;
         IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated') THEN CREATE ROLE authenticated; END IF;

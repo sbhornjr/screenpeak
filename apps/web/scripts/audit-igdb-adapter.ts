@@ -3,12 +3,15 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import { config } from 'dotenv'
+import postgres from 'postgres'
+import { assertDisposableDatabase, assertLocalCopy } from '../lib/catalog/database-url'
+import type { MigrationSql } from '../lib/catalog/migrations'
 import { AuditError, parseSteamInput } from './igdb-audit'
 import { IgdbError } from '../lib/igdb/http'
 
 async function main() {
     const { values } = parseArgs({ options: {
-        input: { type: 'string' }, output: { type: 'string' }, 'budget-db-env': { type: 'string' }, help: { type: 'boolean', short: 'h' },
+        input: { type: 'string' }, output: { type: 'string' }, 'budget-db-env': { type: 'string' }, 'confirm-local-copy': { type: 'boolean' }, help: { type: 'boolean', short: 'h' },
     }, strict: true, allowPositionals: false })
     if (values.help) {
         console.log('Audit the production IGDB adapter against a Steam JSON file.\n--input FILE --output NEW_FILE --budget-db-env TEST_DATABASE_URL|DATABASE_POOL_URL\nThe selected database must have 0003 applied; only private request-budget state is written. No catalogue/user writes. For tests use a disposable local database. Never run the migration chain blindly against an existing Supabase database.')
@@ -19,11 +22,11 @@ async function main() {
     config({ path: resolve(__dirname, '../.env.local'), quiet: true })
     const budgetUrl = process.env[values['budget-db-env']!]
     if (!budgetUrl) throw new AuditError('Selected budget database environment variable is missing.')
-    if (values['budget-db-env'] === 'TEST_DATABASE_URL') {
-        const url = new URL(budgetUrl)
-        if (!['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) || !url.pathname.endsWith('_test'))
-            throw new AuditError('TEST_DATABASE_URL must select a disposable local database ending in _test.')
-    }
+    try { assertDisposableDatabase(budgetUrl) }
+    catch (error) { throw new AuditError(error instanceof Error ? error.message : 'Refusing the budget database.') }
+    const budgetSql = postgres(budgetUrl, { max: 1, onnotice: () => {} })
+    try { await assertLocalCopy(budgetSql as unknown as MigrationSql, values['confirm-local-copy'] === true) }
+    finally { await budgetSql.end() }
     process.env.DATABASE_POOL_URL = budgetUrl
     const base = process.env.INIT_CWD ?? process.cwd()
     const input = parseSteamInput(JSON.parse(await readFile(resolve(base, values.input), 'utf8')))

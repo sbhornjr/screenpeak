@@ -7,7 +7,7 @@ import type { DB } from '@/lib/db'
 import type { CatalogGame } from '@/lib/catalog/types'
 import { applyPending, ensureLocalAuthStubs, inspectMigrations, stampBaseline, type MigrationSql } from '@/lib/catalog/migrations'
 import { applyCatalogReset, backupResetState, buildManifest, planCatalogReset, resetFromProvider, restoreResetState } from '@/lib/catalog/reset'
-import { seedCatalogGames } from '@/lib/catalog/seed'
+import { SeedInterrupted, seedCatalogGames, storedIgdbIds } from '@/lib/catalog/seed'
 
 const url = process.env.TEST_DATABASE_URL
 if (!url) throw new Error('Set TEST_DATABASE_URL to a disposable local database.')
@@ -128,6 +128,27 @@ it('dry-run and a provider failure write nothing', async () => {
     expect(await client`select count(*)::int as n from igdb_private.catalog_reset_runs`).toEqual([{ n: 0 }])
 })
 
+it('refuses apply when a library row appears after the manifest is staged', async () => {
+    const [userB] = await client`select id from users where username = 'bea'`
+    await client`insert into library_entries (user_id, game_id) values (${userB.id}, ${legacyId})`
+    await expect(applyCatalogReset(database, manifest)).rejects.toThrow(/Stale reset manifest/)
+    await client`delete from library_entries where user_id = ${userB.id}`
+    expect(await client`select count(*)::int as n from library_entries`).toEqual([{ n: 1 }])
+    expect(await client`select count(*)::int as n from games where slug = 'legacy'`).toEqual([{ n: 1 }])
+})
+
+it('refuses an empty manifest that would wipe the catalogue', async () => {
+    const empty = await buildManifest(database, [], randomUUID())
+    const plan = await planCatalogReset(database, empty)
+    expect(plan.writing).toBe(0)
+    expect(plan.games).toBeGreaterThan(0)
+    expect(plan.blocked).toMatch(/empty/)
+    const before = await client`select count(*)::int as n from games`
+    await expect(applyCatalogReset(database, empty)).rejects.toThrow(/empty/)
+    expect(await client`select count(*)::int as n from games`).toEqual(before)
+    expect(await client`select count(*)::int as n from library_entries`).toEqual([{ n: 1 }])
+})
+
 it('rolls back a failure after the clear and rejects a stale manifest', async () => {
     await expect(applyCatalogReset(database, manifest, { afterClear: async () => { throw new Error('disk full') } })).rejects.toThrow(/disk full/)
     expect(await client`select count(*)::int as n from library_entries`).toEqual([{ n: 1 }])
@@ -140,7 +161,15 @@ it('rolls back a failure after the clear and rejects a stale manifest', async ()
 
 it('resets game-linked rows, keeps accounts, refuses replay, and restores the backup', async () => {
     manifest = await buildManifest(database, [staged(100, [100]), staged(101, [100, 101])], manifest.runId)
-    await backupResetState(client as unknown as MigrationSql)
+    const firstBackup = await backupResetState(client as unknown as MigrationSql)
+    const secondBackup = await backupResetState(client as unknown as MigrationSql)
+    expect(firstBackup).toBe('reset_backup')
+    expect(secondBackup).toBe('reset_backup_2')
+    const backups = await client`select nspname from pg_namespace where nspname like 'reset_backup%' order by nspname`
+    expect(backups).toEqual([{ nspname: 'reset_backup' }, { nspname: 'reset_backup_2' }])
+    const [copied] = await client`select (select count(*)::int from reset_backup.games) as first, (select count(*)::int from reset_backup_2.games) as second`
+    expect(copied.first).toBeGreaterThan(0)
+    expect(copied.second).toBe(copied.first)
     const applied = await applyCatalogReset(database, manifest)
     expect(applied.shared).toEqual([{ appId: 100, igdbIds: [100, 101] }])
     expect(applied.written).toBe(2)
@@ -166,7 +195,26 @@ it('resets game-linked rows, keeps accounts, refuses replay, and restores the ba
         .toEqual([{ loadout_identity: 'generated', favorite_game_ids: [legacyId] }])
     expect(await client`select count(*)::int as n from library_entries`).toEqual([{ n: 1 }])
     expect(await client`select count(*)::int as n from igdb_private.catalog_reset_runs`).toEqual([{ n: 0 }])
+    expect(await client`select nspname from pg_namespace where nspname like 'reset_backup%' order by nspname`)
+        .toEqual([{ nspname: 'reset_backup' }, { nspname: 'reset_backup_2' }])
 })
+
+it('commits a seed batch and names the games left when the next batch fails', async () => {
+    const good = Array.from({ length: 50 }, (_, index) => staged(300 + index, [9000 + index]))
+    const bad = { ...staged(350, [9050]), igdbId: -1 }
+    try {
+        await seedCatalogGames(database, [...good, bad])
+        expect.unreachable()
+    } catch (error) {
+        expect(error).toBeInstanceOf(SeedInterrupted)
+        const interrupted = error as SeedInterrupted
+        expect(interrupted.committed).toBe(50)
+        expect(interrupted.remainingIgdbIds).toEqual([-1])
+        expect(interrupted.message).toMatch(/--resume/)
+    }
+    const stored = await storedIgdbIds(database, good.map(row => row.igdbId))
+    expect(stored.sort((left, right) => left - right)).toEqual(good.map(row => row.igdbId))
+}, 60_000)
 
 it('applies the whole chain on an empty database and records every file', async () => {
     const fresh = await createDatabase('empty_')

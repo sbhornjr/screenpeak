@@ -7,8 +7,18 @@ import { parseDbTimestamp } from '@/lib/dates'
 import type { DB } from '@/lib/db'
 import type { CatalogGame } from '@/lib/catalog/types'
 const state = vi.hoisted(() => ({ db: null as DB | null }))
-vi.mock('@/lib/db', () => ({ db: { transaction: (...args: Parameters<DB['transaction']>) => state.db!.transaction(...args) } }))
+vi.mock('@/lib/db', () => ({
+    db: new Proxy({}, {
+        get(_target, property) {
+            const database = state.db as unknown as Record<PropertyKey, unknown> | null
+            if (!database) throw new Error('Test database is not ready')
+            const value = database[property]
+            return typeof value === 'function' ? value.bind(database) : value
+        },
+    }),
+}))
 import { upsertCatalogGame } from '@/lib/catalog/upsert'
+import { getGamesFromSteamIds } from '@/lib/queries/game'
 import { detachSharedSteamAppIds } from '@/lib/catalog/steam-ids'
 import { writeSteamMatchCache } from '@/lib/catalog/match-cache'
 const url = process.env.TEST_DATABASE_URL
@@ -135,6 +145,20 @@ it('does not let another game regress shared taxonomy names or timestamps', asyn
     await upsertCatalogGame(game(14, { genres: [{ igdbId: 55, name: 'Unknown', slug: 'unknown' }] }))
     const [row] = await client`select name,slug from genres where igdb_id=55`
     expect(row).toEqual({ name: 'New Name', slug: 'new-name' })
+})
+it('matches a Steam app id from game_external_ids after a catalogue write', async () => {
+    const saved = await upsertCatalogGame(game(40, {
+        name: 'Steam Linked', providerSlug: 'steam-linked', steamAppIds: [4040], genres: [], developers: [], publishers: [],
+    }))
+    expect(await client`select steam_appid from games where id = ${saved.id}`).toEqual([{ steam_appid: null }])
+    await client`insert into games (rawg_id, name, slug, steam_appid) values (901, 'Legacy Steam', 'legacy-steam', 5050)`
+    try {
+        const found = await getGamesFromSteamIds([4040, 5050, 4040])
+        expect(found.map(row => row.steam_appid).sort((a, b) => a - b)).toEqual([4040, 5050])
+        expect(found.find(row => row.steam_appid === 4040)?.id).toBe(saved.id)
+    } finally {
+        await client`delete from games where rawg_id = 901`
+    }
 })
 it('cleanup supports an empty catalogue and refuses invalid IDs in any taxonomy table', async () => {
     const cleanup = await readFile('db/cutover/igdb-catalog-cleanup.sql', 'utf8')

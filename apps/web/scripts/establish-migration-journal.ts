@@ -1,5 +1,5 @@
 import postgres from 'postgres'
-import { assertDisposableDatabase } from '../lib/catalog/database-url'
+import { assertDisposableDatabase, assertLocalCopy } from '../lib/catalog/database-url'
 import { applyPending, ensureLocalAuthStubs, inspectMigrations, stampBaseline, type MigrationSql } from '../lib/catalog/migrations'
 
 const help = `Record or apply ScreenPeak SQL migrations on a disposable local database.
@@ -11,7 +11,10 @@ const help = `Record or apply ScreenPeak SQL migrations on a disposable local da
   --apply-pending        Apply journaled migrations that are not yet recorded.
                          Refuses while 0000–0002 are unrecorded on a database that already has tables.
   --local-auth-stubs     Create anon/authenticated roles and auth.uid() before --apply-pending.
-                         Only for an empty local Postgres. Never use on a Supabase copy.
+                         Only for an empty local Postgres. Refuses a Supabase auth schema.
+  --confirm-local-copy   Required when the database has Supabase dump markers.
+                         A localhost URL can be a tunnel. This flag does not bypass that refusal
+                         for --local-auth-stubs.
 
 With neither --stamp-baseline nor --apply-pending, print a dry-run and write nothing.
 Do not point this at the hosted development database. Restore a copy locally first.
@@ -40,6 +43,7 @@ async function main(): Promise<void> {
     const sql = postgres(url, { max: 1, onnotice: () => {} })
     try {
         const client = sql as unknown as MigrationSql
+        await assertLocalCopy(client, process.argv.includes('--confirm-local-copy'))
         if (process.argv.includes('--local-auth-stubs')) await ensureLocalAuthStubs(client)
         if (!stamp && !apply) console.log(JSON.stringify({ dryRun: true, ...(await inspectMigrations(client)) }, null, 2))
         else if (stamp) console.log(JSON.stringify({ stamped: await stampBaseline(client) }, null, 2))

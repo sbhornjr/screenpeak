@@ -1,17 +1,20 @@
 # IGDB migration runbook
 
-Updated 2026-10-08. The app is unshipped and all existing data is personal test data.
+Updated 2026-10-10. The app is unshipped and all existing data is personal test data. Nothing in this runbook has been applied to the hosted development database.
 
 ## Available now
 
-The read-only audit is implemented. It obtains its own Twitch bearer token, checks Steam app-ID coverage, expands selected game metadata, and writes an optional JSON report. It never connects to Supabase/Postgres, seeds games, edits libraries, or resets anything.
+The read-only audit obtains its own Twitch bearer token, checks Steam app-ID coverage, expands selected game metadata, and writes an optional JSON report. It does not seed games, edit libraries, or reset the catalogue. It does write shared request-budget rows, so it needs a localhost database ending in `_test` or `_copy` via `--budget-db-env`. Pass `--confirm-local-copy` when that database has Supabase dump markers (a localhost URL can still be a tunnel).
 
-- CLI: apps/web/scripts/audit-igdb.ts
-- Audit/HTTP logic: apps/web/scripts/igdb-audit.ts
-- Tests: apps/web/test/scripts/igdb-audit.test.ts
+- Audit CLI: `apps/web/scripts/audit-igdb.ts` (`npm run audit:igdb`)
+- Audit/HTTP logic: `apps/web/scripts/igdb-audit.ts` (uses the shared `acquireIgdbLease` budget)
+- Journal: `apps/web/scripts/establish-migration-journal.ts` (`npm run migrate:journal`)
+- Seed: `apps/web/scripts/seed-igdb.ts` (`npm run seed:igdb`)
+- Reset: `apps/web/scripts/reset-catalog-to-igdb.ts` (`npm run reset:catalog`)
+- Tests: `apps/web/test/scripts/igdb-audit.test.ts` and `npm run test:igdb-integration`
 - Full migration: [implementation plan](superpowers/plans/2026-10-06-rawg-to-igdb.md)
 
-A separate read-only database inventory command is also available (see the recorded baseline below). The migration/reset tooling described below is still planned, not implemented by either audit command.
+The read-only inventory command is unchanged (see the recorded baseline below). Journal, seed, and reset commands exist and refuse non-local URLs and database names that do not end in `_test` or `_copy`. They are for a restored local copy. Do not point them at the hosted project. `--local-auth-stubs` refuses a database that already has a Supabase auth schema, even with `--confirm-local-copy`.
 
 ## Credentials
 
@@ -24,7 +27,7 @@ TWITCH_CLIENT_SECRET=your-client-secret
 
 Do not paste a bearer token into the script. Each process obtains one through POST https://id.twitch.tv/oauth2/token with URL-encoded query parameters client_id, client_secret and grant_type=client_credentials, as requested. Token expiry is tracked with a 60-second margin; an API 401 triggers one token replacement/retry. Credentials and token responses are never printed or included in reports. Existing environment values take precedence over .env.local.
 
-No RAWG key, Steam API key, DATABASE_POOL_URL or Supabase key is needed for file/app-ID auditing. No dependencies were added.
+No RAWG key or Steam API key is needed for file/app-ID auditing. The audit does need `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET`, and `--budget-db-env` pointing at a disposable localhost database that already has the shared request budget. It does not fall back to `DATABASE_POOL_URL`.
 
 ## Run from the repository root
 
@@ -32,14 +35,14 @@ No RAWG key, Steam API key, DATABASE_POOL_URL or Supabase key is needed for file
 # Usage; does not need credentials or make network calls
 npm run audit:igdb -w @screenpeak/web -- --help
 
-# Small known-ID smoke test
-npm run audit:igdb -w @screenpeak/web -- --appids 292030,1145360
+# Small known-ID smoke test. The budget database must already have migration 0003.
+npm run audit:igdb -w @screenpeak/web -- --appids 292030,1145360 --budget-db-env TEST_DATABASE_URL
 
 # Actual library coverage, with a report outside git
-npm run audit:igdb -w @screenpeak/web -- --input /absolute/path/steam-library.json --output /tmp/screenpeak-igdb-library.json
+npm run audit:igdb -w @screenpeak/web -- --input /absolute/path/steam-library.json --output /tmp/screenpeak-igdb-library.json --budget-db-env TEST_DATABASE_URL
 
 # Optional catalogue sample: main games ONLY
-npm run audit:igdb -w @screenpeak/web -- --main-games 20 --output /tmp/screenpeak-igdb-main-games.json
+npm run audit:igdb -w @screenpeak/web -- --main-games 20 --output /tmp/screenpeak-igdb-main-games.json --budget-db-env TEST_DATABASE_URL
 ```
 
 Choose exactly one input mode. --appids accepts comma-separated positive integer app IDs. --main-games accepts 1–100 and fetches a deterministic ID-ordered sample with game_type = 0; it is not a popular-games seed. Steam matching deliberately applies no main-game filter, since the audit must reveal edition/DLC mappings rather than hide them.
@@ -98,9 +101,9 @@ Exit codes:
 
 The script verifies external_game_sources ID 1 is Steam, looks up external_games.uid in batches of 100, follows 500-row pages in stable ID order, deduplicates game candidates, and hydrates 50 games at a time with explicit nested fields. Company role flags and the referenced company are expanded together; cover, genres, platforms and ESRB references do not each trigger per-record HTTP calls.
 
-Requests run sequentially with at least 300ms between starts and a 10-second timeout. Transient network/429/5xx failures retry at most three attempts per operation, with backoff and Retry-After support. Cooldowns over 30 seconds fail visibly instead of retrying early. Unexpected statuses or malformed JSON/schema data produce sanitized errors. There is a 50,000-result safety ceiling per external-ID batch.
+Requests run sequentially through the shared Postgres request budget (`acquireIgdbLease`), with a 10-second HTTP timeout. The 350ms dispatch window starts after the lease grant returns, and the next reservation is pushed by the observed round trip plus 650ms, so a slow tunnel does not expire the lease or collapse the gap between dispatches. Transient network/429/5xx failures retry at most three attempts per operation, with backoff and Retry-After support. Cooldowns over 30 seconds fail visibly instead of retrying early. Unexpected statuses or malformed JSON/schema data produce sanitized errors. There is a 50,000-result safety ceiling per external-ID batch.
 
-This budget is process-local. Run one audit at a time and avoid other IGDB traffic using the same client credentials during measurement. It is not the distributed limiter planned for eventual application ingestion. No token/data/miss cache persists between audit processes; reruns deliberately measure fresh reads.
+The audit and the application importer share one budget database for the same Twitch credentials. Do not run a second IGDB client outside that budget. No token/data/miss cache persists between audit processes; reruns deliberately measure fresh reads.
 
 A one-game smoke test cannot establish real-library coverage. For the baseline, inspect at least 20 exact mappings when available, every ambiguous mapping, same-name remakes, editions, missing metadata and sharedGames. Compare IDs/game types rather than trusting names alone. Record input count, exact/ambiguous/unmatched/errors, metadata errors, call counts, runtime and the manual review findings.
 
@@ -112,19 +115,19 @@ Use first_release_date for ScreenPeak's single date, not the first release_dates
 
 Defer bundles, DLC relationships, franchises, engines, modes, themes, perspectives, keywords and similar-game features. Keep the IGDB ID so these can be retrieved later. All displayed scores remain You / Community; IGDB user/critic scores are not replacements.
 
-## Subsequent migration procedure (not executable yet)
+## Subsequent migration procedure
 
-Confirmed 2026-10-08: reset the catalogue and all game-linked test data; retain accounts, settings and social data. There is no salvage requirement.
+Confirmed 2026-10-08: reset the catalogue and all game-linked test data; retain accounts, settings and social data. There is no salvage requirement. The commands below exist. Run them only on a restored local copy, after a real `pg_dump`. The hosted development database has not been reset.
 
 1. Inventory the exact development DB, reconcile absent migration history, and create a fresh restorable schema/data backup outside git.
-2. Choose an empty initial catalogue (Steam import populates it later), or stage/validate optional main-game seed records before deleting anything. Taxonomy is ingested with each game; no independent taxonomy seed is required.
-3. Show the current loss report: clear all library entries, ratings/reviews, list memberships and favourites. Keep Auth, profiles/settings, list definitions, follows, likes, Steam links and authored bios.
-4. Stop writers, verify fingerprints, apply preparation schema and atomically replace the catalogue/joins with fresh UUIDs while clearing game-linked data and generated Loadout fields. No crosswalk, old-UUID reuse or linked-row restoration.
-5. Apply coordinated API/SQL cleanup: required IGDB IDs, no RAWG/Metacritic or obsolete single Steam-ID fields. Update web/mobile consumers together.
+2. Restore that dump into a new local database whose name ends in `_copy`. Choose an empty initial catalogue (Steam import populates it later), or stage/validate optional main-game seed records before deleting anything. Taxonomy is ingested with each game; no independent taxonomy seed is required.
+3. Dry-run the loss report. The reset clears library entries, ratings/reviews, list memberships, favourites, and generated Loadout text. It keeps Auth, profiles/settings, list definitions, follows, likes, Steam links, and authored bios. The dry-run prints current counts and how many staged games would be written.
+4. Stop writers. The manifest fingerprint covers every deleted and retained row, and the manifest stores those dry-run counts. `--apply` refuses when either has changed, when the manifest is empty or implausibly small, or when it was already committed. It takes a new `reset_backup` schema and does not drop an earlier one. That schema is a rehearsal aid, not a substitute for `pg_dump`.
+5. Apply coordinated API/SQL cleanup later (Tasks 5–8): required IGDB IDs, no RAWG/Metacritic or obsolete single Steam-ID fields. Update web/mobile consumers together. Do not reset the database the app still serves until Task 6 replaces the rest of the Steam import. `--apply` requires `--confirm-before-task-6`.
 6. Verify preserved independent data, empty linked tables, valid new relations, UI empty states, imports, images and sitemap. Rehearse full-backup recovery before actual cutover.
 7. Resume the mobile roadmap only after the full plan passes acceptance checks.
 
-This runbook does not supply a reset command because the reset tool is not implemented yet. Task 1 did not perform a reset.
+Owner commands for the local copy are in [Task 4](#task-4-migration-journal-slugs-seed-and-reset--owner-steps). Task 1 did not perform a reset.
 
 ## Verification
 
@@ -246,7 +249,7 @@ Authentication shares one refresh per process, caches until 60 seconds before ex
 
 Migration `0003_igdb_request_budget.sql` creates a non-exposed `igdb_private` schema with RLS and no PUBLIC/anon/authenticated schema, table or function privileges. Runtime queries use the existing server Drizzle client. This migration was tested on a disposable local Postgres 17 database only; **it has not been applied to the development Supabase database**. Reconcile that database's absent migration history before applying migrations; do not replay 0000 blindly. New adapter calls fail closed until the selected budget DB has this schema. No existing RAWG page/import flow has been switched yet.
 
-Each credential scope is keyed by a SHA-256 hash of the Twitch client ID. A short database transaction reserves one of four leases; HTTP occurs after the transaction ends. Reservations are 650ms apart and usable only within a conservative 350ms window measured from before the database query. This leaves at least 300ms between dispatch windows despite variable DB latency. Slow/stale reservations are released and retried, never dispatched late. HTTP has ten seconds; leases expire after fifteen seconds if a process disappears. Acquisition waits at most approximately 30 seconds, with bounded SQL statements. All production imports/scripts using the same credentials must share the same budget database. The old standalone audit has only a process-local limiter and must not run alongside ingestion.
+Each credential scope is keyed by a SHA-256 hash of the Twitch client ID. A short database transaction reserves one of four leases; HTTP occurs after the transaction ends. Reservations are 650ms apart. The 350ms dispatch window starts when the grant returns, and the client then pushes `next_start_at` by the observed round trip plus 650ms, so a slow link does not expire the lease before it can be used and still leaves at least 300ms before the next grant. Slow/stale reservations are released and retried, never dispatched late. HTTP has ten seconds; leases expire after fifteen seconds if a process disappears. Acquisition waits at most approximately 30 seconds, with bounded SQL statements. All production imports and the standalone audit share this budget. The audit no longer keeps a process-local limiter.
 
 ### Verification and reproduction
 
@@ -318,7 +321,7 @@ Task 4's code was exercised only on disposable local Postgres. **Nothing in this
 ### What you run, after a backup
 
 1. Take a real restorable backup of the hosted development database (`pg_dump` custom format, including schema). Keep it outside git. Record the git revision and the dump checksum. The in-repo `reset_backup` schema is only a rehearsal aid for a local copy; it is not that backup.
-2. Restore the dump into a **new local** database whose name ends in `_copy`. Do not restore it over the hosted database.
+2. Restore the dump into a **new local** database whose name ends in `_copy`. Do not restore it over the hosted database. A restored Supabase dump still has auth markers, so journal, seed, reset, and audit commands need `--confirm-local-copy` after you have checked the URL is that copy and not a tunnel. `--local-auth-stubs` still refuses that dump.
 3. Dry-run the journal. This only reads:
 
 ```bash
@@ -348,22 +351,25 @@ An empty local database (no `public` tables) can run the whole chain in one step
 npm run migrate:journal -w @screenpeak/web -- --database-env TEST_DATABASE_URL --apply-pending --local-auth-stubs
 ```
 
-6. Optional catalogue seed, still on the local copy. It upserts games and does not clear library rows, reviews, lists, or accounts. `--top` defaults to 2000 and must be from 1 to 5000. Ranking is `rating_count`, then `rating`, then id, and only `game_type = 0`. Requests go through the shared limiter, so 0003 must already be applied and `TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET` must be set.
+6. Optional catalogue seed, still on the local copy. It upserts games in batches of 50 and does not clear library rows, reviews, lists, or accounts. `--top` defaults to 2000 and must be from 1 to 5000. Ranking is `rating_count`, then `rating`, then id, and only `game_type = 0`. A full rating-count page is finished by id, so a tie cannot skip rows. Requests go through the shared limiter, so 0003 must already be applied and `TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET` must be set. A failed batch leaves earlier batches committed and prints the remaining IGDB ids. Re-run with `--resume` to skip ids already stored. Upserts without `--resume` are also safe to repeat. Add `--confirm-local-copy` when the database has Supabase dump markers.
 
 ```bash
 npm run seed:igdb -w @screenpeak/web -- --database-env TEST_DATABASE_URL --top 2000
 npm run seed:igdb -w @screenpeak/web -- --database-env TEST_DATABASE_URL --ids 1942,19560
+npm run seed:igdb -w @screenpeak/web -- --database-env TEST_DATABASE_URL --ids 1942,19560 --resume
 ```
 
-7. Reset rehearsal on the copy. Stop every app and writer first. `--write-manifest` reads a staged `CatalogGame` JSON file and the current retained-row fingerprint. Without `--apply` the command only prints the loss report.
+7. Reset rehearsal on the copy. Stop every app and writer first. `--write-manifest` stores the fingerprint of every deleted and retained row (catalogue, library, reviews, list memberships, favourites, generated Loadout text, accounts, lists, follows, likes, and Steam links) plus the dry-run counts. Without `--apply` the command only prints the loss report, including `writing` (games that would be inserted) and `blocked` when the manifest is empty or implausibly small.
 
 ```bash
 npm run reset:catalog -w @screenpeak/web -- --database-env TEST_DATABASE_URL --staged staged.json --write-manifest manifest.json
 npm run reset:catalog -w @screenpeak/web -- --database-env TEST_DATABASE_URL --manifest manifest.json
-npm run reset:catalog -w @screenpeak/web -- --database-env TEST_DATABASE_URL --manifest manifest.json --apply
+npm run reset:catalog -w @screenpeak/web -- --database-env TEST_DATABASE_URL --manifest manifest.json --apply --confirm-before-task-6
 ```
 
-A committed manifest cannot be applied again. Changing a retained username, list, follow, like, or Steam link after the manifest was written makes `--apply` refuse. Shared Steam app ids inside the staged batch are omitted before `writeCatalogGame`; a direct write that still carries a foreign app id throws and rolls the transaction back.
+`--apply` requires `--confirm-before-task-6` because Steam import still reads `games.steam_appid` as a fallback until Task 6; new rows are matched from `game_external_ids`. Do not pass that flag against the database the app serves. An empty manifest over an existing catalogue is refused unless you also pass `--allow-empty`. Replacing 25 or more games with fewer than 25 and fewer than 10% of the current count is refused unless you also pass `--allow-small`. Apply copies the catalogue into a new `reset_backup` schema (`reset_backup`, then `reset_backup_2`, and so on) and does not drop an earlier copy.
+
+A committed manifest cannot be applied again. Inserting a library row, review, or list membership after the manifest was written makes `--apply` refuse, as does changing a retained username, list, follow, like, favourite, or Steam link. Shared Steam app ids inside the staged batch are omitted before `writeCatalogGame`; a direct write that still carries a foreign app id throws and rolls the transaction back.
 
 8. Repeat the stamp, apply, seed, and reset on a second local restore if the first rehearsal found anything. Only then, with the app stopped and a fresh `pg_dump` in hand, run the same commands against a tunnelled copy you control. This repository does not contain that hosted URL, and this task did not open one.
 

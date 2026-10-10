@@ -1,6 +1,6 @@
-import { sql, eq, inArray } from 'drizzle-orm'
+import { sql, and, eq, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { games, ratingsReviews, gameGenres, gamePlatforms, gameDevelopers, gamePublishers, genres, platforms, developers, publishers } from '@/db/schema'
+import { games, ratingsReviews, gameGenres, gamePlatforms, gameDevelopers, gamePublishers, genres, platforms, developers, publishers, gameExternalIds } from '@/db/schema'
 import { GameData } from '@screenpeak/shared/types'
 import { uuidArrayParam } from '@/lib/sql-helpers'
 import { logger } from '@/lib/logger'
@@ -204,11 +204,36 @@ export async function getGamesFromSteamIds(gameIds: number[]) {
     if (gameIds.length === 0) return []
 
     const CHUNK_SIZE = 100
+    const wanted = [...new Set(gameIds)]
     const results: { id: string, name: string, slug: string, cover_image_url: string | null, released: string | null, steam_appid: number }[] = []
+    const seen = new Set<number>()
+    // Task 8 drops games.steam_appid. Until then, rows written only by the old importer still match.
+    const legacyColumn = await db.execute(sql`select 1 as present from information_schema.columns
+        where table_schema = 'public' and table_name = 'games' and column_name = 'steam_appid'`)
+    const legacy = legacyColumn.length > 0
 
-    for (let i = 0; i < gameIds.length; i += CHUNK_SIZE) {
-        const chunk = gameIds.slice(i, i + CHUNK_SIZE)
-        try {
+    try {
+        for (let i = 0; i < wanted.length; i += CHUNK_SIZE) {
+            const chunk = wanted.slice(i, i + CHUNK_SIZE)
+            const external = await db
+                .select({
+                    id: games.id,
+                    name: games.name,
+                    slug: games.slug,
+                    cover_image_url: games.coverImageUrl,
+                    released: games.released,
+                    steam_appid: gameExternalIds.externalId,
+                })
+                .from(gameExternalIds)
+                .innerJoin(games, eq(games.id, gameExternalIds.gameId))
+                .where(and(eq(gameExternalIds.provider, 'steam'), inArray(gameExternalIds.externalId, chunk.map(String))))
+            for (const row of external) {
+                const steam_appid = Number(row.steam_appid)
+                if (!Number.isInteger(steam_appid) || seen.has(steam_appid)) continue
+                seen.add(steam_appid)
+                results.push({ id: row.id, name: row.name, slug: row.slug, cover_image_url: row.cover_image_url, released: row.released, steam_appid })
+            }
+            if (!legacy) continue
             const rows = await db
                 .select({
                     id: games.id,
@@ -220,12 +245,15 @@ export async function getGamesFromSteamIds(gameIds: number[]) {
                 })
                 .from(games)
                 .where(inArray(games.steamAppid, chunk))
-
-            results.push(...(rows as unknown as typeof results))
-        } catch (error) {
-            logger.error('queries:game', 'Failed to fetch games by steam appid', { error: error instanceof Error ? error.message : String(error) })
-            throw error
+            for (const row of rows) {
+                if (row.steam_appid == null || seen.has(row.steam_appid)) continue
+                seen.add(row.steam_appid)
+                results.push({ id: row.id, name: row.name, slug: row.slug, cover_image_url: row.cover_image_url, released: row.released, steam_appid: row.steam_appid })
+            }
         }
+    } catch (error) {
+        logger.error('queries:game', 'Failed to fetch games by steam appid', { error: error instanceof Error ? error.message : String(error) })
+        throw error
     }
 
     return results

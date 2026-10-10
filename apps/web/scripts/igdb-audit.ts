@@ -48,21 +48,34 @@ const FIELDS = [
 ].join(',')
 const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms))
 
-// Deliberately a serial, standalone audit client. Production multi-process
-// ingestion needs the shared budget in the migration plan, not this limiter.
+export type AuditBudget = { acquire(clientId: string): Promise<{ dispatchBefore: number; release(): Promise<void> }> }
+const sharedBudget: AuditBudget = {
+    async acquire(clientId) { return (await import('../lib/queries/igdb-budget')).acquireIgdbLease(clientId) },
+}
+
 export class IgdbAuditClient {
     readonly stats = { authRequests: 0, apiRequests: 0, retries: 0, byEndpoint: {} as Record<string, number> }
     private token = ''
     private expiresAt = 0
-    private lastStart = -Infinity
+    private readonly budget: AuditBudget
 
-    constructor(private readonly clientId: string, private readonly clientSecret: string) {
+    constructor(private readonly clientId: string, private readonly clientSecret: string, budget?: AuditBudget) {
         if (!clientId.trim() || !clientSecret.trim()) throw new AuditError('Set TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET in apps/web/.env.local or the environment.')
+        this.budget = budget ?? sharedBudget
     }
 
     private async request(url: string, init: RequestInit, endpoint: string): Promise<Response> {
-        await sleep(Math.max(0, this.lastStart + 300 - Date.now()))
-        this.lastStart = Date.now()
+        let lease: { release(): Promise<void> } | undefined
+        if (endpoint !== 'oauth') {
+            let acquired: { dispatchBefore: number; release(): Promise<void> }
+            try { acquired = await this.budget.acquire(this.clientId) }
+            catch { throw new AuditError('shared request budget unavailable.') }
+            if (Date.now() >= acquired.dispatchBefore) {
+                try { await acquired.release() } catch { throw new AuditError('shared request budget unavailable.') }
+                throw new AuditError('request reservation expired; retry later.')
+            }
+            lease = acquired
+        }
         if (endpoint === 'oauth') this.stats.authRequests++
         else {
             this.stats.apiRequests++
@@ -73,6 +86,10 @@ export class IgdbAuditClient {
         } catch {
             // Never propagate fetch errors containing URLs, OAuth params or headers.
             throw new AuditError(endpoint + ' request failed or timed out.')
+        } finally {
+            if (lease) {
+                try { await lease.release() } catch { throw new AuditError('shared request budget unavailable.') }
+            }
         }
     }
 

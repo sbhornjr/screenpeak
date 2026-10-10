@@ -7,15 +7,22 @@ function taxa(values: CatalogTaxon[]) {
     }))
 }
 
+export type ResetCounts = {
+    library: number; reviews: number; memberships: number; favourites: number
+    users: number; lists: number; follows: number; likes: number; steam: number; games: number
+}
+
 export type CatalogResetManifest = {
     runId: string
     fingerprint: string
+    counts: ResetCounts
     games: CatalogGame[]
 }
 
-export function manifestChecksum(fingerprint: string, games: CatalogGame[]): string {
+export function manifestChecksum(fingerprint: string, games: CatalogGame[], counts: ResetCounts): string {
     const canonical = {
         fingerprint,
+        counts,
         games: [...games].sort((a, b) => a.igdbId - b.igdbId).map(game => ({
             ...game,
             steamAppIds: [...game.steamAppIds].sort((a, b) => a - b),

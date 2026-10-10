@@ -56,7 +56,8 @@ it('ranks main games by rating count, then rating, and pages through a cutoff ti
     expect(ranked.request.mock.calls.find(call => call[0] === 'games')![1]).toContain('sort rating_count desc')
     expect(await s.provider.listTopMainGameIds(1)).toEqual([9000])
     const bodies = s.request.mock.calls.filter(call => call[0] === 'games').map(call => call[1] as string)
-    expect(bodies.some(body => body.includes('offset 500'))).toBe(true)
+    expect(bodies.some(body => body.includes('sort id asc') && body.includes('rating_count = 100') && body.includes('id >'))).toBe(true)
+    expect(bodies.some(body => body.includes('offset'))).toBe(false)
 })
 it('rejects unrelated mapping rows and lookup changes instead of reporting misses',async()=>{
     const s=setup(()=>[{id:1,uid:'999',game:1,external_game_source:27}])
