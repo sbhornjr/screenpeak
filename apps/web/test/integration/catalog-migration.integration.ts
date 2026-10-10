@@ -154,14 +154,14 @@ it('matches a Steam app id from game_external_ids after a catalogue write', asyn
     await client`insert into games (rawg_id, name, slug, steam_appid) values (901, 'Legacy Steam', 'legacy-steam', 5050)`
     try {
         const found = await getGamesFromSteamIds([4040, 5050, 4040])
-        expect(found.map(row => row.steam_appid).sort((a, b) => a - b)).toEqual([4040, 5050])
+        expect(found.map(row => row.steam_appid)).toEqual([4040])
         expect(found.find(row => row.steam_appid === 4040)?.id).toBe(saved.id)
     } finally {
         await client`delete from games where rawg_id = 901`
     }
 })
 it('cleanup supports an empty catalogue and refuses invalid IDs in any taxonomy table', async () => {
-    const cleanup = await readFile('db/cutover/igdb-catalog-cleanup.sql', 'utf8')
+    const cleanup = await readFile('db/migrations/0007_igdb_catalog_cleanup.sql', 'utf8')
     const dependencies = await client`select p.oid::regprocedure::text as signature from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.prosrc ~ '(rawg_id|metacritic_score|steam_appid)'`
     // Roll back this entire fixture, including schema changes and RPC removal.
     const rollback = new Error('fixture rollback')
@@ -183,7 +183,7 @@ it('cleanup supports an empty catalogue and refuses invalid IDs in any taxonomy 
     })).rejects.toBe(rollback)
 })
 it('cleanup refuses unmapped rows, then refuses obsolete RPC bodies, and never deletes rows', async () => {
-    const cleanup = await readFile('db/cutover/igdb-catalog-cleanup.sql', 'utf8')
+    const cleanup = await readFile('db/migrations/0007_igdb_catalog_cleanup.sql', 'utf8')
     await expect(client.begin(tx => tx.unsafe(cleanup))).rejects.toThrow(/IGDB/)
     const [legacy] = await client`select count(*)::int as n from games where rawg_id=900`
     expect(legacy.n).toBe(1)

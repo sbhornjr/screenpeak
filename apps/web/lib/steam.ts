@@ -49,9 +49,8 @@ export async function getPlayerAchievementCompletion(steamId: string, appid: num
 }
 
 // Runs getPlayerAchievementCompletion over a whole Steam library with bounded
-// concurrency, mirroring importGamesFromSteam's worker pool in lib/rawg.ts —
-// a plain sequential loop over a few hundred games would make /steamlink take
-// minutes to load. Returns the set of appids the player has 100%'d.
+// concurrency. A plain sequential loop over a few hundred games would make
+// /steamlink take minutes to load. Returns the set of appids the player has 100%'d.
 export async function getFullyCompletedAppids(steamId: string, appids: number[], concurrency = 8): Promise<Set<number>> {
     const completed = new Set<number>()
     let index = 0

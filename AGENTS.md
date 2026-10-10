@@ -64,7 +64,7 @@ npm run build                        # web production build
 npm run lint                         # eslint (core-web-vitals + typescript)
 npm test                             # vitest run (one-off)
 npm run mobile                       # expo start for apps/mobile (flags pass through: npm run mobile -- --clear)
-npm run seed -w @screenpeak/web      # seed games from RAWG API (requires apps/web/.env.local with RAWG_API_KEY + SUPABASE_SECRET_KEY)
+npm run seed:igdb -w @screenpeak/web -- --help  # IGDB catalogue seed; hosted order is docs/igdb-cutover-checklist.md
 npm run test:watch -w @screenpeak/web # vitest in watch mode
 ```
 
@@ -87,7 +87,7 @@ No typecheck script — use `npx tsc --noEmit -p apps/web` for type checking.
 - `lib/` — shared logic: Supabase clients, the Drizzle client (`lib/db.ts`),
   `requireUser()` (`lib/auth.ts`), DB queries (`lib/queries/`), page loaders
   (`lib/loaders/`), utilities
-- `scripts/` — standalone scripts (`seed-games.ts`, `inspect-rawg.ts`)
+- `scripts/` — IGDB cutover and audit scripts (`seed-igdb.ts`, `reset-catalog-to-igdb.ts`, `establish-migration-journal.ts`). The hosted order is `docs/igdb-cutover-checklist.md`.
 - `test/` — Vitest suite. Shared TS types (mirroring `lib/queries/`) and the zod
   schemas live in `packages/shared`, not here — see Monorepo layout
 - `assets/fonts/` — OFL fonts read by `lib/og.tsx` via `process.cwd()` for OG images
@@ -194,25 +194,25 @@ return the contract type itself is called directly by both the page and the rout
 
 ## External APIs
 
-- **RAWG API** — legacy catalogue seed, via `lib/rawg.ts` and `scripts/seed-games.ts`. Steam import no longer calls it. `/steamlink` matches owned apps through IGDB and `game_external_ids` (`lib/catalog/steam-import.ts`). Task 8 removes the RAWG seed path.
+- **IGDB** — catalogue seed and Steam-app matching (`lib/igdb/`, `scripts/seed-igdb.ts`). Twitch client credentials. `/steamlink` matches owned apps through `game_external_ids` (`lib/catalog/steam-import.ts`). There is no RAWG client.
 - **Anthropic API** — generates AI "Loadout" identity text (`lib/loadout.ts`), model
   `claude-sonnet-4-6`. `new Anthropic()` reads `ANTHROPIC_API_KEY` from env implicitly.
   Failures degrade to `''` — the paragraph is optional page content.
 - **Steam** — Web API for owned games + achievement completion (`lib/steam.ts`), behind
   Steam OpenID 2.0 sign-in (`lib/steam-openid.ts`); powers the `/steamlink` import flow
 - **Cloudflare R2** — user avatars, via a presigned direct-to-R2 upload (`lib/r2.ts`,
-  `createAvatarUploadUrl` in `app/user-actions.ts`). Game cover art is RAWG-hosted, never
-  uploaded anywhere (remote patterns: `media.rawg.io`, plus the R2 custom domain — derived
+  `createAvatarUploadUrl` in `app/user-actions.ts`). Game cover art is IGDB-hosted, never
+  uploaded anywhere (remote patterns: `images.igdb.com`, plus the R2 custom domain — derived
   from `R2_PUBLIC_URL` in `next.config.ts`, not hardcoded).
 
 ## Env Vars
 
 Required in `.env.local` (gitignored):
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SECRET_KEY` (seed script + admin client in `delete-account`)
+- `SUPABASE_SECRET_KEY` (admin client in `delete-account`)
 - `DATABASE_URL` (session pooler — `drizzle-kit` tooling only, e.g. `npx drizzle-kit push`)
 - `DATABASE_POOL_URL` (transaction pooler — the app's runtime Drizzle client, `lib/db.ts`; throws at module load if unset)
-- `RAWG_API_KEY` (legacy seed script only; `/steamlink` matches through IGDB)
+- `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET` (IGDB seed, Steam-app matching, audit)
 - `ANTHROPIC_API_KEY` (for loadout generation)
 - `STEAM_API_KEY` (Steam library import + achievements)
 - `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL`

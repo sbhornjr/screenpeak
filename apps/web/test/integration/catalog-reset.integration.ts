@@ -74,11 +74,14 @@ it('stamps 0000–0002 without replay, then applies only the pending migrations'
         '0000_illegal_kinsey_walden', '0001_functions_and_triggers', '0002_fix_get_feed_library_privacy',
     ])
     expect(await stampBaseline(sql)).toEqual([])
-    const applied = await applyPending(sql)
+    const applied = await applyPending(sql, undefined, { through: '0006_two_score_rpcs' })
     expect(applied).toEqual(['0003_igdb_request_budget', '0004_igdb_catalog_preparation', '0005_taxonomy_slug_unique', '0006_two_score_rpcs'])
-    expect(await applyPending(sql)).toEqual([])
     const [row] = await client`select rawg_id, igdb_id, slug from games where id = ${legacyId}`
     expect(row).toEqual({ rawg_id: 900, igdb_id: null, slug: 'legacy' })
+    await expect(applyPending(sql)).rejects.toThrow(/IGDB cleanup refused/)
+    expect(await client`select rawg_id, igdb_id, slug from games where id = ${legacyId}`).toEqual([{ rawg_id: 900, igdb_id: null, slug: 'legacy' }])
+    const pending = await inspectMigrations(sql)
+    expect(pending.pending).toEqual(['0007_igdb_catalog_cleanup'])
 })
 
 it('aborts the taxonomy uniqueness migration when slugs collide and keeps the rows', async () => {
@@ -216,6 +219,28 @@ it('commits a seed batch and names the games left when the next batch fails', as
     expect(stored.sort((left, right) => left - right)).toEqual(good.map(row => row.igdbId))
 }, 60_000)
 
+it('rolls back 0003–0006 when 0007 is in the same pending batch as a legacy row', async () => {
+    const fresh = await createDatabase('dirty_')
+    try {
+        const sql = fresh as unknown as MigrationSql
+        await ensureLocalAuthStubs(sql)
+        await fresh.unsafe(await migration('0000_illegal_kinsey_walden'))
+        await fresh.unsafe(await migration('0001_functions_and_triggers'))
+        await fresh.unsafe(await migration('0002_fix_get_feed_library_privacy'))
+        await fresh`insert into games (rawg_id, name, slug) values (901, 'Legacy', 'legacy-dirty')`
+        expect(await stampBaseline(sql)).toEqual([
+            '0000_illegal_kinsey_walden', '0001_functions_and_triggers', '0002_fix_get_feed_library_privacy',
+        ])
+        await expect(applyPending(sql)).rejects.toThrow(/IGDB cleanup refused/)
+        expect(await fresh`select to_regclass('igdb_private.steam_match_cache') as cache`).toEqual([{ cache: null }])
+        expect(await fresh`select column_name from information_schema.columns where table_schema = 'public' and table_name = 'games' and column_name = 'rawg_id'`)
+            .toEqual([{ column_name: 'rawg_id' }])
+        expect(await fresh`select count(*)::int as n from drizzle.__drizzle_migrations`).toEqual([{ n: 3 }])
+    } finally {
+        await fresh.end()
+    }
+}, 60_000)
+
 it('applies the whole chain on an empty database and records every file', async () => {
     const fresh = await createDatabase('empty_')
     try {
@@ -223,14 +248,14 @@ it('applies the whole chain on an empty database and records every file', async 
         await ensureLocalAuthStubs(sql)
         const applied = await applyPending(sql)
         expect(applied[0]).toBe('0000_illegal_kinsey_walden')
-        expect(applied.at(-1)).toBe('0006_two_score_rpcs')
+        expect(applied.at(-1)).toBe('0007_igdb_catalog_cleanup')
         expect(await applyPending(sql)).toEqual([])
         const [column] = await fresh`select is_nullable from information_schema.columns where table_schema = 'public' and table_name = 'games' and column_name = 'igdb_id'`
-        expect(column.is_nullable).toBe('YES')
-        const [metacritic] = await fresh`select column_name from information_schema.columns where table_schema = 'public' and table_name = 'games' and column_name = 'metacritic_score'`
-        expect(metacritic.column_name).toBe('metacritic_score')
+        expect(column.is_nullable).toBe('NO')
+        const dropped = await fresh`select column_name from information_schema.columns where table_schema = 'public' and column_name in ('rawg_id', 'metacritic_score', 'steam_appid')`
+        expect(dropped).toEqual([])
         const [count] = await fresh`select count(*)::int as n from drizzle.__drizzle_migrations`
-        expect(count.n).toBe(7)
+        expect(count.n).toBe(8)
     } finally {
         await fresh.end()
     }

@@ -142,7 +142,7 @@ export async function stampBaseline(sql: MigrationSql, files = readMigrations())
     return baseline.map(file => file.tag)
 }
 
-export async function applyPending(sql: MigrationSql, files = readMigrations()): Promise<string[]> {
+export async function applyPending(sql: MigrationSql, files = readMigrations(), options: { through?: string } = {}): Promise<string[]> {
     const applied = await readApplied(sql)
     const state = await classifyBaseline(sql)
     const recorded = new Set(applied.map(row => row.hash))
@@ -150,7 +150,12 @@ export async function applyPending(sql: MigrationSql, files = readMigrations()):
     if (state.kind !== 'empty' && !baselineRecorded)
         throw new Error('Refusing to apply migrations. Record the 0000–0002 baseline on this copy before applying 0003 or later. Do not replay 0000.')
     const last = applied.reduce((max, row) => Math.max(max, row.createdAt), -1)
-    const pending = files.filter(file => file.when > last)
+    let pending = files.filter(file => file.when > last)
+    if (options.through) {
+        const limit = files.find(file => file.tag === options.through)
+        if (!limit) throw new Error(`Unknown migration ${options.through}.`)
+        pending = pending.filter(file => file.when <= limit.when)
+    }
     if (state.kind !== 'empty' && pending.some(file => (BASELINE_TAGS as readonly string[]).includes(file.tag)))
         throw new Error('Refusing to replay a baseline migration on a database that already has tables.')
     if (!pending.length) return []

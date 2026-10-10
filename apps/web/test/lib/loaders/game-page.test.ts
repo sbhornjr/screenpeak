@@ -24,8 +24,8 @@ const GAME = {
     description: 'Gather your party.', esrb_rating: 'Mature', reddit_url: null, screenshots: ['a.jpg'],
     created_at: '2026-01-01 00:00:00+00',
 }
-// The real query selects columns the contract doesn't declare (steam_appid) —
-// the loader must send only the contract's fields.
+// A removed column must not leak if a row still carries it. The loader sends
+// only the contract's fields.
 const GAME_ROW = { ...GAME, steam_appid: 1086940 }
 const TAXONOMY = { genres: [{ id: 'g1', name: 'RPG', slug: 'rpg' }], platforms: [], developers: [], publishers: [] }
 const STATS = { total_ratings: 3, total_reviews: 2, avg_rating: 9.67, rating_10: 2, rating_9: 1 }

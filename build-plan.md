@@ -3,6 +3,8 @@
 A plan for shipping ScreenPeak as a native iOS + Android app alongside the
 existing Next.js web app. Written 2026-09-25 against the codebase at `562ff48`.
 
+Catalogue art and metadata come from IGDB. A game page shows You and Community, both out of 10. The hosted database cutover is still an owner step: `docs/igdb-cutover-checklist.md`.
+
 **TL;DR**
 
 - **Stack:** Expo (React Native) with Expo Router, TypeScript, TanStack Query,
@@ -269,7 +271,7 @@ UI is the biggest *chunk of work*, but the differences that bite are about
 | Auth | `@supabase/supabase-js` + `expo-secure-store` | Sign in/up/out/reset happen directly against Supabase Auth, just like the web |
 | Styling | **`StyleSheet` + `tokens.ts`** (decided in the Phase 0 spike — NativeWind v5 doesn't build yet; see Phase 0 step 5) | Tokens come from `packages/shared/tokens.ts`, mirroring `globals.css`; mobile imports them via `@/theme` |
 | Fonts | `expo-font` + `@expo-google-fonts/{chakra-petch,ibm-plex-sans,ibm-plex-mono}` | Same three families and weights as the web; per-weight imports, weight chosen by `fontFamily` |
-| Images | `expo-image` | Caching for RAWG cover art + R2 avatars |
+| Images | `expo-image` | Caching for IGDB cover art + R2 avatars |
 | Charts | `victory-native` or `react-native-gifted-charts` | Replaces recharts (DistributionChart, Loadout stats) |
 | Icons | `lucide-react-native` | Same icon set the web uses |
 | Errors | `@sentry/react-native` | Same Sentry org as the web |

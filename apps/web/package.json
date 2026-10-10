@@ -7,7 +7,6 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "seed": "tsx --env-file=.env.local scripts/seed-games.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "audit:igdb": "tsx scripts/audit-igdb.ts",

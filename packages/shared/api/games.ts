@@ -16,8 +16,9 @@ export type GameDetail = {
     name: string
     slug: string
     /**
-     * IGDB id. Always present on the payload. Null only for a legacy row that
-     * has not been rebuilt; Task 8 makes the column required.
+     * IGDB id. Always present on the payload. The database column is NOT NULL
+     * after migration 0007. Null only describes a legacy row on a database
+     * that has not applied that migration yet.
      */
     igdb_id: number | null
     cover_image_url: string | null

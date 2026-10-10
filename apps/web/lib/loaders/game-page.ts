@@ -26,10 +26,9 @@ export async function loadGamePage(slug: string, viewerId: string | null): Promi
     return { game: toGameDetail(row), taxonomy, stats, viewer }
 }
 
-// Field by field, not the row as-is: getGameBySlug also selects columns the
-// contract doesn't declare (steam_appid), and anything the API sends becomes
-// part of the payload. TypeScript won't flag extra fields on an existing
-// object, so they'd leak silently.
+// Field by field, not the row as-is. Anything the API sends becomes part of
+// the payload. TypeScript won't flag extra fields on an existing object, so
+// a leftover such as steam_appid would leak silently.
 type GameRow = GameDetail & { steam_appid?: number | null }
 
 function toGameDetail(g: GameRow): GameDetail {
