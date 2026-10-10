@@ -10,7 +10,10 @@ const { resolveSteamImportBatch, importSteamLibraryEntries } = vi.hoisted(() => 
 }))
 vi.mock('@/app/steam-actions', () => ({ resolveSteamImportBatch }))
 vi.mock('@/app/library-actions', () => ({ importSteamLibraryEntries }))
-vi.mock('next/image', () => ({ default: (props: { alt: string }) => <img alt={props.alt} /> }))
+vi.mock('next/image', () => ({
+    // jsdom stub. The real optimizer is not under test here.
+    default: (props: { alt: string }) => <img alt={props.alt} />, // eslint-disable-line @next/next/no-img-element
+}))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 
 import SteamLinkGamesSection from '@/app/components/settings/SteamLinkGamesSection'
