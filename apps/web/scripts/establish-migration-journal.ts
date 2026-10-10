@@ -1,13 +1,13 @@
 import postgres from 'postgres'
-import { assertDisposableDatabase, assertLocalCopy } from '../lib/catalog/database-url'
+import { assertDatabaseTarget, assertLocalCopy, databaseTargetFromArgv } from '../lib/catalog/database-url'
 import { applyPending, ensureLocalAuthStubs, inspectMigrations, stampBaseline, type MigrationSql } from '../lib/catalog/migrations'
 
-const help = `Record or apply ScreenPeak SQL migrations on a disposable local database.
+const help = `Record or apply ScreenPeak SQL migrations.
 
   --database-env NAME     Environment variable holding the URL. Required.
-                         The URL must be localhost and the database name must end in _test or _copy.
                          This command never reads DATABASE_POOL_URL on its own.
   --stamp-baseline       Record 0000–0002 as already applied, without replaying them.
+                         A second run on a matching journal returns an empty list.
   --apply-pending        Apply journaled migrations that are not yet recorded.
                          Refuses while 0000–0002 are unrecorded on a database that already has tables.
                          Every pending file runs in one transaction. 0007 aborts when a
@@ -17,13 +17,20 @@ const help = `Record or apply ScreenPeak SQL migrations on a disposable local da
                          Use 0006_two_score_rpcs before the catalogue reset.
                          A later --apply-pending with no --through applies 0007.
   --local-auth-stubs     Create anon/authenticated roles and auth.uid() before --apply-pending.
-                         Only for an empty local Postgres. Refuses a Supabase auth schema.
-  --confirm-local-copy   Required when the database has Supabase dump markers.
+                         Only for an empty local Postgres. Refuses a Supabase auth schema
+                         and refuses --target-hosted.
+  --confirm-local-copy   Local copy only. Required when that database has Supabase dump markers.
                          A localhost URL can be a tunnel. This flag does not bypass that refusal
                          for --local-auth-stubs.
+  --target-hosted        Hosted database. Requires --confirm-host and --confirm-database.
+                         Refuses a local host. Do not combine with --confirm-local-copy.
+  --confirm-host HOST    Type the URL hostname. Must match exactly.
+  --confirm-database NAME
+                         Type the URL database name. Must match exactly.
 
 With neither --stamp-baseline nor --apply-pending, print a dry-run and write nothing.
-Do not point this at the hosted development database. Restore a copy locally first.
+A dry-run before the stamp lists pending from 0000. After 0007, baseline is recorded:
+the pre-stamp column check no longer applies. Rehearse on a local _copy first.
 See docs/igdb-cutover-checklist.md.`
 
 function argument(name: string): string | undefined {
@@ -39,7 +46,8 @@ async function main(): Promise<void> {
     }
     const url = process.env[envName]
     if (!url) throw new Error(`Set ${envName}. This command does not fall back to DATABASE_POOL_URL.`)
-    assertDisposableDatabase(url)
+    const target = databaseTargetFromArgv(process.argv)
+    assertDatabaseTarget(url, target)
     const stamp = process.argv.includes('--stamp-baseline')
     const apply = process.argv.includes('--apply-pending')
     const through = argument('--through')
@@ -49,11 +57,13 @@ async function main(): Promise<void> {
     if (through && !apply) throw new Error('--through is only valid with --apply-pending.')
     if (process.argv.includes('--local-auth-stubs') && !apply)
         throw new Error('--local-auth-stubs is only for applying the chain to an empty local database.')
+    if (process.argv.includes('--local-auth-stubs') && target.targetHosted)
+        throw new Error('--local-auth-stubs refuses --target-hosted. Use it only on empty local Postgres.')
 
     const sql = postgres(url, { max: 1, onnotice: () => {} })
     try {
         const client = sql as unknown as MigrationSql
-        await assertLocalCopy(client, process.argv.includes('--confirm-local-copy'))
+        if (!target.targetHosted) await assertLocalCopy(client, target.confirmLocalCopy)
         if (process.argv.includes('--local-auth-stubs')) await ensureLocalAuthStubs(client)
         if (!stamp && !apply) console.log(JSON.stringify({ dryRun: true, ...(await inspectMigrations(client)) }, null, 2))
         else if (stamp) console.log(JSON.stringify({ stamped: await stampBaseline(client) }, null, 2))

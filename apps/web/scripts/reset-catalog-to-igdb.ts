@@ -1,29 +1,35 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import postgres from 'postgres'
-import { assertDisposableDatabase, assertLocalCopy } from '../lib/catalog/database-url'
+import { assertDatabaseTarget, assertLocalCopy, databaseTargetFromArgv } from '../lib/catalog/database-url'
 import type { MigrationSql } from '../lib/catalog/migrations'
 
-const help = `Stage or apply a fresh IGDB catalogue reset on a disposable local database.
+const help = `Stage or apply a fresh IGDB catalogue reset.
 
-  --database-env NAME       Required. Localhost URL whose database name ends in _test or _copy.
+  --database-env NAME       Required. Never falls back to DATABASE_POOL_URL.
   --manifest FILE           Staged manifest JSON ({ runId, fingerprint, counts, games }).
   --write-manifest FILE     Read the database fingerprint and write a manifest. Requires --staged.
   --staged FILE             JSON array of CatalogGame values for --write-manifest.
   --apply                   Apply the manifest. Without this flag the command is a dry-run.
   --confirm-before-task-6  Ignored. Task 6 replaced Steam import, so the acknowledgement
-                            is no longer required. Still use a disposable local database.
-                            Resetting the hosted development database remains an owner step.
-  --allow-empty             Permit a manifest with zero games when the catalogue is not empty.
-  --allow-small             Permit a manifest that replaces a large catalogue with very few games.
-  --confirm-local-copy      Required when the database has Supabase dump markers.
+                            is no longer required.
+  --allow-empty             Permit a manifest with zero games. Enough on its own when the
+                            catalogue has 25 or more games. Does not permit a non-empty
+                            manifest under the small-catalogue floor.
+  --allow-small             Permit a non-empty manifest that replaces 25 or more games with
+                            fewer than 25 and fewer than 10% of the current count.
+  --confirm-local-copy      Local copy only. Required when that database has Supabase dump markers.
+  --target-hosted           Hosted database. Requires --confirm-host and --confirm-database.
+                            Refuses a local host. Do not combine with --confirm-local-copy.
+  --confirm-host HOST       Type the URL hostname. Must match exactly.
+  --confirm-database NAME   Type the URL database name. Must match exactly.
 
-Dry-run writes nothing and reports current counts plus how many games would be written.
+Dry-run writes nothing. It reports current counts and the block for the flags you passed.
+A size refusal throws before any reset_backup schema is created.
 Apply takes a new reset_backup schema first and refuses to drop an earlier one.
-Apply refuses a stale fingerprint, a count mismatch, an empty or implausibly small
-manifest, and a committed manifest. Do not point this at the hosted development
-database. Task 6 no longer reads games.steam_appid while importing.
-See docs/igdb-migration-runbook.md.`
+Apply still refuses a stale fingerprint, a count mismatch, and a committed manifest;
+those checks run after the backup schema exists, and a failed transaction leaves that schema.
+See docs/igdb-cutover-checklist.md.`
 
 function argument(name: string): string | undefined {
     const index = process.argv.indexOf(name)
@@ -38,7 +44,8 @@ async function main(): Promise<void> {
     }
     const url = process.env[envName]
     if (!url) throw new Error(`Set ${envName}. This command does not fall back to DATABASE_POOL_URL.`)
-    assertDisposableDatabase(url)
+    const target = databaseTargetFromArgv(process.argv)
+    assertDatabaseTarget(url, target)
     const apply = process.argv.includes('--apply')
     const manifestPath = argument('--manifest')
     const writePath = argument('--write-manifest')
@@ -50,10 +57,12 @@ async function main(): Promise<void> {
     if (stagedPath && !existsSync(stagedPath)) throw new Error(`Staged catalogue not found: ${stagedPath}`)
 
     const sql = postgres(url, { max: 1, onnotice: () => {} })
+    let pool: { end: (options?: { timeout?: number }) => Promise<void> } | undefined
     try {
-        await assertLocalCopy(sql as unknown as MigrationSql, process.argv.includes('--confirm-local-copy'))
+        if (!target.targetHosted) await assertLocalCopy(sql as unknown as MigrationSql, target.confirmLocalCopy)
         process.env.DATABASE_POOL_URL = url
-        const { db } = await import('../lib/db')
+        const { db, pg } = await import('../lib/db')
+        pool = pg
         const { backupResetState, buildManifest, planCatalogReset, applyCatalogReset } = await import('../lib/catalog/reset')
         if (writePath && stagedPath) {
             const games = JSON.parse(readFileSync(stagedPath, 'utf8'))
@@ -64,14 +73,17 @@ async function main(): Promise<void> {
         if (manifestPath) {
             const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
             const options = { allowEmpty: process.argv.includes('--allow-empty'), allowSmall: process.argv.includes('--allow-small') }
-            if (!apply) console.log(JSON.stringify({ dryRun: true, ...(await planCatalogReset(db, manifest)) }, null, 2))
+            const plan = await planCatalogReset(db, manifest, options)
+            if (!apply) console.log(JSON.stringify({ dryRun: true, ...plan }, null, 2))
             else {
+                if (plan.blocked) throw new Error(plan.blocked)
                 const backup = await backupResetState(sql as unknown as MigrationSql)
                 console.log(JSON.stringify({ backup, applied: await applyCatalogReset(db, manifest, options) }, null, 2))
             }
         }
     } finally {
         await sql.end()
+        await pool?.end()
     }
 }
 

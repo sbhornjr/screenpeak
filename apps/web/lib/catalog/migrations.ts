@@ -94,7 +94,7 @@ export async function classifyBaseline(sql: MigrationSql): Promise<{ kind: 'empt
 export type MigrationInspection = {
     applied: { hash: string; createdAt: number }[]
     pending: string[]
-    baseline: 'empty' | 'ready' | 'reject'
+    baseline: 'empty' | 'ready' | 'reject' | 'recorded'
     reasons: string[]
 }
 
@@ -102,10 +102,20 @@ export async function inspectMigrations(sql: MigrationSql, files = readMigration
     const applied = await readApplied(sql)
     const last = applied.reduce((max, row) => Math.max(max, row.createdAt), -1)
     const baseline = await classifyBaseline(sql)
-    return {
-        applied, baseline: baseline.kind, reasons: baseline.reasons,
-        pending: files.filter(file => file.when > last).map(file => file.tag),
+    const pending = files.filter(file => file.when > last).map(file => file.tag)
+    const recorded = new Set(applied.map(row => row.hash))
+    const baselineRecorded = baselineFiles(files).every(file => recorded.has(file.hash))
+    // classifyBaseline still requires the pre-0004 columns. After the journal exists that check is historical.
+    if (baselineRecorded) {
+        const note = '0000–0002 are already recorded. The pre-stamp column check fails once igdb_id exists or 0007 drops rawg_id, metacritic_score, and steam_appid. That is expected. stampBaseline on a matching journal returns an empty list and does not rewrite it.'
+        return {
+            applied,
+            baseline: 'recorded',
+            reasons: baseline.kind === 'reject' ? [note, ...baseline.reasons] : baseline.reasons,
+            pending,
+        }
     }
+    return { applied, baseline: baseline.kind, reasons: baseline.reasons, pending }
 }
 
 async function ensureJournal(sql: MigrationSql): Promise<void> {

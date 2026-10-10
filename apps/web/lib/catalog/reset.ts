@@ -50,8 +50,13 @@ function sameCounts(left: ResetCounts, right: ResetCounts): boolean {
 
 /** Empty and implausibly small staged catalogues are refused unless the operator overrides them. */
 export function resetSizeBlock(currentGames: number, writing: number, options: { allowEmpty?: boolean; allowSmall?: boolean } = {}): string | null {
-    if (writing === 0 && currentGames > 0 && !options.allowEmpty)
-        return `Refusing to apply an empty catalogue over ${currentGames} existing games. Pass --allow-empty only when an empty catalogue is intentional.`
+    // Zero games is the empty-catalogue gate. --allow-empty covers that at any current size, including 25 or more.
+    // --allow-small is only for a non-empty manifest under the floor.
+    if (writing === 0) {
+        if (currentGames > 0 && !options.allowEmpty)
+            return `Refusing to apply an empty catalogue over ${currentGames} existing games. Pass --allow-empty only when an empty catalogue is intentional.`
+        return null
+    }
     if (currentGames >= 25) {
         const floor = Math.min(25, Math.ceil(currentGames * 0.1))
         if (writing < floor && !options.allowSmall)
@@ -115,7 +120,7 @@ export async function buildManifest(database: Database, games: CatalogGame[], ru
     return manifest
 }
 
-export async function planCatalogReset(database: Database, manifest: CatalogResetManifest) {
+export async function planCatalogReset(database: Database, manifest: CatalogResetManifest, options: { allowEmpty?: boolean; allowSmall?: boolean } = {}) {
     assertManifest(manifest)
     const fingerprint = await retentionFingerprint(database)
     const current = await counts(database)
@@ -126,7 +131,7 @@ export async function planCatalogReset(database: Database, manifest: CatalogRese
         checksum: manifestChecksum(manifest.fingerprint, manifest.games, manifest.counts),
         writing,
         stagedCounts: manifest.counts,
-        blocked: resetSizeBlock(current.games, writing),
+        blocked: resetSizeBlock(current.games, writing, options),
         ...current,
     }
 }

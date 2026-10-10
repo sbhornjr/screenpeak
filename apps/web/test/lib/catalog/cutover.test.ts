@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { describe, expect, it } from 'vitest'
-import { assertDisposableDatabase, assertAuthStubSafe, assertLocalCopy } from '@/lib/catalog/database-url'
+import { assertDisposableDatabase, assertAuthStubSafe, assertDatabaseTarget, assertLocalCopy } from '@/lib/catalog/database-url'
 import { resetSizeBlock } from '@/lib/catalog/reset'
 import { manifestChecksum } from '@/lib/catalog/manifest'
 import { negativeCacheStatus } from '@/lib/catalog/match-cache'
@@ -47,6 +47,24 @@ describe('disposable database gate', () => {
         await expect(exec('npx', ['tsx', 'scripts/establish-migration-journal.ts', '--database-env', 'REMOTE_URL', '--stamp-baseline'], {
             env: { ...process.env, REMOTE_URL: 'postgresql://u:p@db.example.supabase.co:5432/postgres' },
         })).rejects.toThrow(/non-local/)
+    })
+    it('accepts a hosted URL only when the typed host and database match', async () => {
+        const url = 'postgresql://u:p@db.example.supabase.co:5432/postgres'
+        const hosted = { targetHosted: true, confirmHost: 'db.example.supabase.co', confirmDatabase: 'postgres', confirmLocalCopy: false }
+        expect(() => assertDatabaseTarget(url, hosted)).not.toThrow()
+        expect(() => assertDatabaseTarget(url, { ...hosted, confirmDatabase: 'other' })).toThrow(/does not match/)
+        expect(() => assertDatabaseTarget(url, { ...hosted, confirmHost: undefined, confirmDatabase: undefined })).toThrow(/confirm-host/)
+        expect(() => assertDatabaseTarget(url, { ...hosted, confirmLocalCopy: true })).toThrow(/confirm-local-copy/)
+        expect(() => assertDatabaseTarget('postgresql://u@127.0.0.1:5432/screenpeak_copy', { ...hosted, confirmHost: '127.0.0.1', confirmDatabase: 'screenpeak_copy' })).toThrow(/local host/)
+        expect(() => assertDatabaseTarget(url, { targetHosted: false, confirmLocalCopy: false })).toThrow(/non-local/)
+        const mismatch = await exec('npx', ['tsx', 'scripts/establish-migration-journal.ts', '--database-env', 'REMOTE_URL', '--target-hosted', '--confirm-host', 'db.example.supabase.co', '--confirm-database', 'wrong'], {
+            env: { ...process.env, REMOTE_URL: url },
+        }).then(() => '', reason => String(reason))
+        expect(mismatch).toMatch(/does not match/)
+        const stubs = await exec('npx', ['tsx', 'scripts/establish-migration-journal.ts', '--database-env', 'REMOTE_URL', '--target-hosted', '--confirm-host', 'db.example.supabase.co', '--confirm-database', 'postgres', '--apply-pending', '--local-auth-stubs'], {
+            env: { ...process.env, REMOTE_URL: url },
+        }).then(() => '', reason => String(reason))
+        expect(stubs).toMatch(/local-auth-stubs refuses --target-hosted/)
     })
 })
 
@@ -97,7 +115,12 @@ describe('reset size guard', () => {
         expect(resetSizeBlock(4, 0)).toMatch(/empty/)
         expect(resetSizeBlock(0, 0)).toBeNull()
         expect(resetSizeBlock(4, 0, { allowEmpty: true })).toBeNull()
+        expect(resetSizeBlock(25, 0)).toMatch(/empty/)
+        expect(resetSizeBlock(25, 0)).not.toMatch(/allow-small/)
+        expect(resetSizeBlock(25, 0, { allowEmpty: true })).toBeNull()
+        expect(resetSizeBlock(502, 0, { allowEmpty: true })).toBeNull()
         expect(resetSizeBlock(502, 2)).toMatch(/allow-small/)
+        expect(resetSizeBlock(502, 2, { allowEmpty: true })).toMatch(/allow-small/)
         expect(resetSizeBlock(502, 2, { allowSmall: true })).toBeNull()
         expect(resetSizeBlock(4, 2)).toBeNull()
     })

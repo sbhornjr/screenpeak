@@ -16,7 +16,7 @@ The read-only audit obtains its own Twitch bearer token, checks Steam app-ID cov
 - Tests: `apps/web/test/scripts/igdb-audit.test.ts` and `npm run test:igdb-integration`
 - Full migration: [implementation plan](superpowers/plans/2026-10-06-rawg-to-igdb.md)
 
-The read-only inventory command is unchanged (see the recorded baseline below). Journal, seed, and reset commands exist and refuse non-local URLs and database names that do not end in `_test` or `_copy`. They are for a restored local copy. Do not point them at the hosted project. `--local-auth-stubs` refuses a database that already has a Supabase auth schema, even with `--confirm-local-copy`.
+The read-only inventory command is unchanged (see the recorded baseline below). Journal, seed, and reset commands refuse a non-local URL unless `--target-hosted` is passed with `--confirm-host` and `--confirm-database` typed from that URL. Rehearse on a restored local copy first. The hosted commands are step 9 of the checklist. `--local-auth-stubs` refuses a Supabase auth schema and refuses `--target-hosted`. Audit commands stay local-only.
 
 ## Credentials
 
@@ -318,7 +318,7 @@ Final Task 3 verification: 265 unit tests in 33 files and 16 Postgres integratio
 
 ## Task 4 migration journal, slugs, seed and reset — owner steps
 
-Task 4's code was exercised only on disposable local Postgres. **Nothing in this task was applied to the hosted development database.** Do not point the new commands at that database. `DATABASE_POOL_URL` is not a fallback: every command requires `--database-env NAME`, and the URL must be `127.0.0.1` / `localhost` with a database name ending in `_test` or `_copy`.
+Task 4's code was exercised only on disposable local Postgres. **Nothing in this task was applied to the hosted development database.** `DATABASE_POOL_URL` is not a fallback: every command requires `--database-env NAME`. A rehearsal URL must be `127.0.0.1` / `localhost` with a database name ending in `_test` or `_copy`. The hosted run is checklist step 9 and needs `--target-hosted`.
 
 ### What you run, after a backup
 
@@ -345,12 +345,13 @@ TEST_DATABASE_URL=postgresql://YOUR_USER@127.0.0.1:5432/screenpeak_copy \
 An empty local database (no `public` tables) can run the whole chain in one step. Pass `--local-auth-stubs` only on that empty local cluster, never on a Supabase copy:
 
 ```bash
-npm run migrate:journal -w @screenpeak/web -- --database-env TEST_DATABASE_URL --apply-pending --local-auth-stubs
+TEST_DATABASE_URL=postgresql://YOUR_USER@127.0.0.1:5432/empty_local_test \
+  npm run migrate:journal -w @screenpeak/web -- --database-env TEST_DATABASE_URL --apply-pending --local-auth-stubs
 ```
 
-6. Reset, then seed, then 0007, in the order [the cutover checklist](igdb-cutover-checklist.md) gives. `--apply` deletes every game, so a `seed:igdb --top` run before the reset does not survive it. `--confirm-before-task-6` is accepted and ignored. An empty manifest over an existing catalogue needs `--allow-empty`. Replacing 25 or more games with fewer than 25 and fewer than 10% of the current count needs `--allow-small`. Apply copies the catalogue into a new `reset_backup` schema and does not drop an earlier copy. A committed manifest cannot be applied again.
+6. Reset, then seed, then 0007, in the order [the cutover checklist](igdb-cutover-checklist.md) gives. `--apply` deletes library rows (including hours), reviews, list memberships, favourites, and generated Loadouts, then every game. A `seed:igdb --top` run before the reset does not survive it. Steam account rows stay; a later import can create new library rows and does not restore the deleted ones. `--confirm-before-task-6` is accepted and ignored. An empty manifest needs `--allow-empty` only, including when the catalogue has 25 or more games. `--allow-small` is for a non-empty manifest under that floor. A size refusal does not create `reset_backup`. A successful apply copies the catalogue into a new `reset_backup` schema and does not drop an earlier copy. A committed manifest cannot be applied again.
 
-7. These commands still refuse a non-local host and a database name that does not end in `_test` or `_copy`. `--confirm-local-copy` does not lift that. Do not point them at the hosted project. The checklist says when a localhost tunnel is eligible and when to stop.
+7. The hosted run is checklist step 9: `--target-hosted` with `--confirm-host` and `--confirm-database` on journal, reset, and seed. `--confirm-local-copy` does not lift the local-only refusal. Do not point these commands at `DATABASE_POOL_URL`.
 
 ### Slug and cache rules now in the writer
 

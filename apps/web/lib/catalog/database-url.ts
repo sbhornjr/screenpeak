@@ -1,14 +1,58 @@
-/** Refuse hosted and non-rehearsal databases. Callers must pass an explicit URL. */
-export function assertDisposableDatabase(url: string): void {
+const LOCAL_HOSTS = ['127.0.0.1', 'localhost', '::1', '[::1]']
+
+function parseDatabaseUrl(url: string): { host: string; name: string } {
     let parsed: URL
     try { parsed = new URL(url) }
     catch { throw new Error('Database URL is invalid.') }
-    const host = parsed.hostname
-    if (!['127.0.0.1', 'localhost', '::1', '[::1]'].includes(host))
-        throw new Error('Refusing a non-local database. Restore a copy on localhost and rehearse there.')
-    const name = decodeURIComponent(parsed.pathname.replace(/^\//, ''))
+    return { host: parsed.hostname, name: decodeURIComponent(parsed.pathname.replace(/^\//, '')) }
+}
+
+/** Refuse hosted and non-rehearsal databases. Callers must pass an explicit URL. */
+export function assertDisposableDatabase(url: string): void {
+    const { host, name } = parseDatabaseUrl(url)
+    if (!LOCAL_HOSTS.includes(host))
+        throw new Error('Refusing a non-local database. Restore a copy on localhost and rehearse there, or pass --target-hosted with --confirm-host and --confirm-database.')
     if (!name.endsWith('_test') && !name.endsWith('_copy'))
         throw new Error('Refusing a database whose name does not end in _test or _copy.')
+}
+
+export type DatabaseTarget = {
+    targetHosted: boolean
+    confirmHost?: string
+    confirmDatabase?: string
+    confirmLocalCopy: boolean
+}
+
+export function databaseTargetFromArgv(argv: string[]): DatabaseTarget {
+    const argument = (name: string) => {
+        const index = argv.indexOf(name)
+        return index === -1 ? undefined : argv[index + 1]
+    }
+    return {
+        targetHosted: argv.includes('--target-hosted'),
+        confirmHost: argument('--confirm-host'),
+        confirmDatabase: argument('--confirm-database'),
+        confirmLocalCopy: argv.includes('--confirm-local-copy'),
+    }
+}
+
+/** Local rehearsal stays on assertDisposableDatabase. Hosted mode requires the operator to type the URL's host and database name. */
+export function assertDatabaseTarget(url: string, target: DatabaseTarget): void {
+    if (target.targetHosted && target.confirmLocalCopy)
+        throw new Error('--target-hosted and --confirm-local-copy are different targets. Pass --target-hosted with --confirm-host and --confirm-database only for the hosted database.')
+    if (!target.targetHosted) {
+        assertDisposableDatabase(url)
+        return
+    }
+    const hostArg = target.confirmHost
+    const nameArg = target.confirmDatabase
+    if (!hostArg || !nameArg || hostArg.startsWith('--') || nameArg.startsWith('--'))
+        throw new Error('--target-hosted requires --confirm-host and --confirm-database. Type the host and database name from the URL.')
+    const { host, name } = parseDatabaseUrl(url)
+    if (LOCAL_HOSTS.includes(host))
+        throw new Error('--target-hosted refuses a local host. Rehearse on a local _copy without this flag.')
+    if (hostArg !== host || nameArg !== name)
+        throw new Error(`Refusing hosted target. Typed ${hostArg}/${nameArg} does not match the URL ${host}/${name}.`)
 }
 
 type MarkerSql = { unsafe: (query: string) => Promise<Record<string, unknown>[]> }
