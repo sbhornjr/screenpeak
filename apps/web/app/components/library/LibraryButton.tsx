@@ -26,13 +26,16 @@ export default function LibraryButton({ game_id }: { game_id: number }) {
         async function checkEntry() {
             if (!user) return
 
-            const data = await fetchLibraryEntry(game_id)
-
-            setLibraryEntry(data ?? null)
-            setStatus(data?.status ?? "")
-            setIs100(data?.completed_all_achievements ?? false)
-            setHours(data?.hours_played != null ? Number(data.hours_played) : 0)
-            setPlayedCount(data?.play_count ?? 1)
+            try {
+                const data = await fetchLibraryEntry(game_id)
+                setLibraryEntry(data ?? null)
+                setStatus(data?.status ?? "")
+                setIs100(data?.completed_all_achievements ?? false)
+                setHours(data?.hours_played != null ? Number(data.hours_played) : 0)
+                setPlayedCount(data?.play_count ?? 1)
+            } catch {
+                // An outage is not "removed from your save". Keep the last entry.
+            }
         }
 
         if (user) checkEntry()
@@ -46,7 +49,12 @@ export default function LibraryButton({ game_id }: { game_id: number }) {
         const wasNew = !libraryEntry
         const prevStatus = libraryEntry?.status
 
-        const data = await addOrUpdateLibraryEntry(game_id, fields)
+        let data
+        try {
+            data = await addOrUpdateLibraryEntry(game_id, fields)
+        } catch {
+            return
+        }
 
         setLibraryEntry(data)
         setStatus(data?.status ?? "")

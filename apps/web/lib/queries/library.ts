@@ -30,17 +30,15 @@ const LIBRARY_ENTRY_COLUMNS = {
 }
 
 export async function getLibraryEntry(userId: string, gameId: string | number) {
-    try {
-        const rows = await db
-            .select(LIBRARY_ENTRY_COLUMNS)
-            .from(libraryEntries)
-            .where(and(eq(libraryEntries.userId, userId), eq(libraryEntries.gameId, String(gameId))))
-            .limit(1)
+    // A database error must reject. Returning null makes an outage look like
+    // "not in your save yet" on the game page.
+    const rows = await db
+        .select(LIBRARY_ENTRY_COLUMNS)
+        .from(libraryEntries)
+        .where(and(eq(libraryEntries.userId, userId), eq(libraryEntries.gameId, String(gameId))))
+        .limit(1)
 
-        return rows[0] ?? null
-    } catch {
-        return null
-    }
+    return rows[0] ?? null
 }
 
 type LibraryEntryFields = {

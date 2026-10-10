@@ -4,6 +4,7 @@ import type { Game } from '@screenpeak/shared/types';
 import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { igdbImageUri } from '@/lib/catalog-image';
 import { Seal } from './seal';
 
 import { alpha, colors, face, overlays, radius, space, tracking, trackingPx } from '@/theme';
@@ -30,14 +31,15 @@ const STATUS = {
 export function GameCard({ game, developer, spRating, userRating, libraryStatus, onPress }: GameCardProps) {
   const status = libraryStatus ? STATUS[libraryStatus] : null;
   const year = game.released ? new Date(game.released).getFullYear() : null;
+  const cover = igdbImageUri(game.cover_image_url);
 
   return (
     <Pressable accessibilityRole="link" accessibilityLabel={game.name} onPress={onPress}>
       {({ pressed }) => (
         <View style={[styles.card, pressed && styles.cardPressed]}>
           <View style={styles.cover}>
-            {game.cover_image_url ? (
-              <Image source={game.cover_image_url} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
+            {cover ? (
+              <Image source={cover} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
             ) : (
               <View style={styles.noCover}>
                 <Text style={styles.noCoverText}>No Cover</Text>
@@ -85,7 +87,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   cardPressed: { borderColor: alpha(colors.accent, 0.6) },
-  cover: { aspectRatio: 1, width: '100%', backgroundColor: colors.surfaceLight },
+  // 3:4. IGDB cover_big is 264×374, so cover crops a little of the height.
+  cover: { aspectRatio: 3 / 4, width: '100%', backgroundColor: colors.surfaceLight },
   noCover: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   noCoverText: {
     fontFamily: face.mono[400],

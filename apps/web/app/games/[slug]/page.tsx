@@ -17,6 +17,7 @@ import { GameRatingsStats } from "@screenpeak/shared/types";
 import { getOptionalUser } from "@/lib/auth";
 import { loadGamePage } from "@/lib/loaders/game-page";
 import { parseGameReviewsQueryLenient } from "@/lib/game-reviews-query";
+import { displayCoverUrl, displayLandscapeUrl } from "@/lib/catalog/images";
 import { getGameBySlug } from "@/lib/queries/game";
 import { getGameReviewsForPage } from "@/lib/queries/review";
 import { Metadata } from "next";
@@ -105,8 +106,8 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
     const libraryEntry = viewer?.libraryEntry ?? null
 
     // Paged by the URL, so not part of the loader — the same query as GET
-    // /api/v1/games/[slug]/reviews. It throws on a DB error (the API needs a 500);
-    // here that just means an empty review list, as it always has.
+    // /api/v1/games/[slug]/reviews. The API lets a database error become a 500.
+    // This page is the web-only call site that shows an empty review list instead.
     const {
         reviews: pagedReviews,
         total: otherReviewsCount,
@@ -127,6 +128,11 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
     const lists = viewer?.lists ?? []
 
     const year = game.released ? new Date(game.released).getFullYear() : null
+    const cover = displayCoverUrl(game.cover_image_url, 'large')
+    const screenshots = (game.screenshots ?? []).flatMap(url => {
+        const landscape = displayLandscapeUrl(url)
+        return landscape ? [landscape] : []
+    })
     const inFile = !!(userReview || libraryEntry)
     const statusLabel = libraryEntry?.status
         ? libraryEntry.status.charAt(0).toUpperCase() + libraryEntry.status.slice(1)
@@ -161,9 +167,14 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
 
                     {/* Left rail — cover + your file */}
                     <div className="flex flex-col gap-5 order-2 md:order-1">
-                        <div className="rounded-md overflow-hidden border border-(--color-border)">
-                            {/* cover_image_url is nullable. A missing cover is handled with imagery in Task 7. */}
-                            <Image src={game.cover_image_url!} alt={game.name} width={256} height={340} className="w-full h-auto object-cover" priority />
+                        <div className="relative aspect-3/4 w-full overflow-hidden rounded-md border border-(--color-border) bg-(--color-surface-light)">
+                            {cover ? (
+                                <Image src={cover} alt={game.name} fill className="object-cover" sizes="(max-width: 768px) 80vw, 256px" priority />
+                            ) : (
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <span className="text-(--color-muted) text-[10px] uppercase tracking-[0.2em] font-mono">No Cover</span>
+                                </div>
+                            )}
                         </div>
                         <Panel className="p-4">
                             <p className={`${label} mb-2.5`}>Your save</p>
@@ -245,11 +256,11 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
                 )}
 
                 {/* Gallery */}
-                {(game.screenshots?.length ?? 0) > 1 && (
+                {screenshots.length > 0 && (
                     <>
                         <SectionHead>Gallery</SectionHead>
                         <div className="mx-auto max-w-3xl">
-                            <ScreenshotCarousel screenshots={game.screenshots?.slice(1) ?? []} />
+                            <ScreenshotCarousel screenshots={screenshots} />
                         </div>
                     </>
                 )}

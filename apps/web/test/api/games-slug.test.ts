@@ -53,6 +53,18 @@ describe('GET /api/v1/games/[slug]', () => {
         expect(await res.json()).toEqual({ error: { code: 'not_found', message: 'No game with that slug.' } })
     })
 
+    it('answers a database outage with 500, not a missing game', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => {})
+        loadGamePage.mockRejectedValue(new Error('database unavailable'))
+
+        const res = await call('baldurs-gate-3')
+
+        expect(res.status).toBe(500)
+        const body = await res.json()
+        expect(body.error.code).toBe('internal')
+        expect(JSON.stringify(body)).not.toContain('database unavailable')
+    })
+
     it('rejects a bad bearer token with 401 before loading anything', async () => {
         getOptionalUser.mockRejectedValue(new UnauthenticatedError('invalid_token'))
 

@@ -5,11 +5,9 @@ import { GameCover, ListDetail, ListGameEntry } from '@screenpeak/shared/types'
 import { listFieldsSchema, parseOrError } from '@screenpeak/shared/schemas'
 
 export async function getUserLists(userId: string | null | undefined, includePrivate: boolean) {
-    try {
-        return await db.execute(sql`select * from get_user_lists(p_user_id => ${userId ?? null}, p_include_private => ${includePrivate})`)
-    } catch {
-        return []
-    }
+    // A database error must reject. Returning [] makes an outage look like
+    // a player who has no lists.
+    return await db.execute(sql`select * from get_user_lists(p_user_id => ${userId ?? null}, p_include_private => ${includePrivate})`)
 }
 
 export async function getLikedLists(userId: string) {

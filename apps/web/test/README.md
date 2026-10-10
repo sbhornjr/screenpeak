@@ -50,11 +50,14 @@ is mocked — logging behaviour is asserted through real `console` spies.
 | `lib/rawg.test.ts` | `importGameFromSteam` | The 4-strategy Steam→RAWG name matcher: exact, roman-vs-arabic sequels, diacritics, `(YYYY)` suffix on either side; `null` + no write when unmatched |
 | `lib/steam.test.ts` | `getOwnedGames`, `getPlayerAchievementCompletion`, `getFullyCompletedAppids` | Public-profile mapping; hidden-details → `undefined` (not zero); throw/log on non-ok owned-games; achievement completion truth table; errors swallowed to `false`; concurrent 100%-set collection |
 | `lib/loadout.test.ts` | `generateLoadoutIdentity` | Returns model text on success; degrades to `''` + logs on API failure; `''` for non-text content blocks |
-| `lib/queries.game.test.ts` | `getGameTaxonomy`, `getDistinctEsrbRatings`, `getDeveloperNameMap` | Embedded-row flattening + missing sections; de-dupe/drop-null/sort; first-wins map with string-normalised keys; error → empty map + log |
+| `lib/queries.game.test.ts` | `getGameTaxonomy`, `getDistinctEsrbRatings`, `getDeveloperNameMap` | Embedded-row flattening + missing sections; a taxonomy query error rejects instead of an empty section; de-dupe/drop-null/sort; first-wins map with string-normalised keys; developer-map error → empty map + log |
+| `lib/catalog/images.test.ts` | Catalogue image URLs | cover_big at 2x for large frames, 3:4 crop against 264×374, RAWG and non-IGDB hosts refused, landscape artwork for share images, screenshot fallback, Next allowlist has images.igdb.com and not media.rawg.io |
+| `lib/sitemap.test.ts` | `loadSitemap` | Seeded slugs, private lists omitted, valid lastModified, deterministic paging, database failure rejects instead of an empty game section |
 | `components/Pagination.test.tsx` | `<Pagination>` | Page-window math (fixed-width run near edges, ellipses, `<= 7` shows all); `aria-current`; disabled arrows; href preserves params |
 | `components/DistributionChart.test.tsx` | `<DistributionChart>` | One row per bucket; `count · pct%` vs `0`; singular/plural caption |
 | `components/StatGrid.test.tsx` | `<StatGrid>` | One cell per stat; value + label rendered; caller `className` appended |
 | `components/StatCompare.test.tsx` | `<StatCompare>` | Exactly You and Community, both /10; signed-out, unrated, no ratings, one rating, a gap, and a personal score with a missing aggregate |
+| `components/Footer.test.tsx` | `<Footer>` | Visible "Game data and images from IGDB" link to igdb.com |
 | `lib/hero-game.test.ts` | `selectHeroGame` | At least three ratings, then community average, then id; a missing or zero average is not a score |
 | `lib/game-catalog-sort.test.ts` | `parseCatalogSort`, `parseCatalogSortLenient`, `defaultOrder` | Strict rejection of a Metacritic sort; lenient fallback to name ascending; non-name keys default to descending |
 | `components/CatalogSortFilters.test.tsx` | `GameFilters`, `LibraryFilters` | Changing the sort key from the default name ascending submits descending for a score or date sort |
@@ -63,6 +66,7 @@ is mocked — logging behaviour is asserted through real `console` spies.
 | `lib/catalog/steam-import-actions.test.ts` | Steam import server actions | Signed-out rejection, posted user id and app ids ignored, invalid input returned as a visible error |
 | `components/SteamLinkGamesSection.test.tsx` | Steam import preview | Hours field, unmatched-app count, retry after a provider failure, no match request when nothing is pending |
 | `integration/steam-import.integration.ts` (separate config) | Real Postgres Steam import | Two app ids one game, second sync skips IGDB, 200-only cache, demo not stored, expansion stored, shared id dropped, foreign id does not block, hours not inflated, `metacritic_score` still present |
+| `integration/sitemap.integration.ts` (separate config) | Real Postgres sitemap | Pages by `updated_at` then id, ignores a higher Metacritic score, omits private lists, valid lastModified, `metacritic_score` column still present |
 
 `smoke.test.ts` is not a characterization test — it just confirms the toolchain
 (TS compiles, the `@/*` alias resolves, `expect` works).

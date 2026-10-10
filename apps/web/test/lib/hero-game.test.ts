@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { HERO_MIN_RATINGS, selectHeroGame, type HeroCandidate } from '@/lib/hero-game'
+import { HERO_MIN_RATINGS, screenshotUrls, selectHeroGame, type HeroCandidate } from '@/lib/hero-game'
 
 const game = (patch: Partial<HeroCandidate> & Pick<HeroCandidate, 'id' | 'rating_count'>): HeroCandidate => ({
     name: patch.id,
@@ -47,6 +47,20 @@ describe('selectHeroGame', () => {
             game({ id: '00000000-0000-0000-0000-00000000000a', rating_count: 4, avg_ngplus_rating: 8 }),
         ])
         expect(ids?.id).toBe('00000000-0000-0000-0000-00000000000a')
+    })
+
+    it('keeps screenshot urls from an array or a postgres array literal', () => {
+        const shot = 'https://images.igdb.com/igdb/image/upload/t_screenshot_huge/sc.jpg'
+        expect(screenshotUrls([shot, null, ''])).toEqual([shot])
+        expect(screenshotUrls(`{${shot}}`)).toEqual([shot])
+        expect(screenshotUrls(`{"${shot}","https://images.igdb.com/igdb/image/upload/t_1080p/art.jpg"}`)).toEqual([
+            shot,
+            'https://images.igdb.com/igdb/image/upload/t_1080p/art.jpg',
+        ])
+        expect(screenshotUrls({ not: 'an array' })).toBeNull()
+        const hero = selectHeroGame([game({ id: 'shot', rating_count: 3, screenshots: `{${shot}}` })])
+        expect(hero?.screenshots).toEqual([shot])
+        expect(selectHeroGame([game({ id: 'odd', rating_count: 3, screenshots: { bad: true } })])?.screenshots).toBeNull()
     })
 
     it('does not treat a missing average as zero', () => {

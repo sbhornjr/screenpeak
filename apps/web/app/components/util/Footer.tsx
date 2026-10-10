@@ -13,6 +13,14 @@ export default function Footer() {
                         <Wordmark />
                     </Link>
                     <p className="font-mono text-xs text-(--color-muted)">&copy; {new Date().getFullYear()} ScreenPeak</p>
+                    <a
+                        href="https://www.igdb.com/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-(--color-text) underline decoration-(--color-border) underline-offset-2 hover:text-(--color-accent) hover:decoration-(--color-accent) transition-colors duration-200"
+                    >
+                        Game data and images from IGDB
+                    </a>
                 </div>
 
                 <div className="flex flex-col gap-6 sm:flex-row sm:gap-16">

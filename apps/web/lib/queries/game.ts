@@ -7,42 +7,36 @@ import { logger } from '@/lib/logger'
 import { selectHeroGame, type HeroGame } from '@/lib/hero-game'
 
 export async function getGameBySlug(slug: string) {
-    try {
-        const rows = await db
-            .select({
-                id: games.id,
-                created_at: games.createdAt,
-                igdb_id: games.igdbId,
-                name: games.name,
-                slug: games.slug,
-                cover_image_url: games.coverImageUrl,
-                artwork_image_url: games.artworkImageUrl,
-                released: games.released,
-                description: games.description,
-                esrb_rating: games.esrbRating,
-                reddit_url: games.redditUrl,
-                screenshots: games.screenshots,
-                steam_appid: games.steamAppid,
-            })
-            .from(games)
-            .where(eq(games.slug, slug))
-            .limit(1)
+    // A database error must reject. Returning null here makes an outage look
+    // like a missing game (404) on the page and the API.
+    const rows = await db
+        .select({
+            id: games.id,
+            created_at: games.createdAt,
+            igdb_id: games.igdbId,
+            name: games.name,
+            slug: games.slug,
+            cover_image_url: games.coverImageUrl,
+            artwork_image_url: games.artworkImageUrl,
+            released: games.released,
+            description: games.description,
+            esrb_rating: games.esrbRating,
+            reddit_url: games.redditUrl,
+            screenshots: games.screenshots,
+            steam_appid: games.steamAppid,
+        })
+        .from(games)
+        .where(eq(games.slug, slug))
+        .limit(1)
 
-        return rows[0] ?? null
-    } catch {
-        return null
-    }
+    return rows[0] ?? null
 }
 
 // Just the id, for endpoints addressed by slug that don't need the game itself
 // (e.g. GET /api/v1/games/[slug]/reviews).
 export async function getGameIdBySlug(slug: string): Promise<string | null> {
-    try {
-        const rows = await db.select({ id: games.id }).from(games).where(eq(games.slug, slug)).limit(1)
-        return rows[0]?.id ?? null
-    } catch {
-        return null
-    }
+    const rows = await db.select({ id: games.id }).from(games).where(eq(games.slug, slug)).limit(1)
+    return rows[0]?.id ?? null
 }
 
 export async function getGameTaxonomy(gameId: string) {
@@ -50,23 +44,19 @@ export async function getGameTaxonomy(gameId: string) {
         db.select({ id: genres.id, name: genres.name, slug: genres.slug })
             .from(gameGenres)
             .innerJoin(genres, eq(gameGenres.genreId, genres.id))
-            .where(eq(gameGenres.gameId, gameId))
-            .catch(() => []),
+            .where(eq(gameGenres.gameId, gameId)),
         db.select({ id: platforms.id, name: platforms.name, slug: platforms.slug })
             .from(gamePlatforms)
             .innerJoin(platforms, eq(gamePlatforms.platformId, platforms.id))
-            .where(eq(gamePlatforms.gameId, gameId))
-            .catch(() => []),
+            .where(eq(gamePlatforms.gameId, gameId)),
         db.select({ id: developers.id, name: developers.name, slug: developers.slug })
             .from(gameDevelopers)
             .innerJoin(developers, eq(gameDevelopers.developerId, developers.id))
-            .where(eq(gameDevelopers.gameId, gameId))
-            .catch(() => []),
+            .where(eq(gameDevelopers.gameId, gameId)),
         db.select({ id: publishers.id, name: publishers.name, slug: publishers.slug })
             .from(gamePublishers)
             .innerJoin(publishers, eq(gamePublishers.publisherId, publishers.id))
-            .where(eq(gamePublishers.gameId, gameId))
-            .catch(() => []),
+            .where(eq(gamePublishers.gameId, gameId)),
     ])
 
     return {
@@ -156,6 +146,8 @@ export async function getHeroGame(): Promise<HeroGame | null> {
                 g.name,
                 g.slug,
                 g.cover_image_url,
+                g.artwork_image_url,
+                g.screenshots,
                 g.released::text as released,
                 round(avg(rr.rating)::numeric, 2) as avg_ngplus_rating,
                 count(*)::int as rating_count
@@ -164,7 +156,12 @@ export async function getHeroGame(): Promise<HeroGame | null> {
             group by g.id
         `)
         return selectHeroGame(rows as unknown as Parameters<typeof selectHeroGame>[0])
-    } catch {
+    } catch (error) {
+        // Absence is a null return with no log. A failed query is the same
+        // fallback for the page, and the log is what tells the two apart.
+        logger.error('hero', 'hero game query failed', {
+            error: error instanceof Error ? error.message : String(error),
+        })
         return null
     }
 }

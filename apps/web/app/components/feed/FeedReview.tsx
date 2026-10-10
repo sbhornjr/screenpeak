@@ -4,16 +4,19 @@ import Image from "next/image"
 import Link from "next/link"
 import ExpandableText from "../util/ExpandableText"
 import Seal from "@/app/components/game/Seal"
+import { displayCoverUrl } from "@/lib/catalog/images"
 
 export default function FeedReview({ gameSlug, gameName, gameCoverImageUrl, rating, review } :
     { gameSlug: string | null, gameName: string | null, gameCoverImageUrl: string | null, rating: number | null, review: string | null }) {
 
+    const cover = displayCoverUrl(gameCoverImageUrl, 'small')
+
     return (
         <div className="flex gap-4 p-3 rounded-[3px] hover:bg-(--color-surface-light)/50 transition-colors duration-200 group">
             <Link href={`/games/${gameSlug}`}
-                className="relative w-20 h-28 shrink-0 rounded-[3px] overflow-hidden">
-                {gameCoverImageUrl ? (
-                    <Image src={gameCoverImageUrl} alt={gameName!}
+                className="relative w-20 aspect-3/4 shrink-0 rounded-[3px] overflow-hidden">
+                {cover ? (
+                    <Image src={cover} alt={gameName!}
                         fill className="object-cover" sizes="80px" />
                 ) : (
                     <div className="w-full h-full bg-(--color-surface-light) rounded-[3px]" />

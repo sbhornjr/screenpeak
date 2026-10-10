@@ -8,6 +8,7 @@ import { Game } from "@screenpeak/shared/types"
 import Modal from "@/app/components/util/Modal"
 import EditTriggerButton from "@/app/components/util/EditTriggerButton"
 import { searchGamesByName } from "@/lib/queries/game-search"
+import { displayCoverUrl } from "@/lib/catalog/images"
 import { saveFavoriteGames } from "@/app/user-actions"
 import { plus1 } from "@/lib/plus1"
 
@@ -96,12 +97,14 @@ export default function FavoriteGamePicker({ currentGames } : { currentGames: Ga
                             </button>
                         </div>
                         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-                            {results.map(game => 
+                            {results.map(game => {
+                                const cover = displayCoverUrl(game.cover_image_url, 'large')
+                                return (
                                 <button key={game.id} onClick={() => gameSelected(game)} className={`border border-(--color-muted) hover:border-(--color-accent) hover:bg-(--color-accent-hover) rounded-[3px] ${gameIds.find(g => g === game.id) && "border-(--color-accent) bg-(--color-accent-hover)"}`}>
-                                    <div className="relative aspect-square w-full overflow-hidden">
-                                        {game.cover_image_url ? (
+                                    <div className="relative aspect-3/4 w-full overflow-hidden">
+                                        {cover ? (
                                             <Image
-                                                src={game.cover_image_url}
+                                                src={cover}
                                                 alt={game.name}
                                                 fill
                                                 className="object-cover transition-all duration-100 group-hover:scale-105"
@@ -128,7 +131,8 @@ export default function FavoriteGamePicker({ currentGames } : { currentGames: Ga
                                         )}
                                         </div>
                                 </button>
-                            )}
+                                )
+                            })}
                         </div>
                 </Modal>
             )}

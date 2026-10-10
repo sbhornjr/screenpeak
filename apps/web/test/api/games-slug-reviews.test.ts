@@ -57,6 +57,17 @@ describe('GET /api/v1/games/[slug]/reviews', () => {
         expect(getGameIdBySlug).not.toHaveBeenCalled()
     })
 
+    it('answers a slug lookup outage with 500, not an unknown game', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => {})
+        getGameIdBySlug.mockRejectedValue(new Error('database unavailable'))
+
+        const res = await call('baldurs-gate-3')
+
+        expect(res.status).toBe(500)
+        expect((await res.json()).error.code).toBe('internal')
+        expect(getGameReviewsForPage).not.toHaveBeenCalled()
+    })
+
     it('answers an unknown slug with 404 not_found', async () => {
         getGameIdBySlug.mockResolvedValue(null)
 

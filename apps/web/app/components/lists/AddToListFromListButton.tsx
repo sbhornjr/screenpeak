@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase-browser"
 import { Game } from "@screenpeak/shared/types"
 import Modal from "@/app/components/util/Modal"
 import { searchGamesByName } from "@/lib/queries/game-search"
+import { displayCoverUrl } from "@/lib/catalog/images"
 import { syncListGamesAction } from "@/app/list-actions"
 
 export default function AddToListFromListButton({ listId, currentGames } : { listId: string, currentGames: Game[]}) {
@@ -96,12 +97,14 @@ export default function AddToListFromListButton({ listId, currentGames } : { lis
                                 <p className="text-sm font-semibold text-(--color-bad) mt-2">{error}</p>
                             )}
                             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-                                {results.map(game => 
+                                {results.map(game => {
+                                    const cover = displayCoverUrl(game.cover_image_url, 'large')
+                                    return (
                                     <button key={game.id} onClick={() => gameSelected(game)} className={`border border-(--color-muted) hover:border-(--color-accent) hover:bg-(--color-accent-hover) rounded-[3px] ${gameIds.find(g => g === game.id) && "border-(--color-accent) bg-(--color-accent-hover)"}`}>
-                                        <div className="relative aspect-square w-full overflow-hidden">
-                                            {game.cover_image_url ? (
+                                        <div className="relative aspect-3/4 w-full overflow-hidden">
+                                            {cover ? (
                                                 <Image
-                                                    src={game.cover_image_url}
+                                                    src={cover}
                                                     alt={game.name}
                                                     fill
                                                     className="object-cover transition-all duration-100 group-hover:scale-105"
@@ -128,7 +131,8 @@ export default function AddToListFromListButton({ listId, currentGames } : { lis
                                             )}
                                             </div>
                                     </button>
-                                )}
+                                    )
+                                })}
                             </div>
                     </Modal>
                 )}
