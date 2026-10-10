@@ -15,6 +15,11 @@ const nextConfig: NextConfig = {
             },
             {
                 protocol: 'https',
+                hostname: 'images.igdb.com',
+                pathname: '/igdb/image/upload/**',
+            },
+            {
+                protocol: 'https',
                 // Derived from R2_PUBLIC_URL rather than hardcoded, so the two
                 // can't drift if the bucket's custom domain ever changes.
                 hostname: new URL(r2PublicUrl).hostname,

@@ -6,7 +6,7 @@ import Image from "next/image"
 import FilterSelect from "../util/FilterSelect"
 import { Check } from "lucide-react"
 
-export default function GameFromSteam({ appid, linkEntry, onUpdate } : { appid: number, linkEntry: SteamLinkEntry, onUpdate: (appid: number, linkEntry: SteamLinkEntry) => void }) {
+export default function GameFromSteam({ gameId, linkEntry, onUpdate } : { gameId: string, linkEntry: SteamLinkEntry, onUpdate: (gameId: string, linkEntry: SteamLinkEntry) => void }) {
     const [status, setStatus] = useState(linkEntry.status)
     const [playTime, setPlayTime] = useState(linkEntry.playtimeSelected)
     const [selected, setSelected] = useState(linkEntry.selected)
@@ -18,35 +18,35 @@ export default function GameFromSteam({ appid, linkEntry, onUpdate } : { appid: 
         setSelected(newSelected)
         const newLinkEntry = { ...entry, selected: newSelected }
         setEntry(newLinkEntry)
-        onUpdate(appid, newLinkEntry)
+        onUpdate(gameId, newLinkEntry)
     }
 
     function updateStatus(newStatus: string) {
         setStatus(newStatus)
         const newLinkEntry = { ...entry, status: newStatus }
         setEntry(newLinkEntry)
-        onUpdate(appid, newLinkEntry)
+        onUpdate(gameId, newLinkEntry)
     }
 
     function updatePlayTime(newPlayTime: number) {
         setPlayTime(newPlayTime)
         const newLinkEntry = { ...entry, playtimeSelected: newPlayTime }
         setEntry(newLinkEntry)
-        onUpdate(appid, newLinkEntry)
+        onUpdate(gameId, newLinkEntry)
     }
 
     function updateTimesPlayed(newTimesPlayed: number) {
         setTimesPlayed(newTimesPlayed)
         const newLinkEntry = { ...entry, timesPlayed: newTimesPlayed }
         setEntry(newLinkEntry)
-        onUpdate(appid, newLinkEntry)
+        onUpdate(gameId, newLinkEntry)
     }
 
     function updateCompletedAllAchievements(newCompletedAllAchievements: boolean) {
         setCompletedAllAchievements(newCompletedAllAchievements)
         const newLinkEntry = { ...entry, completedAllAchievements: newCompletedAllAchievements }
         setEntry(newLinkEntry)
-        onUpdate(appid, newLinkEntry)
+        onUpdate(gameId, newLinkEntry)
     }
 
     return (
@@ -105,12 +105,13 @@ export default function GameFromSteam({ appid, linkEntry, onUpdate } : { appid: 
                     </FilterSelect>
                 </div>
                 <div className="flex flex-col gap-1 shrink-0">
-                    <label className="text-xs font-semibold text-(--color-muted) uppercase tracking-wider">
+                    <label htmlFor={`hours-${gameId}`} className="text-xs font-semibold text-(--color-muted) uppercase tracking-wider">
                         Hours Played
                     </label>
                     <div className="flex items-center gap-2 bg-(--color-surface) border border-(--color-border)
                         rounded-[3px] px-3 py-2 focus-within:border-(--color-accent) transition-colors duration-200 w-32 pointer-events-auto">
                         <input
+                            id={`hours-${gameId}`}
                             type="number"
                             min="0"
                             max="99999"

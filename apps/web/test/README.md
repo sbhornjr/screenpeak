@@ -59,6 +59,10 @@ is mocked — logging behaviour is asserted through real `console` spies.
 | `lib/game-catalog-sort.test.ts` | `parseCatalogSort`, `parseCatalogSortLenient`, `defaultOrder` | Strict rejection of a Metacritic sort; lenient fallback to name ascending; non-name keys default to descending |
 | `components/CatalogSortFilters.test.tsx` | `GameFilters`, `LibraryFilters` | Changing the sort key from the default name ascending submits descending for a score or date sort |
 | `integration/catalog-scores.integration.ts` (separate config) | Real Postgres score RPCs | `0006` keeps `metacritic_score`, drops default-privilege grants, sets `search_path`, orders equal averages by rating count, and hides private libraries and private lists from the feed |
+| `lib/catalog/steam-import.test.ts` | `resolveSteamBatch`, library collapse | Stored mappings, one game for several Steam apps, miss and ambiguous cache, 401/429/5xx/timeout not cached, demo 247750 rejected, expansions kept, shared and foreign ids, name collision, hours summed once |
+| `lib/catalog/steam-import-actions.test.ts` | Steam import server actions | Signed-out rejection, posted user id and app ids ignored, invalid input returned as a visible error |
+| `components/SteamLinkGamesSection.test.tsx` | Steam import preview | Hours field, unmatched-app count, retry after a provider failure, no match request when nothing is pending |
+| `integration/steam-import.integration.ts` (separate config) | Real Postgres Steam import | Two app ids one game, second sync skips IGDB, 200-only cache, demo not stored, expansion stored, shared id dropped, foreign id does not block, hours not inflated, `metacritic_score` still present |
 
 `smoke.test.ts` is not a characterization test — it just confirms the toolchain
 (TS compiles, the `@/*` alias resolves, `expect` works).

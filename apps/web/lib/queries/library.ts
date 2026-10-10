@@ -5,6 +5,15 @@ import { LibraryData, EsrbRatingsData } from '@screenpeak/shared/types'
 import { SteamLinkEntry } from '@screenpeak/shared/types'
 import { logger } from '@/lib/logger'
 
+/** One library row per game. A repeated Steam app must not add its hours again. */
+export function dedupeSteamLinkEntries(entries: SteamLinkEntry[]): SteamLinkEntry[] {
+    const byGame = new Map<string, SteamLinkEntry>()
+    for (const entry of entries) {
+        if (!byGame.has(entry.gameId)) byGame.set(entry.gameId, entry)
+    }
+    return [...byGame.values()]
+}
+
 const LIBRARY_ENTRY_COLUMNS = {
     id: libraryEntries.id,
     status: libraryEntries.status,
@@ -74,9 +83,10 @@ export async function updateLibraryEntry(userId: string, gameId: number, fields:
 }
 
 export async function upsertLibraryEntries(userId: string, entries: SteamLinkEntry[]) {
-    if (entries.length === 0) return []
+    const unique = dedupeSteamLinkEntries(entries)
+    if (unique.length === 0) return []
 
-    const toUpsert = entries.map(sle => ({
+    const toUpsert = unique.map(sle => ({
         userId,
         gameId: String(sle.gameId),
         status: sle.status,

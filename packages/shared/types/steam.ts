@@ -25,3 +25,14 @@ export type SteamLinkEntry = {
     timesPlayed?: number
     completedAllAchievements: boolean
 }
+
+/** One round of IGDB matching. Counts of Steam apps and ScreenPeak games stay separate. */
+export type SteamImportBatch = {
+    entries: SteamLinkEntry[]
+    remaining: number
+    totalApps: number
+    matchedGameCount: number
+    unmatchedAppCount: number
+    ambiguousAppCount: number
+    retryableAppCount: number
+}

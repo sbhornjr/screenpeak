@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import postgres from 'postgres'
 import { assertDisposableDatabase, assertLocalCopy } from '../lib/catalog/database-url'
 import type { MigrationSql } from '../lib/catalog/migrations'
@@ -11,8 +11,9 @@ const help = `Stage or apply a fresh IGDB catalogue reset on a disposable local 
   --write-manifest FILE     Read the database fingerprint and write a manifest. Requires --staged.
   --staged FILE             JSON array of CatalogGame values for --write-manifest.
   --apply                   Apply the manifest. Without this flag the command is a dry-run.
-  --confirm-before-task-6  Required with --apply. Do not reset the database the app uses
-                            until Task 6 replaces the rest of the Steam import.
+  --confirm-before-task-6  Ignored. Task 6 replaced Steam import, so the acknowledgement
+                            is no longer required. Still use a disposable local database.
+                            Resetting the hosted development database remains an owner step.
   --allow-empty             Permit a manifest with zero games when the catalogue is not empty.
   --allow-small             Permit a manifest that replaces a large catalogue with very few games.
   --confirm-local-copy      Required when the database has Supabase dump markers.
@@ -20,8 +21,9 @@ const help = `Stage or apply a fresh IGDB catalogue reset on a disposable local 
 Dry-run writes nothing and reports current counts plus how many games would be written.
 Apply takes a new reset_backup schema first and refuses to drop an earlier one.
 Apply refuses a stale fingerprint, a count mismatch, an empty or implausibly small
-manifest, and a committed manifest. Do not point this at the hosted database or at
-the database the running app uses before Task 6. See docs/igdb-migration-runbook.md.`
+manifest, and a committed manifest. Do not point this at the hosted development
+database. Task 6 no longer reads games.steam_appid while importing.
+See docs/igdb-migration-runbook.md.`
 
 function argument(name: string): string | undefined {
     const index = process.argv.indexOf(name)
@@ -42,10 +44,10 @@ async function main(): Promise<void> {
     const writePath = argument('--write-manifest')
     const stagedPath = argument('--staged')
     if (apply && !manifestPath) throw new Error('--apply requires --manifest.')
-    if (apply && !process.argv.includes('--confirm-before-task-6'))
-        throw new Error('Refusing to reset a catalogue the app can still serve. Task 6 has not replaced the rest of the Steam import. Pass --confirm-before-task-6 only on a disposable copy, never on the app database.')
     if (writePath && !stagedPath) throw new Error('--write-manifest requires --staged.')
     if (!manifestPath && !writePath) throw new Error('Pass --manifest or --write-manifest.')
+    if (manifestPath && !existsSync(manifestPath)) throw new Error(`Manifest not found: ${manifestPath}`)
+    if (stagedPath && !existsSync(stagedPath)) throw new Error(`Staged catalogue not found: ${stagedPath}`)
 
     const sql = postgres(url, { max: 1, onnotice: () => {} })
     try {

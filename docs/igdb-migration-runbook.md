@@ -123,7 +123,7 @@ Confirmed 2026-10-08: reset the catalogue and all game-linked test data; retain 
 2. Restore that dump into a new local database whose name ends in `_copy`. Choose an empty initial catalogue (Steam import populates it later), or stage/validate optional main-game seed records before deleting anything. Taxonomy is ingested with each game; no independent taxonomy seed is required.
 3. Dry-run the loss report. The reset clears library entries, ratings/reviews, list memberships, favourites, and generated Loadout text. It keeps Auth, profiles/settings, list definitions, follows, likes, Steam links, and authored bios. The dry-run prints current counts and how many staged games would be written.
 4. Stop writers. The manifest fingerprint covers every deleted and retained row, and the manifest stores those dry-run counts. `--apply` refuses when either has changed, when the manifest is empty or implausibly small, or when it was already committed. It takes a new `reset_backup` schema and does not drop an earlier one. That schema is a rehearsal aid, not a substitute for `pg_dump`.
-5. Apply coordinated API/SQL cleanup later (Tasks 5–8): required IGDB IDs, no RAWG/Metacritic or obsolete single Steam-ID fields. Update web/mobile consumers together. Do not reset the database the app still serves until Task 6 replaces the rest of the Steam import. `--apply` requires `--confirm-before-task-6`.
+5. Apply coordinated API/SQL cleanup later (Tasks 7–8): required IGDB IDs, no RAWG/Metacritic or obsolete single Steam-ID fields. Update web/mobile consumers together. Task 6 has replaced Steam import, so `--confirm-before-task-6` is no longer required. Do not reset the hosted development database until the owner runs Task 8.
 6. Verify preserved independent data, empty linked tables, valid new relations, UI empty states, imports, images and sitemap. Rehearse full-backup recovery before actual cutover.
 7. Resume the mobile roadmap only after the full plan passes acceptance checks.
 
@@ -364,10 +364,10 @@ npm run seed:igdb -w @screenpeak/web -- --database-env TEST_DATABASE_URL --ids 1
 ```bash
 npm run reset:catalog -w @screenpeak/web -- --database-env TEST_DATABASE_URL --staged staged.json --write-manifest manifest.json
 npm run reset:catalog -w @screenpeak/web -- --database-env TEST_DATABASE_URL --manifest manifest.json
-npm run reset:catalog -w @screenpeak/web -- --database-env TEST_DATABASE_URL --manifest manifest.json --apply --confirm-before-task-6
+npm run reset:catalog -w @screenpeak/web -- --database-env TEST_DATABASE_URL --manifest manifest.json --apply
 ```
 
-`--apply` requires `--confirm-before-task-6` because Steam import still reads `games.steam_appid` as a fallback until Task 6; new rows are matched from `game_external_ids`. Do not pass that flag against the database the app serves. An empty manifest over an existing catalogue is refused unless you also pass `--allow-empty`. Replacing 25 or more games with fewer than 25 and fewer than 10% of the current count is refused unless you also pass `--allow-small`. Apply copies the catalogue into a new `reset_backup` schema (`reset_backup`, then `reset_backup_2`, and so on) and does not drop an earlier copy.
+`--confirm-before-task-6` is accepted and ignored. Task 6 matches Steam libraries from `game_external_ids` and does not read `games.steam_appid`. The hosted development reset is still an owner step; do not point this command at that database. An empty manifest over an existing catalogue is refused unless you also pass `--allow-empty`. Replacing 25 or more games with fewer than 25 and fewer than 10% of the current count is refused unless you also pass `--allow-small`. Apply copies the catalogue into a new `reset_backup` schema (`reset_backup`, then `reset_backup_2`, and so on) and does not drop an earlier copy.
 
 A committed manifest cannot be applied again. Inserting a library row, review, or list membership after the manifest was written makes `--apply` refuse, as does changing a retained username, list, follow, like, favourite, or Steam link. Shared Steam app ids inside the staged batch are omitted before `writeCatalogGame`; a direct write that still carries a foreign app id throws and rolls the transaction back.
 
@@ -375,7 +375,7 @@ A committed manifest cannot be applied again. Inserting a library row, review, o
 
 ### Slug and cache rules now in the writer
 
-New game URLs use the sanitized provider slug. If that slug is taken, the row's own `games.id` is appended. The suffix does not contain `igdb`. Genres, platforms, developers and publishers have unique slugs; a collision is stored as `igdb-<igdbId>`. A payload with no `providerUpdatedAt` does not replace a stored snapshot. `writeSteamMatchCache` inserts a no-match or ambiguous row only after HTTP 200. HTTP 401 and 429 insert nothing. Steam import (Task 6) must call that helper rather than writing the cache table itself.
+New game URLs use the sanitized provider slug. If that slug is taken, the row's own `games.id` is appended. The suffix does not contain `igdb`. Genres, platforms, developers and publishers have unique slugs; a collision is stored as `igdb-<igdbId>`. A payload with no `providerUpdatedAt` does not replace a stored snapshot. `writeSteamMatchCache` inserts a no-match or ambiguous row only after HTTP 200. HTTP 401 and 429 insert nothing. Steam import calls that helper and does not write `steam_match_cache` itself. A cached miss lasts seven days. Retry bypasses a miss, not an ambiguous row and not the shared rate limit.
 
 ### Mobile images
 
