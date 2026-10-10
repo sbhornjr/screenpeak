@@ -1,9 +1,9 @@
 @import "tailwindcss";
 
 :root {
-  /* "ScreenPeak" — screen-peeking at what your friends are playing. The app is
-     a split screen: your score next to the critics' and the community's. A cool
-     graphite ground with one electron-beam cyan accent treated as phosphor light. */
+  /* "ScreenPeak" — screen-peeking at what your friends are playing. Your score
+     sits next to the community's. A cool graphite ground with one electron-beam
+     cyan accent treated as phosphor light. */
   --font-display: 'Chakra Petch', system-ui, sans-serif;
   --font-body: 'IBM Plex Sans', sans-serif;
   --font-mono: 'IBM Plex Mono', monospace;
@@ -24,9 +24,7 @@
   --color-text: #dfe3ea;
   --color-muted: #8b919d;
 
-  /* Split-screen player colors (critic=P1 / community=P2 / you=P3) used by the
-     stat compare. Warm vs cool so the "players" read apart; "you" is the accent. */
-  --color-critic: #e8a24e;
+  /* Score panel: Community is the crowd, You is the accent. */
   --color-community: #9aa1ad;
   --color-you: var(--color-accent);
 

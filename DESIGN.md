@@ -11,10 +11,9 @@ trademark conflict; the art direction was retuned at the same time.
 
 The design is built outward from two things nothing else in this space has:
 
-- **The three-source rating.** Every game carries up to three independent scores
-  — Metacritic, the ScreenPeak community average, and yours — laid out **side by
-  side like players sharing a split screen**, not collapsed to one number. Your
-  score is the near player: lit up, seamed, called out against the community.
+- **You and the community.** Every game shows two scores, both out of 10: yours
+  and the ScreenPeak community average, laid out **side by side**, not collapsed
+  to one number. Your score is lit up and seamed, called out against the community.
 - **Loadout.** An LLM-written "gamer identity" paragraph generated from a user's
   real library/rating data.
 
@@ -61,15 +60,13 @@ that's what makes retuning the palette a one-file change.
 | `--color-text` | `#dfe3ea` | Primary text — cool phosphor white, not stark white |
 | `--color-muted` | `#8b919d` | Secondary text, metadata, captions |
 
-**Split-screen player colours** (`--color-critic` / `--color-community` /
-`--color-you`) — used *only* by the stat compare (`StatCompare`), where the three
-scores are the three "players":
+**Score colours** (`--color-community` / `--color-you`) — used *only* by the
+stat compare (`StatCompare`):
 
-| Token | Hex | Player |
+| Token | Hex | Role |
 |---|---|---|
-| `--color-critic` | `#e8a24e` | P1 — the critics, warm amber (the far player) |
-| `--color-community` | `#9aa1ad` | P2 — the crowd, cool grey |
-| `--color-you` | = `--color-accent` | P3 — you, the near player, lit cyan |
+| `--color-you` | = `--color-accent` | You, lit cyan |
+| `--color-community` | `#9aa1ad` | The community, cool grey |
 
 **Rating-tier colours** (`--color-good` / `--color-mid` / `--color-bad`) are a
 separate semantic set, used for score *values* on cards / distributions and
@@ -81,7 +78,7 @@ nowhere else:
 | `--color-mid` | `#e0a13f` | Score 6–7 |
 | `--color-bad` / `--color-bad-hover` | `#e0574c` / `#b0433a` | Score < 6, and destructive actions (delete account, remove from library) |
 
-**Why amber/grey/red for tiers and players, not shades of one hue:** an earlier
+**Why amber/grey/red for tiers, not shades of one hue:** an earlier
 version used three shades of the same warm hue differing mainly in lightness —
 hard to read for color-blind users. The current sets use genuinely different
 hues so the distinction survives regardless, and the numbers stay the source of
@@ -148,7 +145,7 @@ It replaced an earlier `▸` menu-cursor glyph everywhere that glyph appeared.
 `app/components/game/Seal.tsx`. A flat `rounded-[2px]` cell on a game's cover:
 near-opaque dark fill, thin bright border, and a 2px tier-coloured hairline along
 the bottom — a HUD score readout, not an ink stamp (it used to be a rotated
-dashed circle; that was the old ledger direction). Source label (`SP` / `MC` /
+dashed circle; that was the old ledger direction). Source label (`SP` /
 `You`) small and tracked above the number; number bold, mono, tier-coloured. A
 `min-w` keeps the footprint fixed so `8`, `8.5` and `10` don't reflow. Appears
 anywhere a game's score sits on top of its cover art: `GameCard`, `FeedGameCard`,
@@ -156,12 +153,12 @@ anywhere a game's score sits on top of its cover art: `GameCard`, `FeedGameCard`
 (`Review.tsx`, `ReviewPageRating.tsx`) — there a plain colour + `--font-mono`
 number is enough.
 
-Placement convention: **right side = Metacritic or ScreenPeak community score**
-(whichever applies — never both at once), **left side = the viewer's own score**.
-Two tags only where the cover is wide enough (`GameCard`); the feed's 80px
-thumbnail (`FeedGameCard`) shows one, preferring SP → MC → You since the feed
-line already states the rating. The landing-page hero showing MC and SP
-simultaneously with no viewer score is a deliberate one-off.
+Placement convention: **right side = the ScreenPeak community score**, **left
+side = the viewer's own score**. An unrated game shows no community tag. Two
+tags only where the cover is wide enough (`GameCard`); the feed's 80px
+thumbnail (`FeedGameCard`) shows one, preferring the community score, then You,
+since the feed line already states the rating. The landing-page hero shows the
+community score only.
 
 ### The Folio (CoverFan)
 

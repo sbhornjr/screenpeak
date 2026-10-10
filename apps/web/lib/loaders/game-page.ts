@@ -28,15 +28,24 @@ export async function loadGamePage(slug: string, viewerId: string | null): Promi
 
 // Field by field, not the row as-is: getGameBySlug also selects columns the
 // contract doesn't declare (steam_appid), and anything the API sends becomes
-// something old app versions may depend on. TypeScript won't flag extra fields
-// on an existing object, so they'd leak silently.
-function toGameDetail(g: GameDetail): GameDetail {
+// part of the payload. TypeScript won't flag extra fields on an existing
+// object, so they'd leak silently.
+type GameRow = GameDetail & { steam_appid?: number | null }
+
+function toGameDetail(g: GameRow): GameDetail {
     return {
-        id: g.id, name: g.name, slug: g.slug, rawg_id: g.rawg_id,
-        cover_image_url: g.cover_image_url, released: g.released,
-        metacritic_score: g.metacritic_score, description: g.description,
-        esrb_rating: g.esrb_rating, reddit_url: g.reddit_url,
-        screenshots: g.screenshots, created_at: g.created_at,
+        id: g.id,
+        name: g.name,
+        slug: g.slug,
+        igdb_id: g.igdb_id,
+        cover_image_url: g.cover_image_url,
+        artwork_image_url: g.artwork_image_url,
+        released: g.released,
+        description: g.description,
+        esrb_rating: g.esrb_rating,
+        reddit_url: g.reddit_url,
+        screenshots: g.screenshots,
+        created_at: g.created_at,
     }
 }
 

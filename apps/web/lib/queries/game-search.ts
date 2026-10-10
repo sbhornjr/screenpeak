@@ -14,7 +14,7 @@ import { Game } from '@screenpeak/shared/types'
 export async function searchGamesByName(supabase: SupabaseClient, query: string, limit = 20): Promise<Game[]> {
     const { data } = await supabase
         .from('games')
-        .select('id, name, slug, cover_image_url, metacritic_score, released')
+        .select('id, name, slug, cover_image_url, released')
         .ilike('name', `%${query}%`)
         .limit(limit)
 

@@ -74,7 +74,6 @@ export default function GameFilters({ current, genres, platforms, esrb_ratings }
                 </FilterSelect>
                 <FilterSelect value={selectedSort} onChange={e => handleSort(e.target.value)} width="w-[calc(100%-3.25rem)] sm:w-44">
                     <option value="name">Name</option>
-                    <option value="metacritic_score">Metacritic Rating</option>
                     <option value="ngplus_rating">ScreenPeak Rating</option>
                 </FilterSelect>
                 <button

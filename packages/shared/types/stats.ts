@@ -29,5 +29,4 @@ export type HighlightType = {
     highlight_type: string
     rating: number
     released: string
-    metacritic_score: number
 }

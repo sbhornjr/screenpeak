@@ -26,8 +26,7 @@ export const colors = {
     text: '#dfe3ea',
     muted: '#8b919d',
 
-    // Split-screen players — used only by the stat compare
-    critic: '#e8a24e',
+    // Score panel — You is the accent, Community is the crowd
     community: '#9aa1ad',
     /** CSS: var(--color-accent) */
     you: '#47c6dd',
@@ -129,9 +128,9 @@ export function alpha(hex: string, opacity: number): string {
 }
 
 /**
- * Rating-tier colour for a score. `scale` is the range the score is on: 10 for
- * ScreenPeak / viewer scores, 100 for Metacritic — tiers are judged on the
- * normalised 0–10 value, so a 72 Metacritic reads "mid" just like a 7.
+ * Rating-tier colour for a score. `scale` is the range the score is on.
+ * ScreenPeak scores use 10. A scale of 100 normalises onto the same 0–10
+ * tiers (80 reads "good", the same as an 8).
  * Same thresholds as apps/web/lib/rating-tier.ts (which returns CSS vars instead).
  */
 export function tierColor(score: number, scale: 10 | 100 = 10): string {

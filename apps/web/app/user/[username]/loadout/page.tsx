@@ -213,7 +213,7 @@ export default async function LoadoutPage({ params } : LoadoutPageProps) {
                         {topGames.map(h =>
                             <GameCard
                                 key={h.game_id}
-                                game={{ id: h.game_id, name: h.game_name, slug: h.game_slug, cover_image_url: h.cover_image_url, metacritic_score: h.metacritic_score, released: h.released }}
+                                game={{ id: h.game_id, name: h.game_name, slug: h.game_slug, cover_image_url: h.cover_image_url, released: h.released }}
                                 developer={developerMap.get(h.game_id)}
                                 ngplusRating={avgRatings.find(r => String(r.game_id) == h.game_id)?.avg_rating}
                                 userRating={viewerRatings.find(r => String(r.game_id) == h.game_id)?.rating}
@@ -228,7 +228,7 @@ export default async function LoadoutPage({ params } : LoadoutPageProps) {
                         {bottomGames.map(h =>
                             <GameCard
                                 key={h.game_id}
-                                game={{ id: h.game_id, name: h.game_name, slug: h.game_slug, cover_image_url: h.cover_image_url, metacritic_score: h.metacritic_score, released: h.released }}
+                                game={{ id: h.game_id, name: h.game_name, slug: h.game_slug, cover_image_url: h.cover_image_url, released: h.released }}
                                 developer={developerMap.get(h.game_id)}
                                 ngplusRating={avgRatings.find(r => String(r.game_id) == h.game_id)?.avg_rating}
                                 userRating={viewerRatings.find(r => String(r.game_id) == h.game_id)?.rating}

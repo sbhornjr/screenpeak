@@ -13,7 +13,6 @@ export const og = {
     text: "#dfe3ea",
     muted: "#8b919d",
     accent: "#47c6dd",
-    critic: "#e8a24e",
     community: "#9aa1ad",
 } as const
 

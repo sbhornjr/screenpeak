@@ -43,6 +43,13 @@
       "when": 1791491677094,
       "tag": "0005_taxonomy_slug_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791491677095,
+      "tag": "0006_two_score_rpcs",
+      "breakpoints": true
     }
   ]
 }

@@ -17,8 +17,10 @@ vi.mock('@/lib/queries/user', () => ({ getDefaultListPublic: q.getDefaultListPub
 const { loadGamePage } = await import('@/lib/loaders/game-page')
 
 const GAME = {
-    id: 'game-1', name: "Baldur's Gate III", slug: 'baldurs-gate-3', rawg_id: 58175,
-    cover_image_url: 'https://media.rawg.io/x.jpg', released: '2023-08-03', metacritic_score: 97,
+    id: 'game-1', name: "Baldur's Gate III", slug: 'baldurs-gate-3', igdb_id: 1942,
+    cover_image_url: 'https://images.igdb.com/igdb/image/upload/t_cover_big/x.jpg',
+    artwork_image_url: 'https://images.igdb.com/igdb/image/upload/t_1080p/y.jpg',
+    released: '2023-08-03',
     description: 'Gather your party.', esrb_rating: 'Mature', reddit_url: null, screenshots: ['a.jpg'],
     created_at: '2026-01-01 00:00:00+00',
 }

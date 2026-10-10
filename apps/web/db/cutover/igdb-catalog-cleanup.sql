@@ -1,6 +1,7 @@
 -- CUTOVER DRAFT, intentionally outside the migration journal.
--- Task 5 must recreate score-dependent RPCs first; Task 8 allocates the final
--- numbered migration. Run all cleanup in one transaction after the explicit reset.
+-- 0006 already recreated the score RPCs without Metacritic outputs. This draft
+-- still drops rawg_id, metacritic_score and steam_appid. Do not run it until
+-- Task 7 stops sitemap.ts from ordering by metacritic_score. Task 8 journals it.
 -- No DELETE/TRUNCATE or CASCADE is allowed here; invalid old data must abort.
 DO $$
 DECLARE v_table text; v_invalid boolean;

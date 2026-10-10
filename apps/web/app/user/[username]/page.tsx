@@ -141,13 +141,13 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
                 {profile.user_bio
                     ? <p className="text-(--color-text) leading-relaxed max-w-2xl">{profile.user_bio}</p>
                     : <p className="text-(--color-muted) text-sm">{isOwnProfile ? "You haven't written a bio yet." : "No bio yet."}</p>}
-                <SectionHead action={isOwnProfile && <FavoriteGamePicker currentGames={favoriteGames.map(g => ({ id: String(g.id), name: g.name, slug: g.slug, cover_image_url: g.cover_image_url, metacritic_score: g.metacritic_score, released: g.released }))}/>}>Favorite Games</SectionHead>
+                <SectionHead action={isOwnProfile && <FavoriteGamePicker currentGames={favoriteGames.map(g => ({ id: String(g.id), name: g.name, slug: g.slug, cover_image_url: g.cover_image_url, released: g.released }))}/>}>Favorite Games</SectionHead>
                 {orderedFavorites.length > 0 ? (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
                         {orderedFavorites.map((g: GameData) =>
                             <GameCard
                                 key={g.id}
-                                game={{ id: String(g.id), name: g.name, slug: g.slug, cover_image_url: g.cover_image_url, metacritic_score: g.metacritic_score, released: g.released }}
+                                game={{ id: String(g.id), name: g.name, slug: g.slug, cover_image_url: g.cover_image_url, released: g.released }}
                                 developer={developerMap.get(String(g.id))}
                                 userRating={g.user_rating}
                                 ngplusRating={g.avg_ngplus_rating}

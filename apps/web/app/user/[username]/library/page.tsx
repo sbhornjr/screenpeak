@@ -9,6 +9,8 @@ import { getOptionalUser } from "@/lib/auth";
 import { getUserIdFromUsername, getAccountSettings } from "@/lib/queries/user";
 import { queryGames, getDeveloperNameMap } from "@/lib/queries/game";
 import { getLibraryFacets, getLibraryEntries } from "@/lib/queries/library";
+import { LIBRARY_SORTS, parseCatalogSortLenient } from "@/lib/game-catalog-sort";
+import { parseDbTimestamp } from "@/lib/dates";
 
 type LibraryPageProps = {
     params: Promise<{ username: string }>
@@ -33,8 +35,7 @@ export default async function LibraryPage({ params, searchParams } : LibraryPage
     const developerQuery = developer?.trim() ?? '';
     const publisherQuery = publisher?.trim() ?? '';
     const esrbQuery = esrb?.trim() ?? '';
-    const sortQuery = sort?.trim() ?? 'ngplus_rating';
-    const orderQuery = order?.trim() ?? 'desc';
+    const { sort: sortQuery, order: orderQuery } = parseCatalogSortLenient({ sort, order }, LIBRARY_SORTS)
     const statusQuery = status?.trim() ?? ''
     const is100Query = is100?.trim() === 'true'
 
@@ -80,14 +81,28 @@ export default async function LibraryPage({ params, searchParams } : LibraryPage
         developer: developerQuery || null,
         publisher: publisherQuery || null,
         esrb: esrbQuery || null,
-        sort: sortQuery,
-        order: orderQuery,
+        sort: sortQuery === 'date_added' ? 'name' : sortQuery,
+        order: sortQuery === 'date_added' ? 'asc' : orderQuery,
         userId: viewer?.id ?? null,
         gameIds: libraryGameIds,
         limit: 9999
     })
 
-    const finalGameIds = games?.map(g => g.id) ?? []
+    const listedGames = sortQuery === 'date_added'
+        ? [...games].sort((a, b) => {
+            const aAt = libraryEntries?.find(entry => entry.game_id == String(a.id))?.created_at
+            const bAt = libraryEntries?.find(entry => entry.game_id == String(b.id))?.created_at
+            const aTime = aAt ? parseDbTimestamp(aAt).getTime() : null
+            const bTime = bAt ? parseDbTimestamp(bAt).getTime() : null
+            if (aTime == null && bTime == null) return String(a.id) < String(b.id) ? -1 : 1
+            if (aTime == null) return 1
+            if (bTime == null) return -1
+            const delta = orderQuery === 'asc' ? aTime - bTime : bTime - aTime
+            if (delta !== 0) return delta
+            return String(a.id) < String(b.id) ? -1 : String(a.id) > String(b.id) ? 1 : 0
+        })
+        : games
+    const finalGameIds = listedGames?.map(g => g.id) ?? []
     const developerMap = await getDeveloperNameMap(finalGameIds)
 
     return (
@@ -108,14 +123,14 @@ export default async function LibraryPage({ params, searchParams } : LibraryPage
                 />
 
                 {/* Game grid */}
-                {games && games.length > 0 ? (
+                {listedGames && listedGames.length > 0 ? (
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                        {games.map(game => {
+                        {listedGames.map(game => {
                             const entry = libraryEntries?.find(le => le.game_id == String(game.id))
                             return (
                                 <GameCard
                                     key={game.id}
-                                    game={{ id: String(game.id), name: game.name, slug: game.slug, cover_image_url: game.cover_image_url, metacritic_score: game.metacritic_score, released: game.released }}
+                                    game={{ id: String(game.id), name: game.name, slug: game.slug, cover_image_url: game.cover_image_url, released: game.released }}
                                     developer={developerMap.get(String(game.id))}
                                     userRating={game.user_rating}
                                     ngplusRating={game.avg_ngplus_rating}

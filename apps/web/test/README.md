@@ -54,6 +54,10 @@ is mocked — logging behaviour is asserted through real `console` spies.
 | `components/Pagination.test.tsx` | `<Pagination>` | Page-window math (fixed-width run near edges, ellipses, `<= 7` shows all); `aria-current`; disabled arrows; href preserves params |
 | `components/DistributionChart.test.tsx` | `<DistributionChart>` | One row per bucket; `count · pct%` vs `0`; singular/plural caption |
 | `components/StatGrid.test.tsx` | `<StatGrid>` | One cell per stat; value + label rendered; caller `className` appended |
+| `components/StatCompare.test.tsx` | `<StatCompare>` | Exactly You and Community, both /10; signed-out, unrated, no ratings, one rating, a gap, and a personal score with a missing aggregate |
+| `lib/hero-game.test.ts` | `selectHeroGame` | At least three ratings, then community average, then id; a missing or zero average is not a score |
+| `lib/game-catalog-sort.test.ts` | `parseCatalogSort`, `parseCatalogSortLenient`, `compareCatalogGames` | Strict rejection of a Metacritic sort; lenient fallback to name ascending; community and name total order |
+| `integration/catalog-scores.integration.ts` (separate config) | Real Postgres score RPCs | `0006` keeps `metacritic_score`, restores execute grants and `SECURITY DEFINER`, orders `query_games` with a total order, and hides private libraries from recommendations, trending, and the feed |
 
 `smoke.test.ts` is not a characterization test — it just confirms the toolchain
 (TS compiles, the `@/*` alias resolves, `expect` works).

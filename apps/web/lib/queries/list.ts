@@ -49,7 +49,7 @@ export async function getListGames(listId: string): Promise<ListGameEntry[]> {
             .select({
                 games: {
                     id: games.id, name: games.name, slug: games.slug,
-                    cover_image_url: games.coverImageUrl, released: games.released, metacritic_score: games.metacriticScore,
+                    cover_image_url: games.coverImageUrl, released: games.released,
                 },
             })
             .from(listGames)

@@ -644,7 +644,7 @@ one screen.
 
 Build in order of the core loop — each is shippable to TestFlight on its own:
 
-1. **Game detail** — hero, the split-screen three-score compare, taxonomy,
+1. **Game detail** — hero, the two-score compare (You and Community, both /10), taxonomy,
    reviews list. Then the actions: rate/review, library entry sheet,
    add-to-list sheet.
 2. **Profile** — header, favorites, featured Loadout, follow/unfollow.
@@ -1051,7 +1051,7 @@ export default function GameScreen() {
     const { game, stats, viewer } = data                        // typed as GamePageData automatically
     return (
         <ScrollView>
-            <StatCompare critic={game.metacritic_score} community={stats.avg_rating} you={viewer?.review?.rating} />
+            <StatCompare signedIn={!!viewer} you={viewer?.review?.rating} community={stats.avg_rating} communityCount={stats.total_ratings} />
             …
         </ScrollView>
     )

@@ -70,7 +70,6 @@ export default function FeedItem({ item }: { item: FeedItemType }) {
                     gameDeveloper={item.game_developer}
                     userRating={item.viewer_game_rating}
                     avgRating={item.game_avg_rating}
-                    metacriticScore={item.game_metacritic_score}
                 />
             }
             {item.activity_type === "library_add_batch" && 

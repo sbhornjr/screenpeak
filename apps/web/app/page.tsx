@@ -15,7 +15,6 @@ import { FEED_PAGE_SIZE } from "@screenpeak/shared/constants";
 import { getHeroGame } from "@/lib/queries/game";
 import { getTrendingGames } from "@/lib/queries/explore";
 import { getRecentReviewsGlobal } from "@/lib/queries/review";
-import { tierColor } from "@/lib/rating-tier";
 import { parseDbTimestamp } from "@/lib/dates";
 import { getFeaturedLoadout } from "@/lib/queries/user";
 
@@ -36,39 +35,28 @@ export default async function Home() {
 
         return (
             <main>
-                {/* Hero — the tri-source rating tension, made concrete with a real game */}
-                <section className={`w-full max-w-6xl mx-auto px-6 pt-16 pb-20 grid grid-cols-1 gap-12 items-center ${heroGame ? "md:grid-cols-2" : ""}`}>
+                <section className={`w-full max-w-6xl mx-auto px-6 pt-16 pb-20 grid grid-cols-1 gap-12 items-center ${heroGame?.cover_image_url ? "md:grid-cols-2" : ""}`}>
                     <div>
-                        <Eyebrow className="!mb-4">{heroGame ? heroGame.name : 'Every game, three scores'}</Eyebrow>
-                        {heroGame ? (
-                            <h1 className="text-4xl sm:text-5xl md:text-6xl font-(family-name:--font-display) text-(--color-text) leading-[1.1] mb-6">
-                                Metacritic said <span style={{ color: tierColor(heroGame.metacritic_score, 100) }}>{heroGame.metacritic_score}</span>.
-                                {' '}ScreenPeak said <span style={{ color: tierColor(heroGame.avg_ngplus_rating) }}>{heroGame.avg_ngplus_rating}</span>.
-                            </h1>
-                        ) : (
-                            <h1 className="text-4xl sm:text-5xl md:text-6xl font-(family-name:--font-display) text-(--color-text) leading-[1.1] mb-6">
-                                Every game gets three scores.
-                            </h1>
-                        )}
-                        <p className="text-lg text-(--color-muted) mb-5 font-(family-name:--font-display) italic">
-                            What do you say?
-                        </p>
+                        <Eyebrow className="!mb-4">{heroGame ? heroGame.name : 'ScreenPeak'}</Eyebrow>
+                        <h1 className="text-4xl sm:text-5xl md:text-6xl font-(family-name:--font-display) text-(--color-text) leading-[1.1] mb-6">
+                            Your games. Your take.
+                        </h1>
                         {heroGame && (
                             <div className="mb-6">
                                 <StatCompare
-                                    critic={heroGame.metacritic_score}
+                                    signedIn={false}
+                                    you={null}
                                     community={heroGame.avg_ngplus_rating}
                                     communityCount={heroGame.rating_count}
-                                    you={null}
                                 />
                             </div>
                         )}
                         <p className="text-(--color-muted) mb-8 max-w-md leading-relaxed">
-                            ScreenPeak stamps every game you log with three scores: the critics&apos; verdict, the community&apos;s, and yours. Track your library, rate what you&apos;ve played, and see where you land.
+                            Track what you play, rate your games, and see how your take compares with the community.
                         </p>
                         <LandingCTA primaryLabel="Start Your Library" />
                     </div>
-                    {heroGame && (
+                    {heroGame?.cover_image_url && (
                         <div className="relative aspect-3/4 w-full max-w-sm mx-auto rounded-[3px] overflow-hidden
                             border border-(--color-border) shadow-[0_20px_50px_rgba(0,0,0,0.5)] -rotate-2">
                             <Image
@@ -79,8 +67,7 @@ export default async function Home() {
                                 sizes="(max-width: 768px) 80vw, 400px"
                                 priority
                             />
-                            <Seal label="MC" score={heroGame.metacritic_score} side="right" scale={100} />
-                            <Seal label="SP" score={heroGame.avg_ngplus_rating} side="left" />
+                            <Seal label="SP" score={heroGame.avg_ngplus_rating} side="right" />
                         </div>
                     )}
                 </section>
@@ -127,7 +114,7 @@ export default async function Home() {
                             {trendingGames.slice(0, 5).map(game => (
                                 <GameCard
                                     key={game.game_id}
-                                    game={{ id: game.game_id, name: game.game_name, slug: game.game_slug, cover_image_url: game.game_cover_image_url, metacritic_score: game.metacritic_score, released: game.game_released }}
+                                    game={{ id: game.game_id, name: game.game_name, slug: game.game_slug, cover_image_url: game.game_cover_image_url, released: game.game_released }}
                                     developer={game.game_developer}
                                     ngplusRating={game.avg_rating}
                                     userRating={null}

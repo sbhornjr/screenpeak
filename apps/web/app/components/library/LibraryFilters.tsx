@@ -118,7 +118,6 @@ export default function LibraryFilters({ current, genres, platforms, developers,
                 <FilterSelect value={selectedSort} onChange={e => handleSort(e.target.value)} width="w-[calc(100%-3.25rem)] sm:w-44">
                     <option value="date_added">Date Added</option>
                     <option value="name">Name</option>
-                    <option value="metacritic_score">Metacritic Rating</option>
                     <option value="ngplus_rating">ScreenPeak Rating</option>
                     <option value="your_rating">Your Rating</option>
                 </FilterSelect>

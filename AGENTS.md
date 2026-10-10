@@ -164,8 +164,9 @@ queries, gates privacy, or reshapes rows into the contract. A single query that 
 return the contract type itself is called directly by both the page and the route
 (`getGameReviewsForPage` → `GET /api/v1/games/[slug]/reviews`). Either way:
 - Return a type **declared in `@screenpeak/shared/api/*`** (never inferred from the
-  loader or query), and treat it as public: old app versions keep calling it, so change it
-  additively.
+  loader or query). The IGDB prelaunch reset changed this v1 contract in place
+  (no `rawg_id`, no Metacritic, `igdb_id` and `artwork_image_url` added). Once a
+  client ships, change it additively.
 - **Build the response field by field** — or, for a query returned as-is, make its
   `select` list exactly the contract's columns. Extra columns leak silently
   (TypeScript won't flag them); send only what the screen needs, not whole rows
@@ -222,8 +223,8 @@ Required in `.env.local` (gitignored):
 
 - **Design system** — "ScreenPeak": screen-peeking at what your friends play.
   Cool-graphite dark ground, one electron-beam cyan accent treated as phosphor
-  light, and a **split-screen** motif — the three scores (critic / community /
-  you) sit side by side like players sharing a screen. All colour, type, and
+  light, and a **split-screen** motif — You and Community sit side by side.
+  All colour, type, and
   spacing go through CSS custom properties in `app/globals.css`; reference them
   as Tailwind arbitrary properties, e.g. `bg-(--color-bg)`, `text-(--color-text)`,
   `border-(--color-border)`. Do **not** hardcode hex. `packages/shared/tokens.ts`
@@ -235,8 +236,7 @@ Required in `.env.local` (gitignored):
     (genuine secondary text only — not paragraphs)
   - Accent: `--color-accent` `#47c6dd` (electron cyan) — primary buttons, links,
     active nav, and the seam marker. Cool, not icy-pastel; never purple, never brass.
-  - Split-screen "player" colours (`--color-critic` = P1 warm `#e8a24e`,
-    `--color-community` = P2 grey `#9aa1ad`, `--color-you` = P3 = the accent) —
+  - Score colours (`--color-you` = the accent, `--color-community` = `#9aa1ad`) —
     used only by the stat compare.
   - Rating tiers (reserved for score *values* on cards / distributions, never
     decoration): `--color-good` `#4f86c6` (≥8), `--color-mid` `#e0a13f` (6–7),

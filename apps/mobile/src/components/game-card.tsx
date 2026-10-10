@@ -11,7 +11,7 @@ import { alpha, colors, face, overlays, radius, space, tracking, trackingPx } fr
 export type GameCardProps = {
   game: Game;
   developer?: string | null;
-  /** ScreenPeak community score (/10) — shown instead of Metacritic when present */
+  /** ScreenPeak community score (/10). Absent when nobody has rated the game. */
   spRating?: number | null;
   /** The viewer's own score (/10) */
   userRating?: number | null;
@@ -44,9 +44,6 @@ export function GameCard({ game, developer, spRating, userRating, libraryStatus,
               </View>
             )}
 
-            {!spRating && game.metacritic_score ? (
-              <Seal label="MC" score={game.metacritic_score} side="right" scale={100} />
-            ) : null}
             {spRating ? <Seal label="SP" score={spRating} side="right" /> : null}
             {userRating ? <Seal label="You" score={userRating} side="left" /> : null}
 
