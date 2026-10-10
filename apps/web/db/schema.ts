@@ -11,13 +11,11 @@ export const usersInAuth = authSchema.table("users", {
 
 export const genres = pgTable("genres", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
-	rawgId: integer("rawg_id"),
-	igdbId: integer("igdb_id"),
+	igdbId: integer("igdb_id").notNull(),
 	providerUpdatedAt: timestamp("provider_updated_at", { withTimezone: true, mode: 'string' }),
 	name: text().notNull(),
 	slug: text().notNull(),
 }, (table) => [
-	unique("genres_rawg_id_key").on(table.rawgId),
 	unique("genres_igdb_id_key").on(table.igdbId),
 	unique("genres_slug_key").on(table.slug),
 	check("genres_igdb_id_positive", sql`${table.igdbId} > 0`),
@@ -26,13 +24,11 @@ export const genres = pgTable("genres", {
 
 export const platforms = pgTable("platforms", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
-	rawgId: integer("rawg_id"),
-	igdbId: integer("igdb_id"),
+	igdbId: integer("igdb_id").notNull(),
 	providerUpdatedAt: timestamp("provider_updated_at", { withTimezone: true, mode: 'string' }),
 	name: text().notNull(),
 	slug: text().notNull(),
 }, (table) => [
-	unique("platforms_rawg_id_key").on(table.rawgId),
 	unique("platforms_igdb_id_key").on(table.igdbId),
 	unique("platforms_slug_key").on(table.slug),
 	check("platforms_igdb_id_positive", sql`${table.igdbId} > 0`),
@@ -41,13 +37,11 @@ export const platforms = pgTable("platforms", {
 
 export const developers = pgTable("developers", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
-	rawgId: integer("rawg_id"),
-	igdbId: integer("igdb_id"),
+	igdbId: integer("igdb_id").notNull(),
 	providerUpdatedAt: timestamp("provider_updated_at", { withTimezone: true, mode: 'string' }),
 	name: text().notNull(),
 	slug: text().notNull(),
 }, (table) => [
-	unique("developers_rawg_id_key").on(table.rawgId),
 	unique("developers_igdb_id_key").on(table.igdbId),
 	unique("developers_slug_key").on(table.slug),
 	check("developers_igdb_id_positive", sql`${table.igdbId} > 0`),
@@ -57,18 +51,15 @@ export const developers = pgTable("developers", {
 export const games = pgTable("games", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow(),
-	rawgId: integer("rawg_id"),
-	igdbId: integer("igdb_id"),
+	igdbId: integer("igdb_id").notNull(),
 	name: text().notNull(),
 	slug: text().notNull(),
 	coverImageUrl: text("cover_image_url"),
 	released: date(),
-	metacriticScore: integer("metacritic_score"),
 	description: text(),
 	esrbRating: text("esrb_rating"),
 	redditUrl: text("reddit_url"),
 	screenshots: text().array(),
-	steamAppid: integer("steam_appid"),
 	gameType: integer("game_type"),
 	artworkImageUrl: text("artwork_image_url"),
 	providerSlug: text("provider_slug"),
@@ -76,23 +67,19 @@ export const games = pgTable("games", {
 	metadataSyncedAt: timestamp("metadata_synced_at", { withTimezone: true, mode: 'string' }),
 	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
 }, (table) => [
-	unique("games_rawg_id_key").on(table.rawgId),
 	unique("games_igdb_id_key").on(table.igdbId),
 	check("games_igdb_id_positive", sql`${table.igdbId} > 0`),
-	unique("games_steam_appid_key").on(table.steamAppid),
 	unique("games_slug_key").on(table.slug),
 	pgPolicy("Public read access", { as: "permissive", for: "select", to: ["public"], using: sql`true` }),
 ]);
 
 export const publishers = pgTable("publishers", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
-	rawgId: integer("rawg_id"),
-	igdbId: integer("igdb_id"),
+	igdbId: integer("igdb_id").notNull(),
 	providerUpdatedAt: timestamp("provider_updated_at", { withTimezone: true, mode: 'string' }),
 	name: text().notNull(),
 	slug: text().notNull(),
 }, (table) => [
-	unique("publishers_rawg_id_key").on(table.rawgId),
 	unique("publishers_igdb_id_key").on(table.igdbId),
 	unique("publishers_slug_key").on(table.slug),
 	check("publishers_igdb_id_positive", sql`${table.igdbId} > 0`),

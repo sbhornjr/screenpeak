@@ -36,7 +36,7 @@ both out of 10, side by side: the ScreenPeak community average, and yours.
 
 - Node.js 20+ (developed on Node 24)
 - A Supabase project (Postgres + Auth + Storage)
-- API keys for RAWG, Anthropic, and Steam (see below)
+- API keys for Twitch (IGDB), Anthropic, and Steam (see below)
 
 ### Environment
 
@@ -47,7 +47,7 @@ Create `.env.local` in the project root (gitignored):
 NEXT_PUBLIC_SUPABASE_URL=https://<project>.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key>
 
-# Supabase — server-only secret (admin client: seed script, account deletion)
+# Supabase — server-only secret (admin client: account deletion)
 SUPABASE_SECRET_KEY=<service-role-key>
 
 # Postgres — Drizzle's direct DB access (lib/db.ts and lib/queries/*)
@@ -59,9 +59,10 @@ DATABASE_POOL_URL=<transaction-pooler-connection-string> # the app's runtime cli
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 
 # External APIs
-RAWG_API_KEY=<rawg-key>          # legacy seed script only; /steamlink uses IGDB
-ANTHROPIC_API_KEY=<anthropic-key> # Loadout identity generation
-STEAM_API_KEY=<steam-web-api-key> # Steam library import + achievements
+TWITCH_CLIENT_ID=<twitch-client-id>         # IGDB catalogue seed and Steam-app matching
+TWITCH_CLIENT_SECRET=<twitch-client-secret>
+ANTHROPIC_API_KEY=<anthropic-key>           # Loadout identity generation
+STEAM_API_KEY=<steam-web-api-key>           # Steam library import + achievements
 ```
 
 ### Install & run
@@ -97,16 +98,15 @@ grants — only RLS auto-enables. If the app gets `permission denied for table
 
 ### Seed game data
 
-The legacy `games` seed still reads the RAWG API. The seed script needs
-`RAWG_API_KEY` and `SUPABASE_SECRET_KEY` in `.env.local`. `/steamlink` does
-not. It matches a Steam library through IGDB (`lib/catalog/steam-import.ts`).
+Catalogue seeding reads IGDB with Twitch credentials. It does not use a RAWG
+key. `/steamlink` matches a Steam library through IGDB
+(`lib/catalog/steam-import.ts`). The hosted cutover order, including
+`seed:igdb --top` after the catalogue reset, is
+[docs/igdb-cutover-checklist.md](docs/igdb-cutover-checklist.md).
 
 ```bash
-npm run seed     # fetches top-rated games from RAWG and upserts them
+npm run seed:igdb -w @screenpeak/web -- --help
 ```
-
-`scripts/seed-games.ts` skips games already in the DB, so it's safe to re-run
-and resumes after a crash.
 
 ## Scripts
 
@@ -115,7 +115,7 @@ npm run dev         # Next.js dev server
 npm run build       # production build
 npm run start       # serve the production build
 npm run lint        # ESLint
-npm run seed        # seed games from RAWG (needs RAWG_API_KEY + SUPABASE_SECRET_KEY; /steamlink uses IGDB)
+npm run seed:igdb -w @screenpeak/web -- --help   # IGDB catalogue seed (see docs/igdb-cutover-checklist.md)
 npm test            # run the Vitest suite once
 npm run test:watch  # Vitest in watch mode
 npx tsc --noEmit    # type-check (no dedicated script)
@@ -171,7 +171,6 @@ lib/
   logger.ts              structured JSON logger with sensitive-key redaction
   plus1.ts               fire the "+1" tic event (signature interaction)
   titles.ts              compute selectable profile titles from a user's stats
-  rawg.ts                RAWG fetch + game upsert; Steam→RAWG name matcher
   steam.ts               Steam Web API — owned games, achievement completion
   steam-openid.ts        Steam OpenID 2.0 relying-party helpers
   schemas.ts             shared Zod schemas (forms + query-layer input checks)
@@ -185,8 +184,11 @@ lib/
                          bundle (see Architecture notes)
 
 scripts/
-  seed-games.ts          bulk-seed games from RAWG
-  inspect-rawg.ts        ad-hoc RAWG response inspection
+  seed-igdb.ts           IGDB catalogue seed (npm run seed:igdb)
+  reset-catalog-to-igdb.ts
+                         catalogue reset (npm run reset:catalog)
+  establish-migration-journal.ts
+                         local migration journal (npm run migrate:journal)
 
 types/                   shared TypeScript types, mirroring lib/queries domains
 test/                    Vitest characterization suite (see test/README.md)
@@ -209,7 +211,7 @@ direct Postgres access — **do not mix them**:
 | `lib/db.ts` | `lib/queries/*` — everything outside Auth/Storage | `import { db } from '@/lib/db'` — sync, module-scope singleton, never pass as a function param |
 
 The admin client (service-role key) is constructed inline where needed
-(`app/api/delete-account/route.ts`, `scripts/seed-games.ts`) and never used from
+(`app/api/delete-account/route.ts`) and never used from
 the browser.
 
 `db` connects through Supabase's transaction pooler using a role with
@@ -268,7 +270,7 @@ all land on `app/auth/confirm/route.ts`, which handles both the custom-template
 
 ### External APIs
 
-- **RAWG** — legacy catalogue seed, via `lib/rawg.ts` and `scripts/seed-games.ts`. `/steamlink` matches through IGDB instead.
+- **IGDB** — catalogue seed and Steam-app matching, via the Twitch client-credentials API (`lib/igdb/`). `/steamlink` reads `game_external_ids`.
 - **Anthropic** — generates the Loadout identity paragraph in `lib/loadout.ts`
   (model `claude-sonnet-4-6`, `max_tokens: 200`). Failures degrade gracefully to
   an empty string; the paragraph is a bonus, not required page content. Rate
@@ -277,7 +279,7 @@ all land on `app/auth/confirm/route.ts`, which handles both the custom-template
   behind a Steam OpenID 2.0 sign-in (`lib/steam-openid.ts`). Powers the
   `/steamlink` library-import flow.
 - **Supabase Storage** — user avatars and game images. Remote image patterns
-  (`next.config.ts`): `media.rawg.io` and `*.supabase.co/storage/v1/object/public/**`.
+  (`next.config.ts`): `images.igdb.com` for game art, plus the R2 public host for avatars.
 
 ### Security headers
 
@@ -317,7 +319,7 @@ vertical cyan "seam" as the recurring structural marker.
 Vitest characterization suite in `test/` — it pins the *current* observable
 behaviour of the project's logic so refactors have a safety net. Tests sit at
 public seams (exported functions, rendered components); the only mocks are true
-system boundaries (`fetch` to RAWG/Steam/Anthropic, and the Supabase client).
+system boundaries (`fetch` to IGDB/Steam/Anthropic, and the Supabase client).
 
 Node is the default environment; DOM specs opt in per file with a
 `// @vitest-environment jsdom` docblock. Config: `vitest.config.mts`. See

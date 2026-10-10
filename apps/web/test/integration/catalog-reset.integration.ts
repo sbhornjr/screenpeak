@@ -1,4 +1,8 @@
-import { readFile } from 'node:fs/promises'
+import { execFile } from 'node:child_process'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { promisify } from 'node:util'
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, expect, it } from 'vitest'
 import postgres from 'postgres'
@@ -9,6 +13,7 @@ import { applyPending, ensureLocalAuthStubs, inspectMigrations, stampBaseline, t
 import { applyCatalogReset, backupResetState, buildManifest, planCatalogReset, resetFromProvider, restoreResetState } from '@/lib/catalog/reset'
 import { SeedInterrupted, seedCatalogGames, storedIgdbIds } from '@/lib/catalog/seed'
 
+const exec = promisify(execFile)
 const url = process.env.TEST_DATABASE_URL
 if (!url) throw new Error('Set TEST_DATABASE_URL to a disposable local database.')
 const parsed = new URL(url)
@@ -74,11 +79,14 @@ it('stamps 0000–0002 without replay, then applies only the pending migrations'
         '0000_illegal_kinsey_walden', '0001_functions_and_triggers', '0002_fix_get_feed_library_privacy',
     ])
     expect(await stampBaseline(sql)).toEqual([])
-    const applied = await applyPending(sql)
+    const applied = await applyPending(sql, undefined, { through: '0006_two_score_rpcs' })
     expect(applied).toEqual(['0003_igdb_request_budget', '0004_igdb_catalog_preparation', '0005_taxonomy_slug_unique', '0006_two_score_rpcs'])
-    expect(await applyPending(sql)).toEqual([])
     const [row] = await client`select rawg_id, igdb_id, slug from games where id = ${legacyId}`
     expect(row).toEqual({ rawg_id: 900, igdb_id: null, slug: 'legacy' })
+    await expect(applyPending(sql)).rejects.toThrow(/IGDB cleanup refused/)
+    expect(await client`select rawg_id, igdb_id, slug from games where id = ${legacyId}`).toEqual([{ rawg_id: 900, igdb_id: null, slug: 'legacy' }])
+    const pending = await inspectMigrations(sql)
+    expect(pending.pending).toEqual(['0007_igdb_catalog_cleanup'])
 })
 
 it('aborts the taxonomy uniqueness migration when slugs collide and keeps the rows', async () => {
@@ -216,6 +224,69 @@ it('commits a seed batch and names the games left when the next batch fails', as
     expect(stored.sort((left, right) => left - right)).toEqual(good.map(row => row.igdbId))
 }, 60_000)
 
+it('allows an empty reset at 25 games and skips reset_backup when that apply is refused', async () => {
+    const fresh = await createDatabase('floor_')
+    const dir = await mkdtemp(join(tmpdir(), 'screenpeak-reset-'))
+    const manifestPath = join(dir, 'manifest.json')
+    try {
+        const sql = fresh as unknown as MigrationSql
+        await ensureLocalAuthStubs(sql)
+        await fresh.unsafe(await migration('0000_illegal_kinsey_walden'))
+        await fresh.unsafe(await migration('0001_functions_and_triggers'))
+        await fresh.unsafe(await migration('0002_fix_get_feed_library_privacy'))
+        await stampBaseline(sql)
+        await applyPending(sql, undefined, { through: '0006_two_score_rpcs' })
+        await fresh`insert into games (rawg_id, name, slug) select i, 'Game ' || i, 'game-' || i from generate_series(1, 25) as i`
+        const floorDb = drizzle(fresh) as unknown as DB
+        const empty = await buildManifest(floorDb, [], randomUUID())
+        expect((await planCatalogReset(floorDb, empty)).blocked).toMatch(/empty/)
+        expect((await planCatalogReset(floorDb, empty, { allowEmpty: true })).blocked).toBeNull()
+        await writeFile(manifestPath, JSON.stringify(empty))
+        const [named] = await fresh`select current_database() as name`
+        const target = databaseUrl(String(named.name))
+        const run = (args: string[]) => exec(process.execPath, ['--conditions=react-server', '--import', 'tsx', 'scripts/reset-catalog-to-igdb.ts', '--database-env', 'TEST_DATABASE_URL', '--manifest', manifestPath, ...args], {
+            env: { ...process.env, TEST_DATABASE_URL: target },
+        })
+        const refused = await run(['--apply']).then(() => '', reason => String(reason))
+        expect(refused).toMatch(/empty/)
+        expect(refused).not.toMatch(/allow-small/)
+        expect(await fresh`select nspname from pg_namespace where nspname like 'reset_backup%'`).toEqual([])
+        expect(await fresh`select count(*)::int as n from games`).toEqual([{ n: 25 }])
+        const dry = JSON.parse((await run(['--allow-empty'])).stdout)
+        expect(dry.dryRun).toBe(true)
+        expect(dry.blocked).toBeNull()
+        expect(dry.games).toBe(25)
+        await run(['--apply', '--allow-empty'])
+        expect(await fresh`select count(*)::int as n from games`).toEqual([{ n: 0 }])
+        expect(await fresh`select nspname from pg_namespace where nspname = 'reset_backup'`).toEqual([{ nspname: 'reset_backup' }])
+    } finally {
+        await rm(dir, { recursive: true, force: true })
+        await fresh.end()
+    }
+}, 60_000)
+
+it('rolls back 0003–0006 when 0007 is in the same pending batch as a legacy row', async () => {
+    const fresh = await createDatabase('dirty_')
+    try {
+        const sql = fresh as unknown as MigrationSql
+        await ensureLocalAuthStubs(sql)
+        await fresh.unsafe(await migration('0000_illegal_kinsey_walden'))
+        await fresh.unsafe(await migration('0001_functions_and_triggers'))
+        await fresh.unsafe(await migration('0002_fix_get_feed_library_privacy'))
+        await fresh`insert into games (rawg_id, name, slug) values (901, 'Legacy', 'legacy-dirty')`
+        expect(await stampBaseline(sql)).toEqual([
+            '0000_illegal_kinsey_walden', '0001_functions_and_triggers', '0002_fix_get_feed_library_privacy',
+        ])
+        await expect(applyPending(sql)).rejects.toThrow(/IGDB cleanup refused/)
+        expect(await fresh`select to_regclass('igdb_private.steam_match_cache') as cache`).toEqual([{ cache: null }])
+        expect(await fresh`select column_name from information_schema.columns where table_schema = 'public' and table_name = 'games' and column_name = 'rawg_id'`)
+            .toEqual([{ column_name: 'rawg_id' }])
+        expect(await fresh`select count(*)::int as n from drizzle.__drizzle_migrations`).toEqual([{ n: 3 }])
+    } finally {
+        await fresh.end()
+    }
+}, 60_000)
+
 it('applies the whole chain on an empty database and records every file', async () => {
     const fresh = await createDatabase('empty_')
     try {
@@ -223,14 +294,19 @@ it('applies the whole chain on an empty database and records every file', async 
         await ensureLocalAuthStubs(sql)
         const applied = await applyPending(sql)
         expect(applied[0]).toBe('0000_illegal_kinsey_walden')
-        expect(applied.at(-1)).toBe('0006_two_score_rpcs')
+        expect(applied.at(-1)).toBe('0007_igdb_catalog_cleanup')
         expect(await applyPending(sql)).toEqual([])
+        const recorded = await inspectMigrations(sql)
+        expect(recorded.baseline).toBe('recorded')
+        expect(recorded.pending).toEqual([])
+        expect(recorded.reasons.join(' ')).toMatch(/already recorded/)
+        expect(await stampBaseline(sql)).toEqual([])
         const [column] = await fresh`select is_nullable from information_schema.columns where table_schema = 'public' and table_name = 'games' and column_name = 'igdb_id'`
-        expect(column.is_nullable).toBe('YES')
-        const [metacritic] = await fresh`select column_name from information_schema.columns where table_schema = 'public' and table_name = 'games' and column_name = 'metacritic_score'`
-        expect(metacritic.column_name).toBe('metacritic_score')
+        expect(column.is_nullable).toBe('NO')
+        const dropped = await fresh`select column_name from information_schema.columns where table_schema = 'public' and column_name in ('rawg_id', 'metacritic_score', 'steam_appid')`
+        expect(dropped).toEqual([])
         const [count] = await fresh`select count(*)::int as n from drizzle.__drizzle_migrations`
-        expect(count.n).toBe(7)
+        expect(count.n).toBe(8)
     } finally {
         await fresh.end()
     }

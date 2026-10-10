@@ -1,3 +1,3 @@
 - metadata for most/all pages
 - achievements data from steam
-- sequels and other data from rawg
+- sequels and other data from IGDB

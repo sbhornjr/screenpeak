@@ -19,7 +19,7 @@ This is a **characterization suite** — it pins down the *current* observable
 behaviour of the project's logic so refactors have a safety net. Tests sit at
 public seams (exported functions, rendered components), never against internals.
 The only things mocked are true system boundaries: `fetch` (outbound HTTP to
-RAWG / Steam / Anthropic) and the Supabase client (DB). No internal collaborator
+IGDB / Steam / Anthropic) and the Supabase client (DB). No internal collaborator
 is mocked — logging behaviour is asserted through real `console` spies.
 
 | Spec | Seam | Behaviour locked in |
@@ -46,8 +46,7 @@ is mocked — logging behaviour is asserted through real `console` spies.
 | `lib/catalog/upsert.test.ts` | Catalogue boundary | Required complete snapshots, valid IDs/dates/URLs, unique taxonomy IDs, and unsuffixed local slugs |
 | `lib/catalog/cutover.test.ts` | Reset/seed policy | Local-only database URLs, rating-count ranking, shared Steam ids removed before write, 401/429 never a negative-cache decision, stable reset checksums |
 | `integration/catalog-migration.integration.ts` (separate config) | Real Postgres catalogue | Preparation chain, concurrent writes, relation replacement, rollback, stale snapshots, unsuffixed and colliding slugs (including the `igdb-<id>` and `<slug>-igdb-<id>` fallbacks), missing provider timestamps, shared Steam ids, 401/429 cache refusal, grant revocation, and guarded cleanup |
-| `integration/catalog-reset.integration.ts` (separate config) | Migration journal and catalogue reset | Baseline stamp before 0003/0004, empty-database chain, duplicate-slug abort, seed without clearing users, dry-run, rollback, stale manifest, replay refusal, and in-database backup restore |
-| `lib/rawg.test.ts` | `importGameFromSteam` | The 4-strategy Steam→RAWG name matcher: exact, roman-vs-arabic sequels, diacritics, `(YYYY)` suffix on either side; `null` + no write when unmatched |
+| `integration/catalog-reset.integration.ts` (separate config) | Migration journal and catalogue reset | Baseline stamp before 0003/0004, `--through 0006` while a legacy row blocks 0007, full pending batch rolls back, empty-database chain drops `rawg_id` / `metacritic_score` / `steam_appid`, duplicate-slug abort, seed without clearing users, dry-run, rollback, stale manifest, replay refusal, and in-database backup restore |
 | `lib/steam.test.ts` | `getOwnedGames`, `getPlayerAchievementCompletion`, `getFullyCompletedAppids` | Public-profile mapping; hidden-details → `undefined` (not zero); throw/log on non-ok owned-games; achievement completion truth table; errors swallowed to `false`; concurrent 100%-set collection |
 | `lib/loadout.test.ts` | `generateLoadoutIdentity` | Returns model text on success; degrades to `''` + logs on API failure; `''` for non-text content blocks |
 | `lib/queries.game.test.ts` | `getGameTaxonomy`, `getDistinctEsrbRatings`, `getDeveloperNameMap` | Embedded-row flattening + missing sections; a taxonomy query error rejects instead of an empty section; de-dupe/drop-null/sort; first-wins map with string-normalised keys; developer-map error → empty map + log |
@@ -79,6 +78,8 @@ is mocked — logging behaviour is asserted through real `console` spies.
 - Server Components, route handlers, `proxy.ts`, and `feed-actions.ts` — these
   are integration/E2E territory (they compose auth + DB + framework) and need a
   running stack, not unit mocks.
-- `scripts/` (`seed-games.ts`, `inspect-rawg.ts`) — one-shot operational
-  scripts; their reusable core (`seedGame`, `importGameFromSteam`) is exercised
-  via `lib/rawg.test.ts`.
+- `scripts/seed-igdb.ts`, `scripts/reset-catalog-to-igdb.ts`, and
+  `scripts/establish-migration-journal.ts` — owner cutover commands. The
+  gates they share (`assertDisposableDatabase`, reset size, ranking) are
+  covered by `lib/catalog/cutover.test.ts`. The SQL they apply is covered by
+  the Postgres integration files.

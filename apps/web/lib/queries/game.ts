@@ -23,7 +23,6 @@ export async function getGameBySlug(slug: string) {
             esrb_rating: games.esrbRating,
             reddit_url: games.redditUrl,
             screenshots: games.screenshots,
-            steam_appid: games.steamAppid,
         })
         .from(games)
         .where(eq(games.slug, slug))
@@ -199,12 +198,7 @@ export async function getGamesFromSteamIds(gameIds: number[]) {
     const results: { id: string, name: string, slug: string, cover_image_url: string | null, released: string | null, steam_appid: number }[] = []
     const seen = new Set<number>()
     // One game can match several Steam apps; callers collapse on game id.
-    // Task 8 drops games.steam_appid. Steam import no longer reads it. This
-    // fallback remains so rows written only by the old importer still resolve.
-    const legacyColumn = await db.execute(sql`select 1 as present from information_schema.columns
-        where table_schema = 'public' and table_name = 'games' and column_name = 'steam_appid'`)
-    const legacy = legacyColumn.length > 0
-
+    // Matches come from game_external_ids. games.steam_appid is dropped by 0007.
     try {
         for (let i = 0; i < wanted.length; i += CHUNK_SIZE) {
             const chunk = wanted.slice(i, i + CHUNK_SIZE)
@@ -225,23 +219,6 @@ export async function getGamesFromSteamIds(gameIds: number[]) {
                 if (!Number.isInteger(steam_appid) || seen.has(steam_appid)) continue
                 seen.add(steam_appid)
                 results.push({ id: row.id, name: row.name, slug: row.slug, cover_image_url: row.cover_image_url, released: row.released, steam_appid })
-            }
-            if (!legacy) continue
-            const rows = await db
-                .select({
-                    id: games.id,
-                    name: games.name,
-                    slug: games.slug,
-                    cover_image_url: games.coverImageUrl,
-                    released: games.released,
-                    steam_appid: games.steamAppid,
-                })
-                .from(games)
-                .where(inArray(games.steamAppid, chunk))
-            for (const row of rows) {
-                if (row.steam_appid == null || seen.has(row.steam_appid)) continue
-                seen.add(row.steam_appid)
-                results.push({ id: row.id, name: row.name, slug: row.slug, cover_image_url: row.cover_image_url, released: row.released, steam_appid: row.steam_appid })
             }
         }
     } catch (error) {

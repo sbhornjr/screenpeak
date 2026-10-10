@@ -94,7 +94,7 @@ export async function classifyBaseline(sql: MigrationSql): Promise<{ kind: 'empt
 export type MigrationInspection = {
     applied: { hash: string; createdAt: number }[]
     pending: string[]
-    baseline: 'empty' | 'ready' | 'reject'
+    baseline: 'empty' | 'ready' | 'reject' | 'recorded'
     reasons: string[]
 }
 
@@ -102,10 +102,20 @@ export async function inspectMigrations(sql: MigrationSql, files = readMigration
     const applied = await readApplied(sql)
     const last = applied.reduce((max, row) => Math.max(max, row.createdAt), -1)
     const baseline = await classifyBaseline(sql)
-    return {
-        applied, baseline: baseline.kind, reasons: baseline.reasons,
-        pending: files.filter(file => file.when > last).map(file => file.tag),
+    const pending = files.filter(file => file.when > last).map(file => file.tag)
+    const recorded = new Set(applied.map(row => row.hash))
+    const baselineRecorded = baselineFiles(files).every(file => recorded.has(file.hash))
+    // classifyBaseline still requires the pre-0004 columns. After the journal exists that check is historical.
+    if (baselineRecorded) {
+        const note = '0000–0002 are already recorded. The pre-stamp column check fails once igdb_id exists or 0007 drops rawg_id, metacritic_score, and steam_appid. That is expected. stampBaseline on a matching journal returns an empty list and does not rewrite it.'
+        return {
+            applied,
+            baseline: 'recorded',
+            reasons: baseline.kind === 'reject' ? [note, ...baseline.reasons] : baseline.reasons,
+            pending,
+        }
     }
+    return { applied, baseline: baseline.kind, reasons: baseline.reasons, pending }
 }
 
 async function ensureJournal(sql: MigrationSql): Promise<void> {
@@ -142,7 +152,7 @@ export async function stampBaseline(sql: MigrationSql, files = readMigrations())
     return baseline.map(file => file.tag)
 }
 
-export async function applyPending(sql: MigrationSql, files = readMigrations()): Promise<string[]> {
+export async function applyPending(sql: MigrationSql, files = readMigrations(), options: { through?: string } = {}): Promise<string[]> {
     const applied = await readApplied(sql)
     const state = await classifyBaseline(sql)
     const recorded = new Set(applied.map(row => row.hash))
@@ -150,7 +160,12 @@ export async function applyPending(sql: MigrationSql, files = readMigrations()):
     if (state.kind !== 'empty' && !baselineRecorded)
         throw new Error('Refusing to apply migrations. Record the 0000–0002 baseline on this copy before applying 0003 or later. Do not replay 0000.')
     const last = applied.reduce((max, row) => Math.max(max, row.createdAt), -1)
-    const pending = files.filter(file => file.when > last)
+    let pending = files.filter(file => file.when > last)
+    if (options.through) {
+        const limit = files.find(file => file.tag === options.through)
+        if (!limit) throw new Error(`Unknown migration ${options.through}.`)
+        pending = pending.filter(file => file.when <= limit.when)
+    }
     if (state.kind !== 'empty' && pending.some(file => (BASELINE_TAGS as readonly string[]).includes(file.tag)))
         throw new Error('Refusing to replay a baseline migration on a database that already has tables.')
     if (!pending.length) return []
