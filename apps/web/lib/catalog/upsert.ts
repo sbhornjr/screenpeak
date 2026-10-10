@@ -1,4 +1,5 @@
 import 'server-only'
+import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { and, eq, sql } from 'drizzle-orm'
 import { db, type DB } from '@/lib/db'
@@ -24,11 +25,19 @@ export const catalogGameSchema = z.object({
     developers: taxaSchema, publishers: taxaSchema, steamAppIds: z.array(positiveId),
 }).strict()
 
-export function catalogSlug(providerSlug: string, igdbId: number): string {
-    const base = providerSlug.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+export function catalogSlug(providerSlug: string): string {
+    // No provider-id suffix. A games.slug conflict appends the local games.id instead.
+    return providerSlug.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
         .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 160).replace(/-$/, '') || 'game'
-    // Always suffix: import order and concurrent same-name arrivals cannot rename URLs.
-    return `${base}-igdb-${igdbId}`
+}
+
+function taxonCandidates(preferred: string, igdbId: number): string[] {
+    return [preferred, `igdb-${igdbId}`, `${preferred}-igdb-${igdbId}`]
+}
+function taxonIsNewer(stored: string | null, incoming: string | null): boolean {
+    if (!incoming) return false
+    if (!stored) return true
+    return parseDbTimestamp(incoming).getTime() > parseDbTimestamp(stored).getTime()
 }
 
 type CatalogTransaction = Parameters<Parameters<DB['transaction']>[0]>[0]
@@ -85,6 +94,15 @@ export async function writeCatalogGame(tx: CatalogTransaction, input: CatalogGam
             developers: oldTaxa.developers, publishers: oldTaxa.publishers,
             steamAppIds: mappings.map(m => Number(m.externalId)) })
     }
+    const id = existing?.id ?? randomUUID()
+    const baseSlug = catalogSlug(game.providerSlug)
+    // Preserve a published local slug when IGDB changes its provider slug.
+    let localSlug = existing?.slug ?? baseSlug
+    if (!existing) {
+        await tx.execute(sql`select pg_advisory_xact_lock(1936745320, hashtext(${baseSlug}))`)
+        const taken = await tx.execute(sql`select 1 as one from public.games where slug = ${baseSlug} limit 1`)
+        if (taken.length) localSlug = `${baseSlug}-${id}`
+    }
     const now = new Date().toISOString()
     const columns = [
         ['igdb_id', game.igdbId], ['name', game.name], ['provider_slug', game.providerSlug],
@@ -96,11 +114,10 @@ export async function writeCatalogGame(tx: CatalogTransaction, input: CatalogGam
     ] as const
     // Explicit columns work before AND after cleanup. Drizzle's table insert
     // builder includes every declared column, even omitted legacy defaults.
-    // Preserve a published local slug when IGDB changes its provider slug.
-    const localSlug = existing?.slug ?? catalogSlug(game.providerSlug, game.igdbId)
+    // id and slug are insert-only so a conflict update cannot rename a published URL.
     const result = await tx.execute(sql`insert into public.games
-        (${sql.join(columns.map(([name]) => identifier(name)), sql`, `)}, slug)
-        values (${sql.join(columns.map(([, value]) => sql`${value}`), sql`, `)}, ${localSlug})
+        (id, ${sql.join(columns.map(([name]) => identifier(name)), sql`, `)}, slug)
+        values (${id}::uuid, ${sql.join(columns.map(([, value]) => sql`${value}`), sql`, `)}, ${localSlug})
         on conflict (igdb_id) do update set
         ${sql.join(columns.map(([name]) => sql`${identifier(name)}=excluded.${identifier(name)}`), sql`, `)}
         returning id,slug`)
@@ -109,10 +126,23 @@ export async function writeCatalogGame(tx: CatalogTransaction, input: CatalogGam
     for (const relation of relations) {
         effectiveTaxa[relation.key] = []
         const ids: string[] = []
+        // One lock per taxonomy table, always in this relation order, so slug
+        // assignment cannot deadlock with another game's taxonomy writes.
+        await tx.execute(sql`select pg_advisory_xact_lock(1936745322, hashtext(${relation.table}))`)
         for (const taxon of sortedTaxa(game[relation.key])) {
             const table = identifier(relation.table)
+            const candidates = taxonCandidates(taxon.slug, taxon.igdbId)
+            const known = await tx.execute(sql`select igdb_id as "igdbId", slug, provider_updated_at as "providerUpdatedAt"
+                from public.${table} where igdb_id = ${taxon.igdbId} or slug in (${sql.join(candidates.map(slug => sql`${slug}`), sql`, `)})`)
+            const rows = known as unknown as { igdbId: number; slug: string; providerUpdatedAt: string | null }[]
+            const mine = rows.find(row => Number(row.igdbId) === taxon.igdbId)
+            const taken = new Set(rows.filter(row => Number(row.igdbId) !== taxon.igdbId).map(row => row.slug))
+            const slug = mine && !taxonIsNewer(mine.providerUpdatedAt, taxon.providerUpdatedAt ?? null)
+                ? mine.slug
+                : candidates.find(candidate => candidate === mine?.slug || !taken.has(candidate))
+            if (!slug) throw new Error('No free taxonomy slug')
             const result = await tx.execute(sql`insert into public.${table} as current_taxon (igdb_id,name,slug,provider_updated_at)
-                values (${taxon.igdbId},${taxon.name},${taxon.slug},${taxon.providerUpdatedAt ?? null}::timestamptz)
+                values (${taxon.igdbId},${taxon.name},${slug},${taxon.providerUpdatedAt ?? null}::timestamptz)
                 on conflict (igdb_id) do update set name=excluded.name,slug=excluded.slug,
                     provider_updated_at=excluded.provider_updated_at
                 where excluded.provider_updated_at is not null and

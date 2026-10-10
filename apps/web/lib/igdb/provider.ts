@@ -4,6 +4,7 @@ import { igdbRequest } from './client'
 import { GAME_FIELDS, gameSchema, lookupId, positiveId, type IgdbLookups } from './schema'
 import { normalizeIgdbGame } from './normalize'
 import { IgdbError } from './http'
+import { selectTopRatedGames, type RankedIgdbGame } from '../catalog/rank'
 import type { CatalogGame } from '../catalog/types'
 
 type Transport = { request: typeof igdbRequest }
@@ -75,6 +76,29 @@ export function createIgdbProvider(transport: Transport = { request: igdbRequest
                 games.push(...page.map(g => normalizeIgdbGame(g, lookups)))
             }
             return games
+        },
+        // Main games only, ordered by rating_count, then rating, then id.
+        // Pages continue through a tie at the cutoff so the next page cannot change the selection.
+        async listTopMainGameIds(limit: number): Promise<number[]> {
+            if (!Number.isInteger(limit) || limit < 1 || limit > 5000) throw new IgdbError('limit must be an integer from 1 to 5000.')
+            const lookups = await getLookups()
+            const row = z.object({ id: positiveId, rating: z.number().finite(), rating_count: z.number().int().nonnegative() })
+            const candidates: RankedIgdbGame[] = []
+            const pageSize = 500
+            const maxPages = 30
+            for (let page = 0; page < maxPages; page++) {
+                const body = `fields id,rating,rating_count; where game_type = ${lookups.mainGameTypeId} & rating != null & rating_count != null; sort rating_count desc; limit ${pageSize}; offset ${page * pageSize};`
+                const rows = await transport.request('games', body, z.array(row).max(pageSize))
+                for (const item of rows) candidates.push({ id: item.id, rating: item.rating, ratingCount: item.rating_count })
+                const ranked = selectTopRatedGames(candidates, limit)
+                const boundary = ranked[ranked.length - 1]?.ratingCount
+                const last = rows[rows.length - 1]
+                const exhausted = rows.length < pageSize
+                const settled = exhausted || (ranked.length >= limit && boundary !== undefined && !!last && last.rating_count < boundary)
+                if (settled) return ranked.map(item => item.id)
+                if (page === maxPages - 1) throw new IgdbError('top-game ranking did not settle within the page cap.')
+            }
+            throw new IgdbError('top-game ranking did not settle within the page cap.')
         },
         async lookupSteamApps(input: number[]): Promise<{ appid: number; candidates: number[] }[]> {
             const requested = ids(input)

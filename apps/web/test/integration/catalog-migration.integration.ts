@@ -9,6 +9,8 @@ import type { CatalogGame } from '@/lib/catalog/types'
 const state = vi.hoisted(() => ({ db: null as DB | null }))
 vi.mock('@/lib/db', () => ({ db: { transaction: (...args: Parameters<DB['transaction']>) => state.db!.transaction(...args) } }))
 import { upsertCatalogGame } from '@/lib/catalog/upsert'
+import { detachSharedSteamAppIds } from '@/lib/catalog/steam-ids'
+import { writeSteamMatchCache } from '@/lib/catalog/match-cache'
 const url = process.env.TEST_DATABASE_URL
 if (!url) throw new Error('Set TEST_DATABASE_URL to a disposable local database.')
 const parsed = new URL(url)
@@ -28,6 +30,11 @@ const game = (id: number, patch: Partial<CatalogGame> = {}): CatalogGame => ({
     publishers: [{ igdbId: 8, name: 'Studio', slug: 'studio' }], steamAppIds: [id + 1000], ...patch,
 })
 beforeAll(async () => {
+    // Roles are cluster-wide. A fresh local Postgres has neither; 0000 policies name them.
+    await admin.unsafe(`DO $$ BEGIN
+        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN CREATE ROLE anon; END IF;
+        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated') THEN CREATE ROLE authenticated; END IF;
+    END $$`)
     await admin.unsafe(`CREATE DATABASE "${database}"`)
     await client.unsafe("CREATE SCHEMA auth; CREATE TABLE auth.users(id uuid primary key); CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$SELECT null::uuid$$;")
     for (const name of ['0000_illegal_kinsey_walden', '0001_functions_and_triggers', '0002_fix_get_feed_library_privacy', '0003_igdb_request_budget'])
@@ -35,6 +42,7 @@ beforeAll(async () => {
     await client.unsafe('GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated')
     await client`insert into games(rawg_id,name,slug) values(900,'Legacy','legacy')`
     await client.begin(async tx => { await tx.unsafe(await migration('0004_igdb_catalog_preparation')) })
+    await client.begin(async tx => { await tx.unsafe(await migration('0005_taxonomy_slug_unique')) })
     state.db = drizzle(client) as DB
 })
 afterAll(async () => {
@@ -165,5 +173,54 @@ it('cleanup refuses unmapped rows, then refuses obsolete RPC bodies, and never d
     expect(remaining).toHaveLength(0)
     await expect(client`insert into genres(igdb_id,name,slug) values(0,'Bad','bad')`).rejects.toThrow()
     await expect(client`insert into games(name,slug) values('Null','null')`).rejects.toThrow()
-    expect(await upsertCatalogGame(game(7))).toEqual({ id: expect.any(String), slug: 'same-name-igdb-7' })
+    const inserted = await upsertCatalogGame(game(7))
+    expect(inserted.slug).toBe(`same-name-${inserted.id}`)
+    expect(inserted.slug).not.toContain('igdb')
+})
+it('uses an unsuffixed slug and appends the local id when that slug is taken', async () => {
+    const first = await upsertCatalogGame(game(50, { providerSlug: 'Unique Title', name: 'Unique Title', steamAppIds: [5050], genres: [], developers: [], publishers: [] }))
+    expect(first.slug).toBe('unique-title')
+    const second = await upsertCatalogGame(game(51, { providerSlug: 'Unique Title', name: 'Unique Title', steamAppIds: [5051], genres: [], developers: [], publishers: [] }))
+    expect(second.slug).toBe(`unique-title-${second.id}`)
+    expect(second.slug).not.toContain('igdb')
+})
+it('stores a colliding genre or company slug as igdb-<id>', async () => {
+    await upsertCatalogGame(game(60, { genres: [{ igdbId: 600, name: 'Action', slug: 'action' }], developers: [], publishers: [], steamAppIds: [6060] }))
+    await upsertCatalogGame(game(61, { genres: [{ igdbId: 601, name: 'Action 2', slug: 'action' }], developers: [{ igdbId: 610, name: 'Co', slug: 'co' }], publishers: [], steamAppIds: [6061] }))
+    await upsertCatalogGame(game(62, { genres: [], developers: [{ igdbId: 611, name: 'Co 2', slug: 'co' }], publishers: [], steamAppIds: [6062] }))
+    expect(await client`select igdb_id, slug from genres where igdb_id in (600, 601) order by igdb_id`).toEqual([{ igdb_id: 600, slug: 'action' }, { igdb_id: 601, slug: 'igdb-601' }])
+    expect(await client`select igdb_id, slug from developers where igdb_id in (610, 611) order by igdb_id`).toEqual([{ igdb_id: 610, slug: 'co' }, { igdb_id: 611, slug: 'igdb-611' }])
+})
+it('keeps one preferred slug when two games claim it concurrently', async () => {
+    await Promise.all([
+        upsertCatalogGame(game(70, { genres: [{ igdbId: 700, name: 'Shooter', slug: 'shooter' }], developers: [], publishers: [], steamAppIds: [7070] })),
+        upsertCatalogGame(game(71, { genres: [{ igdbId: 701, name: 'Shooter 2', slug: 'shooter' }], developers: [], publishers: [], steamAppIds: [7071] })),
+    ])
+    const slugs = (await client`select slug from genres where igdb_id in (700, 701)`).map(row => row.slug)
+    expect(slugs.filter(slug => slug === 'shooter')).toHaveLength(1)
+    expect(slugs.filter(slug => slug === 'igdb-700' || slug === 'igdb-701')).toHaveLength(1)
+})
+it('keeps stored game content when a later payload has no provider timestamp', async () => {
+    const saved = await upsertCatalogGame(game(20, { name: 'Kept', description: 'Original', providerUpdatedAt: '2026-10-09T00:00:00.000Z' }))
+    expect(await upsertCatalogGame(game(20, { name: 'Replaced', description: 'Nope', providerUpdatedAt: null }))).toEqual(saved)
+    expect(await client`select name, description from games where id=${saved.id}`).toEqual([{ name: 'Kept', description: 'Original' }])
+})
+it('imports both games when a shared Steam id is removed before write', async () => {
+    const detached = detachSharedSteamAppIds([
+        game(30, { steamAppIds: [9001, 9002], genres: [], developers: [], publishers: [] }),
+        game(31, { steamAppIds: [9001], genres: [], developers: [], publishers: [] }),
+    ])
+    expect(detached.shared).toEqual([{ appId: 9001, igdbIds: [30, 31] }])
+    const first = await upsertCatalogGame(detached.games[0])
+    await upsertCatalogGame(detached.games[1])
+    expect(await client`select external_id from game_external_ids where external_id = '9001'`).toHaveLength(0)
+    expect(await client`select external_id from game_external_ids where game_id = ${first.id}`).toEqual([{ external_id: '9002' }])
+})
+it('does not cache a no-match after HTTP 401 or 429', async () => {
+    await state.db!.transaction(async tx => {
+        expect(await writeSteamMatchCache(tx, { steamAppId: 1, matcherVersion: 'v1', httpStatus: 401, candidateCount: 0, checkedAt: '2026-10-10T00:00:00.000Z', retryAfter: '2026-10-17T00:00:00.000Z' })).toBe(false)
+        expect(await writeSteamMatchCache(tx, { steamAppId: 1, matcherVersion: 'v1', httpStatus: 429, candidateCount: 0, checkedAt: '2026-10-10T00:00:00.000Z', retryAfter: '2026-10-17T00:00:00.000Z' })).toBe(false)
+        expect(await writeSteamMatchCache(tx, { steamAppId: 2, matcherVersion: 'v1', httpStatus: 200, candidateCount: 0, checkedAt: '2026-10-10T00:00:00.000Z', retryAfter: '2026-10-17T00:00:00.000Z' })).toBe(true)
+    })
+    expect(await client`select steam_app_id, status from igdb_private.steam_match_cache order by steam_app_id`).toEqual([{ steam_app_id: 2, status: 'unmatched' }])
 })

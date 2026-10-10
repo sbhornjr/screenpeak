@@ -24,9 +24,9 @@ describe('catalogue writer boundary', () => {
         expect(catalogGameSchema.parse(game)).toEqual(game)
         expect(catalogGameSchema.safeParse({ ...game, screenshots: undefined }).success).toBe(false)
     })
-    it('allocates order-independent slugs for same names and Unicode-only names', () => {
-        expect(catalogSlug('example', 1)).toBe('example-igdb-1')
-        expect(catalogSlug('example', 2)).toBe('example-igdb-2')
-        expect(catalogSlug('遊戲', 3)).toBe('game-igdb-3')
+    it('uses the provider slug with no igdb suffix', () => {
+        expect(catalogSlug('example')).toBe('example')
+        expect(catalogSlug('Example Game')).toBe('example-game')
+        expect(catalogSlug('遊戲')).toBe('game')
     })
 })

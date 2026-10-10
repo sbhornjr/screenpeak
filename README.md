@@ -60,7 +60,7 @@ DATABASE_POOL_URL=<transaction-pooler-connection-string> # the app's runtime cli
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 
 # External APIs
-RAWG_API_KEY=<rawg-key>          # game data — seed script
+RAWG_API_KEY=<rawg-key>          # game data — seed script and live /steamlink import
 ANTHROPIC_API_KEY=<anthropic-key> # Loadout identity generation
 STEAM_API_KEY=<steam-web-api-key> # Steam library import + achievements
 ```
@@ -98,8 +98,10 @@ grants — only RLS auto-enables. If the app gets `permission denied for table
 
 ### Seed game data
 
-The `games` table is populated from the RAWG API. This needs
-`RAWG_API_KEY` and `SUPABASE_SECRET_KEY` in `.env.local`:
+The `games` table is populated from the RAWG API. The seed script needs
+`RAWG_API_KEY` and `SUPABASE_SECRET_KEY` in `.env.local`. The same key is
+also used live: `/steamlink` calls `importGamesFromSteam` in `lib/rawg.ts`
+while importing a Steam library, so RAWG is not seed-only.
 
 ```bash
 npm run seed     # fetches top-rated games from RAWG and upserts them
@@ -115,7 +117,7 @@ npm run dev         # Next.js dev server
 npm run build       # production build
 npm run start       # serve the production build
 npm run lint        # ESLint
-npm run seed        # seed games from RAWG (needs RAWG_API_KEY + SUPABASE_SECRET_KEY)
+npm run seed        # seed games from RAWG (needs RAWG_API_KEY + SUPABASE_SECRET_KEY; /steamlink also calls RAWG live)
 npm test            # run the Vitest suite once
 npm run test:watch  # Vitest in watch mode
 npx tsc --noEmit    # type-check (no dedicated script)
@@ -268,7 +270,7 @@ all land on `app/auth/confirm/route.ts`, which handles both the custom-template
 
 ### External APIs
 
-- **RAWG** — game catalog source. Used by `scripts/seed-games.ts` via `lib/rawg.ts`.
+- **RAWG** — game catalog source, via `lib/rawg.ts`. Used by `scripts/seed-games.ts` and, live, by `/steamlink` (`importGamesFromSteam`).
 - **Anthropic** — generates the Loadout identity paragraph in `lib/loadout.ts`
   (model `claude-sonnet-4-6`, `max_tokens: 200`). Failures degrade gracefully to
   an empty string; the paragraph is a bonus, not required page content. Rate

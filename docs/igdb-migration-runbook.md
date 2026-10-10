@@ -282,7 +282,7 @@ An empty post-reset catalogue is supported. Linking/importing the owner's Steam 
 
 Preparation migration `0004_igdb_catalog_preparation.sql` adds unique positive nullable IGDB IDs to all five catalogue tables, relaxes RAWG ID nullability, and adds game source/image/sync timestamps plus unique local slugs. Taxonomy tables also retain their own provider update timestamps. It does **not** reset any data or reinterpret old IDs. `game_external_ids` stores multiple verified Steam app IDs per game; conflicts cannot reassign another game's mapping. The private schema stores versioned unmatched/ambiguous cache entries and reset-run completion records. Browser catalogue mutations and all mapping/cache/reset-state access are revoked, with RLS enabled on the new tables. The runtime/migration role must own these objects or receive explicit operational privileges and bypass RLS, as the existing server role does; no browser or public grants are added.
 
-`upsertCatalogGame` validates a complete `CatalogGame` before opening a transaction. `writeCatalogGame(tx, game)` is the same writer for Task 4's already-open reset transaction; it is operational server code, not a Server Action. Fetch/normalize first. Writes allocate fresh game/taxonomy UUIDs, serialize a game's imports by IGDB ID, acquire shared taxonomy in fixed role/ID order, and atomically replace relations and Steam mappings. Errors propagate and roll back the entire snapshot. Older source timestamps cannot overwrite a newer stored snapshot. A missing source timestamp cannot replace a known timestamp. Shared taxonomy uses each entity’s own IGDB update timestamp, independently from its game; equal/older/missing taxonomy timestamps preserve the stored name/slug. A first timestamp-less taxon may be inserted, but later updates need a newer known timestamp. Content comparison uses the actual retained taxonomy, so rejecting stale taxon labels does not fabricate a game content change. A successful identical import advances `metadata_synced_at` and mapping verification times but leaves `updated_at` unchanged. Source timestamp alone is not a display-content change. Slugs always end in `-igdb-ID`, so identical names and import order cannot collide; provider renames keep an existing local game slug.
+`upsertCatalogGame` validates a complete `CatalogGame` before opening a transaction. `writeCatalogGame(tx, game)` is the same writer for Task 4's already-open reset transaction; it is operational server code, not a Server Action. Fetch/normalize first. Writes allocate fresh game/taxonomy UUIDs, serialize a game's imports by IGDB ID, acquire shared taxonomy in fixed role/ID order, and atomically replace relations and Steam mappings. Errors propagate and roll back the entire snapshot. Older source timestamps cannot overwrite a newer stored snapshot. A missing source timestamp cannot replace a known timestamp. Shared taxonomy uses each entity’s own IGDB update timestamp, independently from its game; equal/older/missing taxonomy timestamps preserve the stored name/slug. A first timestamp-less taxon may be inserted, but later updates need a newer known timestamp. Content comparison uses the actual retained taxonomy, so rejecting stale taxon labels does not fabricate a game content change. A successful identical import advances `metadata_synced_at` and mapping verification times but leaves `updated_at` unchanged. Source timestamp alone is not a display-content change. A missing provider timestamp does not replace a stored snapshot. New game slugs use the sanitized provider slug; a conflict appends the local `games.id` and does not contain `igdb`. Taxonomy slugs are unique per table, with an `igdb-<id>` fallback. Provider renames keep an existing local game slug. The earlier always-suffix rule applied only to the Task 3 writer before this follow-up.
 
 `db/cutover/igdb-catalog-cleanup.sql` is a **draft outside the journal**. It aborts on any missing/invalid IGDB ID or public RPC body still referencing obsolete columns. It removes RAWG, Metacritic and the single Steam-ID column without deleting rows or using CASCADE. Task 5 must replace the affected RPC definitions and restore their security/grants; Task 8 combines/journals cleanup and updates the TypeScript schema after readers have migrated. Do not run this draft against the development DB now. The unshipped game-detail contract temporarily types `rawg_id` as nullable to match preparation; Task 5 removes it.
 
@@ -310,3 +310,67 @@ TEST_DATABASE_URL=postgresql://YOUR_USER@127.0.0.1:55439/YOUR_DATABASE_test \
 The catalogue integration suite creates and drops a uniquely named child database, runs historical migrations with local Auth stand-ins, and exercises preparation, concurrent imports, complete relation replacement, rollback on mapping conflicts, stale game/shared-taxonomy snapshots, browser denial even with old default grants, and guarded cleanup of populated/empty catalogue fixtures. It never falls back to the app's database URL. Cleanup tests remove obsolete RPCs only in the fixture, not as a substitute for Task 5's real rewrites. The local database copies remain disposable; the shared server can be stopped with the Task 2 command after verification.
 
 Final Task 3 verification: 265 unit tests in 33 files and 16 Postgres integration tests in two files passed; web/mobile typechecks, web ESLint and diff whitespace checks passed. One independent read-only review found a shared-taxonomy freshness issue. Regression tests reproduced it; carrying each entity's provider timestamp and conditionally updating shared rows fixed it. The final revised preparation migration was rehearsed on a new restored copy with every original public value/count preserved again. The two-game live adapter smoke check for the added timestamp fields is recorded in the Task 3 report. No Task 4 execution began.
+
+## Task 4 migration journal, slugs, seed and reset — owner steps
+
+Task 4's code was exercised only on disposable local Postgres. **Nothing in this task was applied to the hosted development database.** Do not point the new commands at that database. `DATABASE_POOL_URL` is not a fallback: every command requires `--database-env NAME`, and the URL must be `127.0.0.1` / `localhost` with a database name ending in `_test` or `_copy`.
+
+### What you run, after a backup
+
+1. Take a real restorable backup of the hosted development database (`pg_dump` custom format, including schema). Keep it outside git. Record the git revision and the dump checksum. The in-repo `reset_backup` schema is only a rehearsal aid for a local copy; it is not that backup.
+2. Restore the dump into a **new local** database whose name ends in `_copy`. Do not restore it over the hosted database.
+3. Dry-run the journal. This only reads:
+
+```bash
+TEST_DATABASE_URL=postgresql://YOUR_USER@127.0.0.1:5432/screenpeak_copy \
+  npm run migrate:journal -w @screenpeak/web -- --database-env TEST_DATABASE_URL
+```
+
+4. If the report says the baseline is `ready`, stamp 0000–0002 **without replaying them**:
+
+```bash
+TEST_DATABASE_URL=postgresql://YOUR_USER@127.0.0.1:5432/screenpeak_copy \
+  npm run migrate:journal -w @screenpeak/web -- --database-env TEST_DATABASE_URL --stamp-baseline
+```
+
+5. Apply 0003, 0004 and 0005 on that copy only:
+
+```bash
+TEST_DATABASE_URL=postgresql://YOUR_USER@127.0.0.1:5432/screenpeak_copy \
+  npm run migrate:journal -w @screenpeak/web -- --database-env TEST_DATABASE_URL --apply-pending
+```
+
+`--apply-pending` refuses to run while 0000–0002 are unrecorded on a database that already has tables. Do not use `drizzle-kit migrate` before the stamp: an empty journal would replay `0000`. If `games.igdb_id` or `igdb_private` already exists and the journal is empty, restore a fresh copy and start again. Do not stamp over that partial state.
+
+An empty local database (no `public` tables) can run the whole chain in one step. Pass `--local-auth-stubs` only on that empty local cluster, never on a Supabase copy:
+
+```bash
+npm run migrate:journal -w @screenpeak/web -- --database-env TEST_DATABASE_URL --apply-pending --local-auth-stubs
+```
+
+6. Optional catalogue seed, still on the local copy. It upserts games and does not clear library rows, reviews, lists, or accounts. `--top` defaults to 2000 and must be from 1 to 5000. Ranking is `rating_count`, then `rating`, then id, and only `game_type = 0`. Requests go through the shared limiter, so 0003 must already be applied and `TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET` must be set.
+
+```bash
+npm run seed:igdb -w @screenpeak/web -- --database-env TEST_DATABASE_URL --top 2000
+npm run seed:igdb -w @screenpeak/web -- --database-env TEST_DATABASE_URL --ids 1942,19560
+```
+
+7. Reset rehearsal on the copy. Stop every app and writer first. `--write-manifest` reads a staged `CatalogGame` JSON file and the current retained-row fingerprint. Without `--apply` the command only prints the loss report.
+
+```bash
+npm run reset:catalog -w @screenpeak/web -- --database-env TEST_DATABASE_URL --staged staged.json --write-manifest manifest.json
+npm run reset:catalog -w @screenpeak/web -- --database-env TEST_DATABASE_URL --manifest manifest.json
+npm run reset:catalog -w @screenpeak/web -- --database-env TEST_DATABASE_URL --manifest manifest.json --apply
+```
+
+A committed manifest cannot be applied again. Changing a retained username, list, follow, like, or Steam link after the manifest was written makes `--apply` refuse. Shared Steam app ids inside the staged batch are omitted before `writeCatalogGame`; a direct write that still carries a foreign app id throws and rolls the transaction back.
+
+8. Repeat the stamp, apply, seed, and reset on a second local restore if the first rehearsal found anything. Only then, with the app stopped and a fresh `pg_dump` in hand, run the same commands against a tunnelled copy you control. This repository does not contain that hosted URL, and this task did not open one.
+
+### Slug and cache rules now in the writer
+
+New game URLs use the sanitized provider slug. If that slug is taken, the row's own `games.id` is appended. The suffix does not contain `igdb`. Genres, platforms, developers and publishers have unique slugs; a collision is stored as `igdb-<igdbId>`. A payload with no `providerUpdatedAt` does not replace a stored snapshot. `writeSteamMatchCache` inserts a no-match or ambiguous row only after HTTP 200. HTTP 401 and 429 insert nothing. Steam import (Task 6) must call that helper rather than writing the cache table itself.
+
+### Mobile images
+
+Expo Image on SDK 57 has no remote-host allowlist. An `https://images.igdb.com/...` URL is a normal image source, and `apps/mobile/app.json` does not name hosts. No mobile config change was required. Next.js `images.remotePatterns` is still Task 7.
