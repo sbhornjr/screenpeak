@@ -138,16 +138,17 @@ export async function applyCatalogReset(database: Database, manifest: CatalogRes
         await tx.execute(sql`set local lock_timeout = '5s'`)
         await tx.execute(sql`set local statement_timeout = '10min'`)
         await tx.execute(sql`select pg_advisory_xact_lock(1936745321, 1)`)
+        // A committed run has already changed the rows the fingerprint covers, so replay is checked first.
+        const checksum = manifestChecksum(manifest.fingerprint, manifest.games, manifest.counts)
+        const existing = await tx.execute(sql`select run_id from igdb_private.catalog_reset_runs
+            where run_id = ${manifest.runId}::uuid or manifest_checksum = ${checksum} limit 1`)
+        if (existing.length) throw new Error('This reset manifest was already committed. Stage a new snapshot.')
         const fingerprint = await retentionFingerprint(tx)
         if (fingerprint !== manifest.fingerprint) throw new Error('Stale reset manifest: rows changed since it was staged.')
         const before = await counts(tx)
         if (!sameCounts(before, manifest.counts)) throw new Error('Stale reset manifest: staged counts no longer match the database.')
         const blocked = resetSizeBlock(before.games, manifest.games.length, options)
         if (blocked) throw new Error(blocked)
-        const checksum = manifestChecksum(manifest.fingerprint, manifest.games, manifest.counts)
-        const existing = await tx.execute(sql`select run_id from igdb_private.catalog_reset_runs
-            where run_id = ${manifest.runId}::uuid or manifest_checksum = ${checksum} limit 1`)
-        if (existing.length) throw new Error('This reset manifest was already committed. Stage a new snapshot.')
         await clearGameLinked(tx)
         if (options.afterClear) await options.afterClear()
         const staged = resolve ? detachSharedSteamAppIds(manifest.games) : { games: manifest.games, shared: [] as { appId: number; igdbIds: number[] }[] }
