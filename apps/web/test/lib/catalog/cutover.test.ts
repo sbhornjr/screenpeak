@@ -42,9 +42,9 @@ describe('top-game ranking', () => {
 
 describe('shared Steam ids', () => {
     it('removes an app id claimed by two IGDB games and keeps a private one', () => {
-        const result = detachSharedSteamAppIds([game(1, [10, 11]), game(2, [10]), game(3, [11, 11])])
+        const result = detachSharedSteamAppIds([game(1, [10, 11]), game(2, [10]), game(3, [12, 12])])
         expect(result.shared).toEqual([{ appId: 10, igdbIds: [1, 2] }])
-        expect(result.games.map(entry => entry.steamAppIds)).toEqual([[11], [], [11]])
+        expect(result.games.map(entry => entry.steamAppIds)).toEqual([[11], [], [12, 12]])
     })
 })
 

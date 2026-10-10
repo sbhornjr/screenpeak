@@ -374,3 +374,7 @@ New game URLs use the sanitized provider slug. If that slug is taken, the row's 
 ### Mobile images
 
 Expo Image on SDK 57 has no remote-host allowlist. An `https://images.igdb.com/...` URL is a normal image source, and `apps/mobile/app.json` does not name hosts. No mobile config change was required. Next.js `images.remotePatterns` is still Task 7.
+
+### Verification on this branch
+
+Disposable local Postgres only (`screenpeak_igdb_test` on 127.0.0.1). `npm test` — 272 tests in 34 files. `npm run test:igdb-integration` — 31 tests in 3 files (catalogue migration, catalogue reset, request budget). `npm run lint` passed. `npx tsc --noEmit -p apps/web` reports only the pre-existing missing `RouteContext` name in two `/api/v1` game routes; `npx tsc --noEmit -p apps/mobile` passed. `npm run build` completed with placeholder `R2_PUBLIC_URL`, Supabase, and `DATABASE_POOL_URL` values pointed at that local test database. No hosted Supabase connection was opened.

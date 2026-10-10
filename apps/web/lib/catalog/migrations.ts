@@ -37,7 +37,14 @@ export async function ensureLocalAuthStubs(sql: MigrationSql): Promise<void> {
         IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated') THEN CREATE ROLE authenticated; END IF;
     END $$`)
     await sql.unsafe('CREATE SCHEMA IF NOT EXISTS auth')
-    await sql.unsafe('CREATE TABLE IF NOT EXISTS auth.users (id uuid PRIMARY KEY)')
+    // 0001's handle_new_user trigger reads email and raw_user_meta_data.
+    await sql.unsafe(`CREATE TABLE IF NOT EXISTS auth.users (
+        id uuid PRIMARY KEY,
+        email text,
+        raw_user_meta_data jsonb
+    )`)
+    await sql.unsafe('ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS email text')
+    await sql.unsafe('ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS raw_user_meta_data jsonb')
     await sql.unsafe(`CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$ SELECT NULL::uuid $$`)
 }
 

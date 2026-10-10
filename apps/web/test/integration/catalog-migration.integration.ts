@@ -191,6 +191,12 @@ it('stores a colliding genre or company slug as igdb-<id>', async () => {
     expect(await client`select igdb_id, slug from genres where igdb_id in (600, 601) order by igdb_id`).toEqual([{ igdb_id: 600, slug: 'action' }, { igdb_id: 601, slug: 'igdb-601' }])
     expect(await client`select igdb_id, slug from developers where igdb_id in (610, 611) order by igdb_id`).toEqual([{ igdb_id: 610, slug: 'co' }, { igdb_id: 611, slug: 'igdb-611' }])
 })
+it('appends -igdb-<id> to a taxonomy slug only after igdb-<id> is also taken', async () => {
+    await upsertCatalogGame(game(80, { genres: [{ igdbId: 800, name: 'Held', slug: 'held' }], developers: [], publishers: [], steamAppIds: [8080] }))
+    await client`insert into genres (igdb_id, name, slug) values (801, 'Reserved', 'igdb-802')`
+    await upsertCatalogGame(game(82, { genres: [{ igdbId: 802, name: 'Held 2', slug: 'held' }], developers: [], publishers: [], steamAppIds: [8082] }))
+    expect(await client`select slug from genres where igdb_id = 802`).toEqual([{ slug: 'held-igdb-802' }])
+})
 it('keeps one preferred slug when two games claim it concurrently', async () => {
     await Promise.all([
         upsertCatalogGame(game(70, { genres: [{ igdbId: 700, name: 'Shooter', slug: 'shooter' }], developers: [], publishers: [], steamAppIds: [7070] })),

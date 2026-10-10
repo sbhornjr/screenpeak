@@ -93,10 +93,11 @@ it('aborts the taxonomy uniqueness migration when slugs collide and keeps the ro
 it('seeds an IGDB game without clearing retained library rows', async () => {
     userA = randomUUID()
     const userB = randomUUID()
-    await client`insert into auth.users (id) values (${userA}), (${userB})`
-    await client`insert into users (id, username, user_bio, profile_loadout_bio, selected_title, loadout_identity)
-        values (${userA}, 'ada', 'bio', 'authored', 'Champion', 'generated')`
-    await client`insert into users (id, username) values (${userB}, 'bea')`
+    // 0001's signup trigger creates the profile and a default Wishlist from auth.users.
+    await client`insert into auth.users (id, email, raw_user_meta_data) values
+        (${userA}, 'ada@example.com', ${JSON.stringify({ username: 'ada' })}::jsonb),
+        (${userB}, 'bea@example.com', ${JSON.stringify({ username: 'bea' })}::jsonb)`
+    await client`update users set user_bio = 'bio', profile_loadout_bio = 'authored', selected_title = 'Champion', loadout_identity = 'generated' where id = ${userA}`
     await client`update users set favorite_game_ids = array[${legacyId}::uuid] where id = ${userA}`
     const listId = randomUUID()
     await client`insert into lists (id, user_id, name, description, is_public) values (${listId}, ${userA}, 'Kept', 'still here', true)`
@@ -145,7 +146,8 @@ it('resets game-linked rows, keeps accounts, refuses replay, and restores the ba
     expect(applied.written).toBe(2)
     expect(await client`select username, user_bio, profile_loadout_bio, selected_title, loadout_identity, favorite_game_ids from users where id = ${userA}`)
         .toEqual([{ username: 'ada', user_bio: 'bio', profile_loadout_bio: 'authored', selected_title: 'Champion', loadout_identity: null, favorite_game_ids: [] }])
-    expect(await client`select name, description from lists`).toEqual([{ name: 'Kept', description: 'still here' }])
+    expect(await client`select name, description from lists where name = 'Kept'`).toEqual([{ name: 'Kept', description: 'still here' }])
+    expect(await client`select count(*)::int as n from lists`).toEqual([{ n: 3 }])
     expect(await client`select count(*)::int as n from follows`).toEqual([{ n: 1 }])
     expect(await client`select count(*)::int as n from list_likes`).toEqual([{ n: 1 }])
     expect(await client`select steam_id from steam_accounts`).toEqual([{ steam_id: '76561198000000000' }])
