@@ -14,13 +14,28 @@ const SIZES = {
     lg: { wrap: 'w-24 aspect-3/4', overlap: '-2.25rem', imgSizes: '200px' },
 }
 
+function EmptyFan() {
+    return (
+        <div className="w-24 aspect-3/4 rounded-[3px] border-2 border-dashed border-(--color-border)
+            flex items-center justify-center">
+            <span className="text-(--color-muted) text-[10px] uppercase tracking-[0.15em]
+                font-mono text-center px-2 leading-relaxed">
+                No games<br />yet
+            </span>
+        </div>
+    )
+}
+
 export default function CoverFan({ covers, size = 'md' }: { covers: { src: string, href?: string, alt?: string, key: string }[], size?: 'md' | 'lg' }) {
     const { wrap, overlap, imgSizes } = SIZES[size]
+    const drawn = covers.flatMap(cover => {
+        const src = displayCoverUrl(cover.src, size === 'lg' ? 'large' : 'small')
+        return src ? [{ ...cover, src }] : []
+    })
+    if (drawn.length === 0) return <EmptyFan />
     return (
         <div className="flex items-center">
-            {covers.map((cover, i) => {
-                const src = displayCoverUrl(cover.src, size === 'lg' ? 'large' : 'small')
-                if (!src) return null
+            {drawn.map((cover, i) => {
                 const inner = (
                     <div
                         className={`relative ${wrap} rounded-[3px] overflow-hidden border-2 border-(--color-bg)
@@ -28,15 +43,15 @@ export default function CoverFan({ covers, size = 'md' }: { covers: { src: strin
                             transition-transform duration-200 hover:rotate-0 hover:z-10 hover:scale-105`}
                         style={{ marginLeft: i === 0 ? 0 : overlap, ['--fan-rotate' as string]: ROTATIONS[i % ROTATIONS.length] }}
                     >
-                        <Image src={src} alt={cover.alt ?? ''} fill className="object-cover" sizes={imgSizes} />
+                        <Image src={cover.src} alt={cover.alt ?? ''} fill className="object-cover" sizes={imgSizes} />
                     </div>
                 )
                 return cover.href ? (
-                    <Link key={cover.key} href={cover.href} className="relative block shrink-0" style={{ zIndex: covers.length - i }}>
+                    <Link key={cover.key} href={cover.href} className="relative block shrink-0" style={{ zIndex: drawn.length - i }}>
                         {inner}
                     </Link>
                 ) : (
-                    <div key={cover.key} className="relative shrink-0" style={{ zIndex: covers.length - i }}>
+                    <div key={cover.key} className="relative shrink-0" style={{ zIndex: drawn.length - i }}>
                         {inner}
                     </div>
                 )

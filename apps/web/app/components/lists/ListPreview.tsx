@@ -23,7 +23,9 @@ export default function ListPreview({ listId, listName, gameCovers, isPinnable, 
     }
 
     const updated = parseDbTimestamp(lastUpdated)
-    const covers = gameCovers?.filter(g => g.coverImageUrl) ?? []
+    const covers = (gameCovers ?? []).flatMap(g => g.coverImageUrl
+        ? [{ key: g.slug ?? g.coverImageUrl, src: g.coverImageUrl, alt: g.slug ?? '', href: `/games/${g.slug ?? ''}` }]
+        : [])
 
     return (
         <div className={`relative flex flex-col sm:flex-row gap-4 sm:gap-5 border border-(--color-border) rounded-[3px] p-4 min-w-0 overflow-hidden hover:border-(--color-accent)/50 transition-colors duration-200 group ${fullLength ? "" : "w-full"}`}>
@@ -37,22 +39,7 @@ export default function ListPreview({ listId, listName, gameCovers, isPinnable, 
                 title in a stack of lists starts at the same x, however many
                 covers the list has. */}
             <div className="shrink-0 w-full sm:w-[21rem] flex">
-                {covers.length > 0 ? (
-                    <CoverFan size="lg" covers={covers.map(g => ({
-                        key: g.slug ?? '',
-                        src: g.coverImageUrl!,
-                        alt: g.slug ?? '',
-                        href: `/games/${g.slug ?? ''}`,
-                    }))} />
-                ) : (
-                    <div className="w-24 aspect-3/4 rounded-[3px] border-2 border-dashed border-(--color-border)
-                        flex items-center justify-center">
-                        <span className="text-(--color-muted) text-[10px] uppercase tracking-[0.15em]
-                            font-mono text-center px-2 leading-relaxed">
-                            No games<br />yet
-                        </span>
-                    </div>
-                )}
+                <CoverFan size="lg" covers={covers} />
             </div>
 
             {/* Right: meta + controls, title, description — fills the width */}

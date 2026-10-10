@@ -17,7 +17,7 @@ import { getTrendingGames } from "@/lib/queries/explore";
 import { getRecentReviewsGlobal } from "@/lib/queries/review";
 import { parseDbTimestamp } from "@/lib/dates";
 import { getFeaturedLoadout } from "@/lib/queries/user";
-import { displayCoverUrl, socialBackdrop } from "@/lib/catalog/images";
+import { resolveHeroVisual } from "@/lib/catalog/images";
 
 // Whose real, saved Loadout the logged-out landing page shows as its sample.
 const FEATURED_LOADOUT_USERNAME = "hornflakes"
@@ -34,9 +34,7 @@ export default async function Home() {
             getFeaturedLoadout(FEATURED_LOADOUT_USERNAME),
         ])
 
-        const heroArt = heroGame ? socialBackdrop(heroGame) : null
-        const heroCover = displayCoverUrl(heroGame?.cover_image_url, 'large')
-        const heroVisual = heroArt?.url ?? heroCover
+        const heroVisual = heroGame ? await resolveHeroVisual(heroGame) : null
 
         return (
             <main>
@@ -64,9 +62,9 @@ export default async function Home() {
                     {heroVisual && heroGame && (
                         <div className={`relative w-full mx-auto rounded-[3px] overflow-hidden
                             border border-(--color-border) shadow-[0_20px_50px_rgba(0,0,0,0.5)] -rotate-2
-                            ${heroArt ? "aspect-video max-w-xl" : "aspect-3/4 max-w-sm"}`}>
+                            ${heroVisual.frame === "landscape" ? "aspect-video max-w-xl" : "aspect-3/4 max-w-sm"}`}>
                             <Image
-                                src={heroVisual}
+                                src={heroVisual.url}
                                 alt={heroGame.name}
                                 fill
                                 className="object-cover"

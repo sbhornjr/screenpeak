@@ -396,12 +396,13 @@ Deviations from the task text:
 Deviations from the task text:
 
 - Sitemap order is `games.updated_at` descending, then `games.id` ascending, in pages of 1000. The integration fixture inserts catalogue rows in disposable Postgres, including a high Metacritic score on an older row, and asserts that score does not win. It does not call the live top-N IGDB seed.
-- `getGameBySlug`, `getGameIdBySlug`, `getGameTaxonomy`, `getGameRatingsStats`, and `getUserRatingReviewForGame` now reject on a database error. The game page still catches the paged review query and shows an empty list; that remains the web-only call site. `getHeroGame` still returns null, so the public homepage keeps its branded fallback during a hero-query failure.
+- `getGameBySlug`, `getGameIdBySlug`, `getGameTaxonomy`, `getGameRatingsStats`, and `getUserRatingReviewForGame` now reject on a database error. The game page still catches the paged review query and shows an empty list; that remains the web-only call site. `getLibraryEntry` and `getUserLists` also reject, so a signed-in game page does not draw an empty save during an outage. `getHeroGame` still returns null, so the public homepage keeps its branded fallback, and a failed hero query is logged.
 - The game gallery shows every valid landscape screenshot. It no longer drops the first shot, because that shot is not the page hero.
-- The homepage uses landscape artwork in a 16:9 frame when the hero has it, and the portrait cover in a 3:4 frame otherwise. Share images use `object-fit: cover` in a 720×630 panel. A portrait cover is never the 1200×630 source. A missing landscape image is the branded card.
+- The homepage uses landscape artwork in a 16:9 frame when those bytes load, and the portrait cover in a 3:4 frame when the landscape URL is missing or does not return an image. Share images use a 16:9 panel. A portrait cover is never the 1200×630 source. A missing or failed landscape fetch is the branded card. Titles are wrapped to the text column.
+- Sitemap files are split with `generateSitemaps`. Each document stays at or under 50,000 URLs.
 - Large covers request `cover_big_2x`. Thumbs request `cover_big`. A URL that is not `https://images.igdb.com/igdb/image/upload/` is not rendered.
 - Grid skeletons were already 3:4. Cards, pickers, feed thumbs, review rows, list fans, and Steam tiles now use that frame. `cover_big` is 264×374, so the 3:4 frame crops a little height.
-- Expo Image still has no host allowlist. The mobile card refuses a non-IGDB URL in application code. On-device rendering was not available in this environment.
+- Expo Image still has no host allowlist. The mobile card accepts the same IGDB urls as the web parser, including a protocol-relative form, and refuses anything else. `Linking.openURL` failures are swallowed. On-device rendering was not available in this environment.
 - `ship-readiness.html` still documents `RAWG_API_KEY` and RAWG covers. It is on the Task 8 cleanup list and was not rewritten here.
 
 **Exit:** Images, attribution and discoverability work for the fresh IGDB catalogue, including empty user libraries and unrated games after reset.

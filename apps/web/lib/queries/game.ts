@@ -156,7 +156,12 @@ export async function getHeroGame(): Promise<HeroGame | null> {
             group by g.id
         `)
         return selectHeroGame(rows as unknown as Parameters<typeof selectHeroGame>[0])
-    } catch {
+    } catch (error) {
+        // Absence is a null return with no log. A failed query is the same
+        // fallback for the page, and the log is what tells the two apart.
+        logger.error('hero', 'hero game query failed', {
+            error: error instanceof Error ? error.message : String(error),
+        })
         return null
     }
 }

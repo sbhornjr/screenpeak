@@ -127,6 +127,16 @@ describe('loadGamePage', () => {
         await expect(loadGamePage('example', null)).rejects.toThrow('database unavailable')
     })
 
+    it('does not report a library outage as an empty save', async () => {
+        q.getLibraryEntry.mockRejectedValueOnce(new Error('database unavailable'))
+        await expect(loadGamePage('baldurs-gate-3', 'viewer-1')).rejects.toThrow('database unavailable')
+    })
+
+    it('does not report a lists outage as no lists', async () => {
+        q.getUserLists.mockRejectedValueOnce(new Error('database unavailable'))
+        await expect(loadGamePage('baldurs-gate-3', 'viewer-1')).rejects.toThrow('database unavailable')
+    })
+
     it('normalises nullable library columns (hours, 100%, play count) to the contract', async () => {
         q.getLibraryEntry.mockResolvedValue({ id: 'le-1', status: 'backlog', completed_all_achievements: null, hours_played: null, play_count: null })
 
