@@ -2,6 +2,9 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import { config } from 'dotenv'
+import postgres from 'postgres'
+import { assertDisposableDatabase, assertLocalCopy } from '../lib/catalog/database-url'
+import type { MigrationSql } from '../lib/catalog/migrations'
 import { AuditError, IgdbAuditClient, auditMainGames, auditSteam, parseSteamInput } from './igdb-audit'
 
 const HELP = `IGDB read-only catalogue audit
@@ -13,15 +16,17 @@ npm run audit:igdb -w @screenpeak/web -- --main-games 20
 Choose exactly one: --input FILE, --appids COMMA_SEPARATED_IDS, --main-games 1..100.
 Input accepts [{ appid, name? }] or a Steam GetOwnedGames response.
 TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET come from apps/web/.env.local or environment.
+--budget-db-env NAME selects the localhost _test or _copy database that holds the shared IGDB request budget.
+Pass --confirm-local-copy when that database has Supabase dump markers.
 Paths resolve from the directory where npm was invoked. Reports never overwrite existing files.
-Without --output, JSON goes to stdout. No database access or catalogue writes.
-Run one audit at a time with these credentials; rate limiting is per process.
+Without --output, JSON goes to stdout. The audit writes request-budget rows only. It does not change the catalogue.
+The shared limiter coordinates this process with every other IGDB client using the same credentials.
 `
 
 async function main() {
     const { values } = parseArgs({ options: {
         input: { type: 'string' }, appids: { type: 'string' }, 'main-games': { type: 'string' },
-        output: { type: 'string' }, help: { type: 'boolean', short: 'h' },
+        output: { type: 'string' }, 'budget-db-env': { type: 'string' }, 'confirm-local-copy': { type: 'boolean' }, help: { type: 'boolean', short: 'h' },
     }, strict: true, allowPositionals: false })
     if (values.help) { console.log(HELP); return }
     if ([values.input, values.appids, values['main-games']].filter(v => v !== undefined).length !== 1)
@@ -43,6 +48,15 @@ async function main() {
     if (limit !== undefined && (!/^[0-9]+$/.test(values['main-games']!) || limit < 1 || limit > 100))
         throw new AuditError('--main-games must be between 1 and 100.')
     const client = new IgdbAuditClient(process.env.TWITCH_CLIENT_ID ?? '', process.env.TWITCH_CLIENT_SECRET ?? '')
+    const budgetEnv = values['budget-db-env']
+    if (!budgetEnv) throw new AuditError('Pass --budget-db-env NAME for the shared IGDB request budget. The URL must be a localhost database ending in _test or _copy.')
+    const budgetUrl = process.env[budgetEnv]
+    if (!budgetUrl) throw new AuditError('Selected budget database environment variable is missing.')
+    assertDisposableDatabase(budgetUrl)
+    const budgetSql = postgres(budgetUrl, { max: 1, onnotice: () => {} })
+    try { await assertLocalCopy(budgetSql as unknown as MigrationSql, values['confirm-local-copy'] === true) }
+    finally { await budgetSql.end() }
+    process.env.DATABASE_POOL_URL = budgetUrl
     const report = input ? await auditSteam(client, input) : await auditMainGames(client, limit!)
     const serialized = JSON.stringify(report, null, 2) + '\n'
     if (values.output) {

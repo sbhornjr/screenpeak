@@ -37,6 +37,28 @@ it('escapes search strings and bounds input before the network',async()=>{
     expect(s.request.mock.calls.find(c=>c[0]==='games')![1]).toContain('search "x\\"; where id > 0;";')
     await expect(s.provider.searchGames('x'.repeat(201))).rejects.toThrow('search')
 })
+it('ranks main games by rating count, then rating, and pages through a cutoff tie', async () => {
+    const first = Array.from({ length: 500 }, (_, index) => ({ id: index + 1, rating: 70, rating_count: 100 }))
+    let gamesCalls = 0
+    const s = setup(endpoint => {
+        if (endpoint !== 'games') return []
+        gamesCalls += 1
+        return gamesCalls === 1 ? first : [{ id: 9000, rating: 99, rating_count: 100 }]
+    })
+    await expect(s.provider.listTopMainGameIds(0)).rejects.toThrow('limit')
+    const ranked = setup(() => [
+        { id: 1, rating: 10, rating_count: 5 },
+        { id: 2, rating: 99, rating_count: 4 },
+        { id: 3, rating: 50, rating_count: 5 },
+    ])
+    expect(await ranked.provider.listTopMainGameIds(2)).toEqual([3, 1])
+    expect(ranked.request.mock.calls.find(call => call[0] === 'games')![1]).toContain('game_type = 0')
+    expect(ranked.request.mock.calls.find(call => call[0] === 'games')![1]).toContain('sort rating_count desc')
+    expect(await s.provider.listTopMainGameIds(1)).toEqual([9000])
+    const bodies = s.request.mock.calls.filter(call => call[0] === 'games').map(call => call[1] as string)
+    expect(bodies.some(body => body.includes('sort id asc') && body.includes('rating_count = 100') && body.includes('id >'))).toBe(true)
+    expect(bodies.some(body => body.includes('offset'))).toBe(false)
+})
 it('rejects unrelated mapping rows and lookup changes instead of reporting misses',async()=>{
     const s=setup(()=>[{id:1,uid:'999',game:1,external_game_source:27}])
     await expect(s.provider.lookupSteamApps([123])).rejects.toThrow('unexpected')

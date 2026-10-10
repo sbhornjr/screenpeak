@@ -16,6 +16,7 @@ export async function acquireIgdbLease(clientId: string): Promise<IgdbLease> {
                 await tx.execute(sql`set local lock_timeout = '1s'`)
                 return tx.execute(sql`select * from igdb_private.acquire_request_lease(${key})`)
             })
+            const roundTripMs = Math.min(10_000, Math.max(0, Math.ceil(performance.now() - before)))
             const row = result[0] as { lease_id: string | null; wait_ms: number }
             if (row.lease_id) {
                 const release = async () => {
@@ -26,9 +27,19 @@ export async function acquireIgdbLease(clientId: string): Promise<IgdbLease> {
                         })
                     } catch { throw new IgdbError('shared request budget unavailable.') }
                 }
-                // DB grant occurs after `before`; this conservative local deadline
-                // avoids depending on synchronized host clocks or delayed reservations.
-                const dispatchBefore = before + 350
+                try {
+                    // The 350ms dispatch window starts once the grant is in hand.
+                    // Push the next reservation by this round trip so a slow tunnel
+                    // still leaves at least 300ms before the following grant.
+                    await db.execute(sql`update igdb_private.request_budgets
+                        set next_start_at = greatest(next_start_at, clock_timestamp()
+                            + (${roundTripMs} * interval '1 millisecond') + interval '650 milliseconds')
+                        where credential_key = ${key}`)
+                } catch {
+                    await release()
+                    throw new IgdbError('shared request budget unavailable.')
+                }
+                const dispatchBefore = performance.now() + 350
                 if (performance.now() < dispatchBefore) return { dispatchBefore, release }
                 await release()
             } else await wait(Math.min(Math.max(10, row.wait_ms), 1000))

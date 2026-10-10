@@ -19,6 +19,7 @@ export const genres = pgTable("genres", {
 }, (table) => [
 	unique("genres_rawg_id_key").on(table.rawgId),
 	unique("genres_igdb_id_key").on(table.igdbId),
+	unique("genres_slug_key").on(table.slug),
 	check("genres_igdb_id_positive", sql`${table.igdbId} > 0`),
 	pgPolicy("Public read access", { as: "permissive", for: "select", to: ["public"], using: sql`true` }),
 ]);
@@ -33,6 +34,7 @@ export const platforms = pgTable("platforms", {
 }, (table) => [
 	unique("platforms_rawg_id_key").on(table.rawgId),
 	unique("platforms_igdb_id_key").on(table.igdbId),
+	unique("platforms_slug_key").on(table.slug),
 	check("platforms_igdb_id_positive", sql`${table.igdbId} > 0`),
 	pgPolicy("Public read access", { as: "permissive", for: "select", to: ["public"], using: sql`true` }),
 ]);
@@ -47,6 +49,7 @@ export const developers = pgTable("developers", {
 }, (table) => [
 	unique("developers_rawg_id_key").on(table.rawgId),
 	unique("developers_igdb_id_key").on(table.igdbId),
+	unique("developers_slug_key").on(table.slug),
 	check("developers_igdb_id_positive", sql`${table.igdbId} > 0`),
 	pgPolicy("Public read access", { as: "permissive", for: "select", to: ["public"], using: sql`true` }),
 ]);
@@ -91,6 +94,7 @@ export const publishers = pgTable("publishers", {
 }, (table) => [
 	unique("publishers_rawg_id_key").on(table.rawgId),
 	unique("publishers_igdb_id_key").on(table.igdbId),
+	unique("publishers_slug_key").on(table.slug),
 	check("publishers_igdb_id_positive", sql`${table.igdbId} > 0`),
 	pgPolicy("Public read access", { as: "permissive", for: "select", to: ["public"], using: sql`true` }),
 ]);

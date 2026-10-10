@@ -193,7 +193,7 @@ return the contract type itself is called directly by both the page and the rout
 
 ## External APIs
 
-- **RAWG API** — game data source, used by `scripts/seed-games.ts` via `lib/rawg.ts`
+- **RAWG API** — current game data source, via `lib/rawg.ts`. `scripts/seed-games.ts` bulk-seeds from it, and `app/steamlink/page.tsx` calls `importGamesFromSteam` live while importing a Steam library. It is not seed-only.
 - **Anthropic API** — generates AI "Loadout" identity text (`lib/loadout.ts`), model
   `claude-sonnet-4-6`. `new Anthropic()` reads `ANTHROPIC_API_KEY` from env implicitly.
   Failures degrade to `''` — the paragraph is optional page content.
@@ -211,7 +211,7 @@ Required in `.env.local` (gitignored):
 - `SUPABASE_SECRET_KEY` (seed script + admin client in `delete-account`)
 - `DATABASE_URL` (session pooler — `drizzle-kit` tooling only, e.g. `npx drizzle-kit push`)
 - `DATABASE_POOL_URL` (transaction pooler — the app's runtime Drizzle client, `lib/db.ts`; throws at module load if unset)
-- `RAWG_API_KEY` (for seed script)
+- `RAWG_API_KEY` (seed script and the live `/steamlink` import)
 - `ANTHROPIC_API_KEY` (for loadout generation)
 - `STEAM_API_KEY` (Steam library import + achievements)
 - `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL`

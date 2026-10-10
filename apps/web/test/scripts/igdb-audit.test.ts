@@ -18,7 +18,17 @@ async function finish<T>(promise: Promise<T>): Promise<T> {
     if ('error' in result) throw result.error
     return result.value
 }
-function client() { return new IgdbAuditClient('client', 'secret') }
+function client() {
+    let last = -Infinity
+    return new IgdbAuditClient('client', 'secret', {
+        async acquire() {
+            const waitMs = Math.max(0, last + 300 - Date.now())
+            if (waitMs) await new Promise(resolve => setTimeout(resolve, waitMs))
+            last = Date.now()
+            return { dispatchBefore: Date.now() + 10_000, async release() {} }
+        },
+    })
+}
 function mockApi(handler: (endpoint: string, body: string) => Response) {
     vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
         const parsed = new URL(url)
