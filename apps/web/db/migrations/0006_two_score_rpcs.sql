@@ -5,7 +5,10 @@
 --
 -- Dependants are inventoried first. An unexpected dependent aborts the
 -- migration. DROP is the exact signature, never CASCADE. Grants, owner, and
--- configuration are restored in this same script.
+-- configuration are restored in this same script. Every non-owner grant on
+-- the new function is revoked first, so CREATE-time default privileges cannot
+-- leave EXECUTE for a role that was not in the saved ACL. Each function then
+-- sets search_path to public, pg_temp so a caller cannot shadow public tables.
 
 CREATE TEMP TABLE score_rpc_acl (
     proname text PRIMARY KEY,
@@ -73,6 +76,7 @@ CREATE FUNCTION public.get_feed(p_user_id uuid, p_limit integer DEFAULT 20, p_of
  RETURNS TABLE(activity_type text, created_at timestamp with time zone, actor_id uuid, actor_username text, actor_avatar_url text, game_id uuid, game_name text, game_slug text, game_cover_image_url text, game_released date, game_developer text, game_avg_rating numeric, viewer_game_rating integer, list_id uuid, list_name text, list_description text, list_owner_username text, list_game_count bigint, list_last_activity timestamp with time zone, list_like_count bigint, viewer_liked_list boolean, list_cover_urls text[], rating integer, review text, review_created_at timestamp with time zone, review_updated_at timestamp with time zone, library_status text, library_game_count bigint, library_cover_urls text[], library_game_names text[])
  LANGUAGE sql
  SECURITY DEFINER
+ SET search_path TO public, pg_temp
 AS $function$
   WITH followed_users AS (
     SELECT following_id FROM follows WHERE follower_id = p_user_id
@@ -297,6 +301,7 @@ CREATE FUNCTION public.get_follow_recommendations(p_user_id uuid, p_limit intege
  RETURNS TABLE(game_id uuid, game_name text, game_slug text, game_cover_image_url text, game_released date, game_developer text, avg_follower_rating numeric, follower_count bigint, platform_avg_rating numeric, user_library_status text)
  LANGUAGE sql
  SECURITY DEFINER
+ SET search_path TO public, pg_temp
 AS $function$
   SELECT
     g.id,
@@ -355,6 +360,7 @@ CREATE FUNCTION public.get_loadout_rating_highlights(p_user_id uuid)
  RETURNS TABLE(game_id uuid, game_name text, game_slug text, cover_image_url text, rating integer, highlight_type text, released text)
  LANGUAGE sql
  SECURITY DEFINER
+ SET search_path TO public, pg_temp
 AS $function$
   WITH user_ratings AS (
     SELECT rr.game_id, rr.rating, g.name, g.slug, g.cover_image_url, g.released
@@ -384,6 +390,7 @@ CREATE FUNCTION public.get_trending_games(p_days integer DEFAULT 7, p_limit inte
  RETURNS TABLE(game_id uuid, game_name text, game_slug text, game_cover_image_url text, game_released date, game_developer text, activity_count bigint, avg_rating numeric, user_rating integer)
  LANGUAGE sql
  SECURITY DEFINER
+ SET search_path TO public, pg_temp
 AS $function$
   SELECT
     g.id,
@@ -426,6 +433,7 @@ CREATE FUNCTION public.query_games(p_q text DEFAULT NULL::text, p_genre text DEF
  RETURNS TABLE(id uuid, name text, slug text, cover_image_url text, released date, avg_ngplus_rating numeric, user_rating integer, total_count bigint)
  LANGUAGE plpgsql
  SECURITY DEFINER
+ SET search_path TO public, pg_temp
 AS $function$
 DECLARE
   v_genre_id uuid;
@@ -520,16 +528,47 @@ DECLARE
     r record;
     g record;
     cfg text;
+    v_owner oid;
+    v_grantees oid[];
+    v_grantee oid;
 BEGIN
     FOR r IN SELECT * FROM score_rpc_acl LOOP
         EXECUTE format('ALTER FUNCTION public.%I(%s) OWNER TO %I', r.proname, r.identity_args, r.owner_name);
+        SELECT p.proowner INTO v_owner
+        FROM pg_proc p
+        JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = 'public' AND p.proname = r.proname;
+
+        -- Snapshot first. REVOKE changes proacl, and a null ACL means the
+        -- implicit PUBLIC grant, which aclexplode does not list.
+        SELECT array_agg(DISTINCT x.grantee) INTO v_grantees
+        FROM pg_proc p
+        JOIN pg_namespace n ON n.oid = p.pronamespace
+        CROSS JOIN LATERAL aclexplode(p.proacl) AS x
+        WHERE n.nspname = 'public' AND p.proname = r.proname;
+
+        EXECUTE format('REVOKE ALL ON FUNCTION public.%I(%s) FROM PUBLIC', r.proname, r.identity_args);
+        IF v_grantees IS NOT NULL THEN
+            FOREACH v_grantee IN ARRAY v_grantees LOOP
+                IF v_grantee <> 0 AND v_grantee IS DISTINCT FROM v_owner THEN
+                    EXECUTE format(
+                        'REVOKE ALL ON FUNCTION public.%I(%s) FROM %s',
+                        r.proname, r.identity_args, v_grantee::regrole
+                    );
+                END IF;
+            END LOOP;
+        END IF;
+
         IF r.proconfig IS NOT NULL THEN
             FOREACH cfg IN ARRAY r.proconfig LOOP
                 EXECUTE format('ALTER FUNCTION public.%I(%s) SET %s', r.proname, r.identity_args, replace(cfg, '=', ' = '));
             END LOOP;
         END IF;
-        IF r.acl IS NOT NULL THEN
-            EXECUTE format('REVOKE ALL ON FUNCTION public.%I(%s) FROM PUBLIC', r.proname, r.identity_args);
+        -- A null saved ACL is the historical default: PUBLIC may execute.
+        -- Anything else is restored exactly, after the extra grants are gone.
+        IF r.acl IS NULL THEN
+            EXECUTE format('GRANT EXECUTE ON FUNCTION public.%I(%s) TO PUBLIC', r.proname, r.identity_args);
+        ELSE
             FOR g IN SELECT * FROM aclexplode(r.acl) LOOP
                 EXECUTE format(
                     'GRANT %s ON FUNCTION public.%I(%s) TO %s%s',
@@ -541,6 +580,9 @@ BEGIN
                 );
             END LOOP;
         END IF;
+        -- After any saved proconfig, so an old search_path cannot win.
+        EXECUTE format('ALTER FUNCTION public.%I(%s) SET search_path TO public, pg_temp', r.proname, r.identity_args);
+
         IF NOT (SELECT prosecdef FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
                 WHERE n.nspname = 'public' AND p.proname = r.proname) THEN
             RAISE EXCEPTION 'Score RPC % lost SECURITY DEFINER', r.proname;

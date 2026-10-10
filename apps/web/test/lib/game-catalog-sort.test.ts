@@ -3,18 +3,10 @@ import {
     CATALOG_SORTS,
     LIBRARY_SORTS,
     InvalidCatalogSortError,
-    compareCatalogGames,
+    defaultOrder,
     parseCatalogSort,
     parseCatalogSortLenient,
-    type SortableGame,
 } from '@/lib/game-catalog-sort'
-
-const row = (patch: Partial<SortableGame> & Pick<SortableGame, 'id' | 'name'>): SortableGame => ({
-    avg_ngplus_rating: null,
-    rating_count: null,
-    user_rating: null,
-    ...patch,
-})
 
 describe('parseCatalogSort', () => {
     it('defaults a catalogue request to name ascending', () => {
@@ -57,33 +49,11 @@ describe('parseCatalogSortLenient', () => {
     })
 })
 
-describe('compareCatalogGames', () => {
-    const games = [
-        row({ id: '00000000-0000-0000-0000-000000000002', name: 'Same', avg_ngplus_rating: 9, rating_count: 2 }),
-        row({ id: '00000000-0000-0000-0000-000000000001', name: 'Same', avg_ngplus_rating: 9, rating_count: 4 }),
-        row({ id: '00000000-0000-0000-0000-000000000003', name: 'Later', avg_ngplus_rating: 9, rating_count: 4 }),
-        row({ id: '00000000-0000-0000-0000-000000000004', name: 'Alpha', avg_ngplus_rating: null, rating_count: null }),
-        row({ id: '00000000-0000-0000-0000-000000000005', name: 'Zero', avg_ngplus_rating: 7, rating_count: 1, user_rating: 7 }),
-    ]
-
-    it('orders the community by average, count, name, then id, with nulls last', () => {
-        const ordered = [...games].sort(compareCatalogGames('ngplus_rating', 'desc')).map(game => game.id)
-        expect(ordered).toEqual([
-            '00000000-0000-0000-0000-000000000003',
-            '00000000-0000-0000-0000-000000000001',
-            '00000000-0000-0000-0000-000000000002',
-            '00000000-0000-0000-0000-000000000005',
-            '00000000-0000-0000-0000-000000000004',
-        ])
-    })
-
-    it('keeps an id tie-break when names match, including name descending', () => {
-        const names = [
-            row({ id: 'b', name: 'Same' }),
-            row({ id: 'a', name: 'Same' }),
-            row({ id: 'c', name: 'Other' }),
-        ]
-        expect([...names].sort(compareCatalogGames('name', 'asc')).map(game => game.id)).toEqual(['c', 'a', 'b'])
-        expect([...names].sort(compareCatalogGames('name', 'desc')).map(game => game.id)).toEqual(['a', 'b', 'c'])
+describe('defaultOrder', () => {
+    it('uses descending for every non-name key', () => {
+        expect(defaultOrder('name')).toBe('asc')
+        expect(defaultOrder('ngplus_rating')).toBe('desc')
+        expect(defaultOrder('your_rating')).toBe('desc')
+        expect(defaultOrder('date_added')).toBe('desc')
     })
 })

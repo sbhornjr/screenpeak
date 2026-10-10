@@ -32,6 +32,13 @@ const PRIVATE_HIT = '20000000-0000-0000-0000-000000000002'
 const PRIVATE_LIBRARY = '20000000-0000-0000-0000-000000000003'
 const PRIVATE_RATING = '20000000-0000-0000-0000-000000000004'
 const PUBLIC_LIBRARY = '20000000-0000-0000-0000-000000000005'
+const APPLE = '00000000-0000-0000-0000-000000000008'
+const ZEBRA = '00000000-0000-0000-0000-000000000009'
+const BATCH_A = '20000000-0000-0000-0000-000000000006'
+const BATCH_B = '20000000-0000-0000-0000-000000000007'
+const SECRET_A = '20000000-0000-0000-0000-000000000008'
+const SECRET_B = '20000000-0000-0000-0000-000000000009'
+const MIXED = '20000000-0000-0000-0000-00000000000a'
 const SORT_IDS = [ALPHA, BETA, GAMMA, DELTA, SAME_A, SAME_B, RATED]
 const QUERY_GAMES = 'public.query_games(text,text,text,text,text,text,text,text,integer,integer,uuid,uuid[])'
 const sortIdList = SORT_IDS.map(id => `'${id}'`).join(', ')
@@ -63,6 +70,10 @@ beforeAll(async () => {
         await client.unsafe(await migration(name))
     await client.unsafe(`REVOKE ALL ON FUNCTION ${QUERY_GAMES} FROM PUBLIC`)
     await client.unsafe(`GRANT EXECUTE ON FUNCTION ${QUERY_GAMES} TO anon`)
+    await admin.unsafe(`DO $$ BEGIN
+        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'score_extra') THEN CREATE ROLE score_extra; END IF;
+    END $$`)
+    await client.unsafe('ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO score_extra')
     await client.unsafe(await migration('0006_two_score_rpcs'))
     await client`
         insert into games (id, name, slug, metacritic_score) values
@@ -77,7 +88,14 @@ beforeAll(async () => {
             (${PRIVATE_HIT}, 'Private Hit', 'private-hit', null),
             (${PRIVATE_LIBRARY}, 'Private Shelf', 'private-shelf', null),
             (${PRIVATE_RATING}, 'Private Score', 'private-score', null),
-            (${PUBLIC_LIBRARY}, 'Public Shelf', 'public-shelf', null)
+            (${PUBLIC_LIBRARY}, 'Public Shelf', 'public-shelf', null),
+            (${APPLE}, 'Apple', 'apple', null),
+            (${ZEBRA}, 'Zebra', 'zebra', null),
+            (${BATCH_A}, 'Batch One', 'batch-one', null),
+            (${BATCH_B}, 'Batch Two', 'batch-two', null),
+            (${SECRET_A}, 'Secret One', 'secret-one', null),
+            (${SECRET_B}, 'Secret Two', 'secret-two', null),
+            (${MIXED}, 'Mixed Signal', 'mixed-signal', null)
     `
     await client`
         insert into auth.users (id, email, raw_user_meta_data) values
@@ -99,7 +117,13 @@ beforeAll(async () => {
             (${VIEWER}, ${RATED}, 4),
             (${PUBLIC_USER}, ${PUBLIC_HIT}, 9),
             (${PRIVATE_USER}, ${PRIVATE_HIT}, 9),
-            (${PRIVATE_USER}, ${PRIVATE_RATING}, 8)
+            (${PRIVATE_USER}, ${PRIVATE_RATING}, 8),
+            (${VIEWER}, ${APPLE}, 8),
+            (${PUBLIC_USER}, ${APPLE}, 8),
+            (${PRIVATE_USER}, ${APPLE}, 8),
+            (${EXTRA}, ${APPLE}, 8),
+            (${EXTRA}, ${ZEBRA}, 8),
+            (${PUBLIC_USER}, ${MIXED}, 8)
     `
     await client`
         insert into follows (follower_id, following_id) values
@@ -111,13 +135,33 @@ beforeAll(async () => {
             (${PUBLIC_USER}, ${PUBLIC_HIT}, 'completed', now() - interval '3 hours'),
             (${PRIVATE_USER}, ${PRIVATE_HIT}, 'completed', now() - interval '3 hours'),
             (${PRIVATE_USER}, ${PRIVATE_LIBRARY}, 'completed', now()),
-            (${PUBLIC_USER}, ${PUBLIC_LIBRARY}, 'backlog', now())
+            (${PUBLIC_USER}, ${PUBLIC_LIBRARY}, 'backlog', now()),
+            (${PUBLIC_USER}, ${BATCH_A}, 'backlog', now() - interval '6 hours'),
+            (${PUBLIC_USER}, ${BATCH_B}, 'playing', now() - interval '6 hours'),
+            (${PRIVATE_USER}, ${SECRET_A}, 'backlog', now() - interval '5 hours'),
+            (${PRIVATE_USER}, ${SECRET_B}, 'playing', now() - interval '5 hours'),
+            (${PRIVATE_USER}, ${MIXED}, 'playing', now())
+    `
+    const lists = await client`
+        insert into lists (user_id, name, is_public, is_default) values
+            (${PUBLIC_USER}, 'Open List', true, false),
+            (${PUBLIC_USER}, 'Shut List', false, false),
+            (${PRIVATE_USER}, 'Quiet List', false, false),
+            (${PRIVATE_USER}, 'Posted List', true, false)
+        returning id, name
+    `
+    const listId = (name: string) => lists.find(list => list.name === name)!.id
+    await client`
+        insert into list_likes (user_id, list_id) values
+            (${PRIVATE_USER}, ${listId('Open List')}),
+            (${PRIVATE_USER}, ${listId('Shut List')})
     `
 }, 60_000)
 
 afterAll(async () => {
     await client.end()
     await admin.unsafe(`DROP DATABASE IF EXISTS "${database}"`)
+    await admin.unsafe('DROP ROLE IF EXISTS score_extra')
     await admin.end()
 })
 
@@ -157,6 +201,37 @@ it('keeps metacritic_score and rewrites only the score RPC outputs', async () =>
     const [publicExecute] = await client.unsafe(`select has_function_privilege('public', '${QUERY_GAMES}', 'EXECUTE') as ok`)
     expect(anonExecute.ok).toBe(true)
     expect(publicExecute.ok).toBe(false)
+
+    const paths = await client`
+        select p.proname, opt.option_value as search_path
+        from pg_proc p
+        join pg_namespace n on n.oid = p.pronamespace
+        cross join lateral pg_options_to_table(p.proconfig) opt
+        where n.nspname = 'public'
+          and p.proname in ('get_feed', 'get_follow_recommendations', 'get_loadout_rating_highlights', 'get_trending_games', 'query_games')
+          and opt.option_name = 'search_path'
+        order by p.proname
+    `
+    expect(paths).toHaveLength(5)
+    for (const row of paths) expect(row.search_path).toBe('public, pg_temp')
+
+    const grants = await client`
+        select p.proname,
+               case when x.grantee = 0 then 'public' else x.grantee::regrole::text end as grantee
+        from pg_proc p
+        join pg_namespace n on n.oid = p.pronamespace
+        cross join lateral aclexplode(p.proacl) x
+        where n.nspname = 'public'
+          and p.proname in ('get_feed', 'get_follow_recommendations', 'get_loadout_rating_highlights', 'get_trending_games', 'query_games')
+    `
+    expect(grants.map(row => row.grantee)).not.toContain('score_extra')
+    const queryGrantees = grants.filter(row => row.proname === 'query_games').map(row => row.grantee)
+    expect(queryGrantees).toContain('anon')
+    expect(queryGrantees).not.toContain('public')
+    const [extraOnQuery] = await client.unsafe(`select has_function_privilege('score_extra', '${QUERY_GAMES}', 'EXECUTE') as ok`)
+    expect(extraOnQuery.ok).toBe(false)
+    const [feedPublic] = await client.unsafe(`select has_function_privilege('public', 'public.get_feed(uuid,integer,integer)', 'EXECUTE') as ok`)
+    expect(feedPublic.ok).toBe(true)
 })
 
 it('orders the catalogue with a total order and ignores a Metacritic sort key', async () => {
@@ -185,6 +260,23 @@ it('orders the catalogue with a total order and ignores a Metacritic sort key', 
         )
     `)
     expect(page.map(row => row.name)).toEqual(['Beta'])
+
+    const tiedAverage = await client.unsafe(`
+        select name from query_games(
+            p_sort => 'ngplus_rating',
+            p_order => 'desc',
+            p_game_ids => array['${APPLE}', '${ZEBRA}']::uuid[]
+        )
+    `)
+    expect(tiedAverage.map(row => row.name)).toEqual(['Apple', 'Zebra'])
+    const tiedAverageAsc = await client.unsafe(`
+        select name from query_games(
+            p_sort => 'ngplus_rating',
+            p_order => 'asc',
+            p_game_ids => array['${APPLE}', '${ZEBRA}']::uuid[]
+        )
+    `)
+    expect(tiedAverageAsc.map(row => row.name)).toEqual(['Zebra', 'Apple'])
 })
 
 it('hides a private library from recommendations, trending, and the feed', async () => {
@@ -194,15 +286,26 @@ it('hides a private library from recommendations, trending, and the feed', async
     expect(recommendations.map(row => row.game_name)).toEqual(['Public Hit'])
 
     const trending = await client`
-        select game_name from get_trending_games(7, 20, null) order by game_name
+        select game_name, activity_count from get_trending_games(7, 50, null) order by game_name
     `
     const trendingNames = trending.map(row => row.game_name)
     expect(trendingNames).toContain('Public Shelf')
     expect(trendingNames).toContain('Private Score')
     expect(trendingNames).not.toContain('Private Shelf')
+    expect(trendingNames).not.toContain('Secret One')
+    const mixed = trending.find(row => row.game_name === 'Mixed Signal')
+    expect(Number(mixed?.activity_count)).toBe(1)
 
     const feed = await client`
-        select game_name from get_feed(${VIEWER}::uuid, 20, 0) where activity_type = 'library_add'
+        select activity_type, game_name, list_name, library_game_names
+        from get_feed(${VIEWER}::uuid, 50, 0)
     `
-    expect(feed.map(row => row.game_name).sort()).toEqual(['Public Hit', 'Public Shelf'])
+    const namesFor = (type: string) => feed.filter(row => row.activity_type === type).map(row => row.game_name ?? row.list_name).sort()
+    expect(namesFor('library_add')).toEqual(['Public Hit', 'Public Shelf'])
+    const batches = feed.filter(row => row.activity_type === 'library_add_batch').flatMap(row => row.library_game_names ?? [])
+    expect([...batches].sort()).toEqual(['Batch One', 'Batch Two'])
+    expect(namesFor('list_created')).toEqual(['Open List', 'Posted List'])
+    expect(namesFor('list_liked')).toEqual(['Open List'])
+    expect(feed.some(row => row.activity_type === 'rating' && row.game_name === 'Private Score')).toBe(true)
+    expect(feed.some(row => ['Shut List', 'Quiet List', 'Wishlist'].includes(row.list_name))).toBe(false)
 })

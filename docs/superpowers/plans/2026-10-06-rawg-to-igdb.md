@@ -337,6 +337,7 @@ Deviations from the task text:
 - RAWG runtime, `db/schema.ts` legacy columns, and `app/sitemap.ts` were left for Tasks 7 and 8. `tierColor` still accepts a /100 scale as a numeric helper; no UI passes 100.
 - Sort parsing lives in `apps/web/lib/game-catalog-sort.ts`. There is no games-list API yet, so the strict parser is exported and unit-tested for that caller rather than placed in `packages/shared`.
 - The signed-out game page and homepage were checked in a local browser against disposable Postgres (desktop and a 390px-wide phone viewport). Signed-in empty states are covered by the StatCompare component tests. There is no local Auth session, and the hosted project was not used.
+- Review follow-up: changing the catalogue or library sort key resets the direction (`name` ascending, every other key descending). `0006` revokes every non-owner grant before restoring the saved ACL, and sets `search_path` to `public, pg_temp` on the five functions. `compareCatalogGames` was removed; `query_games` is the ordering tested against Postgres.
 
 **Exit:** The game page shows only You and Community. No active UI, sort default, hero selection or branding depends on Metacritic or three scores. Public images never depend on a viewer.
 
