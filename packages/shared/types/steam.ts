@@ -24,7 +24,15 @@ export type SteamLinkEntry = {
     gameReleased: string | null
     timesPlayed?: number
     completedAllAchievements: boolean
+    /** Recomputed on the server at confirm. The client value is ignored. */
+    steamPlaytimeMinutes?: number | null
 }
+
+/**
+ * Where the next import batch should resume. `pending` is apps that were never
+ * cached. `miss` is a one-pass walk of cached misses after the user asks to retry.
+ */
+export type SteamImportCursor = { phase: 'pending' | 'miss'; afterAppId: number }
 
 /** One round of IGDB matching. Counts of Steam apps and ScreenPeak games stay separate. */
 export type SteamImportBatch = {
@@ -35,4 +43,18 @@ export type SteamImportBatch = {
     unmatchedAppCount: number
     ambiguousAppCount: number
     retryableAppCount: number
+    /** Non-null while this cycle still has apps the next call should visit. */
+    nextCursor: SteamImportCursor | null
+    /** Set when this user already holds the import turn. Entries stay as they were. */
+    notice?: string
+}
+
+/** Minutes already stored for a Steam-sourced library row. Null means the hours were chosen by hand. */
+export type SteamLibrarySnapshot = {
+    gameId: string
+    hoursPlayed: number | null
+    status: string
+    playCount: number | null
+    completedAllAchievements: boolean | null
+    steamPlaytimeMinutes: number | null
 }

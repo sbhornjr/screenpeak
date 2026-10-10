@@ -1,9 +1,16 @@
-import { eq, and, desc, asc, sql } from 'drizzle-orm'
+import { eq, and, desc, asc, inArray, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { libraryEntries } from '@/db/schema'
 import { LibraryData, EsrbRatingsData } from '@screenpeak/shared/types'
 import { SteamLinkEntry } from '@screenpeak/shared/types'
 import { logger } from '@/lib/logger'
+
+export class LibraryReadError extends Error {
+    constructor() {
+        super('Your library could not be read. Nothing was changed.')
+        this.name = 'LibraryReadError'
+    }
+}
 
 /** One library row per game. A repeated Steam app must not add its hours again. */
 export function dedupeSteamLinkEntries(entries: SteamLinkEntry[]): SteamLinkEntry[] {
@@ -93,6 +100,7 @@ export async function upsertLibraryEntries(userId: string, entries: SteamLinkEnt
         hoursPlayed: sle.playtimeSelected != null ? String(sle.playtimeSelected) : null,
         playCount: sle.timesPlayed ?? 0,
         completedAllAchievements: sle.completedAllAchievements,
+        steamPlaytimeMinutes: sle.steamPlaytimeMinutes ?? null,
     }))
 
     try {
@@ -106,6 +114,7 @@ export async function upsertLibraryEntries(userId: string, entries: SteamLinkEnt
                     hoursPlayed: sql`excluded.hours_played`,
                     playCount: sql`excluded.play_count`,
                     completedAllAchievements: sql`excluded.completed_all_achievements`,
+                    steamPlaytimeMinutes: sql`coalesce(excluded.steam_playtime_minutes, library_entries.steam_playtime_minutes)`,
                 },
             })
             .returning(LIBRARY_ENTRY_COLUMNS)
@@ -156,6 +165,36 @@ export async function getLibraryEntries(userId: string, filter: LibraryEntriesFi
         return await query
     } catch {
         return []
+    }
+}
+
+/** Throws when the read fails. Steam confirm must not treat that as an empty library. */
+export async function getLibraryRowsForGames(userId: string, gameIds: string[]) {
+    const ids = [...new Set(gameIds)]
+    if (!ids.length) return []
+    try {
+        const rows: {
+            game_id: string
+            status: string
+            completed_all_achievements: boolean | null
+            hours_played: string | null
+            play_count: number | null
+            steam_playtime_minutes: number | null
+        }[] = []
+        for (let offset = 0; offset < ids.length; offset += 200) {
+            rows.push(...await db.select({
+                game_id: libraryEntries.gameId,
+                status: libraryEntries.status,
+                completed_all_achievements: libraryEntries.completedAllAchievements,
+                hours_played: libraryEntries.hoursPlayed,
+                play_count: libraryEntries.playCount,
+                steam_playtime_minutes: libraryEntries.steamPlaytimeMinutes,
+            }).from(libraryEntries).where(and(eq(libraryEntries.userId, userId), inArray(libraryEntries.gameId, ids.slice(offset, offset + 200)))))
+        }
+        return rows
+    } catch (error) {
+        logger.error('queries:library', 'Failed to read library rows for Steam import', { userId, error: error instanceof Error ? error.message : String(error) })
+        throw new LibraryReadError()
     }
 }
 

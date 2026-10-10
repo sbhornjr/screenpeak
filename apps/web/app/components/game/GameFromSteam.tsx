@@ -1,52 +1,81 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { SteamLinkEntry } from "@screenpeak/shared/types"
+
+export type SteamLinkEdit = "hours" | "status" | "times" | "achievements" | "selected"
 import Image from "next/image"
 import FilterSelect from "../util/FilterSelect"
 import { Check } from "lucide-react"
 
-export default function GameFromSteam({ gameId, linkEntry, onUpdate } : { gameId: string, linkEntry: SteamLinkEntry, onUpdate: (gameId: string, linkEntry: SteamLinkEntry) => void }) {
+export default function GameFromSteam({ gameId, linkEntry, onUpdate } : { gameId: string, linkEntry: SteamLinkEntry, onUpdate: (gameId: string, linkEntry: SteamLinkEntry, field: SteamLinkEdit) => void }) {
     const [status, setStatus] = useState(linkEntry.status)
     const [playTime, setPlayTime] = useState(linkEntry.playtimeSelected)
     const [selected, setSelected] = useState(linkEntry.selected)
     const [timesPlayed, setTimesPlayed] = useState(linkEntry.timesPlayed ?? 1)
     const [completedAllAchievements, setCompletedAllAchievements] = useState(linkEntry.completedAllAchievements)
     const [entry, setEntry] = useState(linkEntry)
+    const dirty = useRef(new Set<SteamLinkEdit>())
+
+    useEffect(() => {
+        const hours = dirty.current.has("hours") ? undefined : linkEntry.playtimeSelected
+        const nextStatus = dirty.current.has("status") ? undefined : linkEntry.status
+        const nextSelected = dirty.current.has("selected") ? undefined : linkEntry.selected
+        const nextTimes = dirty.current.has("times") ? undefined : (linkEntry.timesPlayed ?? 1)
+        const nextAchievements = dirty.current.has("achievements") ? undefined : linkEntry.completedAllAchievements
+        if (hours !== undefined) setPlayTime(hours)
+        if (nextStatus !== undefined) setStatus(nextStatus)
+        if (nextSelected !== undefined) setSelected(nextSelected)
+        if (nextTimes !== undefined) setTimesPlayed(nextTimes)
+        if (nextAchievements !== undefined) setCompletedAllAchievements(nextAchievements)
+        setEntry(current => ({
+            ...linkEntry,
+            playtimeSelected: hours ?? current.playtimeSelected,
+            status: nextStatus ?? current.status,
+            selected: nextSelected ?? current.selected,
+            timesPlayed: nextTimes ?? current.timesPlayed,
+            completedAllAchievements: nextAchievements ?? current.completedAllAchievements,
+        }))
+    }, [linkEntry])
 
     function updateSelected(newSelected: boolean) {
+        dirty.current.add("selected")
         setSelected(newSelected)
         const newLinkEntry = { ...entry, selected: newSelected }
         setEntry(newLinkEntry)
-        onUpdate(gameId, newLinkEntry)
+        onUpdate(gameId, newLinkEntry, "selected")
     }
 
     function updateStatus(newStatus: string) {
+        dirty.current.add("status")
         setStatus(newStatus)
         const newLinkEntry = { ...entry, status: newStatus }
         setEntry(newLinkEntry)
-        onUpdate(gameId, newLinkEntry)
+        onUpdate(gameId, newLinkEntry, "status")
     }
 
     function updatePlayTime(newPlayTime: number) {
+        dirty.current.add("hours")
         setPlayTime(newPlayTime)
         const newLinkEntry = { ...entry, playtimeSelected: newPlayTime }
         setEntry(newLinkEntry)
-        onUpdate(gameId, newLinkEntry)
+        onUpdate(gameId, newLinkEntry, "hours")
     }
 
     function updateTimesPlayed(newTimesPlayed: number) {
+        dirty.current.add("times")
         setTimesPlayed(newTimesPlayed)
         const newLinkEntry = { ...entry, timesPlayed: newTimesPlayed }
         setEntry(newLinkEntry)
-        onUpdate(gameId, newLinkEntry)
+        onUpdate(gameId, newLinkEntry, "times")
     }
 
     function updateCompletedAllAchievements(newCompletedAllAchievements: boolean) {
+        dirty.current.add("achievements")
         setCompletedAllAchievements(newCompletedAllAchievements)
         const newLinkEntry = { ...entry, completedAllAchievements: newCompletedAllAchievements }
         setEntry(newLinkEntry)
-        onUpdate(gameId, newLinkEntry)
+        onUpdate(gameId, newLinkEntry, "achievements")
     }
 
     return (

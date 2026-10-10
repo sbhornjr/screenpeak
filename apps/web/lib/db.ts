@@ -27,3 +27,5 @@ const client = postgres(connectionString, {
 
 export const db = drizzle(client, { schema: { ...schema, ...relations } })
 export type DB = typeof db
+/** Same pool as `db`. Reserve a connection when a session lock must span a request. */
+export const pg = client

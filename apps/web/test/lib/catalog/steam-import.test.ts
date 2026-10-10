@@ -4,10 +4,12 @@ import type { CatalogGame } from '@/lib/catalog/types'
 import type { SteamImportStore, SteamMatch } from '@/lib/catalog/steam-import'
 import {
     resolveSteamBatch, buildSteamLinkEntries, steamOwnershipBlock, parseSteamImportRequest,
-    confirmSteamLibraryEntries, cacheUntil, hoursFromSteamMinutes, KNOWN_INELIGIBLE_STEAM_APPS,
+    confirmSteamLibraryEntries, cacheUntil, hoursFromSteamMinutes, hoursForSteamLibrary,
+    mergeConfirmedSteamEntry, selectSteamImportQueue, KNOWN_INELIGIBLE_STEAM_APPS,
     STEAM_LOOKUP_BATCH,
 } from '@/lib/catalog/steam-import'
 import { negativeCacheStatus } from '@/lib/catalog/match-cache'
+import { LibraryReadError } from '@/lib/queries/library'
 import { IgdbError } from '@/lib/igdb/http'
 import { igdbProvider } from '@/lib/igdb/provider'
 
@@ -53,15 +55,16 @@ function memoryStore() {
             const id = 'game-' + game.igdbId
             const attached: number[] = []
             const rejected: number[] = []
+            const elsewhere: { appid: number; gameId: string }[] = []
             for (const appId of ownedAppIds) {
                 if (!game.steamAppIds.includes(appId)) { rejected.push(appId); continue }
                 const existing = maps.get(appId)
-                if (existing && existing !== id) { rejected.push(appId); continue }
+                if (existing && existing !== id) { elsewhere.push({ appid: appId, gameId: existing }); continue }
                 maps.set(appId, id)
                 attached.push(appId)
             }
             saved.push(game)
-            return { id: attached.length ? id : null, attached, rejected }
+            return { id: attached.length ? id : null, attached, rejected, conflicted: [], elsewhere }
         },
     }
     return { store, maps, saved, rememberCalls, failSave, failMappings: () => { failMappings = true } }
@@ -81,13 +84,16 @@ const entry = (gameId: string, hours: number) => ({
 })
 
 describe('steam ownership', () => {
-    it('rejects the Stanley Parable demo and other demo, software, and launcher names', () => {
+    it('rejects demos, playtests, launchers, and dedicated servers without dropping real games', () => {
         expect(KNOWN_INELIGIBLE_STEAM_APPS).toContainEqual({ appid: 247750, igdbId: 3035, kind: 'demo' })
         expect(steamOwnershipBlock({ appid: 247750, name: 'The Stanley Parable' })).toBe('demo')
         expect(steamOwnershipBlock({ appid: 1, name: 'The Stanley Parable Demo' })).toBe('demo')
         expect(steamOwnershipBlock({ appid: 2, name: 'Rockstar Games Launcher' })).toBe('launcher')
-        expect(steamOwnershipBlock({ appid: 3, name: 'Example SDK' })).toBe('software')
+        expect(steamOwnershipBlock({ appid: 3, name: 'Example Dedicated Server' })).toBe('software')
         expect(steamOwnershipBlock({ appid: 4, name: "Demon's Souls" })).toBeNull()
+        expect(steamOwnershipBlock({ appid: 5, name: 'Software Inc' })).toBeNull()
+        expect(steamOwnershipBlock({ appid: 6, name: 'Example SDK' })).toBeNull()
+        expect(steamOwnershipBlock({ appid: 7, name: 'Unigine Heaven Benchmark' })).toBeNull()
         expect(steamOwnershipBlock({ appid: 378648, name: 'The Witcher 3: Wild Hunt - Blood and Wine' })).toBeNull()
     })
 
@@ -214,7 +220,7 @@ describe('resolveSteamBatch', () => {
 
         const real = provider(
             ids => ids.map(appid => ({ appid, candidates: [3035] })),
-            () => [catalog(3035, [221910, 247750], { name: 'The Stanley Parable', gameType: 0 })],
+            () => [catalog(3035, [221910, 247750, 555001], { name: 'The Stanley Parable', gameType: 0 })],
         )
         const both = await resolveSteamBatch(
             [{ appid: 247750, name: 'The Stanley Parable Demo' }, { appid: 221910, name: 'The Stanley Parable' }],
@@ -223,8 +229,7 @@ describe('resolveSteamBatch', () => {
         expect(real.lookupSteamApps).toHaveBeenCalledWith([221910])
         expect(both.matched).toEqual([{ appid: 221910, gameId: 'game-3035' }])
         expect(both.unmatched).toContain(247750)
-        expect(mem.saved.at(-1)?.steamAppIds).not.toContain(247750)
-        expect(mem.saved.at(-1)?.steamAppIds).toContain(221910)
+        expect(mem.saved.at(-1)?.steamAppIds).toEqual([221910])
     })
 
     it('imports an expansion and does not require game_type 0', async () => {
@@ -277,10 +282,78 @@ describe('resolveSteamBatch', () => {
         expect(igdb.lookupSteamApps.mock.calls.map(call => call[0].length)).toEqual([100, 1])
     })
 
+    it('does not negative-cache apps that lose a unique-constraint race', async () => {
+        const igdb = provider(
+            ids => ids.map(appid => ({ appid, candidates: [1] })),
+            () => [catalog(1, [11, 12])],
+        )
+        const result = await resolveSteamBatch(
+            [{ appid: 11, name: 'A' }, { appid: 12, name: 'B' }],
+            {
+                provider: igdb, now: NOW,
+                store: {
+                    ...mem.store,
+                    saveGame: async () => ({ id: null, attached: [], rejected: [], conflicted: [11], elsewhere: [{ appid: 12, gameId: 'other-game' }] }),
+                },
+            },
+        )
+        expect(result.matched).toEqual([{ appid: 12, gameId: 'other-game' }])
+        expect(result.retryable).toEqual([11])
+        expect(mem.rememberCalls).toEqual([])
+    })
+
+    it('does not negative-cache when two resolves claim one Steam id', async () => {
+        let started = 0
+        let release: () => void = () => {}
+        const gate = new Promise<void>(resolve => { release = resolve })
+        const providerFor = (igdbId: number, steamIds: number[]) => ({
+            lookupSteamApps: vi.fn(async (ids: number[]) => {
+                started += 1
+                if (started === 1) await gate
+                else release()
+                return ids.map(appid => ({ appid, candidates: [igdbId] }))
+            }),
+            getGamesByIds: vi.fn(async () => [catalog(igdbId, steamIds)]),
+            searchGames: vi.fn(async () => []),
+        })
+        const [first, second] = await Promise.all([
+            resolveSteamBatch([{ appid: 11, name: 'A' }, { appid: 99, name: 'Shared' }], { provider: providerFor(1, [11, 99]), store: mem.store, now: NOW }),
+            resolveSteamBatch([{ appid: 12, name: 'B' }, { appid: 99, name: 'Shared' }], { provider: providerFor(2, [12, 99]), store: mem.store, now: NOW }),
+        ])
+        expect(first.matched.map(row => row.appid)).toEqual(expect.arrayContaining([11, 99]))
+        expect(second.matched.map(row => row.appid)).toEqual(expect.arrayContaining([12, 99]))
+        expect(mem.maps.get(99)).toMatch(/^game-/)
+        expect(mem.rememberCalls.filter(call => call.appId === 99)).toEqual([])
+    })
+
     it('resolves through the shared provider so the rate-limit budget applies', async () => {
         const lookup = vi.spyOn(igdbProvider, 'lookupSteamApps').mockResolvedValue([{ appid: 1, candidates: [] }])
         await resolveSteamBatch([{ appid: 1, name: 'Example' }], { store: mem.store, now: NOW })
         expect(lookup).toHaveBeenCalledWith([1])
+    })
+})
+
+describe('retry queue', () => {
+    it('checks pending apps before cached misses and does not repeat a batch', () => {
+        const pending = Array.from({ length: 20 }, (_, index) => index + 100)
+        const misses = Array.from({ length: 60 }, (_, index) => index + 1)
+        const first = selectSteamImportQueue({ retry: true, pendingAppIds: pending, cachedUnmatchedAppIds: misses, limit: 50 })
+        expect(first.appIds).toEqual([...pending, ...misses.slice(0, 30)])
+        expect(first.nextCursor).toEqual({ phase: 'miss', afterAppId: 30 })
+        const second = selectSteamImportQueue({
+            retry: true, cursor: first.nextCursor, pendingAppIds: pending, cachedUnmatchedAppIds: misses, limit: 50,
+        })
+        expect(second.appIds).toEqual(misses.slice(30))
+        expect(second.nextCursor).toBeNull()
+        expect(second.appIds.some(id => first.appIds.includes(id))).toBe(false)
+    })
+
+    it('leaves cached misses out of the ordinary queue', () => {
+        const selected = selectSteamImportQueue({
+            retry: false, pendingAppIds: [8, 4], cachedUnmatchedAppIds: [1, 2, 3], limit: 50,
+        })
+        expect(selected.appIds).toEqual([4, 8])
+        expect(selected.nextCursor).toBeNull()
     })
 })
 
@@ -297,7 +370,7 @@ describe('library collapse', () => {
                 { id: 'g1', name: 'Hades', coverImageUrl: null, released: '2020-09-17', developer: 'Supergiant' },
                 { id: 'g2', name: 'Kept', coverImageUrl: null, released: null, developer: '' },
             ],
-            library: [{ gameId: 'g2', hoursPlayed: 10.5, status: 'completed', playCount: 3, completedAllAchievements: false }],
+            library: [{ gameId: 'g2', hoursPlayed: 10.5, status: 'completed', playCount: 3, completedAllAchievements: false, steamPlaytimeMinutes: null }],
             completedAppIds: [12],
         })
         expect(entries).toEqual([
@@ -306,30 +379,62 @@ describe('library collapse', () => {
         ])
     })
 
+    it('refreshes hours that are still the previous automatic Steam sum', () => {
+        expect(hoursForSteamLibrary({ hoursPlayed: 2, steamPlaytimeMinutes: 140 }, 90 + 50 + 80)).toBe(3)
+        expect(hoursForSteamLibrary({ hoursPlayed: 9, steamPlaytimeMinutes: 140 }, 90 + 50 + 80)).toBe(9)
+        expect(hoursForSteamLibrary({ hoursPlayed: 9, steamPlaytimeMinutes: null }, 400)).toBe(9)
+    })
+
+    it('keeps stored hours when confirm is given the automatic Steam total', async () => {
+        const gameId = '11111111-1111-4111-8111-111111111111'
+        const stored = {
+            gameId, hoursPlayed: 12, status: 'completed', playCount: 4, completedAllAchievements: true, steamPlaytimeMinutes: 90,
+        }
+        expect(mergeConfirmedSteamEntry(entry(gameId, 3), stored, 180)).toMatchObject({
+            playtimeSelected: 12, status: 'completed', timesPlayed: 4, completedAllAchievements: true, steamPlaytimeMinutes: 180,
+        })
+        expect(mergeConfirmedSteamEntry(entry(gameId, 7), stored, 180).playtimeSelected).toBe(7)
+        const automatic = { ...stored, hoursPlayed: 2, status: 'playing', playCount: 1, completedAllAchievements: false, steamPlaytimeMinutes: 140 }
+        expect(mergeConfirmedSteamEntry(entry(gameId, 3), automatic, 220).playtimeSelected).toBe(3)
+        const write = vi.fn(async () => [])
+        const readLibrary = vi.fn(async () => { throw new LibraryReadError() })
+        const store: SteamImportStore = {
+            mappings: async () => [{ appid: 11, gameId }],
+            freshCache: async () => [],
+            remember: async () => false,
+            saveGame: async () => ({ id: null, attached: [], rejected: [], conflicted: [], elsewhere: [] }),
+        }
+        await expect(confirmSteamLibraryEntries('user-a', [entry(gameId, 3)], [{ appid: 11, name: 'Hades', playtimeMinutes: 180 }], { store, write, readLibrary }))
+            .rejects.toThrow(/could not be read/)
+        expect(write).not.toHaveBeenCalled()
+    })
+
     it('rejects a spoofed game and does not add hours twice for one game', async () => {
         const maps = new Map<number, string>([[11, '11111111-1111-4111-8111-111111111111']])
         const store: SteamImportStore = {
             mappings: async () => [{ appid: 11, gameId: '11111111-1111-4111-8111-111111111111' } satisfies SteamMatch],
             freshCache: async () => [],
             remember: async () => false,
-            saveGame: async () => ({ id: null, attached: [], rejected: [] }),
+            saveGame: async () => ({ id: null, attached: [], rejected: [], conflicted: [], elsewhere: [] }),
         }
         const write = vi.fn(async () => [])
+        const readLibrary = vi.fn(async () => [])
         const owned = [{ appid: 11, name: 'Hades', playtimeMinutes: 60 }]
-        await expect(confirmSteamLibraryEntries('user-a', [entry('22222222-2222-4222-8222-222222222222', 4)], owned, { store, write }))
+        await expect(confirmSteamLibraryEntries('user-a', [entry('22222222-2222-4222-8222-222222222222', 4)], owned, { store, write, readLibrary }))
             .rejects.toThrow(/Steam library/)
         expect(write).not.toHaveBeenCalled()
         const rows = [entry('11111111-1111-4111-8111-111111111111', 5), entry('11111111-1111-4111-8111-111111111111', 9)]
-        await confirmSteamLibraryEntries('user-a', rows, owned, { store, write })
-        expect(write).toHaveBeenCalledWith('user-a', [expect.objectContaining({ playtimeSelected: 5 })])
+        await confirmSteamLibraryEntries('user-a', rows, owned, { store, write, readLibrary })
+        expect(write).toHaveBeenCalledWith('user-a', [expect.objectContaining({ playtimeSelected: 5, steamPlaytimeMinutes: 60 })])
         expect(maps.get(11)).toBe('11111111-1111-4111-8111-111111111111')
     })
 })
 
 describe('import request', () => {
     it('reads only the retry flag', () => {
-        expect(parseSteamImportRequest(null)).toEqual({ retry: false })
-        expect(parseSteamImportRequest({ retry: true, userId: 'other', appids: [1, 2] })).toEqual({ retry: true })
+        expect(parseSteamImportRequest(null)).toEqual({ retry: false, cursor: null })
+        expect(parseSteamImportRequest({ retry: true, userId: 'other', appids: [1, 2] })).toEqual({ retry: true, cursor: null })
+        expect(parseSteamImportRequest({ retry: true, cursor: { phase: 'miss', afterAppId: 40 } })).toEqual({ retry: true, cursor: { phase: 'miss', afterAppId: 40 } })
         expect(() => parseSteamImportRequest({ retry: 'yes' })).toThrow(/Invalid import request/)
         expect(() => parseSteamImportRequest([])).toThrow(/Invalid import request/)
     })
@@ -339,5 +444,8 @@ describe('import request', () => {
         expect(source).not.toContain('importGamesFromSteam')
         expect(source).not.toContain('lib/rawg')
         expect(source).toContain('loadSteamImportPreview')
+        const importer = readFileSync(new URL('../../../lib/catalog/steam-import.ts', import.meta.url), 'utf8')
+        const preview = importer.slice(importer.indexOf('export async function loadSteamImportPreview'), importer.indexOf('const busyBatch'))
+        expect(preview).not.toContain('getFullyCompletedAppids')
     })
 })

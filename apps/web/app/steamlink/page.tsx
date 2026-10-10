@@ -30,7 +30,7 @@ export default async function SteamLinkPage() {
         name: game.name ?? "",
         playtimeMinutes: game.playtime_forever ?? 0,
     }))
-    const preview = await loadSteamImportPreview(viewer.id, steamUser.steam_id, owned)
+    const preview = await loadSteamImportPreview(viewer.id, owned)
 
     return (
         <main>

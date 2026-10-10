@@ -7,7 +7,7 @@ import type { DB } from '@/lib/db'
 import type { CatalogGame } from '@/lib/catalog/types'
 import { IgdbError } from '@/lib/igdb/http'
 
-const state = vi.hoisted(() => ({ db: null as DB | null }))
+const state = vi.hoisted(() => ({ db: null as DB | null, pg: null as postgres.Sql | null }))
 vi.mock('@/lib/db', () => ({
     db: new Proxy({}, {
         get(_target, property) {
@@ -17,9 +17,17 @@ vi.mock('@/lib/db', () => ({
             return typeof value === 'function' ? value.bind(database) : value
         },
     }),
+    pg: new Proxy({}, {
+        get(_target, property) {
+            const database = state.pg as unknown as Record<PropertyKey, unknown> | null
+            if (!database) throw new Error('Test database is not ready')
+            const value = database[property]
+            return typeof value === 'function' ? value.bind(database) : value
+        },
+    }),
 }))
 
-import { createDbSteamImportStore, resolveSteamBatch } from '@/lib/catalog/steam-import'
+import { confirmSteamLibraryEntries, createDbSteamImportStore, resolveSteamBatch, withSteamImportTurn } from '@/lib/catalog/steam-import'
 import { upsertLibraryEntries } from '@/lib/queries/library'
 import type { SteamLinkEntry } from '@screenpeak/shared/types'
 
@@ -65,6 +73,7 @@ beforeAll(async () => {
     await client.begin(async tx => { await tx.unsafe(await migration('0005_taxonomy_slug_unique')) })
     await client.begin(async tx => { await tx.unsafe(await migration('0006_two_score_rpcs')) })
     state.db = drizzle(client) as unknown as DB
+    state.pg = client
 })
 
 afterAll(async () => {
@@ -134,7 +143,7 @@ it('does not cache provider failures or import a demo as the full game', async (
 
     const demo = {
         lookupSteamApps: vi.fn(async (ids: number[]) => ids.map(appid => ({ appid, candidates: appid === 378648 ? [13166] : [3035] }))),
-        getGamesByIds: vi.fn(async (ids: number[]) => ids.map(id => catalog(id, id === 3035 ? [221910, 247750] : [378648], {
+        getGamesByIds: vi.fn(async (ids: number[]) => ids.map(id => catalog(id, id === 3035 ? [221910, 247750, 555001] : [378648], {
             name: id === 3035 ? 'The Stanley Parable' : 'Blood and Wine', gameType: id === 3035 ? 0 : 2,
         }))),
     }
@@ -148,7 +157,7 @@ it('does not cache provider failures or import a demo as the full game', async (
     expect(await client`select external_id from game_external_ids where external_id = '247750'`).toEqual([])
     expect(await client`select g.igdb_id, g.game_type from game_external_ids e join games g on g.id = e.game_id where e.external_id = '378648'`)
         .toEqual([{ igdb_id: 13166, game_type: 2 }])
-    expect(await client`select external_id from game_external_ids where external_id in ('221910', '247750') order by external_id`)
+    expect(await client`select external_id from game_external_ids where external_id in ('221910', '247750', '555001') order by external_id`)
         .toEqual([{ external_id: '221910' }])
 })
 
@@ -207,4 +216,47 @@ it('does not let one foreign Steam id block the next game or inflate hours', asy
     await upsertLibraryEntries(userId, [entry(game.id, 5)])
     const again = await client`select hours_played from library_entries where user_id = ${userId}`
     expect(Number(again[0].hours_played)).toBe(5)
+})
+
+it('keeps an existing library row when confirm is handed the automatic Steam hours', async () => {
+    const userId = randomUUID()
+    await client`insert into auth.users (id, email, raw_user_meta_data) values (${userId}, 'ada2@example.com', ${JSON.stringify({ username: 'adasteam2' })}::jsonb)`
+    const [game] = await client`select id from games where igdb_id = 700`
+    await client`insert into library_entries (user_id, game_id, status, hours_played, play_count, completed_all_achievements, steam_playtime_minutes)
+        values (${userId}, ${game.id}, 'completed', 12, 4, true, 90)`
+    const owned = [{ appid: 90, name: 'Already', playtimeMinutes: 180 }]
+    const saved = await confirmSteamLibraryEntries(userId, [entry(game.id, 3)], owned)
+    expect(saved[0]).toMatchObject({ playtimeSelected: 12, status: 'completed', timesPlayed: 4, completedAllAchievements: true, steamPlaytimeMinutes: 180 })
+    const [row] = await client`select hours_played, status, play_count, completed_all_achievements, steam_playtime_minutes
+        from library_entries where user_id = ${userId} and game_id = ${game.id}`
+    expect(Number(row.hours_played)).toBe(12)
+    expect(row.status).toBe('completed')
+    expect(row.play_count).toBe(4)
+    expect(row.completed_all_achievements).toBe(true)
+    expect(row.steam_playtime_minutes).toBe(180)
+})
+
+it('does not delete other Steam rows when import writes a filtered id list', async () => {
+    const store = createDbSteamImportStore()
+    const saved = await store.saveGame(catalog(100, [11], { name: 'Hades' }), [11])
+    expect(saved.attached).toEqual([11])
+    expect(await client`select external_id from game_external_ids e join games g on g.id = e.game_id
+        where g.igdb_id = 100 and e.external_id in ('11', '12') order by external_id`)
+        .toEqual([{ external_id: '11' }, { external_id: '12' }])
+    expect(await client`select steam_app_id from igdb_private.steam_match_cache where steam_app_id in (11, 12)`).toEqual([])
+})
+
+it('serializes two import turns for one user and lets the next user proceed', async () => {
+    const userId = randomUUID()
+    const otherId = randomUUID()
+    let release: () => void = () => {}
+    let entered: () => void = () => {}
+    const hold = new Promise<void>(resolve => { release = resolve })
+    const started = new Promise<void>(resolve => { entered = resolve })
+    const first = withSteamImportTurn(userId, async () => { entered(); await hold; return 'first' as const })
+    await started
+    expect(await withSteamImportTurn(userId, async () => 'second' as const)).toEqual({ busy: true })
+    expect(await withSteamImportTurn(otherId, async () => 'other' as const)).toBe('other')
+    release()
+    expect(await first).toBe('first')
 })

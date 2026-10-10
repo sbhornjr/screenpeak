@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { SteamLinkEntry } from '@screenpeak/shared/types'
 
@@ -64,6 +64,85 @@ describe('SteamLinkGamesSection', () => {
         expect(await screen.findByText(/2 Steam apps could not be matched/)).toBeInTheDocument()
         expect(screen.getByLabelText('Hours Played')).toHaveValue(6)
         expect(screen.getByRole('button', { name: /Import Games \(1\)/ })).toBeEnabled()
+    })
+
+    it('updates hours from a later batch unless that field was edited', async () => {
+        const user = userEvent.setup()
+        const later = entry({ gameId: '22222222-2222-4222-8222-222222222222', gameName: 'Hades II', playtimeSelected: 4 })
+        let resolveSecond: (value: unknown) => void = () => {}
+        resolveSteamImportBatch
+            .mockResolvedValueOnce({
+                entries: [entry({ playtimeSelected: 1 })],
+                remaining: 1,
+                totalApps: 2,
+                matchedGameCount: 1,
+                unmatchedAppCount: 0,
+                ambiguousAppCount: 0,
+                retryableAppCount: 0,
+                nextCursor: { phase: 'pending', afterAppId: 11 },
+            })
+            .mockImplementationOnce(() => new Promise(resolve => { resolveSecond = resolve }))
+        render(<SteamLinkGamesSection initialEntries={[]} totalApps={2} pending={2} unmatched={0} ambiguous={0} />)
+        const hours = await screen.findByLabelText('Hours Played')
+        expect(hours).toHaveValue(1)
+        await user.clear(hours)
+        await user.type(hours, '6')
+        resolveSecond({
+            entries: [entry({ playtimeSelected: 3 }), later],
+            remaining: 0,
+            totalApps: 2,
+            matchedGameCount: 2,
+            unmatchedAppCount: 0,
+            ambiguousAppCount: 0,
+            retryableAppCount: 0,
+            nextCursor: null,
+        })
+        expect(await screen.findByText('Hades II')).toBeInTheDocument()
+        const fields = screen.getAllByLabelText('Hours Played')
+        expect(fields[0]).toHaveValue(6)
+        expect(fields[1]).toHaveValue(4)
+    })
+
+    it('walks a retry cursor instead of asking for the same batch again', async () => {
+        const user = userEvent.setup()
+        resolveSteamImportBatch
+            .mockResolvedValueOnce({
+                entries: [entry()],
+                remaining: 4,
+                totalApps: 5,
+                matchedGameCount: 1,
+                unmatchedAppCount: 0,
+                ambiguousAppCount: 0,
+                retryableAppCount: 4,
+                nextCursor: null,
+            })
+            .mockResolvedValueOnce({
+                entries: [entry()],
+                remaining: 20,
+                totalApps: 70,
+                matchedGameCount: 1,
+                unmatchedAppCount: 0,
+                ambiguousAppCount: 0,
+                retryableAppCount: 0,
+                nextCursor: { phase: 'miss', afterAppId: 50 },
+            })
+            .mockResolvedValueOnce({
+                entries: [entry()],
+                remaining: 0,
+                totalApps: 70,
+                matchedGameCount: 1,
+                unmatchedAppCount: 0,
+                ambiguousAppCount: 0,
+                retryableAppCount: 0,
+                nextCursor: null,
+            })
+        render(<SteamLinkGamesSection initialEntries={[entry()]} totalApps={5} pending={4} unmatched={0} ambiguous={0} />)
+        await user.click(await screen.findByRole('button', { name: /Try the remaining matches again/ }))
+        await waitFor(() => expect(resolveSteamImportBatch).toHaveBeenCalledTimes(3))
+        expect(resolveSteamImportBatch).toHaveBeenNthCalledWith(1, {})
+        expect(resolveSteamImportBatch).toHaveBeenNthCalledWith(2, { retry: true, cursor: null })
+        expect(resolveSteamImportBatch).toHaveBeenNthCalledWith(3, { retry: true, cursor: { phase: 'miss', afterAppId: 50 } })
+        expect(screen.getByRole('status')).not.toHaveTextContent('still to check')
     })
 
     it('shows a retry when the provider fails and keeps the games already matched', async () => {

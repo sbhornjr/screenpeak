@@ -61,8 +61,16 @@ function content(game: CatalogGame): string {
         steamAppIds: [...new Set(game.steamAppIds)].sort((a, b) => a - b) })
 }
 
-/** Only for trusted server ingestion/reset code. Never expose as a Server Action. */
-export async function writeCatalogGame(tx: CatalogTransaction, input: CatalogGame): Promise<{ id: string; slug: string }> {
+/**
+ * Only for trusted server ingestion/reset code. Never expose as a Server Action.
+ * Seed and reset pass the full Steam id set and replace mappings. Steam import
+ * passes the ids it actually accepted and must not delete the game's other rows.
+ */
+export async function writeCatalogGame(
+    tx: CatalogTransaction,
+    input: CatalogGame,
+    options: { retainUnlistedSteamIds?: boolean } = {},
+): Promise<{ id: string; slug: string }> {
     const game = catalogGameSchema.parse(input)
     // Per-provider identity lock spans every related write, including first insert.
     // Different games can proceed concurrently; shared taxa are acquired in ID order.
@@ -167,9 +175,11 @@ export async function writeCatalogGame(tx: CatalogTransaction, input: CatalogGam
         if (mapping?.gameId !== row.id) throw new Error('Steam external ID is already associated with another catalogue game')
         await tx.update(gameExternalIds).set({ verifiedAt: now }).where(and(eq(gameExternalIds.provider, 'steam'), eq(gameExternalIds.externalId, String(appId))))
     }
-    await tx.execute(steamIds.length
-        ? sql`delete from public.game_external_ids where game_id=${row.id}::uuid and provider='steam' and external_id not in (${sql.join(steamIds.map(id => sql`${String(id)}`), sql`, `)})`
-        : sql`delete from public.game_external_ids where game_id=${row.id}::uuid and provider='steam'`)
+    if (!options.retainUnlistedSteamIds) {
+        await tx.execute(steamIds.length
+            ? sql`delete from public.game_external_ids where game_id=${row.id}::uuid and provider='steam' and external_id not in (${sql.join(steamIds.map(id => sql`${String(id)}`), sql`, `)})`
+            : sql`delete from public.game_external_ids where game_id=${row.id}::uuid and provider='steam'`)
+    }
     if (previousContent !== content({ ...game, genres: effectiveTaxa.genres, platforms: effectiveTaxa.platforms,
         developers: effectiveTaxa.developers, publishers: effectiveTaxa.publishers })) {
         await tx.update(games).set({ updatedAt: now }).where(eq(games.id, row.id))

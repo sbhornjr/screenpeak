@@ -15,7 +15,7 @@ export async function resolveSteamImportBatch(input?: unknown): Promise<SteamImp
     const user = await requireUser()
     try {
         const request = parseSteamImportRequest(input)
-        return await runSteamImportBatch(user.id, request.retry)
+        return await runSteamImportBatch(user.id, request)
     } catch (error) {
         if (error instanceof SteamImportInputError) return { error: error.message }
         throw error

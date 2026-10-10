@@ -22,9 +22,13 @@ vi.mock('@/lib/catalog/steam-import', () => ({
     parseSteamImportRequest: (input: unknown) => {
         if (input == null) return { retry: false }
         if (typeof input !== 'object' || Array.isArray(input)) throw new SteamImportInputError('Invalid import request.')
-        const retry = (input as { retry?: unknown }).retry
-        if (retry !== undefined && typeof retry !== 'boolean') throw new SteamImportInputError('Invalid import request.')
-        return { retry: retry === true }
+        const record = input as { retry?: unknown; cursor?: { phase?: unknown; afterAppId?: unknown } | null }
+        if (record.retry !== undefined && typeof record.retry !== 'boolean') throw new SteamImportInputError('Invalid import request.')
+        const cursor = record.cursor == null ? null : record.cursor
+        if (cursor && (cursor.phase !== 'pending' && cursor.phase !== 'miss' || typeof cursor.afterAppId !== 'number')) {
+            throw new SteamImportInputError('Invalid import request.')
+        }
+        return { retry: record.retry === true, cursor }
     },
     runSteamImportBatch,
     importConfirmedSteamLibrary,
@@ -57,7 +61,7 @@ describe('steam import actions', () => {
         requireUser.mockResolvedValue({ id: 'user-a', email: null })
         runSteamImportBatch.mockResolvedValue(batch)
         await resolveSteamImportBatch({ userId: 'user-b', appids: [99], retry: true })
-        expect(runSteamImportBatch).toHaveBeenCalledWith('user-a', true)
+        expect(runSteamImportBatch).toHaveBeenCalledWith('user-a', { retry: true, cursor: null })
         importConfirmedSteamLibrary.mockResolvedValue(undefined)
         await importSteamLibraryEntries([])
         expect(importConfirmedSteamLibrary).toHaveBeenCalledWith('user-a', [])

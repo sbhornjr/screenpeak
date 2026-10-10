@@ -1,19 +1,28 @@
 "use client"
 
-import { SteamImportBatch, SteamLinkEntry } from "@screenpeak/shared/types";
-import GameFromSteam from "../game/GameFromSteam";
+import { SteamImportBatch, SteamImportCursor, SteamLinkEntry } from "@screenpeak/shared/types";
+import GameFromSteam, { type SteamLinkEdit } from "../game/GameFromSteam";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { importSteamLibraryEntries } from "@/app/library-actions";
 import { resolveSteamImportBatch } from "@/app/steam-actions";
 
-function mergeEntries(previous: SteamLinkEntry[], incoming: SteamLinkEntry[], edited: Set<string>) {
+function mergeEntries(previous: SteamLinkEntry[], incoming: SteamLinkEntry[], edited: Map<string, Set<SteamLinkEdit>>) {
     const prior = new Map(previous.map(entry => [entry.gameId, entry]))
     return incoming.map(entry => {
         const saved = prior.get(entry.gameId)
-        if (saved && edited.has(entry.gameId)) return saved
+        const fields = edited.get(entry.gameId)
         if (!saved) return entry
-        return { ...entry, completedAllAchievements: saved.completedAllAchievements || entry.completedAllAchievements }
+        return {
+            ...entry,
+            playtimeSelected: fields?.has("hours") ? saved.playtimeSelected : entry.playtimeSelected,
+            status: fields?.has("status") ? saved.status : entry.status,
+            timesPlayed: fields?.has("times") ? saved.timesPlayed : entry.timesPlayed,
+            selected: fields?.has("selected") ? saved.selected : entry.selected,
+            completedAllAchievements: fields?.has("achievements")
+                ? saved.completedAllAchievements
+                : saved.completedAllAchievements || entry.completedAllAchievements,
+        }
     })
 }
 
@@ -36,11 +45,14 @@ export default function SteamLinkGamesSection({
     const [remaining, setRemaining] = useState(pending)
     const [matchedGameCount, setMatchedGameCount] = useState(initialEntries.length)
     const [cycle, setCycle] = useState(0)
-    const edited = useRef(new Set<string>())
+    const [notice, setNotice] = useState<string | null>(null)
+    const edited = useRef(new Map<string, Set<SteamLinkEdit>>())
     const router = useRouter()
 
-    function updateLinkEntry(gameId: string, linkEntry: SteamLinkEntry) {
-        edited.current.add(gameId)
+    function updateLinkEntry(gameId: string, linkEntry: SteamLinkEntry, field: SteamLinkEdit) {
+        const fields = edited.current.get(gameId) ?? new Set<SteamLinkEdit>()
+        fields.add(field)
+        edited.current.set(gameId, fields)
         setEntries(prev => prev.map(entry => entry.gameId === gameId ? linkEntry : entry))
     }
 
@@ -48,17 +60,19 @@ export default function SteamLinkGamesSection({
         if (cycle === 0 && pending === 0) return
         let cancelled = false
         const retry = cycle > 0
+        let cursor: SteamImportCursor | null = null
         async function run() {
-            let previousRemaining = Number.POSITIVE_INFINITY
             setMatching(true)
             setError(null)
+            setNotice(null)
             while (!cancelled) {
                 let result: SteamImportBatch | { error: string }
                 try {
-                    result = await resolveSteamImportBatch(retry ? { retry: true } : {})
+                    result = await resolveSteamImportBatch(retry ? { retry: true, cursor } : {})
                 } catch {
                     if (!cancelled) {
                         setError("Matching is unavailable. Your matched games are still listed.")
+                        setRetryableCount(count => count > 0 ? count : 1)
                         setMatching(false)
                     }
                     return
@@ -66,20 +80,24 @@ export default function SteamLinkGamesSection({
                 if (cancelled) return
                 if ("error" in result) {
                     setError(result.error)
+                    setRetryableCount(count => count > 0 ? count : 1)
                     setMatching(false)
                     return
                 }
-                setEntries(prev => mergeEntries(prev, result.entries, edited.current))
-                setUnmatchedCount(result.unmatchedAppCount)
-                setAmbiguousCount(result.ambiguousAppCount)
+                if (!result.notice) {
+                    setEntries(prev => mergeEntries(prev, result.entries, edited.current))
+                    setUnmatchedCount(result.unmatchedAppCount)
+                    setAmbiguousCount(result.ambiguousAppCount)
+                    setRemaining(result.remaining)
+                    setMatchedGameCount(result.matchedGameCount)
+                }
                 setRetryableCount(result.retryableAppCount)
-                setRemaining(result.remaining)
-                setMatchedGameCount(result.matchedGameCount)
-                if (result.retryableAppCount > 0 || result.remaining === 0 || result.remaining >= previousRemaining) {
+                setNotice(result.notice ?? null)
+                if (result.notice || result.retryableAppCount > 0 || !result.nextCursor) {
                     setMatching(false)
                     return
                 }
-                previousRemaining = result.remaining
+                cursor = result.nextCursor
             }
         }
         void run()
@@ -111,11 +129,12 @@ export default function SteamLinkGamesSection({
             <p role="status" className="text-center text-sm text-(--color-muted)">
                 {matching
                     ? `Matching your library… ${matchedGameCount} ${matchedGameCount === 1 ? "game" : "games"} ready, ${remaining} still to check.`
-                    : `${matchedGameCount} ${matchedGameCount === 1 ? "game" : "games"} ready from ${totalApps} Steam ${totalApps === 1 ? "app" : "apps"}.`}
+                    : `${matchedGameCount} ${matchedGameCount === 1 ? "game" : "games"} ready from ${totalApps} Steam ${totalApps === 1 ? "app" : "apps"}.${remaining > 0 ? ` ${remaining} still to check.` : ""}`}
                 {unmatchedCount > 0 ? ` ${appLabel(unmatchedCount)} could not be matched.` : ""}
                 {ambiguousCount > 0 ? ` ${appLabel(ambiguousCount)} matched more than one game and were skipped.` : ""}
             </p>
-            {retryableCount > 0 && !matching && (
+            {notice && <p className="text-center text-sm text-(--color-bad)">{notice}</p>}
+            {(retryableCount > 0 || remaining > 0 || notice) && !matching && (
                 <button
                     type="button"
                     onClick={() => setCycle(value => value + 1)}
@@ -131,7 +150,7 @@ export default function SteamLinkGamesSection({
             {error && <p className="text-center text-sm text-(--color-bad)">{error}</p>}
             <button
                 onClick={() => importGames()}
-                disabled={isImporting || selectedCount === 0}
+                disabled={isImporting || matching || selectedCount === 0}
                 className="px-4 py-1 text-md bg-(--color-accent) text-(--color-bg) font-semibold rounded-[3px]
                     hover:bg-(--color-accent-hover) transition-colors duration-200
                     disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-(--color-accent)"
