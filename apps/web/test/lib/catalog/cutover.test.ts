@@ -32,10 +32,16 @@ describe('disposable database gate', () => {
         await expect(assertAuthStubSafe(marked)).rejects.toThrow(/local-auth-stubs/)
         await expect(assertAuthStubSafe(plain)).resolves.toBeUndefined()
     })
-    it('refuses reset apply until Task 6 is explicitly acknowledged', async () => {
-        await expect(exec('npx', ['tsx', 'scripts/reset-catalog-to-igdb.ts', '--database-env', 'LOCAL_URL', '--manifest', 'missing.json', '--apply'], {
+    it('does not require the retired Task 6 acknowledgement before a disposable reset', async () => {
+        const error = await exec('npx', ['tsx', 'scripts/reset-catalog-to-igdb.ts', '--database-env', 'LOCAL_URL', '--manifest', 'missing.json', '--apply'], {
             env: { ...process.env, LOCAL_URL: 'postgresql://screenpeak@127.0.0.1:5432/screenpeak_igdb_test' },
-        })).rejects.toThrow(/confirm-before-task-6/)
+        }).then(() => '', reason => String(reason))
+        expect(error).toMatch(/Manifest not found/)
+        expect(error).not.toMatch(/confirm-before-task-6/)
+        const flagged = await exec('npx', ['tsx', 'scripts/reset-catalog-to-igdb.ts', '--database-env', 'LOCAL_URL', '--manifest', 'missing.json', '--apply', '--confirm-before-task-6'], {
+            env: { ...process.env, LOCAL_URL: 'postgresql://screenpeak@127.0.0.1:5432/screenpeak_igdb_test' },
+        }).then(() => '', reason => String(reason))
+        expect(flagged).toMatch(/Manifest not found/)
     })
     it('refuses a remote URL before opening a connection', async () => {
         await expect(exec('npx', ['tsx', 'scripts/establish-migration-journal.ts', '--database-env', 'REMOTE_URL', '--stamp-baseline'], {

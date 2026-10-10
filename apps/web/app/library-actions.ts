@@ -1,7 +1,8 @@
 'use server'
 
 import { requireUser } from '@/lib/auth'
-import { createLibraryEntry, updateLibraryEntry, deleteLibraryEntry, getLibraryEntry, upsertLibraryEntries } from '@/lib/queries/library'
+import { createLibraryEntry, updateLibraryEntry, deleteLibraryEntry, getLibraryEntry } from '@/lib/queries/library'
+import { importConfirmedSteamLibrary, SteamImportInputError } from '@/lib/catalog/steam-import'
 import type { SteamLinkEntry } from '@screenpeak/shared/types'
 
 type LibraryEntryFields = {
@@ -30,7 +31,13 @@ export async function removeLibraryEntry(entryId: string) {
     await deleteLibraryEntry(entryId, user.id)
 }
 
-export async function importSteamLibraryEntries(entries: SteamLinkEntry[]) {
+export async function importSteamLibraryEntries(entries: SteamLinkEntry[]): Promise<{ error?: string }> {
     const user = await requireUser()
-    return upsertLibraryEntries(user.id, entries)
+    try {
+        await importConfirmedSteamLibrary(user.id, entries)
+        return {}
+    } catch (error) {
+        if (error instanceof SteamImportInputError) return { error: error.message }
+        throw error
+    }
 }

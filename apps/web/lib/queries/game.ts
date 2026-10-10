@@ -201,7 +201,9 @@ export async function getGamesFromSteamIds(gameIds: number[]) {
     const wanted = [...new Set(gameIds)]
     const results: { id: string, name: string, slug: string, cover_image_url: string | null, released: string | null, steam_appid: number }[] = []
     const seen = new Set<number>()
-    // Task 8 drops games.steam_appid. Until then, rows written only by the old importer still match.
+    // One game can match several Steam apps; callers collapse on game id.
+    // Task 8 drops games.steam_appid. Steam import no longer reads it. This
+    // fallback remains so rows written only by the old importer still resolve.
     const legacyColumn = await db.execute(sql`select 1 as present from information_schema.columns
         where table_schema = 'public' and table_name = 'games' and column_name = 'steam_appid'`)
     const legacy = legacyColumn.length > 0
