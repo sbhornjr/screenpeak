@@ -6,6 +6,7 @@ import FilterSelect from "@/app/components/util/FilterSelect"
 import SearchInput from '../util/SearchInput';
 import SearchableDropdown from '../util/SearchableDropdown';
 import { ArrowDownWideNarrow, ArrowUpNarrowWide } from "lucide-react"
+import { defaultOrder } from "@/lib/game-catalog-sort"
 
 export default function GameFilters({ current, genres, platforms, esrb_ratings }: 
     { current: {query: string, genre: string, platform: string, developer: string, publisher: string, esrb: string, pageSize: string, sort: string, order: string},
@@ -53,8 +54,12 @@ export default function GameFilters({ current, genres, platforms, esrb_ratings }
     }
 
     function handleSort(sortChoice: string) {
+        // A new key gets that key's default direction. Name stays ascending;
+        // a score sort starts at the high end instead of keeping name's asc.
+        const order = defaultOrder(sortChoice)
         setSelectedSort(sortChoice)
-        router.push(`/games?${buildParams({ sort: sortChoice }).toString()}`)
+        setSelectedOrder(order)
+        router.push(`/games?${buildParams({ sort: sortChoice, order }).toString()}`)
     }
 
     function handleSortToggle() {
@@ -74,7 +79,6 @@ export default function GameFilters({ current, genres, platforms, esrb_ratings }
                 </FilterSelect>
                 <FilterSelect value={selectedSort} onChange={e => handleSort(e.target.value)} width="w-[calc(100%-3.25rem)] sm:w-44">
                     <option value="name">Name</option>
-                    <option value="metacritic_score">Metacritic Rating</option>
                     <option value="ngplus_rating">ScreenPeak Rating</option>
                 </FilterSelect>
                 <button

@@ -116,7 +116,7 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
 
     const count = stats.total_ratings
     const reviewCount = stats.total_reviews
-    const aggregate_rating = stats.avg_rating ?? 0
+    const communityAverage = count > 0 && stats.avg_rating != null && stats.avg_rating > 0 ? stats.avg_rating : null
 
     const distribution = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1].map(n => ({
         name: n,
@@ -162,8 +162,7 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
                     {/* Left rail — cover + your file */}
                     <div className="flex flex-col gap-5 order-2 md:order-1">
                         <div className="rounded-md overflow-hidden border border-(--color-border)">
-                            {/* cover_image_url is nullable in the schema, but every game reaching this
-                                page came from a RAWG-backed import that always populates it. */}
+                            {/* cover_image_url is nullable. A missing cover is handled with imagery in Task 7. */}
                             <Image src={game.cover_image_url!} alt={game.name} width={256} height={340} className="w-full h-auto object-cover" priority />
                         </div>
                         <Panel className="p-4">
@@ -188,13 +187,14 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
                         <SectionHead className="!mt-0">The Scoreboard</SectionHead>
                         <div className="flex flex-wrap items-start gap-x-6 gap-y-4">
                             <StatCompare
-                                critic={game.metacritic_score}
-                                community={aggregate_rating || null}
-                                communityCount={count}
+                                signedIn={!!user}
                                 you={userReview?.rating ?? null}
+                                community={communityAverage}
+                                communityCount={count}
                             />
                             <div className="flex flex-col gap-2.5">
                                 <p className={label}>Your turn</p>
+                                <RateReviewButton game_id={game.id} existing_rating_review={userReview} />
                                 <StickyGameActions gameName={game.name}>
                                     {/* LibraryButton's game_id prop is typed number, but games.id is a uuid
                                         string — a pre-existing mismatch predating this conversion (library.ts
@@ -260,7 +260,7 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
                     <Panel className="px-5 py-[1.1rem]">
                         <div className="flex items-start justify-between gap-4 mb-3.5">
                             <p className="font-(family-name:--font-display) font-semibold text-[2rem]" style={{ color: "var(--color-community)" }}>
-                                {aggregate_rating}<span className="font-mono text-(--color-muted) text-[0.8rem]"> / 10</span>
+                                {communityAverage ?? "—"}<span className="font-mono text-(--color-muted) text-[0.8rem]"> / 10</span>
                             </p>
                             <RateReviewButton game_id={game.id} existing_rating_review={userReview} />
                         </div>

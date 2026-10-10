@@ -6,6 +6,7 @@ import FilterSelect from "@/app/components/util/FilterSelect"
 import SearchInput from '../util/SearchInput';
 import SearchableDropdown from '../util/SearchableDropdown';
 import { ArrowDownWideNarrow, ArrowUpNarrowWide } from "lucide-react"
+import { defaultOrder } from "@/lib/game-catalog-sort"
 
 export default function LibraryFilters({ current, genres, platforms, developers, publishers, esrb_ratings, username }:
     { current: {query: string, genre: string, platform: string, developer: string, publisher: string, esrb: string, sort: string, order: string, status: string, is100: string},
@@ -59,8 +60,12 @@ export default function LibraryFilters({ current, genres, platforms, developers,
     }
 
     function handleSort(sortChoice: string) {
+        // A new key gets that key's default direction. Name stays ascending;
+        // a score or date sort starts descending instead of keeping name's asc.
+        const order = defaultOrder(sortChoice)
         setSelectedSort(sortChoice)
-        router.push(`/user/${username}/library?${buildParams({ sort: sortChoice }).toString()}`)
+        setSelectedOrder(order)
+        router.push(`/user/${username}/library?${buildParams({ sort: sortChoice, order }).toString()}`)
     }
 
     function handleSortToggle() {
@@ -118,7 +123,6 @@ export default function LibraryFilters({ current, genres, platforms, developers,
                 <FilterSelect value={selectedSort} onChange={e => handleSort(e.target.value)} width="w-[calc(100%-3.25rem)] sm:w-44">
                     <option value="date_added">Date Added</option>
                     <option value="name">Name</option>
-                    <option value="metacritic_score">Metacritic Rating</option>
                     <option value="ngplus_rating">ScreenPeak Rating</option>
                     <option value="your_rating">Your Rating</option>
                 </FilterSelect>

@@ -4,8 +4,8 @@ import Image from "next/image"
 import Link from "next/link"
 import Seal from "@/app/components/game/Seal"
 
-export default function FeedGameCard({ gameSlug, gameName, gameCoverImageUrl, gameReleased, gameDeveloper, userRating, avgRating, metacriticScore } :
-    { gameSlug: string | null, gameName: string | null, gameCoverImageUrl: string | null, gameReleased: string | null, gameDeveloper: string | null, userRating: number | null, avgRating: number | null, metacriticScore: number | null }) {
+export default function FeedGameCard({ gameSlug, gameName, gameCoverImageUrl, gameReleased, gameDeveloper, userRating, avgRating } :
+    { gameSlug: string | null, gameName: string | null, gameCoverImageUrl: string | null, gameReleased: string | null, gameDeveloper: string | null, userRating: number | null, avgRating: number | null }) {
 
     return (
         <Link href={`/games/${gameSlug}`}
@@ -23,12 +23,10 @@ export default function FeedGameCard({ gameSlug, gameName, gameCoverImageUrl, ga
                     </div>
                 )}
                 {/* One tag only — the cover is 80px wide and the feed line already
-                    states the rating. Prefer the community score, then critic, then
-                    the viewer's own. */}
+                    states the rating. Community score, then the viewer's own.
+                    No score means no tag. */}
                 {avgRating ? (
                     <Seal label="SP" score={avgRating} side="right" size="sm" />
-                ) : metacriticScore ? (
-                    <Seal label="MC" score={metacriticScore} side="right" size="sm" scale={100} />
                 ) : userRating ? (
                     <Seal label="You" score={userRating} side="right" size="sm" />
                 ) : null}

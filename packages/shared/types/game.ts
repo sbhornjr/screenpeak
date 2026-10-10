@@ -4,7 +4,6 @@ export type Game = {
     name: string
     slug: string
     cover_image_url: string | null
-    metacritic_score: number | null
     released: string | null
 }
 
@@ -14,7 +13,6 @@ export type GameData = {
     name: string
     slug: string
     cover_image_url: string
-    metacritic_score: number
     released: string
     avg_ngplus_rating: number
     user_rating: number

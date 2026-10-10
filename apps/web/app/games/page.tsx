@@ -6,6 +6,7 @@ import Pagination from "../components/util/Pagination";
 import EmptyState from "../components/util/EmptyState";
 import { getOptionalUser } from "@/lib/auth";
 import { queryGames, getAllGenres, getAllPlatforms, getDistinctEsrbRatings, getDeveloperNameMap } from "@/lib/queries/game";
+import { CATALOG_SORTS, parseCatalogSortLenient } from "@/lib/game-catalog-sort";
 
 type SearchPageProps = {
     searchParams: Promise<{ q?: string, genre?: string, platform?: string, developer?: string, publisher?: string, esrb?: string, page?: number, pageSize?: string, sort?: string, order?: string }>
@@ -25,8 +26,7 @@ export default async function SearchPage({ searchParams } : SearchPageProps) {
     const publisherQuery = publisher?.trim() ?? '';
     const pageQuery = page ? Number(page) : 1
     const pageSizeQuery = pageSize ? Number(pageSize) : 10
-    const sortQuery = sort?.trim() || 'ngplus_rating';
-    const orderQuery = order?.trim() ?? "desc";
+    const { sort: sortQuery, order: orderQuery } = parseCatalogSortLenient({ sort, order }, CATALOG_SORTS)
     const esrbQuery = esrb?.trim() ?? '';
 
     const user = await getOptionalUser()
@@ -76,7 +76,7 @@ export default async function SearchPage({ searchParams } : SearchPageProps) {
                         {games.map(game => (
                             <GameCard 
                                 key={game.id} 
-                                game={{ id: String(game.id), name: game.name, slug: game.slug, cover_image_url: game.cover_image_url, metacritic_score: game.metacritic_score, released: game.released }} 
+                                game={{ id: String(game.id), name: game.name, slug: game.slug, cover_image_url: game.cover_image_url, released: game.released }} 
                                 developer={developerMap.get(String(game.id))}
                                 userRating={game.user_rating} 
                                 ngplusRating={game.avg_ngplus_rating}

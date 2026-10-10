@@ -1,9 +1,10 @@
 import { sql, and, eq, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { games, ratingsReviews, gameGenres, gamePlatforms, gameDevelopers, gamePublishers, genres, platforms, developers, publishers, gameExternalIds } from '@/db/schema'
+import { games, gameGenres, gamePlatforms, gameDevelopers, gamePublishers, genres, platforms, developers, publishers, gameExternalIds } from '@/db/schema'
 import { GameData } from '@screenpeak/shared/types'
 import { uuidArrayParam } from '@/lib/sql-helpers'
 import { logger } from '@/lib/logger'
+import { selectHeroGame, type HeroGame } from '@/lib/hero-game'
 
 export async function getGameBySlug(slug: string) {
     try {
@@ -11,12 +12,12 @@ export async function getGameBySlug(slug: string) {
             .select({
                 id: games.id,
                 created_at: games.createdAt,
-                rawg_id: games.rawgId,
+                igdb_id: games.igdbId,
                 name: games.name,
                 slug: games.slug,
                 cover_image_url: games.coverImageUrl,
+                artwork_image_url: games.artworkImageUrl,
                 released: games.released,
-                metacritic_score: games.metacriticScore,
                 description: games.description,
                 esrb_rating: games.esrbRating,
                 reddit_url: games.redditUrl,
@@ -128,8 +129,8 @@ export async function queryGames(params: QueryGamesParams): Promise<GameData[]> 
                 p_developer => ${params.developer ?? null},
                 p_publisher => ${params.publisher ?? null},
                 p_esrb => ${params.esrb ?? null},
-                p_sort => ${params.sort ?? 'metacritic_score'},
-                p_order => ${params.order ?? 'desc'},
+                p_sort => ${params.sort ?? 'name'},
+                p_order => ${params.order ?? 'asc'},
                 p_limit => ${params.limit ?? 10},
                 p_offset => ${params.offset ?? 0},
                 p_user_id => ${params.userId ?? null},
@@ -143,36 +144,29 @@ export async function queryGames(params: QueryGamesParams): Promise<GameData[]> 
     }
 }
 
-// A community average only means something once enough people have rated.
-// Below this, one person could put any game in the hero by rating it.
-export const HERO_MIN_RATINGS = 3
+export { HERO_MIN_RATINGS } from '@/lib/hero-game'
 
-// The landing hero and the default share card both feature this game: among
-// well-known titles with at least HERO_MIN_RATINGS community ratings, the one
-// where critics and ScreenPeak players disagree most. Null until one qualifies.
-export async function getHeroGame(): Promise<(GameData & { rating_count: number }) | null> {
-    const candidates = (await queryGames({ sort: 'metacritic_score', order: 'desc', limit: 40, userId: null }))
-        .filter(g => g.metacritic_score && g.avg_ngplus_rating)
-    if (candidates.length === 0) return null
-
-    let counts: Map<string, number>
+// Public homepage and share image. Most ScreenPeak ratings among games with
+// at least HERO_MIN_RATINGS, then community average, then id. No viewer data.
+export async function getHeroGame(): Promise<HeroGame | null> {
     try {
-        const rows = await db
-            .select({ game_id: ratingsReviews.gameId, count: sql<number>`count(*)::int` })
-            .from(ratingsReviews)
-            .where(inArray(ratingsReviews.gameId, candidates.map(g => String(g.id))))
-            .groupBy(ratingsReviews.gameId)
-        counts = new Map(rows.map(r => [r.game_id, r.count]))
+        const rows = await db.execute(sql`
+            select
+                g.id,
+                g.name,
+                g.slug,
+                g.cover_image_url,
+                g.released::text as released,
+                round(avg(rr.rating)::numeric, 2) as avg_ngplus_rating,
+                count(*)::int as rating_count
+            from ratings_reviews rr
+            join games g on g.id = rr.game_id
+            group by g.id
+        `)
+        return selectHeroGame(rows as unknown as Parameters<typeof selectHeroGame>[0])
     } catch {
         return null
     }
-
-    const gap = (g: GameData) => Math.abs(g.metacritic_score - g.avg_ngplus_rating * 10)
-    const hero = candidates
-        .map(g => ({ ...g, rating_count: counts.get(String(g.id)) ?? 0 }))
-        .filter(g => g.rating_count >= HERO_MIN_RATINGS)
-        .sort((a, b) => gap(b) - gap(a))[0]
-    return hero ?? null
 }
 
 export async function getAllGenres() {

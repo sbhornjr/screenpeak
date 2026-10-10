@@ -1,9 +1,13 @@
 // GET /api/v1/games/[slug] — the game page's data, and the shape the web page
 // renders from too (both call the same loader, apps/web/lib/loaders/game-page.ts).
 //
-// This is a public contract: old app versions keep calling it, so change it
-// additively only. Field names follow the database (snake_case), like the rest
-// of @screenpeak/shared/types. Timestamps are Postgres text
+// One-time prelaunch reset: nothing is shipped, so this v1 contract dropped
+// rawg_id and every Metacritic field together and added igdb_id plus
+// artwork_image_url. There is no critic score. Community lives on `stats`;
+// the viewer's own rating lives on `viewer.review`. Once a client ships,
+// later changes stay additive.
+//
+// Field names follow the database (snake_case). Timestamps are Postgres text
 // ("2026-09-23 04:16:14.25+00"), not ISO — parse them with parseDbTimestamp().
 import type { GameRatingReview, GameRatingsStats } from '../types'
 
@@ -11,12 +15,16 @@ export type GameDetail = {
     id: string
     name: string
     slug: string
-    /** Transitional preparation schema; removed by the coordinated prelaunch IGDB contract change. */
-    rawg_id: number | null
+    /**
+     * IGDB id. Always present on the payload. Null only for a legacy row that
+     * has not been rebuilt; Task 8 makes the column required.
+     */
+    igdb_id: number | null
     cover_image_url: string | null
+    /** Landscape artwork. Null when IGDB has neither artwork nor a screenshot. */
+    artwork_image_url: string | null
     /** "YYYY-MM-DD" */
     released: string | null
-    metacritic_score: number | null
     description: string | null
     esrb_rating: string | null
     reddit_url: string | null

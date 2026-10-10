@@ -75,7 +75,7 @@ it('stamps 0000–0002 without replay, then applies only the pending migrations'
     ])
     expect(await stampBaseline(sql)).toEqual([])
     const applied = await applyPending(sql)
-    expect(applied).toEqual(['0003_igdb_request_budget', '0004_igdb_catalog_preparation', '0005_taxonomy_slug_unique'])
+    expect(applied).toEqual(['0003_igdb_request_budget', '0004_igdb_catalog_preparation', '0005_taxonomy_slug_unique', '0006_two_score_rpcs'])
     expect(await applyPending(sql)).toEqual([])
     const [row] = await client`select rawg_id, igdb_id, slug from games where id = ${legacyId}`
     expect(row).toEqual({ rawg_id: 900, igdb_id: null, slug: 'legacy' })
@@ -223,12 +223,14 @@ it('applies the whole chain on an empty database and records every file', async 
         await ensureLocalAuthStubs(sql)
         const applied = await applyPending(sql)
         expect(applied[0]).toBe('0000_illegal_kinsey_walden')
-        expect(applied.at(-1)).toBe('0005_taxonomy_slug_unique')
+        expect(applied.at(-1)).toBe('0006_two_score_rpcs')
         expect(await applyPending(sql)).toEqual([])
         const [column] = await fresh`select is_nullable from information_schema.columns where table_schema = 'public' and table_name = 'games' and column_name = 'igdb_id'`
         expect(column.is_nullable).toBe('YES')
+        const [metacritic] = await fresh`select column_name from information_schema.columns where table_schema = 'public' and table_name = 'games' and column_name = 'metacritic_score'`
+        expect(metacritic.column_name).toBe('metacritic_score')
         const [count] = await fresh`select count(*)::int as n from drizzle.__drizzle_migrations`
-        expect(count.n).toBe(6)
+        expect(count.n).toBe(7)
     } finally {
         await fresh.end()
     }

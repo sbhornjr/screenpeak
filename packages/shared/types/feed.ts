@@ -9,7 +9,6 @@ export type FeedItem = {
     game_slug: string | null
     game_cover_image_url: string | null
     game_released: string | null
-    game_metacritic_score: number | null
     game_developer: string | null
     game_avg_rating: number | null
     viewer_game_rating: number | null

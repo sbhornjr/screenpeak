@@ -4,7 +4,6 @@ export type TrendingGame = {
     game_slug: string
     game_cover_image_url: string | null
     game_released: string | null
-    metacritic_score: number | null
     game_developer: string | null
     avg_rating: number | null
     user_rating: number | null
@@ -29,7 +28,6 @@ export type RecommendedGame = {
     game_slug: string
     game_cover_image_url: string | null
     game_released: string | null
-    metacritic_score: number | null
     game_developer: string | null
     avg_follower_rating: number | null
     follower_count: number | null

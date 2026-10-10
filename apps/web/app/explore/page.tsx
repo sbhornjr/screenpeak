@@ -67,7 +67,7 @@ export default async function Explore({ searchParams }: ExplorePageProps) {
                     {trendingGames.map(game => (
                         <GameCard 
                             key={game.game_id} 
-                            game={{ id: game.game_id, name: game.game_name, slug: game.game_slug, cover_image_url: game.game_cover_image_url, metacritic_score: game.metacritic_score, released: game.game_released }}
+                            game={{ id: game.game_id, name: game.game_name, slug: game.game_slug, cover_image_url: game.game_cover_image_url, released: game.game_released }}
                             developer={game.game_developer} 
                             ngplusRating={game.avg_rating} 
                             userRating={game.user_rating} />
@@ -92,7 +92,7 @@ export default async function Explore({ searchParams }: ExplorePageProps) {
                                             </p>
                                             <GameCard 
                                                 key={game.game_id} 
-                                                game={{ id: game.game_id, name: game.game_name, slug: game.game_slug, cover_image_url: game.game_cover_image_url, metacritic_score: game.metacritic_score, released: game.game_released }}
+                                                game={{ id: game.game_id, name: game.game_name, slug: game.game_slug, cover_image_url: game.game_cover_image_url, released: game.game_released }}
                                                 developer={game.game_developer} 
                                                 ngplusRating={game.platform_avg_rating} 
                                                 userRating={null} 

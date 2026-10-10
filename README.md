@@ -5,9 +5,8 @@ app: track your library, rate and review what you've played, build lists, follow
 other players, and get an AI-written "Loadout" that describes who you are as a
 gamer.
 
-The defining idea is the **three-source rating** — every game carries up to three
-independent scores shown side by side like players sharing a split screen: the
-critics' verdict (Metacritic), the ScreenPeak community average, and yours.
+The defining idea is **you and the community** — every game shows two scores,
+both out of 10, side by side: the ScreenPeak community average, and yours.
 
 > The repo directory is historically named `ng-plus`. The product was renamed
 > from **NG+** to **ScreenPeak** over a trademark conflict. Some internal
@@ -132,7 +131,7 @@ app/                     Next.js App Router
   globals.css            design tokens (CSS custom properties) + the one keyframe
   explore/               discovery — trending games, lists, recommendations
   games/                 game browse + filters
-  games/[slug]/          game detail — three scores, reviews, screenshots
+  games/[slug]/          game detail — You and Community, reviews, screenshots
   user/[username]/        profile
     library/             the user's tracked games
     lists/  lists/[listId]/  user lists + list detail
