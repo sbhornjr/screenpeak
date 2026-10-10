@@ -17,6 +17,7 @@ import { getTrendingGames } from "@/lib/queries/explore";
 import { getRecentReviewsGlobal } from "@/lib/queries/review";
 import { parseDbTimestamp } from "@/lib/dates";
 import { getFeaturedLoadout } from "@/lib/queries/user";
+import { displayCoverUrl, socialBackdrop } from "@/lib/catalog/images";
 
 // Whose real, saved Loadout the logged-out landing page shows as its sample.
 const FEATURED_LOADOUT_USERNAME = "hornflakes"
@@ -33,9 +34,13 @@ export default async function Home() {
             getFeaturedLoadout(FEATURED_LOADOUT_USERNAME),
         ])
 
+        const heroArt = heroGame ? socialBackdrop(heroGame) : null
+        const heroCover = displayCoverUrl(heroGame?.cover_image_url, 'large')
+        const heroVisual = heroArt?.url ?? heroCover
+
         return (
             <main>
-                <section className={`w-full max-w-6xl mx-auto px-6 pt-16 pb-20 grid grid-cols-1 gap-12 items-center ${heroGame?.cover_image_url ? "md:grid-cols-2" : ""}`}>
+                <section className={`w-full max-w-6xl mx-auto px-6 pt-16 pb-20 grid grid-cols-1 gap-12 items-center ${heroVisual ? "md:grid-cols-2" : ""}`}>
                     <div>
                         <Eyebrow className="!mb-4">{heroGame ? heroGame.name : 'ScreenPeak'}</Eyebrow>
                         <h1 className="text-4xl sm:text-5xl md:text-6xl font-(family-name:--font-display) text-(--color-text) leading-[1.1] mb-6">
@@ -56,15 +61,16 @@ export default async function Home() {
                         </p>
                         <LandingCTA primaryLabel="Start Your Library" />
                     </div>
-                    {heroGame?.cover_image_url && (
-                        <div className="relative aspect-3/4 w-full max-w-sm mx-auto rounded-[3px] overflow-hidden
-                            border border-(--color-border) shadow-[0_20px_50px_rgba(0,0,0,0.5)] -rotate-2">
+                    {heroVisual && heroGame && (
+                        <div className={`relative w-full mx-auto rounded-[3px] overflow-hidden
+                            border border-(--color-border) shadow-[0_20px_50px_rgba(0,0,0,0.5)] -rotate-2
+                            ${heroArt ? "aspect-video max-w-xl" : "aspect-3/4 max-w-sm"}`}>
                             <Image
-                                src={heroGame.cover_image_url}
+                                src={heroVisual}
                                 alt={heroGame.name}
                                 fill
                                 className="object-cover"
-                                sizes="(max-width: 768px) 80vw, 400px"
+                                sizes="(max-width: 768px) 80vw, 640px"
                                 priority
                             />
                             <Seal label="SP" score={heroGame.avg_ngplus_rating} side="right" />

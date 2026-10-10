@@ -16,34 +16,27 @@ const DEFAULT_STATS: GameRatingsStats = {
 // Rating counts + distribution for a game, computed server-side rather than
 // pulling every rating/review row (with joined user data) into memory.
 export async function getGameRatingsStats(gameId: string): Promise<GameRatingsStats> {
-    try {
-        const rows = await db.execute(sql`select * from get_game_ratings_stats(p_game_id => ${gameId})`)
-        return (rows[0] as unknown as GameRatingsStats) ?? DEFAULT_STATS
-    } catch {
-        return DEFAULT_STATS
-    }
+    // No row is an unrated game. A thrown query is an outage, not an empty board.
+    const rows = await db.execute(sql`select * from get_game_ratings_stats(p_game_id => ${gameId})`)
+    return (rows[0] as unknown as GameRatingsStats) ?? DEFAULT_STATS
 }
 
 export async function getUserRatingReviewForGame(gameId: string, userId: string) {
-    try {
-        const rows = await db
-            .select({
-                user_id: ratingsReviews.userId,
-                rating: ratingsReviews.rating,
-                review: ratingsReviews.review,
-                created_at: ratingsReviews.createdAt,
-                updated_at: ratingsReviews.updatedAt,
-                users: { username: users.username, display_name: users.displayName, avatar_url: users.avatarUrl },
-            })
-            .from(ratingsReviews)
-            .innerJoin(users, eq(ratingsReviews.userId, users.id))
-            .where(and(eq(ratingsReviews.gameId, gameId), eq(ratingsReviews.userId, userId)))
-            .limit(1)
+    const rows = await db
+        .select({
+            user_id: ratingsReviews.userId,
+            rating: ratingsReviews.rating,
+            review: ratingsReviews.review,
+            created_at: ratingsReviews.createdAt,
+            updated_at: ratingsReviews.updatedAt,
+            users: { username: users.username, display_name: users.displayName, avatar_url: users.avatarUrl },
+        })
+        .from(ratingsReviews)
+        .innerJoin(users, eq(ratingsReviews.userId, users.id))
+        .where(and(eq(ratingsReviews.gameId, gameId), eq(ratingsReviews.userId, userId)))
+        .limit(1)
 
-        return (rows[0] as unknown as GameRatingReview) ?? null
-    } catch {
-        return null
-    }
+    return (rows[0] as unknown as GameRatingReview) ?? null
 }
 
 // One page of a game's written reviews (rating rows with no review text are

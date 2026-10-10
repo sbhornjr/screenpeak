@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { DataAttribution } from '@/components/data-attribution';
 import { Eyebrow } from '@/components/eyebrow';
 import { colors, face, space, tracking, trackingPx } from '@/theme';
 
@@ -12,6 +13,9 @@ export default function HomeScreen() {
         <Eyebrow>ScreenPeak</Eyebrow>
         <Text style={styles.title}>Your feed lands here.</Text>
         <Text style={styles.body}>The mobile screens arrive once the /api/v1 layer is in place.</Text>
+      </View>
+      <View style={styles.attribution}>
+        <DataAttribution />
       </View>
     </SafeAreaView>
   );
@@ -30,4 +34,5 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   body: { fontFamily: face.body[400], fontSize: 16, lineHeight: 24, color: colors.muted },
+  attribution: { paddingHorizontal: space[6], paddingBottom: space[4] },
 });

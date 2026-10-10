@@ -7,6 +7,8 @@ export type HeroCandidate = {
     name: string
     slug: string
     cover_image_url: string | null
+    artwork_image_url?: string | null
+    screenshots?: string[] | null
     released: string | null
     avg_ngplus_rating: number | string | null
     rating_count: number | string
@@ -17,6 +19,8 @@ export type HeroGame = {
     name: string
     slug: string
     cover_image_url: string | null
+    artwork_image_url: string | null
+    screenshots: string[] | null
     released: string | null
     avg_ngplus_rating: number
     rating_count: number
@@ -38,6 +42,8 @@ export function selectHeroGame(candidates: HeroCandidate[]): HeroGame | null {
             name: game.name,
             slug: game.slug,
             cover_image_url: game.cover_image_url,
+            artwork_image_url: game.artwork_image_url ?? null,
+            screenshots: Array.isArray(game.screenshots) ? game.screenshots : null,
             released: game.released,
             avg_ngplus_rating: average,
             rating_count: ratingCount,

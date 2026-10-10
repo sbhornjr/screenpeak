@@ -4,20 +4,24 @@ import Link from "next/link"
 import Image from "next/image"
 import ExpandableText from "../util/ExpandableText"
 import { parseDbTimestamp } from "@/lib/dates"
+import { displayCoverUrl } from "@/lib/catalog/images"
 
 export default function Review({ slug, name, cover, released, developer, rating, review, createdAt } : 
     { slug: string, name: string, cover: string, released: string, developer?: string | null, rating: number, review: string, createdAt: string}
 ) {
 
     const scoreColor = (score: number) => score >= 8 ? 'var(--color-good)' : score >= 6 ? 'var(--color-mid)' : 'var(--color-bad)'
+    const image = displayCoverUrl(cover, 'small')
 
     return (
         <div className="py-1">
             <Link href={`/games/${slug}`}
                 className="flex items-center gap-3 px-3 py-2 rounded-[3px]
                     hover:bg-(--color-surface-light)/50 transition-colors duration-200 group w-full">
-                <div className="relative w-16 h-20 shrink-0 rounded-[3px] overflow-hidden object-cover">
-                    <Image src={cover} alt={name} fill className="object-cover" sizes="64px" />
+                <div className="relative w-16 aspect-3/4 shrink-0 rounded-[3px] overflow-hidden bg-(--color-surface-light)">
+                    {image
+                        ? <Image src={image} alt={name} fill className="object-cover" sizes="64px" />
+                        : <span className="absolute inset-0 grid place-items-center text-(--color-muted) text-[8px] uppercase tracking-[0.12em] font-mono">No Cover</span>}
                 </div>
                 <div className="flex flex-col gap-1 py-2 w-full">
                     <div className="flex items-center gap-3 py-2 w-full">

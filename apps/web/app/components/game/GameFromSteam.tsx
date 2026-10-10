@@ -6,6 +6,7 @@ import { SteamLinkEntry } from "@screenpeak/shared/types"
 export type SteamLinkEdit = "hours" | "status" | "times" | "achievements" | "selected"
 import Image from "next/image"
 import FilterSelect from "../util/FilterSelect"
+import { displayCoverUrl } from "@/lib/catalog/images"
 import { Check } from "lucide-react"
 
 export default function GameFromSteam({ gameId, linkEntry, onUpdate } : { gameId: string, linkEntry: SteamLinkEntry, onUpdate: (gameId: string, linkEntry: SteamLinkEntry, field: SteamLinkEdit) => void }) {
@@ -78,6 +79,8 @@ export default function GameFromSteam({ gameId, linkEntry, onUpdate } : { gameId
         onUpdate(gameId, newLinkEntry, "achievements")
     }
 
+    const cover = displayCoverUrl(linkEntry.coverImageUrl, 'small')
+
     return (
         <div className={`relative border-2 rounded-[3px] p-4 ${selected ? "border-(--color-accent)/50" : "border-(--color-border)"}`}>
             <button
@@ -87,10 +90,10 @@ export default function GameFromSteam({ gameId, linkEntry, onUpdate } : { gameId
                 className="absolute inset-0 z-0 rounded-[3px]"
             />
             <div className="relative z-10 flex flex-wrap items-center gap-3 sm:gap-4 pointer-events-none">
-                <div className="relative w-20 h-20 shrink-0 rounded-[3px] overflow-hidden">
-                    {linkEntry.coverImageUrl ? (
+                <div className="relative w-20 aspect-3/4 shrink-0 rounded-[3px] overflow-hidden">
+                    {cover ? (
                         <Image
-                            src={linkEntry.coverImageUrl}
+                            src={cover}
                             alt={linkEntry.gameName}
                             fill
                             className="object-cover grayscale-15 contrast-[1.05] transition-all duration-300 group-hover:grayscale-0"

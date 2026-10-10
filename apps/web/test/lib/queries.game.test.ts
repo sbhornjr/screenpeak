@@ -34,6 +34,13 @@ describe('getGameTaxonomy', () => {
             publishers: [{ id: 'pub1', name: 'Larian', slug: 'larian' }],
         })
     })
+
+    it('propagates a database error instead of an empty taxonomy', async () => {
+        mockDb.select.mockImplementation(() => ({
+            from: () => ({ innerJoin: () => ({ where: () => Promise.reject(new Error('database unavailable')) }) }),
+        }))
+        await expect(getGameTaxonomy('game-1')).rejects.toThrow('database unavailable')
+    })
 })
 
 describe('getDistinctEsrbRatings', () => {

@@ -112,6 +112,21 @@ describe('loadGamePage', () => {
         expect(viewer).toEqual({ review: null, libraryEntry: null, lists: [], listIdsGameIsIn: [], defaultListPrivacy: true })
     })
 
+    it('does not report a database outage as an unknown game', async () => {
+        q.getGameBySlug.mockRejectedValueOnce(new Error('database unavailable'))
+        await expect(loadGamePage('example', null)).rejects.toThrow('database unavailable')
+    })
+
+    it('does not report a database outage as an empty taxonomy', async () => {
+        q.getGameTaxonomy.mockRejectedValueOnce(new Error('database unavailable'))
+        await expect(loadGamePage('example', null)).rejects.toThrow('database unavailable')
+    })
+
+    it('does not report a ratings outage as an empty scoreboard', async () => {
+        q.getGameRatingsStats.mockRejectedValueOnce(new Error('database unavailable'))
+        await expect(loadGamePage('example', null)).rejects.toThrow('database unavailable')
+    })
+
     it('normalises nullable library columns (hours, 100%, play count) to the contract', async () => {
         q.getLibraryEntry.mockResolvedValue({ id: 'le-1', status: 'backlog', completed_all_achievements: null, hours_played: null, play_count: null })
 

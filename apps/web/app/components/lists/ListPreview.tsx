@@ -45,7 +45,7 @@ export default function ListPreview({ listId, listName, gameCovers, isPinnable, 
                         href: `/games/${g.slug ?? ''}`,
                     }))} />
                 ) : (
-                    <div className="w-24 h-36 rounded-[3px] border-2 border-dashed border-(--color-border)
+                    <div className="w-24 aspect-3/4 rounded-[3px] border-2 border-dashed border-(--color-border)
                         flex items-center justify-center">
                         <span className="text-(--color-muted) text-[10px] uppercase tracking-[0.15em]
                             font-mono text-center px-2 leading-relaxed">

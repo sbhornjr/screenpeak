@@ -10,7 +10,7 @@
 
 **Design basis:** User request and pasted Grok audit, checked against this checkout at cdd8e19 on 2026-10-06 (including the pre-existing uncommitted mobile-plan edits). The design brief below is part of this plan. Grok's full report at /workspace/lens/screenpeak/rawg-to-igdb-field-audit.md was not available locally. The original planning pass performed no live operations. Task 1 subsequently completed read-only database inventory and credentialed IGDB audits on 2026-10-08; no migration/reset has occurred.
 
-**Status:** Task 1 complete on 2026-10-08 (inventory, private export, measured coverage, 24 manual checks and explicit edge probes). The user confirmed a simpler reset: discard all catalogue and game-linked test data; retain accounts, settings and social data. Remove salvage/reconciliation work from later tasks. You / Community remains the score design. Tasks 2–4 are complete and merged. Task 5 (two-score contract, UI, and journaled RPC rewrite) is complete; `games.metacritic_score` is still in the schema because the sitemap orders by it. Task 6 (IGDB Steam import) is complete on 2026-10-10. Tasks 7–8 and the hosted reset remain. Every migration so far has been applied only to disposable local Postgres, not the development Supabase database.
+**Status:** Task 1 complete on 2026-10-08 (inventory, private export, measured coverage, 24 manual checks and explicit edge probes). The user confirmed a simpler reset: discard all catalogue and game-linked test data; retain accounts, settings and social data. Remove salvage/reconciliation work from later tasks. You / Community remains the score design. Tasks 2–4 are complete and merged. Task 5 (two-score contract, UI, and journaled RPC rewrite) is complete. Task 6 (IGDB Steam import) is complete on 2026-10-10. Task 7 (imagery, attribution, sitemap) is complete on 2026-10-10; `app/sitemap.ts` no longer reads `games.metacritic_score`. The column is still in the schema until Task 8. Task 8 and the hosted reset remain. Every migration so far has been applied only to disposable local Postgres, not the development Supabase database.
 
 **Owner rulings 2026-10-10:** Nothing is shipped, so remaining tasks follow code dependencies only — no deploy window, compatibility release, or dual-running contracts. Task 4 starts by recording which migrations have run (the development database still has no migration journal) and rehearses that on a database copy before 0003/0004. Task 7's sitemap fix lands before `metacritic_score` is dropped. Shared or ambiguous Steam app IDs are removed before `writeCatalogGame`, which still throws if one is passed through. Taxonomy slugs are unique. Game slugs no longer always end in `-igdb-<id>`. Cutover includes a top-N IGDB seed. A written IGDB commercial partnership is required before public launch.
 
@@ -381,21 +381,34 @@ Deviations from the task text:
 **Modify:** apps/web/next.config.ts; apps/web/app/components/game/{GameCard,FavoriteGamePicker}.tsx; apps/web/app/components/lists/AddToListFromListButton.tsx; apps/web/app/components/util/Footer.tsx; apps/web/app/sitemap.ts; game-page and OG files from Task 5; apps/mobile/src/components/game-card.tsx and apps/mobile/src/app/index.tsx. Create apps/mobile/src/components/data-attribution.tsx; the current mobile app has no settings/about screen.
 **Create:** apps/web/test/lib/catalog/images.test.ts; apps/web/test/lib/sitemap.test.ts.
 
-- [ ] Permit only the required HTTPS IGDB CDN host/path in Next image configuration alongside the existing avatar host. Remove media.rawg.io in the final application configuration; verify the fresh catalogue contains no rendered RAWG image references.
-- [ ] Use portrait covers for cards/pickers and landscape artwork/screenshots for heroes/social images. Use cover_big at 2x where resolution is needed; retain a deliberate 3:4 frame or fit treatment and inspect the slight crop. Do not stretch a portrait into a 1200×630 share image.
-- [ ] Audit feed, lists, reviews, search pickers, favourites, game page and Steam tiles; align skeleton aspect ratios and sizes. Inspect web narrow/wide layouts and mobile on-device rendering.
-- [ ] Add visible "Game data and images from IGDB" attribution with a link in the web footer and a visible reusable mobile attribution component on the existing index screen; later settings work may move it to a persistent About location. All live catalogue metadata after the reset is IGDB-sourced; no mixed-provider attribution path is required.
-- [ ] Fix sitemap with a dedicated Drizzle query selecting actual schema columns, stable order and explicit error propagation; use parseDbTimestamp for database timestamps. Keep private lists out. Handle PostgREST row-cap assumptions by using explicit DB pagination rather than assuming .limit(5000) guarantees 5000 rows. This change has to land before `metacritic_score` is dropped: `app/sitemap.ts` currently orders by `metacritic_score` and selects `updated_at` (added in 0004, absent before preparation).
-- [ ] Expo Image on SDK 57 has no remote-host allowlist (confirmed against the v57 image docs: a remote HTTPS URL is a valid source, and `app.json` does not name hosts). `images.igdb.com` is therefore already loadable on device. Do not add a host allowlist. Next.js `images.remotePatterns` is still required for the web app and remains part of this task.
-- [ ] Test sitemap contains the freshly seeded game slugs, omits private lists, uses valid lastModified dates, pages deterministically and does not emit a successful empty game section on DB failure. Old test URLs need no redirects.
-- [ ] Apply the same DB-error rule to changed game-page reads: API outages become 500, not a plausible missing game or empty taxonomy; web-only forgiving behavior belongs at the call site.
-- [ ] Verify real rendered OG images and missing-image fallbacks. Commit.
+- [x] Permit only the required HTTPS IGDB CDN host/path in Next image configuration alongside the existing avatar host. Remove media.rawg.io in the final application configuration; verify the fresh catalogue contains no rendered RAWG image references.
+- [x] Use portrait covers for cards/pickers and landscape artwork/screenshots for heroes/social images. Use cover_big at 2x where resolution is needed; retain a deliberate 3:4 frame or fit treatment and inspect the slight crop. Do not stretch a portrait into a 1200×630 share image.
+- [x] Audit feed, lists, reviews, search pickers, favourites, game page and Steam tiles; align skeleton aspect ratios and sizes. Inspect web narrow/wide layouts and mobile on-device rendering.
+- [x] Add visible "Game data and images from IGDB" attribution with a link in the web footer and a visible reusable mobile attribution component on the existing index screen; later settings work may move it to a persistent About location. All live catalogue metadata after the reset is IGDB-sourced; no mixed-provider attribution path is required.
+- [x] Fix sitemap with a dedicated Drizzle query selecting actual schema columns, stable order and explicit error propagation; use parseDbTimestamp for database timestamps. Keep private lists out. Handle PostgREST row-cap assumptions by using explicit DB pagination rather than assuming .limit(5000) guarantees 5000 rows. This change has to land before `metacritic_score` is dropped: `app/sitemap.ts` currently orders by `metacritic_score` and selects `updated_at` (added in 0004, absent before preparation).
+- [x] Expo Image on SDK 57 has no remote-host allowlist (confirmed against the v57 image docs: a remote HTTPS URL is a valid source, and `app.json` does not name hosts). `images.igdb.com` is therefore already loadable on device. Do not add a host allowlist. Next.js `images.remotePatterns` is still required for the web app and remains part of this task.
+- [x] Test sitemap contains the freshly seeded game slugs, omits private lists, uses valid lastModified dates, pages deterministically and does not emit a successful empty game section on DB failure. Old test URLs need no redirects.
+- [x] Apply the same DB-error rule to changed game-page reads: API outages become 500, not a plausible missing game or empty taxonomy; web-only forgiving behavior belongs at the call site.
+- [x] Verify real rendered OG images and missing-image fallbacks. Commit.
+
+**Task 7 execution notes (2026-10-10):** Local only. No migration was added and `games.metacritic_score` was not dropped. RAWG runtime files were not removed. The hosted development database was not contacted.
+
+Deviations from the task text:
+
+- Sitemap order is `games.updated_at` descending, then `games.id` ascending, in pages of 1000. The integration fixture inserts catalogue rows in disposable Postgres, including a high Metacritic score on an older row, and asserts that score does not win. It does not call the live top-N IGDB seed.
+- `getGameBySlug`, `getGameIdBySlug`, `getGameTaxonomy`, `getGameRatingsStats`, and `getUserRatingReviewForGame` now reject on a database error. The game page still catches the paged review query and shows an empty list; that remains the web-only call site. `getHeroGame` still returns null, so the public homepage keeps its branded fallback during a hero-query failure.
+- The game gallery shows every valid landscape screenshot. It no longer drops the first shot, because that shot is not the page hero.
+- The homepage uses landscape artwork in a 16:9 frame when the hero has it, and the portrait cover in a 3:4 frame otherwise. Share images use `object-fit: cover` in a 720×630 panel. A portrait cover is never the 1200×630 source. A missing landscape image is the branded card.
+- Large covers request `cover_big_2x`. Thumbs request `cover_big`. A URL that is not `https://images.igdb.com/igdb/image/upload/` is not rendered.
+- Grid skeletons were already 3:4. Cards, pickers, feed thumbs, review rows, list fans, and Steam tiles now use that frame. `cover_big` is 264×374, so the 3:4 frame crops a little height.
+- Expo Image still has no host allowlist. The mobile card refuses a non-IGDB URL in application code. On-device rendering was not available in this environment.
+- `ship-readiness.html` still documents `RAWG_API_KEY` and RAWG covers. It is on the Task 8 cleanup list and was not rewritten here.
 
 **Exit:** Images, attribution and discoverability work for the fresh IGDB catalogue, including empty user libraries and unrated games after reset.
 
 ## Task 8 — Rehearse the development reset, finish cleanup and unblock other work
 
-**Modify:** README.md, AGENTS.md, DESIGN.md, apps/web/test/README.md, backlog.txt, build-plan.md and docs/igdb-migration-runbook.md.
+**Modify:** README.md, AGENTS.md, DESIGN.md, apps/web/test/README.md, backlog.txt, build-plan.md, docs/igdb-migration-runbook.md, and ship-readiness.html (it still documents `RAWG_API_KEY` and RAWG cover images on game pages).
 **Retire:** apps/web/lib/rawg.ts, apps/web/scripts/inspect-rawg.ts, apps/web/test/lib/rawg.test.ts after its useful matching fixtures have moved.
 
 - [ ] Re-read git status and migration state before execution; allocate migration numbers then. Preserve unrelated work and existing migration history.
@@ -407,7 +420,7 @@ Deviations from the task text:
 - [ ] Confirm credentials and live mapping report. Before public launch, secure an IGDB commercial partnership with written terms for storage, caching and attribution. The Twitch Developer Agreement defaults to 24-hour caching; the free noncommercial documentation is not permission to ship. An unshipped development reset does not itself require a public deployment, and it does not satisfy this gate.
 - [ ] For the actual selected development database, stop app/writers, take the restorable snapshot, display the staged retention/loss report, apply preparation schema and the reset transaction, then apply final cleanup. Keep the app stopped until the new code/schema checks pass.
 - [ ] In final cleanup, verify all five tables have valid required igdb_id values, and drop rawg_id, metacritic_score and games.steam_appid with their obsolete constraints. The score RPCs were already recreated without Metacritic outputs in journaled 0006 (Task 5); do not restore the 0001 return shapes. No dual-provider compatibility columns remain.
-- [ ] Remove RAWG runtime/seed code and credentials; audit remaining rawg/metacritic references. Allow only historical migrations, backups/audit descriptions and deliberate removed-input validation tests, not active schema/types/queries/UI/provider calls.
+- [ ] Remove RAWG runtime/seed code and credentials; audit remaining rawg/metacritic references, including `ship-readiness.html` (`RAWG_API_KEY` and the RAWG cover-image note). Allow only historical migrations, backups/audit descriptions and deliberate removed-input validation tests, not active schema/types/queries/UI/provider calls.
 - [ ] Run a seed, Steam resync and metadata refresh against the rebuilt catalogue. Verify normal repeated runs preserve newly created user rows and never perform a reset.
 - [ ] Record actual reset/validation results and retained/cleared counts. Keep the backup until the rebuilt app has been checked. Remove the blocking banner in build-plan.md and update its provider/score assumptions.
 
@@ -430,9 +443,9 @@ Deviations from the task text:
 - [ ] Game-page panel shows only You / Community; cards and public OG use appropriate community/personal data, with no critic replacement.
 - [ ] All active three-score branding, MC badges, critic comparison copy and unused critic-specific presentation tokens removed.
 - [ ] Coordinated prelaunch contract change completed and current web/mobile callers tested together.
-- [ ] Artwork/portrait behavior and attribution verified.
+- [x] Artwork/portrait behavior and attribution verified.
 - [ ] IGDB commercial partnership recorded in writing (storage, caching, attribution) before public launch. Twitch's default 24-hour cache is not the shipped policy unless that agreement says so.
-- [ ] Sitemap bug fixed and DB errors visible.
+- [x] Sitemap bug fixed and DB errors visible.
 - [ ] Full checks, live coverage experiment and recovery rehearsal documented.
 - [ ] Mobile roadmap provider assumptions updated; migration prerequisite cleared.
 
@@ -445,9 +458,9 @@ Code order for the remaining work:
 1. Task 4 — migration journal on a database copy, then 0003/0004, the slug follow-up, the top-N seed, and the reset rehearsal. Local/test databases only.
 2. Task 6 — Steam import, including the pre-write shared-id filter and the negative-cache rule. Ingestion does not depend on the score UI.
 3. Task 5 — two-score UI and the contract/RPC rewrites. Leave the `metacritic_score` column in place.
-4. Task 7 — sitemap, images and attribution. Merge this before dropping `metacritic_score`, because the sitemap still orders by that column and selects `updated_at`.
+4. Task 7 — done. The sitemap orders by `games.updated_at`, then id. `metacritic_score` can be dropped in Task 8.
 5. Task 8 — isolated full rehearsal, drop `metacritic_score` and the RAWG columns, remove RAWG, and the commercial-partnership gate. The owner then applies the reviewed reset to the development database.
 
 Task 1 credentials and the standalone live baseline are validated. Task 6 did not repeat the 428-app timing run. README and AGENTS.md now say the legacy seed still uses RAWG and `/steamlink` matches through IGDB. Task 8 still owns the broader doc pass that removes RAWG.
 
-Recommended execution: implement this task by task, with a reviewable commit at each task boundary. Tasks 1–5 are complete on `igdb-integration`. Task 6 is complete on its branch. Merge completed task branches into `igdb-integration`; do not merge to `main` until the full migration is accepted.
+Recommended execution: implement this task by task, with a reviewable commit at each task boundary. Tasks 1–6 are complete on `igdb-integration`. Task 7 is complete on its branch. Merge completed task branches into `igdb-integration`; do not merge to `main` until the full migration is accepted.

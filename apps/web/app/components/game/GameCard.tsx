@@ -2,6 +2,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { Game, AdvancedStats } from '@screenpeak/shared/types'
 import Seal from '@/app/components/game/Seal'
+import { displayCoverUrl } from '@/lib/catalog/images'
 import { Check } from "lucide-react"
 
 // Library status is neutral chrome, not a verdict — it never borrows the
@@ -19,6 +20,7 @@ export default function GameCard({ game, developer, ngplusRating, userRating, ad
     const hasHours = !!advancedStats?.hoursPlayed && advancedStats.hoursPlayed > 0
     const hasPlayCount = !!advancedStats?.playCount && advancedStats.playCount > 1
     const status = libraryStatus ? STATUS_STYLE[libraryStatus] : null
+    const cover = displayCoverUrl(game.cover_image_url, 'large')
 
     return (
         <Link href={`/games/${game.slug}`} className="group block">
@@ -28,10 +30,10 @@ export default function GameCard({ game, developer, ngplusRating, userRating, ad
                     group-hover:border-(--color-accent)/60"
             >
                 {/* Cover image */}
-                <div className="relative aspect-square w-full overflow-hidden">
-                    {game.cover_image_url ? (
+                <div className="relative aspect-3/4 w-full overflow-hidden">
+                    {cover ? (
                         <Image
-                            src={game.cover_image_url}
+                            src={cover}
                             alt={game.name}
                             fill
                             className="object-cover grayscale-15 contrast-[1.05] transition-all duration-300 group-hover:grayscale-0"

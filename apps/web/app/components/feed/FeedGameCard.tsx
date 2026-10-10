@@ -3,17 +3,20 @@
 import Image from "next/image"
 import Link from "next/link"
 import Seal from "@/app/components/game/Seal"
+import { displayCoverUrl } from "@/lib/catalog/images"
 
 export default function FeedGameCard({ gameSlug, gameName, gameCoverImageUrl, gameReleased, gameDeveloper, userRating, avgRating } :
     { gameSlug: string | null, gameName: string | null, gameCoverImageUrl: string | null, gameReleased: string | null, gameDeveloper: string | null, userRating: number | null, avgRating: number | null }) {
+
+    const cover = displayCoverUrl(gameCoverImageUrl, 'small')
 
     return (
         <Link href={`/games/${gameSlug}`}
             className="flex gap-4 p-3 rounded-[3px] hover:bg-(--color-surface-light)/50 transition-colors duration-200 group">
 
-            <div className="relative w-20 h-28 shrink-0 rounded-[3px] overflow-hidden">
-                {gameCoverImageUrl ? (
-                    <Image src={gameCoverImageUrl} alt={gameName ? gameName : "Game Cover"}
+            <div className="relative w-20 aspect-3/4 shrink-0 rounded-[3px] overflow-hidden">
+                {cover ? (
+                    <Image src={cover} alt={gameName ? gameName : "Game Cover"}
                         fill className="object-cover" sizes="80px" />
                 ) : (
                     <div className="w-full h-full bg-(--color-surface-light) flex items-center justify-center overflow-hidden">

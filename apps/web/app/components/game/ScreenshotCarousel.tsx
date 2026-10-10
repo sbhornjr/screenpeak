@@ -3,6 +3,7 @@
 import Image from 'next/image'
 import { useState } from 'react'
 import { ChevronLeft, ChevronRight } from "lucide-react"
+import { displayLandscapeUrl } from "@/lib/catalog/images"
 
 const arrowBtn = `absolute top-1/2 -translate-y-1/2 grid place-items-center size-9 rounded-full
     bg-black/55 text-white backdrop-blur-[2px] border border-white/20
@@ -10,26 +11,27 @@ const arrowBtn = `absolute top-1/2 -translate-y-1/2 grid place-items-center size
     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-accent)`
 
 export default function ScreenshotCarousel({ screenshots }: { screenshots: string[] }) {
+    const frames = screenshots.map(displayLandscapeUrl).filter((url): url is string => url != null)
     const [index, setIndex] = useState(0)
-    if (screenshots.length === 0) return null
+    if (frames.length === 0) return null
 
-    const go = (next: number) => setIndex((next + screenshots.length) % screenshots.length)
+    const go = (next: number) => setIndex((next + frames.length) % frames.length)
 
     return (
         <div>
             <div className="relative aspect-video w-full overflow-hidden rounded-[6px] border border-(--color-border) bg-(--color-surface)">
-                <a href={screenshots[index]} target="_blank" rel="noopener noreferrer" aria-label="Open screenshot full size" className="absolute inset-0 block">
+                <a href={frames[index]} target="_blank" rel="noopener noreferrer" aria-label="Open screenshot full size" className="absolute inset-0 block">
                     <Image
-                        key={screenshots[index]}
-                        src={screenshots[index]}
-                        alt={`Screenshot ${index + 1} of ${screenshots.length}`}
+                        key={frames[index]}
+                        src={frames[index]}
+                        alt={`Screenshot ${index + 1} of ${frames.length}`}
                         fill
                         sizes="(max-width: 768px) 100vw, 768px"
                         className="object-cover"
                     />
                 </a>
 
-                {screenshots.length > 1 && (
+                {frames.length > 1 && (
                     <>
                         <button type="button" onClick={() => go(index - 1)} aria-label="Previous screenshot" className={`left-2 ${arrowBtn}`}>
                             <ChevronLeft size={18} aria-hidden />
@@ -42,10 +44,10 @@ export default function ScreenshotCarousel({ screenshots }: { screenshots: strin
             </div>
 
             <div className="flex items-center justify-between mt-2 font-mono text-[0.625rem] uppercase tracking-[0.18em] text-(--color-muted)">
-                <span className="tabular-nums">{index + 1} / {screenshots.length}</span>
-                {screenshots.length > 1 && screenshots.length <= 12 && (
+                <span className="tabular-nums">{index + 1} / {frames.length}</span>
+                {frames.length > 1 && frames.length <= 12 && (
                     <div className="flex gap-1.5">
-                        {screenshots.map((_, i) => (
+                        {frames.map((_, i) => (
                             <button
                                 key={i}
                                 type="button"
