@@ -26,5 +26,5 @@ it('starts the 350ms dispatch window after a slow budget round trip', async () =
     const remaining = lease.dispatchBefore - performance.now()
     expect(remaining).toBeGreaterThan(0)
     expect(remaining).toBeLessThanOrEqual(350)
-    expect(calls).toEqual(['transaction', 'update'])
+    expect(calls).toEqual(['transaction', 'transaction'])
 }, 3_000)

@@ -1,5 +1,7 @@
+import { resolve } from 'node:path'
 import postgres from 'postgres'
 import { assertDatabaseTarget, assertLocalCopy, databaseTargetFromArgv } from '../lib/catalog/database-url'
+import { loadEnvFile } from '../lib/catalog/env-file'
 import { applyPending, ensureLocalAuthStubs, inspectMigrations, stampBaseline, type MigrationSql } from '../lib/catalog/migrations'
 
 const help = `Record or apply ScreenPeak SQL migrations.
@@ -28,6 +30,7 @@ const help = `Record or apply ScreenPeak SQL migrations.
   --confirm-database NAME
                          Type the URL database name. Must match exactly.
 
+Reads apps/web/.env.local without overriding variables already set. KEY = value spacing is accepted.
 With neither --stamp-baseline nor --apply-pending, print a dry-run and write nothing.
 A dry-run before the stamp lists pending from 0000. After 0007, baseline is recorded:
 the pre-stamp column check no longer applies. Rehearse on a local _copy first.
@@ -44,6 +47,7 @@ async function main(): Promise<void> {
         console.log(help)
         process.exit(process.argv.includes('--help') ? 0 : 1)
     }
+    loadEnvFile(resolve(__dirname, '../.env.local'))
     const url = process.env[envName]
     if (!url) throw new Error(`Set ${envName}. This command does not fall back to DATABASE_POOL_URL.`)
     const target = databaseTargetFromArgv(process.argv)

@@ -28,6 +28,30 @@ pg_restore --no-owner --dbname "postgresql://YOUR_USER@127.0.0.1:5432/screenpeak
 
 The database name must end in `_copy`. Rehearse steps 3–8 and the local rollback in step 10 on this restore before step 9. A restored Supabase dump has auth markers, so every journal, reset, and seed command on this copy needs `--confirm-local-copy` after you have checked the URL is that restore and not a tunnel to the hosted project. Do not pass `--target-hosted` or `--local-auth-stubs` on this dump.
 
+A plain local Postgres, and a `pg_restore --no-owner` of a Supabase dump, does not have Supabase's `anon`, `authenticated`, and `service_role` roles. `0003` and later run `REVOKE ... FROM anon, authenticated` and fail with `role "anon" does not exist` until those roles exist. Create them on that local database before step 3. `service_role` is included so later grants match a Supabase dump; this rehearsal role does not need `BYPASSRLS`.
+
+`pgcrypto` is created by `0000`. Supabase keeps it in the `extensions` schema, and a restored dump often does too. Local `search_path` does not include `extensions`, so an unqualified `digest()` fails. The reset fingerprint finds whichever schema holds the extension. You still need the extension itself. If `CREATE EXTENSION` says it already exists, leave it where it is.
+
+```bash
+psql "postgresql://YOUR_USER@127.0.0.1:5432/screenpeak_copy" <<'SQL'
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN
+    CREATE ROLE anon NOLOGIN;
+  END IF;
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated') THEN
+    CREATE ROLE authenticated NOLOGIN;
+  END IF;
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'service_role') THEN
+    CREATE ROLE service_role NOLOGIN;
+  END IF;
+END $$;
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+SQL
+```
+
+Run that again on `empty_local_test` before the empty-database command in step 4. `--local-auth-stubs` creates `anon` and `authenticated` only, and only for that empty path. It does not create `service_role` or `pgcrypto`, and it refuses a restored Supabase dump.
+
 If the first rehearsal fails, fix the cause and repeat the stamp, apply, reset, seed, and column drop on a second local restore. Do not continue to another database from a rehearsal you have not checked.
 
 ## 3. Journal dry-run
@@ -140,6 +164,10 @@ A non-empty `--staged` file of `CatalogGame` values is the other reset input. `-
 
 Seed after the reset. `--top` with no number selects 2000 main games (`game_type = 0`), ranked by `rating_count`, then `rating`, then id. The value must be an integer from 1 to 5000. The command upserts in batches of 50. It writes Steam app ids only for those games. It does not clear accounts, list definitions, follows, or likes, and it does not restore the rows the reset deleted. It needs `TWITCH_CLIENT_ID` and `TWITCH_CLIENT_SECRET`, and 0003 must already be applied. A failed batch leaves earlier batches committed and prints the remaining IGDB ids. Re-run the same command with `--resume`.
 
+`--resume` computes the top-N list again, then skips IGDB ids already stored. It does not stop just because some rows exist. Progress is printed to stderr (ranking pages, then each fetch and committed batch). The JSON summary on stdout includes `target`, `ranked`, `skippedExisting`, `written`, and `shortfall`. If IGDB has fewer rated main games than `--top` asked for, the command writes that shorter list and exits non-zero. A page shorter than the requested 500 is not treated as the end of the catalogue unless a cursor probe finds nothing past it.
+
+A seed that you interrupt with Ctrl-C can leave a session idle in a transaction on `igdb_private.request_budgets`. The next acquire then waits on that lock. New connections set `idle_in_transaction_session_timeout` to 15 seconds so a killed session releases the lock. A session left by an older build does not have that timeout. `--clear-budget` terminates idle-in-transaction backends that have held an `igdb_private` lock for more than 15 seconds, deletes every rate-limit lease, and resets the spacing clock. Run it only while the app, audits, and every other seed are stopped. It does not change the catalogue.
+
 ```bash
 TEST_DATABASE_URL=postgresql://YOUR_USER@127.0.0.1:5432/screenpeak_copy \
   npm run seed:igdb -w @screenpeak/web -- \
@@ -240,6 +268,8 @@ Supabase-managed schemas (`auth`, `storage`, extensions) can error on that resto
 
 ## 11. Environment
 
+`migrate:journal`, `reset:catalog`, and `seed:igdb` load `apps/web/.env.local` from the web package. A missing file is ignored. Variables already set in the environment win, including empty values. `export KEY=value`, `KEY=value`, and `KEY = value` (spaces around `=`) are all read. Quoted values keep the text inside one matching pair of quotes.
+
 Put these in `apps/web/.env.local` or export them. Do not set `RAWG_API_KEY`. No script reads it.
 
 | Variable | Used by |
@@ -254,6 +284,44 @@ Put these in `apps/web/.env.local` or export them. Do not set `RAWG_API_KEY`. No
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL` | Avatars. |
 | `NEXT_PUBLIC_SITE_URL` | Metadata. Defaults to `http://localhost:3000`. |
 
-## 12. IGDB commercial terms
+## 12. Repair a short `--top` seed
+
+The first hosted `--top` (default 2000) can stop at 200 games. IGDB's documented page maximum is 500. The ranker used to treat any shorter page as the end of the catalogue, so a 200-row response was stored as the whole top-N and the command exited 0. `--resume` computed that same short list, found every id already stored, and exited 0 again. Separately, Ctrl-C during a run with no progress output left the rate-limit row locked, so the next run sat until it was killed.
+
+Do not top up those 200 rows. The short page did not finish the tie at its cutoff, so they are not a proven prefix of the real top 2000. Wiping the catalogue and seeding again is the reliable repair. The cutover already deleted library entries, reviews, list memberships, and favourites. This reset deletes the 200 games and their taxonomy rows. It does not delete user accounts, list definitions, follows, likes, or `steam_accounts`.
+
+Stop the app and every other seed or audit first. If 0007 is already applied, do not apply it again. Take a fresh `pg_dump` before this repair if the database has rows you still need; the step 1 dump remains the rollback for the original cutover.
+
+Replace the host and database name below with the ones in `HOSTED_DATABASE_URL`. The clear prints one JSON object and does not write games.
+
+```bash
+HOSTED_DATABASE_URL='postgresql://USER:PASSWORD@db.PROJECT.supabase.co:5432/postgres' \
+  npm run seed:igdb -w @screenpeak/web -- \
+  --database-env HOSTED_DATABASE_URL \
+  --target-hosted \
+  --confirm-host db.PROJECT.supabase.co \
+  --confirm-database postgres \
+  --clear-budget
+```
+
+Then repeat the step 6 empty reset against `HOSTED_DATABASE_URL` with `--target-hosted`, `--confirm-host`, and `--confirm-database` in place of `--confirm-local-copy`: write the empty manifest, dry-run, dry-run with `--allow-empty`, then `--apply --allow-empty`. After that dry-run prints `blocked` `null`, apply.
+
+Seed the top 2000. Do not pass `--resume` on this empty catalogue. Stderr should keep printing ranking pages past 200 candidates. The stdout JSON should show `ranked` 2000, `written` 2000, and `shortfall` `null`. Exit 0.
+
+```bash
+HOSTED_DATABASE_URL='postgresql://USER:PASSWORD@db.PROJECT.supabase.co:5432/postgres' \
+  npm run seed:igdb -w @screenpeak/web -- \
+  --database-env HOSTED_DATABASE_URL \
+  --target-hosted \
+  --confirm-host db.PROJECT.supabase.co \
+  --confirm-database postgres \
+  --top
+```
+
+If that run is interrupted after it has committed some batches, rerun the same command with `--resume` added. Resume computes the top 2000 again, skips the ids already stored, and writes the rest. A `shortfall` string and a non-zero exit mean IGDB returned fewer than 2000 rated main games; do not treat that as a finished catalogue.
+
+Then run the step 8 queries. `games` should be 2000. If 0007 was already applied, `drizzle.__drizzle_migrations` stays at 8 rows. Start this revision only after those queries match step 8.
+
+## 13. IGDB commercial terms
 
 Before public launch, obtain a written IGDB commercial partnership that covers storage, caching, and attribution. The Twitch Developer Agreement defaults to 24-hour caching. The free noncommercial documentation is not permission to ship. This development reset does not satisfy that gate. Do not treat the 24-hour default as the shipped cache policy unless the written agreement says so.

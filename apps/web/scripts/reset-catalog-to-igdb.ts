@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import postgres from 'postgres'
 import { assertDatabaseTarget, assertLocalCopy, databaseTargetFromArgv } from '../lib/catalog/database-url'
+import { loadEnvFile } from '../lib/catalog/env-file'
 import type { MigrationSql } from '../lib/catalog/migrations'
 
 const help = `Stage or apply a fresh IGDB catalogue reset.
@@ -24,6 +26,7 @@ const help = `Stage or apply a fresh IGDB catalogue reset.
   --confirm-host HOST       Type the URL hostname. Must match exactly.
   --confirm-database NAME   Type the URL database name. Must match exactly.
 
+Reads apps/web/.env.local without overriding variables already set. KEY = value spacing is accepted.
 Dry-run writes nothing. It reports current counts and the block for the flags you passed.
 A size refusal throws before any reset_backup schema is created.
 Apply takes a new reset_backup schema first and refuses to drop an earlier one.
@@ -42,6 +45,7 @@ async function main(): Promise<void> {
         console.log(help)
         process.exit(process.argv.includes('--help') ? 0 : 1)
     }
+    loadEnvFile(resolve(__dirname, '../.env.local'))
     const url = process.env[envName]
     if (!url) throw new Error(`Set ${envName}. This command does not fall back to DATABASE_POOL_URL.`)
     const target = databaseTargetFromArgv(process.argv)

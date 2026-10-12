@@ -78,54 +78,140 @@ export function createIgdbProvider(transport: Transport = { request: igdbRequest
             return games
         },
         // Main games only, ordered by rating_count, then rating, then id.
-        // A full page finishes its lowest rating_count by id so offset ties cannot skip rows.
-        async listTopMainGameIds(limit: number): Promise<number[]> {
+        // IGDB's documented maximum page is 500. A shorter page is the end of the
+        // catalogue only after a cursor probe finds nothing past it. Treating a
+        // short page as exhaustion stopped --top at the first response (200 games
+        // when the server returned 200 of a requested 500). A full page does not
+        // walk every tied rating_count: once `limit` games are strictly better
+        // than the next unseen row, the rest cannot change the selection.
+        async listTopMainGameIds(limit: number, options: { onProgress?: (progress: { pages: number; collected: number; target: number }) => void } = {}): Promise<number[]> {
             if (!Number.isInteger(limit) || limit < 1 || limit > 5000) throw new IgdbError('limit must be an integer from 1 to 5000.')
             const lookups = await getLookups()
             const row = z.object({ id: positiveId, rating: z.number().finite(), rating_count: z.number().int().nonnegative() })
+            type RankRow = { id: number; rating: number; rating_count: number }
             const candidates: RankedIgdbGame[] = []
             const seen = new Set<number>()
-            const pageSize = 500
-            const maxPages = 30
+            let pageSize = 500
+            const maxPages = 120
             let pages = 0
-            const request = async (where: string, sort: string) => {
-                if (pages >= maxPages) throw new IgdbError('top-game ranking did not settle within the page cap.')
-                pages += 1
-                const body = `fields id,rating,rating_count; where game_type = ${lookups.mainGameTypeId} & rating != null & rating_count != null & ${where}; sort ${sort}; limit ${pageSize};`
-                return transport.request('games', body, z.array(row).max(pageSize))
+            const literal = (value: number) => {
+                if (!Number.isFinite(value)) throw new IgdbError('top-game ranking saw a non-finite number.')
+                return String(value)
             }
-            const add = (rows: { id: number; rating: number; rating_count: number }[]) => {
+            const report = () => options.onProgress?.({ pages, collected: candidates.length, target: limit })
+            const request = async (where: string, sort: string, size = pageSize) => {
+                if (pages >= maxPages) throw new IgdbError(`top-game ranking stopped after ${pages} pages with ${candidates.length} of ${limit} candidates.`)
+                pages += 1
+                const body = `fields id,rating,rating_count; where game_type = ${lookups.mainGameTypeId} & rating != null & rating_count != null & ${where}; sort ${sort}; limit ${size};`
+                const rows = await transport.request('games', body, z.array(row).max(500))
+                report()
+                return rows
+            }
+            const add = (rows: RankRow[]) => {
                 for (const item of rows) {
                     if (seen.has(item.id)) continue
                     seen.add(item.id)
                     candidates.push({ id: item.id, rating: item.rating, ratingCount: item.rating_count })
                 }
+                report()
+            }
+            const top = () => {
+                const ranked = selectTopRatedGames(candidates, limit)
+                const edge = ranked[ranked.length - 1]
+                return { ids: ranked.map(item => item.id), count: edge?.ratingCount, rating: edge?.rating }
+            }
+            // A short page is a silent cap when anything remains past its cursor.
+            const moreBeyond = async (rows: RankRow[], upper: number | null) => {
+                const lowest = Math.min(...rows.map(item => item.rating_count))
+                const maxId = Math.max(...rows.filter(item => item.rating_count === lowest).map(item => item.id))
+                const below = await request(`rating_count < ${literal(lowest)}`, 'rating_count desc', 1)
+                if (below.some(item => item.rating_count >= lowest || (upper != null && item.rating_count >= upper)))
+                    throw new IgdbError('top-game rating_count pagination is inconsistent.')
+                if (below.length) return true
+                const sibling = await request(`rating_count = ${literal(lowest)} & id > ${maxId}`, 'id asc', 1)
+                if (sibling.some(item => item.rating_count !== lowest || item.id <= maxId))
+                    throw new IgdbError('top-game id pagination is inconsistent.')
+                return sibling.length > 0
+            }
+            // Same rating_count and rating: smaller id wins, so id order can stop once `limit` is full.
+            const collectTie = async (count: number, rating: number) => {
+                let after = 0
+                while (true) {
+                    const page = await request(`rating_count = ${literal(count)} & rating = ${literal(rating)} & id > ${after}`, 'id asc')
+                    if (page.some(item => item.rating_count !== count || item.rating !== rating || item.id <= after))
+                        throw new IgdbError('top-game id pagination is inconsistent.')
+                    if (!page.length) return
+                    add(page)
+                    if (top().ids.length >= limit) return
+                    if (page.length < pageSize) return
+                    after = page[page.length - 1].id
+                }
+            }
+            const collectBand = async (count: number) => {
+                let ratingUpper: number | null = null
+                while (true) {
+                    const where = ratingUpper == null
+                        ? `rating_count = ${literal(count)} & id > 0`
+                        : `rating_count = ${literal(count)} & rating < ${literal(ratingUpper)}`
+                    const page = await request(where, 'rating desc')
+                    if (!page.length) return
+                    if (page.some(item => item.rating_count !== count || (ratingUpper != null && item.rating >= ratingUpper)))
+                        throw new IgdbError('top-game rating pagination is inconsistent.')
+                    const floor = Math.min(...page.map(item => item.rating))
+                    const short = page.length < pageSize
+                    if (!short) {
+                        add(page.filter(item => item.rating > floor))
+                        const ranked = top()
+                        if (ranked.ids.length >= limit && ranked.rating !== undefined && ranked.rating > floor) return
+                        await collectTie(count, floor)
+                        if (top().ids.length >= limit) return
+                        ratingUpper = floor
+                        continue
+                    }
+                    const maxId = Math.max(...page.filter(item => item.rating === floor).map(item => item.id))
+                    const same = await request(`rating_count = ${literal(count)} & rating = ${literal(floor)} & id > ${maxId}`, 'id asc', 1)
+                    if (same.some(item => item.rating_count !== count || item.rating !== floor || item.id <= maxId))
+                        throw new IgdbError('top-game id pagination is inconsistent.')
+                    const lower = await request(`rating_count = ${literal(count)} & rating < ${literal(floor)}`, 'rating desc', 1)
+                    if (lower.some(item => item.rating_count !== count || item.rating >= floor))
+                        throw new IgdbError('top-game rating pagination is inconsistent.')
+                    if (!same.length && !lower.length) {
+                        add(page)
+                        return
+                    }
+                    pageSize = page.length
+                    add(page.filter(item => item.rating > floor))
+                    const ranked = top()
+                    if (ranked.ids.length >= limit && ranked.rating !== undefined && ranked.rating > floor) return
+                    await collectTie(count, floor)
+                    if (top().ids.length >= limit) return
+                    ratingUpper = floor
+                }
             }
             let upper: number | null = null
             while (true) {
-                const rows = await request(upper == null ? 'id > 0' : `rating_count < ${upper}`, 'rating_count desc')
+                const rows = await request(upper == null ? 'id > 0' : `rating_count < ${literal(upper)}`, 'rating_count desc')
                 if (!rows.length) break
+                if (rows.some(item => upper != null && item.rating_count >= upper))
+                    throw new IgdbError('top-game rating_count pagination is inconsistent.')
+                const short = rows.length < pageSize
+                const silentCap = short && await moreBeyond(rows, upper)
+                if (silentCap) pageSize = rows.length
+                if (!silentCap && short) {
+                    add(rows)
+                    break
+                }
                 const lowest = Math.min(...rows.map(item => item.rating_count))
                 add(rows.filter(item => item.rating_count > lowest))
-                if (rows.length < pageSize) add(rows.filter(item => item.rating_count === lowest))
-                else {
-                    let after = 0
-                    while (true) {
-                        const band = await request(`rating_count = ${lowest} & id > ${after}`, 'id asc')
-                        if (band.some(item => item.rating_count !== lowest || item.id <= after))
-                            throw new IgdbError('top-game id pagination is inconsistent.')
-                        add(band)
-                        if (band.length < pageSize) break
-                        after = band[band.length - 1].id
-                    }
-                }
-                const ranked = selectTopRatedGames(candidates, limit)
-                const boundary = ranked[ranked.length - 1]?.ratingCount
-                if (rows.length < pageSize || (ranked.length >= limit && boundary !== undefined && lowest < boundary))
-                    return ranked.map(item => item.id)
+                const early = top()
+                if (early.ids.length >= limit && early.count !== undefined && lowest < early.count) return early.ids
+                await collectBand(lowest)
+                const ranked = top()
+                if (ranked.ids.length >= limit) return ranked.ids
+                if (upper === lowest) throw new IgdbError('top-game rating_count pagination is inconsistent.')
                 upper = lowest
             }
-            return selectTopRatedGames(candidates, limit).map(item => item.id)
+            return top().ids
         },
         async lookupSteamApps(input: number[]): Promise<{ appid: number; candidates: number[] }[]> {
             const requested = ids(input)

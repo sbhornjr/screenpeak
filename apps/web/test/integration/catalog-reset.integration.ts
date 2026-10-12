@@ -11,7 +11,7 @@ import type { DB } from '@/lib/db'
 import type { CatalogGame } from '@/lib/catalog/types'
 import { applyPending, ensureLocalAuthStubs, inspectMigrations, stampBaseline, type MigrationSql } from '@/lib/catalog/migrations'
 import { applyCatalogReset, backupResetState, buildManifest, planCatalogReset, resetFromProvider, restoreResetState } from '@/lib/catalog/reset'
-import { SeedInterrupted, seedCatalogGames, storedIgdbIds } from '@/lib/catalog/seed'
+import { SeedInterrupted, idsToSeed, seedCatalogGames, storedIgdbIds } from '@/lib/catalog/seed'
 
 const exec = promisify(execFile)
 const url = process.env.TEST_DATABASE_URL
@@ -307,6 +307,45 @@ it('applies the whole chain on an empty database and records every file', async 
         expect(dropped).toEqual([])
         const [count] = await fresh`select count(*)::int as n from drizzle.__drizzle_migrations`
         expect(count.n).toBe(8)
+    } finally {
+        await fresh.end()
+    }
+}, 60_000)
+
+it('resumes after the first 200 games are already stored', async () => {
+    const fresh = await createDatabase('resume_')
+    try {
+        const sql = fresh as unknown as MigrationSql
+        await ensureLocalAuthStubs(sql)
+        await applyPending(sql)
+        const resumeDb = drizzle(fresh) as unknown as DB
+        const ranked = Array.from({ length: 250 }, (_, index) => index + 1)
+        await seedCatalogGames(resumeDb, ranked.slice(0, 200).map(id => staged(id, [])))
+        const stored = await storedIgdbIds(resumeDb, ranked)
+        const plan = idsToSeed(ranked, stored, true)
+        expect(plan.skippedExisting).toEqual(ranked.slice(0, 200))
+        expect(plan.ids).toEqual(ranked.slice(200))
+        expect((await seedCatalogGames(resumeDb, plan.ids.map(id => staged(id, [])))).written).toBe(50)
+        expect(await fresh`select count(*)::int as n from games`).toEqual([{ n: 250 }])
+        expect(await storedIgdbIds(resumeDb, ranked)).toHaveLength(250)
+    } finally {
+        await fresh.end()
+    }
+}, 60_000)
+
+it('fingerprints a reset when pgcrypto is in the extensions schema', async () => {
+    const fresh = await createDatabase('digest_')
+    try {
+        const sql = fresh as unknown as MigrationSql
+        await ensureLocalAuthStubs(sql)
+        await applyPending(sql)
+        await fresh`create schema if not exists extensions`
+        await fresh`alter extension pgcrypto set schema extensions`
+        const digestDb = drizzle(fresh) as unknown as DB
+        const manifest = await buildManifest(digestDb, [], randomUUID())
+        expect(manifest.fingerprint).toMatch(/^[0-9a-f]{64}$/)
+        const again = await buildManifest(digestDb, [], randomUUID())
+        expect(again.fingerprint).toBe(manifest.fingerprint)
     } finally {
         await fresh.end()
     }

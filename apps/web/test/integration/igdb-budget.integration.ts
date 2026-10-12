@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises'
 import { randomUUID, createHash } from 'node:crypto'
 import { afterAll, beforeAll, expect, it } from 'vitest'
 import postgres from 'postgres'
+import { clearIgdbBudget } from '@/lib/catalog/budget-admin'
 
 // Explicit disposable local DB only; never falls back to DATABASE_POOL_URL.
 const url = process.env.TEST_DATABASE_URL
@@ -85,4 +86,15 @@ it('coordinates actual adapter clients in independent Node processes',async()=>{
     let active=0,maximum=0
     for(const event of events){active+=event.kind==='start'?1:-1;maximum=Math.max(maximum,active)}
     expect(active).toBe(0);expect(maximum).toBeLessThanOrEqual(4)
+})
+
+it('clears leases and the spacing clock left by an abandoned seed', async () => {
+    const id = makeKey()
+    expect(await acquire(a, id)).toEqual(expect.any(String))
+    const report = await clearIgdbBudget(a)
+    expect(report.deletedLeases).toBeGreaterThanOrEqual(1)
+    expect(report.budgetsReset).toBeGreaterThanOrEqual(1)
+    expect(await a`select count(*)::int as n from igdb_private.request_leases`).toEqual([{ n: 0 }])
+    const [clock] = await a`select next_start_at = '-infinity'::timestamptz as reset from igdb_private.request_budgets where credential_key = ${id}`
+    expect(clock.reset).toBe(true)
 })
