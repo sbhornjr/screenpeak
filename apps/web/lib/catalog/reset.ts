@@ -65,10 +65,27 @@ export function resetSizeBlock(currentGames: number, writing: number, options: {
     return null
 }
 
+const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/
+
+/** pgcrypto lives in `extensions` on Supabase and often in `public` locally. */
+export async function pgcryptoSchema(executor: { execute: (query: SQL) => Promise<unknown> }): Promise<string> {
+    const rows = await executor.execute(sql`select n.nspname as schema
+        from pg_extension e
+        join pg_namespace n on n.oid = e.extnamespace
+        where e.extname = 'pgcrypto'
+        limit 1`) as { schema: string }[]
+    const schema = rows[0]?.schema
+    if (!schema || !IDENTIFIER.test(schema))
+        throw new Error('pgcrypto is not installed, so the reset fingerprint cannot run. On local Postgres: CREATE EXTENSION IF NOT EXISTS pgcrypto; A Supabase restore keeps it in the extensions schema, and this command finds it there.')
+    return schema
+}
+
 async function retentionFingerprint(executor: { execute: (query: SQL) => Promise<unknown> }): Promise<string> {
     // Hash every row the reset deletes or retains, including library, reviews,
     // list memberships, favourites and generated Loadout text.
-    const rows = await executor.execute(sql`select encode(digest(convert_to((jsonb_build_object(
+    // digest() is not on the default search_path when pgcrypto is in `extensions`.
+    const digest = sql.raw(`${await pgcryptoSchema(executor)}.digest`)
+    const rows = await executor.execute(sql`select encode(${digest}(convert_to((jsonb_build_object(
         'users', (select coalesce(jsonb_agg(to_jsonb(t) order by t.id), '[]'::jsonb) from (select * from public.users) t),
         'lists', (select coalesce(jsonb_agg(to_jsonb(t) order by t.id), '[]'::jsonb) from (select * from public.lists) t),
         'follows', (select coalesce(jsonb_agg(to_jsonb(t) order by t.follower_id, t.following_id), '[]'::jsonb) from (select * from public.follows) t),
@@ -142,6 +159,7 @@ export async function applyCatalogReset(database: Database, manifest: CatalogRes
     return database.transaction(async tx => {
         await tx.execute(sql`set local lock_timeout = '5s'`)
         await tx.execute(sql`set local statement_timeout = '10min'`)
+        await tx.execute(sql`set local idle_in_transaction_session_timeout = '15s'`)
         await tx.execute(sql`select pg_advisory_xact_lock(1936745321, 1)`)
         // A committed run has already changed the rows the fingerprint covers, so replay is checked first.
         const checksum = manifestChecksum(manifest.fingerprint, manifest.games, manifest.counts)

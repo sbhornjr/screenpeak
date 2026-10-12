@@ -16,11 +16,22 @@ export function retryDelay(attempt: number, after?: string | null): number {
 }
 export async function requestAttempt<T>(endpoint: string, url: string, init: RequestInit, schema: z.ZodType<T>, fetcher: typeof fetch) {
     const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 10_000)
     const start = performance.now()
     let status: number | null = null
+    let timer: ReturnType<typeof setTimeout> | undefined
     try {
-        const response = await fetcher(url, { ...init, signal: controller.signal, redirect: 'error', cache: 'no-store' })
+        // Abort alone does not bound the wait when a socket ignores the signal.
+        // The outer promise rejects at 10s either way; a later fetch rejection is ignored.
+        const response = await new Promise<Response>((resolve, reject) => {
+            timer = setTimeout(() => {
+                controller.abort()
+                reject(new IgdbError('request timed out.', true))
+            }, 10_000)
+            fetcher(url, { ...init, signal: controller.signal, redirect: 'error', cache: 'no-store' }).then(
+                value => { clearTimeout(timer); resolve(value) },
+                error => { clearTimeout(timer); reject(error) },
+            )
+        })
         status = response.status
         if (!response.ok) {
             await response.body?.cancel().catch(() => {})

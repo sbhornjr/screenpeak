@@ -21,6 +21,31 @@ export class SeedInterrupted extends Error {
 
 type Database = Pick<DB, 'execute' | 'transaction'>
 
+/** --resume drops ids already stored. It still starts from the full ranked list. */
+export function idsToSeed(ranked: number[], stored: number[], resume: boolean): { ids: number[]; skippedExisting: number[] } {
+    if (!resume) return { ids: ranked, skippedExisting: [] }
+    const have = new Set(stored)
+    const skippedExisting = ranked.filter(id => have.has(id))
+    return { ids: ranked.filter(id => !have.has(id)), skippedExisting }
+}
+
+/**
+ * Fewer ranked ids than `--top` asked for is a shortfall, including when
+ * --resume then has nothing left to write. A quiet success is how a 200-row
+ * page was stored as the whole catalogue.
+ */
+export function seedOutcome(target: number, ranked: number[], stored: number[], resume: boolean) {
+    const selected = idsToSeed(ranked, stored, resume)
+    return {
+        target,
+        ranked: ranked.length,
+        ...selected,
+        shortfall: ranked.length < target
+            ? `IGDB returned ${ranked.length} rated main games, fewer than ${target}.`
+            : null,
+    }
+}
+
 /** Ids already stored, so --resume can skip them. Re-running without --resume upserts. */
 export async function storedIgdbIds(database: Pick<DB, 'execute'>, ids: number[]): Promise<number[]> {
     if (!ids.length) return []
@@ -35,7 +60,7 @@ export async function storedIgdbIds(database: Pick<DB, 'execute'>, ids: number[]
 }
 
 /** Upsert staged games in batches. Never clears library, reviews, lists, or accounts. */
-export async function seedCatalogGames(database: Database, games: CatalogGame[]) {
+export async function seedCatalogGames(database: Database, games: CatalogGame[], options: { onBatch?: (progress: { written: number; total: number; batches: number }) => void } = {}) {
     const detached = detachSharedSteamAppIds(games)
     const omittedForeign: { igdbId: number; appIds: number[] }[] = []
     let written = 0
@@ -46,6 +71,7 @@ export async function seedCatalogGames(database: Database, games: CatalogGame[])
             const omitted = await database.transaction(async tx => {
                 await tx.execute(sql`set local lock_timeout = '5s'`)
                 await tx.execute(sql`set local statement_timeout = '2min'`)
+                await tx.execute(sql`set local idle_in_transaction_session_timeout = '15s'`)
                 const found: { igdbId: number; appIds: number[] }[] = []
                 for (const game of batch) {
                     const prepared = await omitForeignSteamIds(tx, game)
@@ -57,6 +83,7 @@ export async function seedCatalogGames(database: Database, games: CatalogGame[])
             omittedForeign.push(...omitted)
             written += batch.length
             batches += 1
+            options.onBatch?.({ written, total: detached.games.length, batches })
         } catch (error) {
             if (error instanceof SeedInterrupted) throw error
             throw new SeedInterrupted(written, detached.games.slice(offset).map(game => game.igdbId), error)

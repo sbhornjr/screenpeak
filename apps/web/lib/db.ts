@@ -19,6 +19,12 @@ if (!connectionString) throw new Error('DATABASE_POOL_URL is not set')
 const toNumber = (x: string) => Number(x)
 const client = postgres(connectionString, {
     prepare: false,
+    // A killed seed must not leave this session idle in a transaction holding
+    // the IGDB budget row. The timeout survives the client disconnect.
+    connection: {
+        // Milliseconds. A killed seed must not sit idle holding the budget row.
+        idle_in_transaction_session_timeout: 15_000,
+    },
     types: {
         bigint: { to: 20, from: [20], parse: toNumber, serialize: String },
         numeric: { to: 1700, from: [1700], parse: toNumber, serialize: String },
