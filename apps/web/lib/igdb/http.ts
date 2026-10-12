@@ -1,6 +1,6 @@
 import 'server-only'
 import { z } from 'zod'
-import { logger } from '../logger'
+import { logger, redact } from '../logger'
 
 export class IgdbError extends Error {
     constructor(message: string, readonly retryable = false) { super('IGDB ' + message) }
@@ -13,6 +13,14 @@ export function retryDelay(attempt: number, after?: string | null): number {
     const delay = Math.max(exponential, Number.isFinite(specified) ? specified : 0)
     if (delay > 30_000) throw new IgdbError('provider cooldown exceeds 30 seconds; retry later.')
     return delay
+}
+/** IGDB error bodies are safe to log after secret-shaped fields are removed. */
+export function redactIgdbErrorBody(raw: string): string {
+    const text = raw.slice(0, 8_000)
+    try { return JSON.stringify(redact(JSON.parse(text))).slice(0, 500) }
+    catch {
+        return text.replace(/Bearer\s+[A-Za-z0-9._~+/-]+=*/gi, 'Bearer [REDACTED]').slice(0, 500)
+    }
 }
 export async function requestAttempt<T>(endpoint: string, url: string, init: RequestInit, schema: z.ZodType<T>, fetcher: typeof fetch) {
     const controller = new AbortController()
@@ -34,7 +42,14 @@ export async function requestAttempt<T>(endpoint: string, url: string, init: Req
         })
         status = response.status
         if (!response.ok) {
-            await response.body?.cancel().catch(() => {})
+            let raw = ''
+            try { raw = await response.text() } catch { raw = '' }
+            // The Apicalypse body is the query, not a credential. Headers stay out of the log.
+            logger.error('igdb', 'Request rejected', {
+                endpoint, status,
+                query: typeof init.body === 'string' ? init.body.slice(0, 500) : undefined,
+                body: redactIgdbErrorBody(raw),
+            })
             return { ok: false as const, status, retryAfter: response.headers.get('retry-after') }
         }
         let data: unknown
@@ -44,7 +59,8 @@ export async function requestAttempt<T>(endpoint: string, url: string, init: Req
         if (!parsed.success) throw new IgdbError('invalid response.')
         return { ok: true as const, status, data: parsed.data }
     } catch (error) {
-        // Neither provider bodies nor underlying fetch errors/URLs enter logs or public errors.
+        // Provider response bodies and underlying fetch errors/URLs stay out of the thrown message.
+        // A rejected status logs its body separately, with secrets removed.
         if (error instanceof IgdbError) throw error
         throw new IgdbError('request failed or timed out.', true)
     } finally {

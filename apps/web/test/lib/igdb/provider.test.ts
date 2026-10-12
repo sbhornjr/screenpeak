@@ -65,7 +65,9 @@ function catalogue(rows: RankRow[], capAt?: number) {
         const field = sort[1] as keyof RankRow
         const direction = sort[2] === 'asc' ? 1 : -1
         const matched = rows.filter(row => matches(body, row)).sort((a, b) => (a[field] - b[field]) * direction || a.id - b.id)
-        return matched.slice(0, capAt ? Math.min(limit, capAt) : limit)
+        const offset = Number(/offset (\d+)/.exec(body)?.[1] ?? '0')
+        const size = capAt ? Math.min(limit, capAt) : limit
+        return matched.slice(offset, offset + size)
     }
 }
 it('ranks main games by rating count, then rating, and pages through a cutoff tie', async () => {
@@ -91,6 +93,25 @@ it('ranks main games by rating count, then rating, and pages through a cutoff ti
         { id: 2, rating: 50, rating_count: 10 },
     ], 2))
     expect(await sameRating.provider.listTopMainGameIds(2)).toEqual([1, 2])
+})
+const DOCUMENTED_QUERY = /^fields id,rating,rating_count; where (?:game_type = 0|rating != null|rating_count != null|rating_count < \d+|rating_count = \d+|id > \d+)(?: & (?:game_type = 0|rating != null|rating_count != null|rating_count < \d+|rating_count = \d+|id > \d+))*; sort (?:id|rating|rating_count) (?:asc|desc); limit \d+;(?: offset \d+;)?$/
+it('asks IGDB for the cutoff band with one integer predicate per field', async () => {
+    // 500 rows come back, so 499 candidates are kept and the 500th count is the band.
+    // Ratings are fractional on purpose: that decimal must not be copied into where.
+    const rows = Array.from({ length: 600 }, (_, index) => ({ id: index + 1, rating: 80.5, rating_count: 10_000 - (index + 1) }))
+    const s = setup(catalogue(rows))
+    const ids = await s.provider.listTopMainGameIds(600)
+    expect(ids).toEqual(rows.map(row => row.id))
+    const bodies = s.request.mock.calls.filter(call => call[0] === 'games').map(call => call[1] as string)
+    expect(bodies[0]).toBe('fields id,rating,rating_count; where game_type = 0 & rating != null & rating_count != null; sort rating_count desc; limit 500;')
+    expect(bodies[1]).toBe('fields id,rating,rating_count; where game_type = 0 & rating != null & rating_count = 9500; sort rating desc; limit 500;')
+    for (const body of bodies) {
+        expect(body).toMatch(DOCUMENTED_QUERY)
+        const where = body.split(' where ')[1]?.split(';')[0] ?? ''
+        const fields = where.split('&').map(clause => clause.trim().split(' ')[0])
+        expect(new Set(fields).size).toBe(fields.length)
+        expect(where).not.toMatch(/\d\.\d/)
+    }
 })
 it('keeps paging when a response is shorter than the requested page and more games exist', async () => {
     const rows = Array.from({ length: 2500 }, (_, index) => ({ id: index + 1, rating: 80, rating_count: 5000 - index }))

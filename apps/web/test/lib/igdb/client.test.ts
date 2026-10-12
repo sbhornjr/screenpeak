@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { createIgdbClient } from '@/lib/igdb/client'
+import { logger } from '@/lib/logger'
 
 function setup(responses: Response[]) {
     const fetcher = vi.fn()
@@ -29,6 +30,18 @@ it.each([400,403,404])('does not retry HTTP %s', async status => {
     const s = setup([new Response('secret provider body', {status})])
     await expect(s.client.request('games','fields id;',schema)).rejects.toThrow(String(status))
     expect(s.fetcher).toHaveBeenCalledTimes(1)
+})
+it('logs a 400 body with secrets removed and keeps the query', async () => {
+    const error = vi.spyOn(logger, 'error').mockImplementation(() => {})
+    const body = JSON.stringify({ title: 'Syntax Error', status: 400, cause: 'unexpected "."', token: 'super-secret' })
+    const s = setup([new Response(body, { status: 400, headers: { 'Content-Type': 'application/json' } })])
+    await expect(s.client.request('games', 'fields id,rating;', schema)).rejects.toThrow('400')
+    const meta = error.mock.calls.map(call => call[2]).find(value => value && typeof value === 'object')
+    expect(JSON.stringify(meta)).toContain('Syntax Error')
+    expect(JSON.stringify(meta)).toContain('fields id,rating;')
+    expect(JSON.stringify(meta)).not.toContain('super-secret')
+    expect(JSON.stringify(meta)).toContain('[REDACTED]')
+    error.mockRestore()
 })
 it.each([new Response('not JSON'),Response.json([{id:'wrong'}])])('rejects malformed responses without retry', async response => {
     const s=setup([response])

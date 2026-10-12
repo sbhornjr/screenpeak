@@ -320,6 +320,8 @@ HOSTED_DATABASE_URL='postgresql://USER:PASSWORD@db.PROJECT.supabase.co:5432/post
 
 If that run is interrupted after it has committed some batches, rerun the same command with `--resume` added. Resume computes the top 2000 again, skips the ids already stored, and writes the rest. A `shortfall` string and a non-zero exit mean IGDB returned fewer than 2000 rated main games; do not treat that as a finished catalogue.
 
+If `--top` fails with `IGDB games HTTP 400` before a batch commits, nothing was written. Do not reset again. Rerun the same `--top` command. Each follow-up page uses one Apicalypse predicate per field, integer or `null` values, a single `sort` field, and `limit` of at most 500. A decimal `rating` is not sent in `where`. The rejected response body is logged with secrets removed.
+
 Then run the step 8 queries. `games` should be 2000. If 0007 was already applied, `drizzle.__drizzle_migrations` stays at 8 rows. Start this revision only after those queries match step 8.
 
 ## 13. IGDB commercial terms
