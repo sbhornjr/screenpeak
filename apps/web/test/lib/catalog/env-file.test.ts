@@ -16,7 +16,7 @@ BLANK =
         ALREADY: 'from-file',
         BLANK: '',
     })
-    const env: NodeJS.ProcessEnv = { ALREADY: '', TWITCH_CLIENT_ID: 'from-shell' }
+    const env: NodeJS.ProcessEnv = { NODE_ENV: 'test', ALREADY: '', TWITCH_CLIENT_ID: 'from-shell' }
     expect(applyEnvFile('ALREADY = file\nTWITCH_CLIENT_ID = file\nNEW = value\n', env)).toEqual(['NEW'])
     expect(env).toMatchObject({ ALREADY: '', TWITCH_CLIENT_ID: 'from-shell', NEW: 'value' })
 })

@@ -1,6 +1,6 @@
-export type BudgetSql = {
-    unsafe: (query: string, params?: unknown[]) => Promise<Record<string, unknown>[]>
-}
+import type postgres from 'postgres'
+
+export type BudgetSql = postgres.Sql
 
 export type ClearedBudget = { terminated: number[]; deletedLeases: number; budgetsReset: number }
 

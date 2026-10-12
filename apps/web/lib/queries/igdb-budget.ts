@@ -13,12 +13,12 @@ export function budgetError(error: unknown): IgdbError {
     return new IgdbError('shared request budget unavailable.')
 }
 
-async function bounded<T>(run: (tx: { execute: (query: ReturnType<typeof sql>) => Promise<T> }) => Promise<T>): Promise<T> {
+async function bounded(query: ReturnType<typeof sql>) {
     return db.transaction(async tx => {
         await tx.execute(sql`set local statement_timeout = '2s'`)
         await tx.execute(sql`set local lock_timeout = '1s'`)
         await tx.execute(sql`set local idle_in_transaction_session_timeout = '15s'`)
-        return run(tx)
+        return tx.execute(query)
     })
 }
 
@@ -28,13 +28,14 @@ export async function acquireIgdbLease(clientId: string): Promise<IgdbLease> {
     try {
         while (performance.now() < deadline) {
             const before = performance.now()
-            const result = await bounded(tx => tx.execute(sql`select * from igdb_private.acquire_request_lease(${key})`))
+            const result = await bounded(sql`select * from igdb_private.acquire_request_lease(${key})`)
             const roundTripMs = Math.min(10_000, Math.max(0, Math.ceil(performance.now() - before)))
-            const row = result[0] as { lease_id: string | null; wait_ms: number }
-            if (row.lease_id) {
+            const row = result[0] as { lease_id: string | null; wait_ms: number } | undefined
+            if (row?.lease_id) {
+                const leaseId = row.lease_id
                 const release = async () => {
                     try {
-                        await bounded(tx => tx.execute(sql`select igdb_private.release_request_lease(${key},${row.lease_id}::uuid)`))
+                        await bounded(sql`select igdb_private.release_request_lease(${key},${leaseId}::uuid)`)
                     } catch (error) { throw budgetError(error) }
                 }
                 try {
@@ -43,10 +44,10 @@ export async function acquireIgdbLease(clientId: string): Promise<IgdbLease> {
                     // still leaves at least 300ms before the following grant.
                     // This used to be an unbounded update: a leftover FOR UPDATE
                     // from a killed process hung it until Ctrl-C.
-                    await bounded(tx => tx.execute(sql`update igdb_private.request_budgets
+                    await bounded(sql`update igdb_private.request_budgets
                         set next_start_at = greatest(next_start_at, clock_timestamp()
                             + (${roundTripMs} * interval '1 millisecond') + interval '650 milliseconds')
-                        where credential_key = ${key}`))
+                        where credential_key = ${key}`)
                 } catch (error) {
                     await release()
                     throw budgetError(error)
@@ -54,7 +55,7 @@ export async function acquireIgdbLease(clientId: string): Promise<IgdbLease> {
                 const dispatchBefore = performance.now() + 350
                 if (performance.now() < dispatchBefore) return { dispatchBefore, release }
                 await release()
-            } else await wait(Math.min(Math.max(10, row.wait_ms), 1000))
+            } else await wait(Math.min(Math.max(10, row?.wait_ms ?? 1000), 1000))
         }
     } catch (error) { throw budgetError(error) }
     throw new IgdbError('shared request budget busy; retry later.')

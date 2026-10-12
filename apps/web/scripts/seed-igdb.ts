@@ -72,7 +72,7 @@ async function main(): Promise<void> {
     const explicit = idsArg?.split(',').map(part => Number(part.trim())) ?? []
     if (idsArg && explicit.some(id => !Number.isInteger(id) || id <= 0)) throw new Error('--ids must be positive integers.')
 
-    const sql = postgres(url, { max: 1, onnotice: () => {}, connection: { idle_in_transaction_session_timeout: '15s' } })
+    const sql = postgres(url, { max: 1, onnotice: () => {}, connection: { idle_in_transaction_session_timeout: 15_000 } })
     pool = sql
     process.once('SIGINT', () => shutdown('SIGINT'))
     process.once('SIGTERM', () => shutdown('SIGTERM'))
