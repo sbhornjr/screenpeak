@@ -1,4 +1,5 @@
 import { expect, it, vi } from 'vitest'
+import { selectTopRatedGames } from '@/lib/catalog/rank'
 import { createIgdbProvider } from '@/lib/igdb/provider'
 const tables: Record<string, unknown[]> = {
     external_game_sources: [{id:27,name:'Steam'}], game_types: [{id:0,type:'Main Game'},{id:8,type:'Remake'}],
@@ -86,7 +87,7 @@ it('ranks main games by rating count, then rating, and pages through a cutoff ti
     ]))
     expect(await tied.provider.listTopMainGameIds(1)).toEqual([9000])
     const bodies = tied.request.mock.calls.filter(call => call[0] === 'games').map(call => call[1] as string)
-    expect(bodies.some(body => body.includes('offset'))).toBe(false)
+    expect(bodies.some(body => body.includes('sort id asc') && body.includes('offset 500'))).toBe(true)
     const sameRating = setup(catalogue([
         { id: 3, rating: 50, rating_count: 10 },
         { id: 1, rating: 50, rating_count: 10 },
@@ -94,7 +95,7 @@ it('ranks main games by rating count, then rating, and pages through a cutoff ti
     ], 2))
     expect(await sameRating.provider.listTopMainGameIds(2)).toEqual([1, 2])
 })
-const DOCUMENTED_QUERY = /^fields id,rating,rating_count; where (?:game_type = 0|rating != null|rating_count != null|rating_count < \d+|rating_count = \d+|id > \d+)(?: & (?:game_type = 0|rating != null|rating_count != null|rating_count < \d+|rating_count = \d+|id > \d+))*; sort (?:id|rating|rating_count) (?:asc|desc); limit \d+;(?: offset \d+;)?$/
+const DOCUMENTED_QUERY = /^fields id,rating,rating_count; where (?:game_type = 0|rating != null|rating_count != null|rating_count < \d+|rating_count = \d+|id > \d+)(?: & (?:game_type = 0|rating != null|rating_count != null|rating_count < \d+|rating_count = \d+|id > \d+))*; sort (?:id|rating|rating_count) (?:asc|desc); limit (?:500|[1-4]\d{2}|[1-9]\d|[1-9]);(?: offset \d+;)?$/
 it('asks IGDB for the cutoff band with one integer predicate per field', async () => {
     // 500 rows come back, so 499 candidates are kept and the 500th count is the band.
     // Ratings are fractional on purpose: that decimal must not be copied into where.
@@ -104,7 +105,7 @@ it('asks IGDB for the cutoff band with one integer predicate per field', async (
     expect(ids).toEqual(rows.map(row => row.id))
     const bodies = s.request.mock.calls.filter(call => call[0] === 'games').map(call => call[1] as string)
     expect(bodies[0]).toBe('fields id,rating,rating_count; where game_type = 0 & rating != null & rating_count != null; sort rating_count desc; limit 500;')
-    expect(bodies[1]).toBe('fields id,rating,rating_count; where game_type = 0 & rating != null & rating_count = 9500; sort rating desc; limit 500;')
+    expect(bodies[1]).toBe('fields id,rating,rating_count; where game_type = 0 & rating != null & rating_count = 9500; sort id asc; limit 500;')
     for (const body of bodies) {
         expect(body).toMatch(DOCUMENTED_QUERY)
         const where = body.split(' where ')[1]?.split(';')[0] ?? ''
@@ -112,6 +113,26 @@ it('asks IGDB for the cutoff band with one integer predicate per field', async (
         expect(new Set(fields).size).toBe(fields.length)
         expect(where).not.toMatch(/\d\.\d/)
     }
+})
+it('pages a cutoff band wider than 500 by id, then asks for the next lower count', async () => {
+    const band = Array.from({ length: 700 }, (_, index) => ({ id: index + 1, rating: 50 + (index % 20) + (index % 3) / 10, rating_count: 100 }))
+    const below = Array.from({ length: 40 }, (_, index) => ({ id: 2000 + index, rating: 10, rating_count: 40 }))
+    const rows = [...band, ...below]
+    const s = setup(catalogue(rows))
+    const ids = await s.provider.listTopMainGameIds(2000)
+    expect(ids).toEqual(selectTopRatedGames(rows.map(row => ({ id: row.id, rating: row.rating, ratingCount: row.rating_count })), 2000).map(row => row.id))
+    const bodies = s.request.mock.calls.filter(call => call[0] === 'games').map(call => call[1] as string)
+    expect(bodies).toContain('fields id,rating,rating_count; where game_type = 0 & rating != null & rating_count = 100; sort id asc; limit 500; offset 500;')
+    expect(bodies).toContain('fields id,rating,rating_count; where game_type = 0 & rating != null & rating_count < 100; sort rating_count desc; limit 500;')
+    for (const body of bodies) expect(body).toMatch(DOCUMENTED_QUERY)
+})
+it('returns a partial identical-rating band instead of throwing when the page cap is reached', async () => {
+    const rows = Array.from({ length: 200 }, (_, index) => ({ id: index + 1, rating: 50, rating_count: 10 }))
+    const s = setup(catalogue(rows, 1))
+    const ids = await s.provider.listTopMainGameIds(50)
+    expect(ids.length).toBeGreaterThan(0)
+    expect(ids.length).toBeLessThan(rows.length)
+    expect(ids).toEqual(Array.from({ length: ids.length }, (_, index) => index + 1))
 })
 it('keeps paging when a response is shorter than the requested page and more games exist', async () => {
     const rows = Array.from({ length: 2500 }, (_, index) => ({ id: index + 1, rating: 80, rating_count: 5000 - index }))

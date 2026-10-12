@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { createIgdbClient } from '@/lib/igdb/client'
+import { redactIgdbErrorBody } from '@/lib/igdb/http'
 import { logger } from '@/lib/logger'
 
 function setup(responses: Response[]) {
@@ -30,6 +31,16 @@ it.each([400,403,404])('does not retry HTTP %s', async status => {
     const s = setup([new Response('secret provider body', {status})])
     await expect(s.client.request('games','fields id;',schema)).rejects.toThrow(String(status))
     expect(s.fetcher).toHaveBeenCalledTimes(1)
+})
+it('scrubs bearer tokens and assigned secrets inside error bodies', () => {
+    expect(redactIgdbErrorBody('{"cause":"Bearer x"}')).toBe('{"cause":"Bearer [REDACTED]"}')
+    expect(redactIgdbErrorBody('{"message":"client_secret=x"}')).toBe('{"message":"client_secret=[REDACTED]"}')
+    expect(redactIgdbErrorBody('"Bearer x"')).toBe('"Bearer [REDACTED]"')
+    expect(redactIgdbErrorBody('client_secret=x')).toBe('client_secret=[REDACTED]')
+    expect(redactIgdbErrorBody('access_token=abc')).toBe('access_token=[REDACTED]')
+    for (const body of ['{"cause":"Bearer x"}', '{"message":"client_secret=x"}', '"Bearer x"', 'client_secret=x', 'access_token=abc']) {
+        expect(redactIgdbErrorBody(body)).not.toMatch(/Bearer x|client_secret=x|access_token=abc/)
+    }
 })
 it('logs a 400 body with secrets removed and keeps the query', async () => {
     const error = vi.spyOn(logger, 'error').mockImplementation(() => {})

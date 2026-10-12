@@ -1,6 +1,6 @@
 import 'server-only'
 import { z } from 'zod'
-import { logger, redact } from '../logger'
+import { logger } from '../logger'
 
 export class IgdbError extends Error {
     constructor(message: string, readonly retryable = false) { super('IGDB ' + message) }
@@ -14,13 +14,30 @@ export function retryDelay(attempt: number, after?: string | null): number {
     if (delay > 30_000) throw new IgdbError('provider cooldown exceeds 30 seconds; retry later.')
     return delay
 }
-/** IGDB error bodies are safe to log after secret-shaped fields are removed. */
+const BEARER = /Bearer\s+\S+/gi
+const ASSIGNED_SECRET = /\b(client_secret|access_token)\s*=\s*\S+/gi
+const SENSITIVE_KEY = /password|token|secret|apikey|api_key|authorization/i
+
+/** Scrub Bearer tokens and client_secret/access_token assignments inside any string. */
+export function scrubSecretText(text: string): string {
+    return text.replace(BEARER, 'Bearer [REDACTED]').replace(ASSIGNED_SECRET, '$1=[REDACTED]')
+}
+
+function scrubJson(value: unknown): unknown {
+    if (typeof value === 'string') return scrubSecretText(value)
+    if (Array.isArray(value)) return value.map(scrubJson)
+    if (value && typeof value === 'object') {
+        return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, item]) =>
+            SENSITIVE_KEY.test(key) ? [key, '[REDACTED]'] : [key, scrubJson(item)]))
+    }
+    return value
+}
+
+/** IGDB error bodies are safe to log after secret-shaped fields and values are removed. */
 export function redactIgdbErrorBody(raw: string): string {
     const text = raw.slice(0, 8_000)
-    try { return JSON.stringify(redact(JSON.parse(text))).slice(0, 500) }
-    catch {
-        return text.replace(/Bearer\s+[A-Za-z0-9._~+/-]+=*/gi, 'Bearer [REDACTED]').slice(0, 500)
-    }
+    try { return JSON.stringify(scrubJson(JSON.parse(text))).slice(0, 500) }
+    catch { return scrubSecretText(text).slice(0, 500) }
 }
 export async function requestAttempt<T>(endpoint: string, url: string, init: RequestInit, schema: z.ZodType<T>, fetcher: typeof fetch) {
     const controller = new AbortController()

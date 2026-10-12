@@ -144,26 +144,28 @@ export function createIgdbProvider(transport: Transport = { request: igdbRequest
                     throw new IgdbError('top-game id pagination is inconsistent.')
                 return sibling.length > 0
             }
-            // One rating_count, ordered by rating. Decimal ratings stay in the response;
-            // the where clause never compares them. Offset continues a full page. Once
-            // `limit` games are strictly better than the page's lowest rating, the rest
-            // of the band cannot enter the selection.
-            const collectBand = async (count: number) => {
+            // One rating_count. Sort by id so offset cannot skip equal ratings, then
+            // rank by rating locally. An identical-rating band that would pass the page
+            // cap returns the ids already collected instead of throwing.
+            const collectBand = async (count: number): Promise<'done' | 'partial'> => {
                 let offset = 0
+                const collected: RankRow[] = []
+                const identical = () => collected.length > 0 && collected.every(item => item.rating === collected[0].rating)
                 while (true) {
+                    if (pages >= maxPages) {
+                        if (identical()) return 'partial'
+                        throw new IgdbError(`top-game ranking stopped after ${pages} pages with ${candidates.length} of ${limit} candidates.`)
+                    }
                     const page = await request([
                         gameType(), rated(),
                         { field: 'rating_count', op: '=', value: integer(count) },
-                    ], 'rating desc', pageSize, offset)
-                    if (!page.length) return
+                    ], 'id asc', pageSize, offset)
+                    if (!page.length) return 'done'
                     if (page.some(item => item.rating_count !== count)) throw new IgdbError('top-game rating pagination is inconsistent.')
                     if (page.every(item => seen.has(item.id))) throw new IgdbError('top-game rating pagination is inconsistent.')
-                    const floor = Math.min(...page.map(item => item.rating))
-                    add(page.filter(item => item.rating > floor))
-                    const ranked = top()
-                    if (ranked.ids.length >= limit && ranked.rating !== undefined && ranked.rating > floor) return
-                    add(page.filter(item => item.rating === floor))
-                    if (page.length < pageSize) return
+                    add(page)
+                    collected.push(...page)
+                    if (page.length < pageSize) return 'done'
                     offset += page.length
                 }
             }
@@ -186,7 +188,7 @@ export function createIgdbProvider(transport: Transport = { request: igdbRequest
                 add(rows.filter(item => item.rating_count > lowest))
                 const early = top()
                 if (early.ids.length >= limit && early.count !== undefined && lowest < early.count) return early.ids
-                await collectBand(lowest)
+                if (await collectBand(lowest) === 'partial') return top().ids
                 const ranked = top()
                 if (ranked.ids.length >= limit) return ranked.ids
                 if (upper === lowest) throw new IgdbError('top-game rating_count pagination is inconsistent.')
