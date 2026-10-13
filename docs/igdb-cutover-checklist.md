@@ -348,7 +348,7 @@ HOSTED_DATABASE_URL='postgresql://USER:PASSWORD@aws-0-us-west-2.pooler.supabase.
 
 ## 15. Steam import matching that stops, then says it is already running
 
-Matching writes new IGDB games in the request that is open in the browser. The old importer held session advisory lock `1936745323` on a reserved pool connection for that whole request, including one catalogue round trip per genre, platform, company, and Steam id. A batch of games that were not in the 2000-game seed can sit there for minutes. The page only moves forward when that request returns. Refreshing starts a second request, which sees the lock and shows “Matching is already running for your library.” The retry button hits the same lock and stops.
+Matching writes new IGDB games in the request that is open in the browser. The mutex is the lease row `igdb_private.steam_import_runs`. The holder refreshes it while the request runs. A request that dies stops refreshing, and the next attempt takes the row after 30 seconds. Writes upsert on `igdb_id` and keep the existing slug, so the games already added (the catalogue moving from 2000 to 2048) are not inserted again.
 
 Stop the local dev server so it closes its pool. Apply the lease migration. `0008_steam_import_lease` only adds `igdb_private.steam_import_runs`. It does not change the catalogue. After 0007 is already recorded, this is the only pending file, and the journal goes from 8 rows to 9.
 
@@ -358,28 +358,33 @@ HOSTED_DATABASE_URL='postgresql://USER:PASSWORD@aws-0-us-west-2.pooler.supabase.
   npm run migrate:journal -w @screenpeak/web -- ${=H} --apply-pending
 ```
 
-Start the app again and open Steam import. A holder of classid `1936745323` that has been idle for 30 seconds is terminated by the new importer before it takes the lease. Writes upsert on `igdb_id` and keep the existing slug, so the games already added (the catalogue moving from 2000 to 2048) are not inserted again.
+Start the app again and open Steam import.
 
-If the banner is still “already running” after the restart, the pooler kept the old session. Preview, then terminate that backend only. Do not terminate a row whose `state` is `active`, and do not terminate any other advisory class.
+The previous importer held session advisory lock `1936745323` on a transaction-pooler backend. `pg_advisory_unlock_all()` unlocks only the session that executes it, so it cannot clear that leftover. Restarting the Next.js process leaves the pooler's backends in place. The lock disappears when the pooler recycles that server connection. Matching does not wait on it.
+
+Clearing the leftover is optional and owner-run. Preview one idle backend for the ScreenPeak user who was importing. Replace `USER_UUID` with that user's id. Skip any row whose `state` is not `idle`.
 
 ```sql
-SELECT a.pid, a.usename, a.state, a.state_change, a.backend_start
+SELECT a.pid, a.state, a.backend_start::text AS backend_start
 FROM pg_stat_activity a
 JOIN pg_locks l ON l.pid = a.pid
 WHERE l.locktype = 'advisory' AND l.granted
   AND l.classid = 1936745323::oid
+  AND l.objid = hashtext('USER_UUID')
   AND a.datname = current_database()
   AND a.usename = current_user
-  AND a.pid <> pg_backend_pid();
+  AND a.pid <> pg_backend_pid()
+  AND a.state = 'idle';
 ```
 
-Replace the two literals with one row from that preview. `backend_start` must be copied exactly, including the timezone.
+Copy `pid` and `backend_start` from that one row. `backend_start` must match exactly. The statement checks `state = 'idle'` and `hashtext('USER_UUID')` again before it terminates.
 
 ```sql
 SELECT pg_terminate_backend(a.pid)
 FROM pg_stat_activity a
 WHERE a.pid = 0
-  AND a.backend_start = 'YYYY-MM-DD HH:MM:SS.MS+00'
+  AND a.backend_start::text = 'YYYY-MM-DD HH:MM:SS.MS+00'
+  AND a.state = 'idle'
   AND a.datname = current_database()
   AND a.usename = current_user
   AND a.pid <> pg_backend_pid()
@@ -387,6 +392,7 @@ WHERE a.pid = 0
     SELECT 1 FROM pg_locks l
     WHERE l.pid = a.pid AND l.locktype = 'advisory' AND l.granted
       AND l.classid = 1936745323::oid
+      AND l.objid = hashtext('USER_UUID')
   );
 ```
 

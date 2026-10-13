@@ -27,8 +27,8 @@ vi.mock('@/lib/db', () => ({
     }),
 }))
 
-import { confirmSteamLibraryEntries, createDbSteamImportStore, resolveSteamBatch, withSteamImportTurn } from '@/lib/catalog/steam-import'
-import { prepareSteamImportLock } from '@/lib/catalog/steam-import-lease'
+import { confirmSteamLibraryEntries, createDbSteamImportStore, resolveSteamBatch, runSteamImportBatch, withSteamImportTurn } from '@/lib/catalog/steam-import'
+import { SteamImportLeaseLost, type SteamImportLease } from '@/lib/catalog/steam-import-lease'
 import { upsertLibraryEntries } from '@/lib/queries/library'
 import type { SteamLinkEntry } from '@screenpeak/shared/types'
 
@@ -268,36 +268,103 @@ it('serializes two import turns for one user and lets the next user proceed', as
     expect(again).toBe('after')
 })
 
-it('replaces an import lease whose heartbeat has expired', async () => {
+it('stops a replaced run before it writes the cache or the catalogue', async () => {
     const userId = randomUUID()
+    let firstLease: SteamImportLease | undefined
     let release: () => void = () => {}
     let entered: () => void = () => {}
     const hold = new Promise<void>(resolve => { release = resolve })
     const started = new Promise<void>(resolve => { entered = resolve })
-    const first = withSteamImportTurn(userId, async () => { entered(); await hold; return 'first' as const })
+    const first = withSteamImportTurn(userId, async lease => {
+        firstLease = lease
+        entered()
+        await hold
+        if (lease.signal.aborted) throw new SteamImportLeaseLost()
+        const store = createDbSteamImportStore(lease)
+        await store.remember(5150, 200, 0, NOW)
+        return 'first' as const
+    })
     await started
-    expect(await withSteamImportTurn(userId, async () => 'second' as const)).toEqual({ busy: true })
     await client`update igdb_private.steam_import_runs set heartbeat_at = clock_timestamp() - interval '2 minutes' where user_id = ${userId}::uuid`
-    expect(await withSteamImportTurn(userId, async () => 'third' as const)).toBe('third')
+    let winnerToken = ''
+    let releaseWinner: () => void = () => {}
+    let winnerEntered: () => void = () => {}
+    const winnerHold = new Promise<void>(resolve => { releaseWinner = resolve })
+    const winnerStarted = new Promise<void>(resolve => { winnerEntered = resolve })
+    const winner = withSteamImportTurn(userId, async lease => {
+        winnerToken = lease.token
+        winnerEntered()
+        await winnerHold
+        return 'winner' as const
+    })
+    await winnerStarted
+    expect(await firstLease!.pulse()).toBe(false)
+    expect(firstLease!.signal.aborted).toBe(true)
+    const stolen = createDbSteamImportStore(firstLease)
+    await expect(stolen.remember(5150, 200, 0, NOW)).rejects.toBeInstanceOf(SteamImportLeaseLost)
+    await expect(stolen.saveGames!([{ game: catalog(9001, [77], { name: 'Lost', providerSlug: 'lost-9001' }), ownedAppIds: [77] }])).rejects.toBeInstanceOf(SteamImportLeaseLost)
+    expect(await client`select steam_app_id from igdb_private.steam_match_cache where steam_app_id = 5150`).toEqual([])
+    expect(await client`select id from games where igdb_id = 9001`).toEqual([])
+    const [held] = await client`select owner_token::text as owner_token from igdb_private.steam_import_runs where user_id = ${userId}::uuid`
+    expect(held.owner_token).toBe(winnerToken)
     release()
-    expect(await first).toBe('first')
-    const [row] = await client`select count(*)::int as n from igdb_private.steam_import_runs where user_id = ${userId}::uuid`
-    expect(row.n).toBe(0)
+    await expect(first).resolves.toEqual({ lost: true })
+    expect(held.owner_token).toBe(winnerToken)
+    releaseWinner()
+    expect(await winner).toBe('winner')
+    expect(await client`select count(*)::int as n from igdb_private.steam_import_runs where user_id = ${userId}::uuid`).toEqual([{ n: 0 }])
 })
 
-it('terminates only a stale Steam import advisory session for this user', async () => {
+it('writes the cache and catalogue while the lease token still matches', async () => {
+    const userId = randomUUID()
+    expect(await withSteamImportTurn(userId, async lease => {
+        const store = createDbSteamImportStore(lease)
+        expect(await store.remember(6161, 200, 0, NOW)).toBe(true)
+        const saved = await store.saveGames!([{ game: catalog(9002, [78], { name: 'Kept Lease', providerSlug: 'kept-lease' }), ownedAppIds: [78] }])
+        expect(saved[0].attached).toEqual([78])
+        return 'ok' as const
+    })).toBe('ok')
+    expect(await client`select status from igdb_private.steam_match_cache where steam_app_id = 6161`).toEqual([{ status: 'unmatched' }])
+    expect(await client`select count(*)::int as n from games where igdb_id = 9002`).toEqual([{ n: 1 }])
+})
+
+it('does not call Steam when another run holds the lease', async () => {
+    const userId = randomUUID()
+    const steamId = '765' + userId.replaceAll('-', '').slice(0, 14)
+    await client`insert into auth.users (id, email, raw_user_meta_data) values
+        (${userId}, ${userId + '@example.com'}, ${JSON.stringify({ username: 's' + userId.slice(0, 8) })}::jsonb)`
+    await client`insert into steam_accounts (user_id, steam_id) values (${userId}, ${steamId})`
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Steam should not be called'))
+    let release: () => void = () => {}
+    let entered: () => void = () => {}
+    const hold = new Promise<void>(resolve => { release = resolve })
+    const started = new Promise<void>(resolve => { entered = resolve })
+    const running = withSteamImportTurn(userId, async () => { entered(); await hold; return 'held' as const })
+    try {
+        await started
+        const result = await runSteamImportBatch(userId, { retry: false, cursor: null })
+        expect(result).toMatchObject({ notice: 'Matching is already running for your library.' })
+        expect(fetchSpy).not.toHaveBeenCalled()
+    } finally {
+        fetchSpy.mockRestore()
+        release()
+        await running
+    }
+})
+
+it('runs an import turn while a leftover session advisory lock is held', async () => {
     const userId = randomUUID()
     const holder = postgres(parsed.toString(), { max: 1, prepare: false, onnotice: () => {} })
     try {
         await holder`select pg_advisory_lock(1936745323, hashtext(${userId}))`
-        expect(await prepareSteamImportLock(client, userId, 86_400_000)).toBe('busy')
-        expect(await prepareSteamImportLock(client, userId, 0)).toBe('clear')
+        expect(await withSteamImportTurn(userId, async () => 'ran' as const)).toBe('ran')
         const left = await client`select count(*)::int as n from pg_locks l
             join pg_stat_activity a on a.pid = l.pid
             where l.locktype = 'advisory' and l.classid = 1936745323::oid and l.objid = hashtext(${userId})
               and a.datname = current_database()`
-        expect(left).toEqual([{ n: 0 }])
+        expect(left).toEqual([{ n: 1 }])
     } finally {
+        await holder`select pg_advisory_unlock(1936745323, hashtext(${userId}))`.catch(() => {})
         await holder.end({ timeout: 1 }).catch(() => {})
     }
 })

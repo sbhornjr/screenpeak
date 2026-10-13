@@ -61,6 +61,7 @@ export default function SteamLinkGamesSection({
         let cancelled = false
         const retry = cycle > 0
         let cursor: SteamImportCursor | null = null
+        let revisited = false
         async function run() {
             setMatching(true)
             setError(null)
@@ -68,7 +69,7 @@ export default function SteamLinkGamesSection({
             while (!cancelled) {
                 let result: SteamImportBatch | { error: string }
                 try {
-                    result = await resolveSteamImportBatch(retry ? { retry: true, cursor } : {})
+                    result = await resolveSteamImportBatch(cursor || retry ? { retry, cursor } : {})
                 } catch {
                     if (!cancelled) {
                         setError("Matching is unavailable. Your matched games are still listed.")
@@ -98,11 +99,17 @@ export default function SteamLinkGamesSection({
                 setMatchedGameCount(result.matchedGameCount)
                 setRetryableCount(result.retryableAppCount)
                 setNotice(null)
-                if (result.retryableAppCount > 0 || !result.nextCursor) {
-                    setMatching(false)
-                    return
+                if (result.nextCursor) {
+                    cursor = result.nextCursor
+                    continue
                 }
-                cursor = result.nextCursor
+                if (!revisited && result.remaining > 0) {
+                    revisited = true
+                    cursor = null
+                    continue
+                }
+                setMatching(false)
+                return
             }
         }
         void run()

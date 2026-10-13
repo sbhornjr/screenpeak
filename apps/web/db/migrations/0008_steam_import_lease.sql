@@ -1,7 +1,6 @@
 -- One Steam import per user. The holder refreshes heartbeat_at while it runs.
 -- A dead request stops refreshing, and the next attempt takes the row after
--- the TTL. This replaces the session advisory lock (classid 1936745323), which
--- stayed granted on an idle pool connection after the request died.
+-- the TTL. This row is the only import mutex.
 CREATE TABLE igdb_private.steam_import_runs (
     user_id uuid PRIMARY KEY,
     owner_token uuid NOT NULL,
