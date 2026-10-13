@@ -14,6 +14,31 @@ export function retryDelay(attempt: number, after?: string | null): number {
     if (delay > 30_000) throw new IgdbError('provider cooldown exceeds 30 seconds; retry later.')
     return delay
 }
+const BEARER = /Bearer\s+\S+/gi
+const ASSIGNED_SECRET = /\b(client_secret|access_token)\s*=\s*\S+/gi
+const SENSITIVE_KEY = /password|token|secret|apikey|api_key|authorization/i
+
+/** Scrub Bearer tokens and client_secret/access_token assignments inside any string. */
+export function scrubSecretText(text: string): string {
+    return text.replace(BEARER, 'Bearer [REDACTED]').replace(ASSIGNED_SECRET, '$1=[REDACTED]')
+}
+
+function scrubJson(value: unknown): unknown {
+    if (typeof value === 'string') return scrubSecretText(value)
+    if (Array.isArray(value)) return value.map(scrubJson)
+    if (value && typeof value === 'object') {
+        return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, item]) =>
+            SENSITIVE_KEY.test(key) ? [key, '[REDACTED]'] : [key, scrubJson(item)]))
+    }
+    return value
+}
+
+/** IGDB error bodies are safe to log after secret-shaped fields and values are removed. */
+export function redactIgdbErrorBody(raw: string): string {
+    const text = raw.slice(0, 8_000)
+    try { return JSON.stringify(scrubJson(JSON.parse(text))).slice(0, 500) }
+    catch { return scrubSecretText(text).slice(0, 500) }
+}
 export async function requestAttempt<T>(endpoint: string, url: string, init: RequestInit, schema: z.ZodType<T>, fetcher: typeof fetch) {
     const controller = new AbortController()
     const start = performance.now()
@@ -34,7 +59,14 @@ export async function requestAttempt<T>(endpoint: string, url: string, init: Req
         })
         status = response.status
         if (!response.ok) {
-            await response.body?.cancel().catch(() => {})
+            let raw = ''
+            try { raw = await response.text() } catch { raw = '' }
+            // The Apicalypse body is the query, not a credential. Headers stay out of the log.
+            logger.error('igdb', 'Request rejected', {
+                endpoint, status,
+                query: typeof init.body === 'string' ? init.body.slice(0, 500) : undefined,
+                body: redactIgdbErrorBody(raw),
+            })
             return { ok: false as const, status, retryAfter: response.headers.get('retry-after') }
         }
         let data: unknown
@@ -44,7 +76,8 @@ export async function requestAttempt<T>(endpoint: string, url: string, init: Req
         if (!parsed.success) throw new IgdbError('invalid response.')
         return { ok: true as const, status, data: parsed.data }
     } catch (error) {
-        // Neither provider bodies nor underlying fetch errors/URLs enter logs or public errors.
+        // Provider response bodies and underlying fetch errors/URLs stay out of the thrown message.
+        // A rejected status logs its body separately, with secrets removed.
         if (error instanceof IgdbError) throw error
         throw new IgdbError('request failed or timed out.', true)
     } finally {
