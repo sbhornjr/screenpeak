@@ -224,6 +224,83 @@ it('commits a seed batch and names the games left when the next batch fails', as
     expect(stored.sort((left, right) => left - right)).toEqual(good.map(row => row.igdbId))
 }, 60_000)
 
+it('upserts a batch of taxonomy, slugs, and steam ids without a query per row', async () => {
+    const row = (id: number, steam: number[]): CatalogGame => ({
+        ...staged(id, steam),
+        providerSlug: 'Same Title',
+        genres: [
+            { igdbId: 600, name: 'Action', slug: 'action', providerUpdatedAt: '2026-10-10T00:00:00.000Z' },
+            { igdbId: 601, name: 'Action 2', slug: 'action', providerUpdatedAt: '2026-10-10T00:00:00.000Z' },
+        ],
+        platforms: [{ igdbId: 700, name: 'PC', slug: 'pc', providerUpdatedAt: '2026-10-10T00:00:00.000Z' }],
+        developers: [{ igdbId: 800 + id, name: 'Co ' + id, slug: 'co', providerUpdatedAt: '2026-10-10T00:00:00.000Z' }],
+        publishers: [],
+    })
+    let statements = 0
+    const seeded = await seedCatalogGames(database, [row(910, [9100]), row(911, [9110])], {
+        onPhase: event => { if (event.phase === 'committed') statements = event.statements ?? 0 },
+    })
+    expect(seeded.written).toBe(2)
+    expect(statements).toBeGreaterThan(0)
+    expect(statements).toBeLessThan(40)
+    const slugs = await client`select igdb_id, slug from games where igdb_id in (910, 911) order by igdb_id`
+    expect(slugs[0]).toMatchObject({ igdb_id: 910, slug: 'same-title' })
+    expect(slugs[1].slug).toMatch(/^same-title-/)
+    expect(await client`select igdb_id, slug from genres where igdb_id in (600, 601) order by igdb_id`).toEqual([
+        { igdb_id: 600, slug: 'action' }, { igdb_id: 601, slug: 'igdb-601' },
+    ])
+    expect(await client`select igdb_id, slug from developers where igdb_id in (1710, 1711) order by igdb_id`).toEqual([
+        { igdb_id: 1710, slug: 'co' }, { igdb_id: 1711, slug: 'igdb-1711' },
+    ])
+    expect(await client`select count(*)::int as n from game_genres j join games g on g.id = j.game_id where g.igdb_id in (910, 911)`).toEqual([{ n: 4 }])
+    expect(await client`select count(*)::int as n from game_platforms j join games g on g.id = j.game_id where g.igdb_id in (910, 911)`).toEqual([{ n: 2 }])
+    expect(await client`select external_id from game_external_ids where external_id in ('9100', '9110') order by external_id`).toEqual([
+        { external_id: '9100' }, { external_id: '9110' },
+    ])
+    const renamed = row(910, [9100])
+    renamed.name = 'Renamed Game'
+    renamed.providerUpdatedAt = '2026-11-01T00:00:00.000Z'
+    renamed.genres = [
+        { igdbId: 600, name: 'Action Renamed', slug: 'action', providerUpdatedAt: '2026-11-01T00:00:00.000Z' },
+        { igdbId: 601, name: 'Action 2', slug: 'action', providerUpdatedAt: '2026-10-10T00:00:00.000Z' },
+    ]
+    const older = row(911, [9110])
+    older.name = 'Should Not Stick'
+    older.providerUpdatedAt = '2020-01-01T00:00:00.000Z'
+    await seedCatalogGames(database, [renamed, older])
+    expect(await client`select name, slug from games where igdb_id = 910`).toEqual([{ name: 'Renamed Game', slug: 'same-title' }])
+    expect(await client`select name from games where igdb_id = 911`).toEqual([{ name: 'Staged 911' }])
+    expect(await client`select name from genres where igdb_id = 600`).toEqual([{ name: 'Action Renamed' }])
+    expect(await client`select slug from genres where igdb_id = 601`).toEqual([{ slug: 'igdb-601' }])
+}, 60_000)
+
+it('hands a taxonomy slug to the other row in the same batch', async () => {
+    const game = (stamp: string, first: string, second: string): CatalogGame => ({
+        ...staged(920, []),
+        providerUpdatedAt: stamp,
+        genres: [
+            { igdbId: 9201, name: 'Alpha', slug: first, providerUpdatedAt: stamp },
+            { igdbId: 9202, name: 'Beta', slug: second, providerUpdatedAt: stamp },
+        ],
+    })
+    await seedCatalogGames(database, [game('2026-10-01T00:00:00.000Z', 'alpha', 'beta')])
+    await seedCatalogGames(database, [game('2026-11-01T00:00:00.000Z', 'beta', 'alpha')])
+    expect(await client`select igdb_id, slug from genres where igdb_id in (9201, 9202) order by igdb_id`).toEqual([
+        { igdb_id: 9201, slug: 'igdb-9201' },
+        { igdb_id: 9202, slug: 'alpha' },
+    ])
+}, 60_000)
+
+it('moves a Steam id released by one game in the batch onto the game that claims it', async () => {
+    await seedCatalogGames(database, [staged(930, [9300]), staged(931, [])])
+    await seedCatalogGames(database, [staged(930, []), staged(931, [9300])])
+    expect(await client`select g.igdb_id, e.external_id
+        from game_external_ids e
+        join games g on g.id = e.game_id
+        where e.provider = 'steam' and g.igdb_id in (930, 931)
+        order by g.igdb_id`).toEqual([{ igdb_id: 931, external_id: '9300' }])
+}, 60_000)
+
 it('allows an empty reset at 25 games and skips reset_backup when that apply is refused', async () => {
     const fresh = await createDatabase('floor_')
     const dir = await mkdtemp(join(tmpdir(), 'screenpeak-reset-'))

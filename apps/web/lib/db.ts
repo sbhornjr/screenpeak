@@ -4,6 +4,7 @@ import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import * as schema from '@/db/schema'
 import * as relations from '@/db/relations'
+import { poolConnectionTimeouts } from '@/lib/db-timeouts'
 
 const connectionString = process.env.DATABASE_POOL_URL
 if (!connectionString) throw new Error('DATABASE_POOL_URL is not set')
@@ -21,10 +22,9 @@ const client = postgres(connectionString, {
     prepare: false,
     // A killed seed must not leave this session idle in a transaction holding
     // the IGDB budget row. The timeout survives the client disconnect.
-    connection: {
-        // Milliseconds. A killed seed must not sit idle holding the budget row.
-        idle_in_transaction_session_timeout: 15_000,
-    },
+    // Milliseconds. The app only sets the idle-transaction limit. seed:igdb adds
+    // statement and lock timeouts through SCREENPEAK_*_TIMEOUT_MS before import.
+    connection: poolConnectionTimeouts(),
     types: {
         bigint: { to: 20, from: [20], parse: toNumber, serialize: String },
         numeric: { to: 1700, from: [1700], parse: toNumber, serialize: String },

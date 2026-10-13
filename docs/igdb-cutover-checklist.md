@@ -164,9 +164,11 @@ A non-empty `--staged` file of `CatalogGame` values is the other reset input. `-
 
 Seed after the reset. `--top` with no number selects 2000 main games (`game_type = 0`), ranked by `rating_count`, then `rating`, then id. The value must be an integer from 1 to 5000. The command upserts in batches of 50. It writes Steam app ids only for those games. It does not clear accounts, list definitions, follows, or likes, and it does not restore the rows the reset deleted. It needs `TWITCH_CLIENT_ID` and `TWITCH_CLIENT_SECRET`, and 0003 must already be applied. A failed batch leaves earlier batches committed and prints the remaining IGDB ids. Re-run the same command with `--resume`.
 
-`--resume` computes the top-N list again, then skips IGDB ids already stored. It does not stop just because some rows exist. Progress is printed to stderr (ranking pages, then each fetch and committed batch). The JSON summary on stdout includes `target`, `ranked`, `skippedExisting`, `written`, and `shortfall`. If IGDB has fewer rated main games than `--top` asked for, the command writes that shorter list and exits non-zero. A page shorter than the requested 500 is not treated as the end of the catalogue unless a cursor probe finds nothing past it.
+`--resume` computes the top-N list again, then skips IGDB ids already stored. It does not stop just because some rows exist. Progress is printed to stderr: ranking pages, each fetch with its duration, then each 50-game write with its duration and statement count. The JSON summary on stdout includes `target`, `ranked`, `skippedExisting`, `written`, and `shortfall`. If IGDB has fewer rated main games than `--top` asked for, the command writes that shorter list and exits non-zero. A page shorter than the requested 500 is not treated as the end of the catalogue unless a cursor probe finds nothing past it.
 
-A seed that you interrupt with Ctrl-C can leave a session idle in a transaction on `igdb_private.request_budgets`. The next acquire then waits on that lock. New connections set `idle_in_transaction_session_timeout` to 15 seconds so a killed session releases the lock. A session left by an older build does not have that timeout. `--clear-budget` terminates idle-in-transaction backends that have held an `igdb_private` lock for more than 15 seconds, deletes every rate-limit lease, and resets the spacing clock. Run it only while the app, audits, and every other seed are stopped. It does not change the catalogue.
+A 50-game batch is a handful of multi-row inserts. Genres, platforms, companies, covers, and external ids are not separate queries per row. Expect a batch to commit in a few seconds on the hosted session pooler, and the full 2000 games in about 5–8 minutes including the IGDB fetches. The command then closes the database pool and exits. Lock waits fail after 5 seconds and statements after 30 seconds.
+
+A seed that you interrupt with Ctrl-C can leave a session idle in a transaction holding the rate-limit row or a catalogue advisory lock. The next write then waits on that lock until the 5 second lock timeout. New connections set `idle_in_transaction_session_timeout` to 15 seconds so a killed session releases the lock. A session left by an older build, or one the pooler kept open, does not have that timeout. `--clear-budget` terminates sessions of this database user, in this database, that have been idle in a transaction (including aborted) for more than 15 seconds while holding one of the seed advisory locks or a lock in `igdb_private`. It checks the backend id and start time again before terminating, so a recycled process is left alone. It does not terminate this command's own session, another role's session, or an ordinary table lock. It deletes every rate-limit lease and resets the spacing clock. Run it only while other seeds are stopped. It does not change the catalogue.
 
 ```bash
 TEST_DATABASE_URL=postgresql://YOUR_USER@127.0.0.1:5432/screenpeak_copy \
@@ -327,3 +329,20 @@ Then run the step 8 queries. `games` should be 2000. If 0007 was already applied
 ## 13. IGDB commercial terms
 
 Before public launch, obtain a written IGDB commercial partnership that covers storage, caching, and attribution. The Twitch Developer Agreement defaults to 24-hour caching. The free noncommercial documentation is not permission to ship. This development reset does not satisfy that gate. Do not treat the 24-hour default as the shipped cache policy unless the written agreement says so.
+
+## 14. A `--top` seed that sits after the last fetch
+
+The fetch log is not the end of the run. The old writer then upserted each game with a separate round trip for every genre, platform, company, join row, and Steam id: about sixty statements per game. On the us-west-2 session pooler that is about ten minutes for the first 50 games, with no further log until that batch commits. Nothing is wrong with the ranking, and the games response already includes covers, genres, platforms, companies, and external ids.
+
+Stop that process with Ctrl-C. Do not reset the catalogue. Do not apply 0007 again. Rows already committed stay. `--resume` recomputes the top 2000 and skips stored IGDB ids, so a finished batch of 50 is not written again.
+
+In zsh, with the same `HOSTED_DATABASE_URL` you used for the seed (the host must be exactly the pooler below):
+
+```zsh
+H='--database-env HOSTED_DATABASE_URL --target-hosted --confirm-host aws-0-us-west-2.pooler.supabase.com --confirm-database postgres'
+HOSTED_DATABASE_URL='postgresql://USER:PASSWORD@aws-0-us-west-2.pooler.supabase.com:5432/postgres' \
+  npm run seed:igdb -w @screenpeak/web -- ${=H} --clear-budget --top --resume
+```
+
+`--clear-budget` runs first and drops idle catalogue locks left by the interrupted transaction. Stderr should then show each fetch's duration and a `committed` line every few seconds, with a statement count around 20 rather than thousands. The remaining games should finish in about 5–8 minutes. The process closes the pool and exits. A `shortfall` string means IGDB returned fewer than 2000 rated main games.
+
