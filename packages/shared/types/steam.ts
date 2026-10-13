@@ -47,6 +47,8 @@ export type SteamImportBatch = {
     nextCursor: SteamImportCursor | null
     /** Set when this user already holds the import turn. Entries stay as they were. */
     notice?: string
+    /** Milliseconds to wait before asking again while `notice` is set. */
+    retryAfterMs?: number
 }
 
 /** Minutes already stored for a Steam-sourced library row. Null means the hours were chosen by hand. */

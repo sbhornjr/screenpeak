@@ -17,7 +17,7 @@ const help = `Record or apply ScreenPeak SQL migrations.
                          0003–0006 back with it. Stop at 0006 first on a legacy copy.
   --through TAG          With --apply-pending, stop after this journal tag.
                          Use 0006_two_score_rpcs before the catalogue reset.
-                         A later --apply-pending with no --through applies 0007.
+                         A later --apply-pending with no --through applies 0007 and later files.
   --local-auth-stubs     Create anon/authenticated roles and auth.uid() before --apply-pending.
                          Only for an empty local Postgres. Refuses a Supabase auth schema
                          and refuses --target-hosted.

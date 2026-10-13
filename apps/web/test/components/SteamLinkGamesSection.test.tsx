@@ -145,6 +145,36 @@ describe('SteamLinkGamesSection', () => {
         expect(screen.getByRole('status')).not.toHaveTextContent('still to check')
     })
 
+    it('asks again when a live run holds the lease, then shows the matched games', async () => {
+        resolveSteamImportBatch
+            .mockResolvedValueOnce({
+                entries: [],
+                remaining: 1,
+                totalApps: 0,
+                matchedGameCount: 0,
+                unmatchedAppCount: 0,
+                ambiguousAppCount: 0,
+                retryableAppCount: 1,
+                nextCursor: null,
+                notice: 'Matching is already running for your library.',
+                retryAfterMs: 0,
+            })
+            .mockResolvedValueOnce({
+                entries: [entry()],
+                remaining: 0,
+                totalApps: 5,
+                matchedGameCount: 1,
+                unmatchedAppCount: 0,
+                ambiguousAppCount: 0,
+                retryableAppCount: 0,
+                nextCursor: null,
+            })
+        render(<SteamLinkGamesSection initialEntries={[]} totalApps={5} pending={4} unmatched={0} ambiguous={0} />)
+        expect(await screen.findByText('Hades')).toBeInTheDocument()
+        await waitFor(() => expect(resolveSteamImportBatch).toHaveBeenCalledTimes(2))
+        expect(screen.queryByText('Matching is already running for your library.')).not.toBeInTheDocument()
+    })
+
     it('shows a retry when the provider fails and keeps the games already matched', async () => {
         resolveSteamImportBatch.mockResolvedValue({
             entries: [entry()],

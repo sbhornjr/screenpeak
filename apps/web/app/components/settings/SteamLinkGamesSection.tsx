@@ -84,16 +84,21 @@ export default function SteamLinkGamesSection({
                     setMatching(false)
                     return
                 }
-                if (!result.notice) {
-                    setEntries(prev => mergeEntries(prev, result.entries, edited.current))
-                    setUnmatchedCount(result.unmatchedAppCount)
-                    setAmbiguousCount(result.ambiguousAppCount)
-                    setRemaining(result.remaining)
-                    setMatchedGameCount(result.matchedGameCount)
+                if (result.notice) {
+                    setNotice(result.notice)
+                    setRetryableCount(result.retryableAppCount)
+                    await new Promise(resolve => setTimeout(resolve, result.retryAfterMs ?? 5000))
+                    if (cancelled) return
+                    continue
                 }
+                setEntries(prev => mergeEntries(prev, result.entries, edited.current))
+                setUnmatchedCount(result.unmatchedAppCount)
+                setAmbiguousCount(result.ambiguousAppCount)
+                setRemaining(result.remaining)
+                setMatchedGameCount(result.matchedGameCount)
                 setRetryableCount(result.retryableAppCount)
-                setNotice(result.notice ?? null)
-                if (result.notice || result.retryableAppCount > 0 || !result.nextCursor) {
+                setNotice(null)
+                if (result.retryableAppCount > 0 || !result.nextCursor) {
                     setMatching(false)
                     return
                 }
@@ -134,7 +139,7 @@ export default function SteamLinkGamesSection({
                 {ambiguousCount > 0 ? ` ${appLabel(ambiguousCount)} matched more than one game and were skipped.` : ""}
             </p>
             {notice && <p className="text-center text-sm text-(--color-bad)">{notice}</p>}
-            {(retryableCount > 0 || remaining > 0 || notice) && !matching && (
+            {(notice || ((retryableCount > 0 || remaining > 0) && !matching)) && (
                 <button
                     type="button"
                     onClick={() => setCycle(value => value + 1)}

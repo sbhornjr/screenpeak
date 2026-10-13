@@ -271,7 +271,11 @@ async function lockTaxonomy(tx: Executor): Promise<void> {
     ) as ordered`)
 }
 
-export async function writeCatalogBatch(tx: Executor, games: CatalogGame[]): Promise<{ written: number; skipped: number }> {
+export async function writeCatalogBatch(
+    tx: Executor,
+    games: CatalogGame[],
+    options: { retainUnlistedSteamIds?: boolean } = {},
+): Promise<{ written: number; skipped: number }> {
     const parsed = games.map(game => catalogGameSchema.parse(game))
     if (!parsed.length) return { written: 0, skipped: 0 }
     if (new Set(parsed.map(game => game.igdbId)).size !== parsed.length) throw new Error('Seed batch has duplicate IGDB ids.')
@@ -438,7 +442,7 @@ export async function writeCatalogBatch(tx: Executor, games: CatalogGame[]): Pro
             where stored.provider = 'steam' and stored.external_id = moved.external_id
                 and stored.game_id = moved.from_game_id`)
     }
-    if (claimed.size) {
+    if (!options.retainUnlistedSteamIds && claimed.size) {
         const pairs = [...claimed].map(([externalId, gameId]) => sql`(${externalId}, ${gameId}::uuid)`)
         await tx.execute(sql`insert into public.game_external_ids (provider, external_id, game_id, match_method, verified_at)
             values ${sql.join([...claimed].map(([externalId, gameId]) => sql`('steam', ${externalId}, ${gameId}::uuid, 'igdb_external_id', ${now}::timestamptz)`), sql`, `)}
@@ -450,7 +454,7 @@ export async function writeCatalogBatch(tx: Executor, games: CatalogGame[]): Pro
                 and not exists (select 1 from (values ${sql.join(pairs, sql`, `)}) as kept(external_id, game_id)
                     where kept.game_id = stored.game_id and kept.external_id = stored.external_id)`)
         }
-    } else if (updates.length) {
+    } else if (!options.retainUnlistedSteamIds && updates.length) {
         await tx.execute(sql`delete from public.game_external_ids
             where provider = 'steam' and game_id in (${inList(updates.map(row => row.id))})`)
     }

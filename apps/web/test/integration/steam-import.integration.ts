@@ -28,6 +28,7 @@ vi.mock('@/lib/db', () => ({
 }))
 
 import { confirmSteamLibraryEntries, createDbSteamImportStore, resolveSteamBatch, withSteamImportTurn } from '@/lib/catalog/steam-import'
+import { prepareSteamImportLock } from '@/lib/catalog/steam-import-lease'
 import { upsertLibraryEntries } from '@/lib/queries/library'
 import type { SteamLinkEntry } from '@screenpeak/shared/types'
 
@@ -72,6 +73,10 @@ beforeAll(async () => {
     await client.begin(async tx => { await tx.unsafe(await migration('0004_igdb_catalog_preparation')) })
     await client.begin(async tx => { await tx.unsafe(await migration('0005_taxonomy_slug_unique')) })
     await client.begin(async tx => { await tx.unsafe(await migration('0006_two_score_rpcs')) })
+    for (const statement of (await migration('0008_steam_import_lease')).split('--> statement-breakpoint')) {
+        const text = statement.trim()
+        if (text) await client.unsafe(text)
+    }
     state.db = drizzle(client) as unknown as DB
     state.pg = client
 })
@@ -259,4 +264,66 @@ it('serializes two import turns for one user and lets the next user proceed', as
     expect(await withSteamImportTurn(otherId, async () => 'other' as const)).toBe('other')
     release()
     expect(await first).toBe('first')
+    const again = await withSteamImportTurn(userId, async () => 'after' as const)
+    expect(again).toBe('after')
+})
+
+it('replaces an import lease whose heartbeat has expired', async () => {
+    const userId = randomUUID()
+    let release: () => void = () => {}
+    let entered: () => void = () => {}
+    const hold = new Promise<void>(resolve => { release = resolve })
+    const started = new Promise<void>(resolve => { entered = resolve })
+    const first = withSteamImportTurn(userId, async () => { entered(); await hold; return 'first' as const })
+    await started
+    expect(await withSteamImportTurn(userId, async () => 'second' as const)).toEqual({ busy: true })
+    await client`update igdb_private.steam_import_runs set heartbeat_at = clock_timestamp() - interval '2 minutes' where user_id = ${userId}::uuid`
+    expect(await withSteamImportTurn(userId, async () => 'third' as const)).toBe('third')
+    release()
+    expect(await first).toBe('first')
+    const [row] = await client`select count(*)::int as n from igdb_private.steam_import_runs where user_id = ${userId}::uuid`
+    expect(row.n).toBe(0)
+})
+
+it('terminates only a stale Steam import advisory session for this user', async () => {
+    const userId = randomUUID()
+    const holder = postgres(parsed.toString(), { max: 1, prepare: false, onnotice: () => {} })
+    try {
+        await holder`select pg_advisory_lock(1936745323, hashtext(${userId}))`
+        expect(await prepareSteamImportLock(client, userId, 86_400_000)).toBe('busy')
+        expect(await prepareSteamImportLock(client, userId, 0)).toBe('clear')
+        const left = await client`select count(*)::int as n from pg_locks l
+            join pg_stat_activity a on a.pid = l.pid
+            where l.locktype = 'advisory' and l.classid = 1936745323::oid and l.objid = hashtext(${userId})
+              and a.datname = current_database()`
+        expect(left).toEqual([{ n: 0 }])
+    } finally {
+        await holder.end({ timeout: 1 }).catch(() => {})
+    }
+})
+
+it('keeps one game row and its slug when the same Steam match is written twice', async () => {
+    const provider = {
+        lookupSteamApps: vi.fn(async (ids: number[]) => ids.map(appid => ({ appid, candidates: [8000 + appid] }))),
+        getGamesByIds: vi.fn(async (ids: number[]) => ids.map(id => catalog(id, [id - 8000, id - 8000 + 50], {
+            providerSlug: 'Same Title', name: 'Same Title',
+        }))),
+    }
+    const apps = [{ appid: 810, name: 'Same Title' }, { appid: 811, name: 'Same Title' }]
+    const first = await resolveSteamBatch(apps, { provider, now: NOW })
+    expect(first.matched.map(row => row.appid).sort((a, b) => a - b)).toEqual([810, 811])
+    const stored = await client`select igdb_id, slug from games where igdb_id in (8810, 8811) order by igdb_id`
+    expect(stored).toHaveLength(2)
+    expect(stored[0].slug).toBe('same-title')
+    expect(stored[1].slug).not.toBe(stored[0].slug)
+    const [game] = await client`select id from games where igdb_id = 8810`
+    await client`insert into game_external_ids (provider, external_id, game_id, match_method)
+        values ('steam', '860', ${game.id}, 'igdb_external_id')`
+    const second = await resolveSteamBatch(apps, { provider, now: NOW })
+    expect(second.matched.map(row => row.appid).sort((a, b) => a - b)).toEqual([810, 811])
+    expect(await client`select igdb_id, slug from games where igdb_id in (8810, 8811) order by igdb_id`).toEqual(stored)
+    expect(await client`select count(*)::int as n from games where igdb_id in (8810, 8811)`).toEqual([{ n: 2 }])
+    expect(await client`select external_id from game_external_ids where external_id in ('810', '811', '860', '861') order by external_id`).toEqual([
+        { external_id: '810' }, { external_id: '811' }, { external_id: '860' },
+    ])
 })

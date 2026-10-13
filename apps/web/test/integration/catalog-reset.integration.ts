@@ -86,7 +86,7 @@ it('stamps 0000–0002 without replay, then applies only the pending migrations'
     await expect(applyPending(sql)).rejects.toThrow(/IGDB cleanup refused/)
     expect(await client`select rawg_id, igdb_id, slug from games where id = ${legacyId}`).toEqual([{ rawg_id: 900, igdb_id: null, slug: 'legacy' }])
     const pending = await inspectMigrations(sql)
-    expect(pending.pending).toEqual(['0007_igdb_catalog_cleanup'])
+    expect(pending.pending).toEqual(['0007_igdb_catalog_cleanup', '0008_steam_import_lease'])
 })
 
 it('aborts the taxonomy uniqueness migration when slugs collide and keeps the rows', async () => {
@@ -371,7 +371,7 @@ it('applies the whole chain on an empty database and records every file', async 
         await ensureLocalAuthStubs(sql)
         const applied = await applyPending(sql)
         expect(applied[0]).toBe('0000_illegal_kinsey_walden')
-        expect(applied.at(-1)).toBe('0007_igdb_catalog_cleanup')
+        expect(applied.at(-1)).toBe('0008_steam_import_lease')
         expect(await applyPending(sql)).toEqual([])
         const recorded = await inspectMigrations(sql)
         expect(recorded.baseline).toBe('recorded')
@@ -383,7 +383,7 @@ it('applies the whole chain on an empty database and records every file', async 
         const dropped = await fresh`select column_name from information_schema.columns where table_schema = 'public' and column_name in ('rawg_id', 'metacritic_score', 'steam_appid')`
         expect(dropped).toEqual([])
         const [count] = await fresh`select count(*)::int as n from drizzle.__drizzle_migrations`
-        expect(count.n).toBe(8)
+        expect(count.n).toBe(9)
     } finally {
         await fresh.end()
     }

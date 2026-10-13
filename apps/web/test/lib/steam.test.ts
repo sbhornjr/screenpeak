@@ -21,6 +21,8 @@ describe('getOwnedGames', () => {
             game_count: 2,
             games: [{ appid: 1 }, { appid: 2 }],
         })
+        const init = vi.mocked(fetch).mock.calls[0]?.[1]
+        expect(init).toMatchObject({ signal: expect.any(AbortSignal) })
     })
 
     it('yields undefined fields (not zero games) when the profile hides game details', async () => {

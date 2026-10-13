@@ -346,3 +346,47 @@ HOSTED_DATABASE_URL='postgresql://USER:PASSWORD@aws-0-us-west-2.pooler.supabase.
 
 `--clear-budget` runs first and drops idle catalogue locks left by the interrupted transaction. Stderr should then show each fetch's duration and a `committed` line every few seconds, with a statement count around 20 rather than thousands. The remaining games should finish in about 5–8 minutes. The process closes the pool and exits. A `shortfall` string means IGDB returned fewer than 2000 rated main games.
 
+## 15. Steam import matching that stops, then says it is already running
+
+Matching writes new IGDB games in the request that is open in the browser. The old importer held session advisory lock `1936745323` on a reserved pool connection for that whole request, including one catalogue round trip per genre, platform, company, and Steam id. A batch of games that were not in the 2000-game seed can sit there for minutes. The page only moves forward when that request returns. Refreshing starts a second request, which sees the lock and shows “Matching is already running for your library.” The retry button hits the same lock and stops.
+
+Stop the local dev server so it closes its pool. Apply the lease migration. `0008_steam_import_lease` only adds `igdb_private.steam_import_runs`. It does not change the catalogue. After 0007 is already recorded, this is the only pending file, and the journal goes from 8 rows to 9.
+
+```zsh
+H='--database-env HOSTED_DATABASE_URL --target-hosted --confirm-host aws-0-us-west-2.pooler.supabase.com --confirm-database postgres'
+HOSTED_DATABASE_URL='postgresql://USER:PASSWORD@aws-0-us-west-2.pooler.supabase.com:5432/postgres' \
+  npm run migrate:journal -w @screenpeak/web -- ${=H} --apply-pending
+```
+
+Start the app again and open Steam import. A holder of classid `1936745323` that has been idle for 30 seconds is terminated by the new importer before it takes the lease. Writes upsert on `igdb_id` and keep the existing slug, so the games already added (the catalogue moving from 2000 to 2048) are not inserted again.
+
+If the banner is still “already running” after the restart, the pooler kept the old session. Preview, then terminate that backend only. Do not terminate a row whose `state` is `active`, and do not terminate any other advisory class.
+
+```sql
+SELECT a.pid, a.usename, a.state, a.state_change, a.backend_start
+FROM pg_stat_activity a
+JOIN pg_locks l ON l.pid = a.pid
+WHERE l.locktype = 'advisory' AND l.granted
+  AND l.classid = 1936745323::oid
+  AND a.datname = current_database()
+  AND a.usename = current_user
+  AND a.pid <> pg_backend_pid();
+```
+
+Replace the two literals with one row from that preview. `backend_start` must be copied exactly, including the timezone.
+
+```sql
+SELECT pg_terminate_backend(a.pid)
+FROM pg_stat_activity a
+WHERE a.pid = 0
+  AND a.backend_start = 'YYYY-MM-DD HH:MM:SS.MS+00'
+  AND a.datname = current_database()
+  AND a.usename = current_user
+  AND a.pid <> pg_backend_pid()
+  AND EXISTS (
+    SELECT 1 FROM pg_locks l
+    WHERE l.pid = a.pid AND l.locktype = 'advisory' AND l.granted
+      AND l.classid = 1936745323::oid
+  );
+```
+

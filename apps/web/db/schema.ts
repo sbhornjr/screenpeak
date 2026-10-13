@@ -406,6 +406,12 @@ export const steamMatchCache = igdbPrivate.table('steam_match_cache', {
     check('steam_match_cache_status_check', sql`${table.status} IN ('unmatched', 'ambiguous')`),
     check('steam_match_cache_check', sql`${table.retryAfter} >= ${table.checkedAt}`),
 ]).enableRLS()
+export const steamImportRuns = igdbPrivate.table('steam_import_runs', {
+    userId: uuid('user_id').primaryKey(),
+    ownerToken: uuid('owner_token').notNull(),
+    heartbeatAt: timestamp('heartbeat_at', { withTimezone: true, mode: 'string' }).notNull(),
+    startedAt: timestamp('started_at', { withTimezone: true, mode: 'string' }).notNull(),
+}).enableRLS()
 export const catalogResetRuns = igdbPrivate.table('catalog_reset_runs', {
     runId: uuid('run_id').primaryKey(),
     manifestChecksum: text('manifest_checksum').notNull(),

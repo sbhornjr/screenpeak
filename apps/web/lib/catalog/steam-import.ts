@@ -1,5 +1,5 @@
 import 'server-only'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { SteamImportBatch, SteamImportCursor, SteamLibrarySnapshot, SteamLinkEntry, SteamOwnedGames } from '@screenpeak/shared/types'
 import { games, gameExternalIds, steamMatchCache } from '@/db/schema'
@@ -11,7 +11,17 @@ import { dedupeSteamLinkEntries, getLibraryRowsForGames, LibraryReadError, upser
 import { getSteamAccount } from '@/lib/queries/steam'
 import { getFullyCompletedAppids, getOwnedGames } from '@/lib/steam'
 import { writeSteamMatchCache } from './match-cache'
-import { detachSharedSteamAppIds, omitForeignSteamIds } from './steam-ids'
+import { writeCatalogBatch } from './batch-write'
+import {
+    STEAM_IMPORT_HEARTBEAT_MS,
+    STEAM_IMPORT_LEASE_RETRY_MS,
+    acquireSteamImportLease,
+    heartbeatSteamImportLease,
+    prepareSteamImportLock,
+    releaseSteamImportLease,
+    steamLeaseMissing,
+} from './steam-import-lease'
+import { detachSharedSteamAppIds, omitForeignSteamIds, omitForeignSteamIdsBatch } from './steam-ids'
 import type { CatalogGame } from './types'
 import { writeCatalogGame } from './upsert'
 
@@ -24,7 +34,6 @@ export const STEAM_LOOKUP_BATCH = 100
 export const STEAM_IMPORT_BATCH = 50
 /** One signed-in library may start at most one IGDB batch per second, and only one at a time. */
 export const STEAM_IMPORT_TURN_GAP_MS = 1000
-const STEAM_IMPORT_LOCK_NAMESPACE = 1936745323
 const MAX_STEAM_APP_ID = 2_147_483_647
 
 /**
@@ -76,6 +85,8 @@ export type SteamImportStore = {
     freshCache(appIds: number[], now: Date): Promise<{ appid: number; status: 'unmatched' | 'ambiguous' }[]>
     remember(appId: number, httpStatus: number, candidateCount: number, now: Date): Promise<boolean>
     saveGame(game: CatalogGame, ownedAppIds: number[]): Promise<SaveResult>
+    /** One catalogue transaction for every new game in the lookup chunk. */
+    saveGames?(items: { game: CatalogGame; ownedAppIds: number[] }[]): Promise<SaveResult[]>
 }
 
 export function steamOwnershipBlock(app: { appid: number; name: string }): 'demo' | 'software' | 'launcher' | null {
@@ -355,6 +366,58 @@ export function createDbSteamImportStore(): SteamImportStore {
                 }
             }
         },
+        async saveGames(items) {
+            if (!items.length) return []
+            const keptIds = items.map(item => [...new Set(item.ownedAppIds)])
+            await db.transaction(async tx => {
+                await tx.execute(sql`set local lock_timeout = '5s'`)
+                await tx.execute(sql`set local statement_timeout = '30s'`)
+                const filtered = await omitForeignSteamIdsBatch(tx, items.map((item, index) => ({ ...item.game, steamAppIds: keptIds[index] })))
+                for (let index = 0; index < items.length; index += 1) keptIds[index] = filtered.games[index]?.steamAppIds ?? []
+                const writable = filtered.games.filter(game => game.steamAppIds.length).map(game => ({ ...game, steamAppIds: [] as number[] }))
+                if (writable.length) await writeCatalogBatch(tx, writable, { retainUnlistedSteamIds: true })
+                const pairs = filtered.games.flatMap(game => game.steamAppIds.map(appId => sql`(${game.igdbId}::int, ${String(appId)})`))
+                if (pairs.length) {
+                    const now = new Date().toISOString()
+                    await tx.execute(sql`insert into public.game_external_ids (provider, external_id, game_id, match_method, verified_at)
+                        select 'steam', pair.external_id, catalogue.id, 'igdb_external_id', ${now}::timestamptz
+                        from (values ${sql.join(pairs, sql`, `)}) as pair(igdb_id, external_id)
+                        join public.games catalogue on catalogue.igdb_id = pair.igdb_id
+                        on conflict (provider, external_id) do update set verified_at = excluded.verified_at
+                        where public.game_external_ids.game_id = excluded.game_id`)
+                }
+            })
+            const wanted = [...new Set(items.flatMap(item => item.ownedAppIds))]
+            const mappings = await readSteamMappings(wanted)
+            const ownerOf = new Map(mappings.map(row => [row.appid, row]))
+            const storedIds = new Map<number, string>()
+            if (items.length) {
+                const rows = await db.execute(sql`select id::text as id, igdb_id as "igdbId" from public.games
+                    where igdb_id in (${sql.join(items.map(item => sql`${item.game.igdbId}`), sql`, `)})`) as { id: string; igdbId: number }[]
+                for (const row of rows) storedIds.set(Number(row.igdbId), row.id)
+            }
+            return items.map((item, index) => {
+                const gameId = storedIds.get(item.game.igdbId) ?? null
+                const kept = new Set(keptIds[index])
+                const attached: number[] = []
+                const elsewhere: SteamMatch[] = []
+                const rejected: number[] = []
+                for (const appid of [...new Set(item.ownedAppIds)]) {
+                    const owner = ownerOf.get(appid)
+                    if (kept.has(appid) && owner?.gameId === gameId && gameId) attached.push(appid)
+                    else if (owner) elsewhere.push(owner)
+                    else rejected.push(appid)
+                }
+                const settled = new Set([...attached, ...elsewhere.map(row => row.appid)])
+                return {
+                    id: attached.length ? gameId : null,
+                    attached,
+                    rejected: rejected.filter(appid => !settled.has(appid)),
+                    conflicted: [] as number[],
+                    elsewhere,
+                }
+            })
+        },
     }
 }
 
@@ -482,6 +545,7 @@ export async function resolveSteamBatch(
             list.push(appid)
             ownedByIgdb.set(igdbId, list)
         }
+        const saves: { game: CatalogGame; ownedAppIds: number[] }[] = []
         for (const [igdbId, appIds] of ownedByIgdb) {
             const game = gamesByIgdb.get(igdbId)
             if (!game) { pushUnique(retryable, appIds); continue }
@@ -489,19 +553,34 @@ export async function resolveSteamBatch(
             const absent = appIds.filter(appid => !game.steamAppIds.includes(appid))
             pushUnique(retryable, absent)
             if (!present.length) continue
+            // Only the owned apps we accepted. Other IGDB steam ids (including an unnamed demo) are not stored.
+            saves.push({ game: { ...game, steamAppIds: present }, ownedAppIds: present })
+        }
+        const recordSave = (saved: SaveResult) => {
+            if (saved.id) for (const appid of saved.attached) matched.push({ appid, gameId: saved.id })
+            for (const row of saved.elsewhere) {
+                if (!matched.some(match => match.appid === row.appid)) matched.push(row)
+            }
+            const settled = new Set(matched.map(match => match.appid))
+            pushUnique(retryable, [...saved.rejected, ...saved.conflicted].filter(appid => !settled.has(appid)))
+        }
+        if (saves.length && store.saveGames) {
             try {
-                // Only the owned apps we accepted. Other IGDB steam ids (including an unnamed demo) are not stored.
-                const saved = await store.saveGame({ ...game, steamAppIds: present }, present)
-                if (saved.id) for (const appid of saved.attached) matched.push({ appid, gameId: saved.id })
-                for (const row of saved.elsewhere) {
-                    if (!matched.some(match => match.appid === row.appid)) matched.push(row)
-                }
-                const settled = new Set(matched.map(match => match.appid))
-                pushUnique(retryable, [...saved.rejected, ...saved.conflicted].filter(appid => !settled.has(appid)))
+                logger.info('catalog:steam-import', 'Writing matched games', { games: saves.length })
+                for (const saved of await store.saveGames(saves)) recordSave(saved)
             } catch (error) {
-                // One game's failure must not abort the rest of the import, and must not be cached as a miss.
                 logger.error('catalog:steam-import', 'Steam catalogue write failed', { error: error instanceof Error ? error.message : String(error) })
-                pushUnique(retryable, present)
+                pushUnique(retryable, saves.flatMap(item => item.ownedAppIds))
+            }
+        } else {
+            for (const item of saves) {
+                try {
+                    recordSave(await store.saveGame(item.game, item.ownedAppIds))
+                } catch (error) {
+                    // One game's failure must not abort the rest of the import, and must not be cached as a miss.
+                    logger.error('catalog:steam-import', 'Steam catalogue write failed', { error: error instanceof Error ? error.message : String(error) })
+                    pushUnique(retryable, item.ownedAppIds)
+                }
             }
         }
     }
@@ -585,58 +664,57 @@ const busyBatch = (cursor: SteamImportCursor | null): SteamImportBatch => ({
     retryableAppCount: 1,
     nextCursor: cursor,
     notice: 'Matching is already running for your library.',
+    retryAfterMs: STEAM_IMPORT_LEASE_RETRY_MS,
 })
 
 /**
- * One library at a time, and at most one IGDB batch per second. The advisory lock
- * is held on a reserved connection for the whole batch so two tabs cannot both
- * look up the same pending apps. The gap keeps a fast retry loop off the shared budget.
+ * One library at a time, and at most one IGDB batch per second. The lease row
+ * expires when its heartbeat stops, so a dead request cannot block the retry
+ * button. A leftover session lock from the previous importer is cleared once
+ * it has been idle for the same TTL. The gap keeps a fast retry loop off the
+ * shared budget.
  */
 export async function withSteamImportTurn<T>(userId: string, run: () => Promise<T>): Promise<T | { busy: true }> {
-    const connection = await pg.reserve()
-    let locked = false
+    if (await prepareSteamImportLock(pg, userId) === 'busy') return { busy: true }
+    const token = randomUUID()
+    let held = false
     try {
-        const rows = await connection<{ locked: boolean }[]>`
-            select pg_try_advisory_lock(${STEAM_IMPORT_LOCK_NAMESPACE}, hashtext(${userId})) as locked`
-        locked = Boolean(rows[0]?.locked)
-        if (!locked) return { busy: true }
+        held = await acquireSteamImportLease(pg, userId, token)
+    } catch (error) {
+        if (steamLeaseMissing(error)) throw new SteamImportInputError('Steam import lease is not installed. Apply 0008_steam_import_lease, then try the remaining matches again.')
+        throw error
+    }
+    if (!held) return { busy: true }
+    const timer = setInterval(() => {
+        heartbeatSteamImportLease(pg, userId, token).catch(error => {
+            logger.warn('catalog:steam-import', 'Steam import heartbeat failed', { error: error instanceof Error ? error.message : String(error) })
+        })
+    }, STEAM_IMPORT_HEARTBEAT_MS)
+    try {
         const key = createHash('sha256').update(`steam-import:${userId}`).digest('hex')
-        await connection`insert into igdb_private.request_budgets (credential_key) values (${key}) on conflict (credential_key) do nothing`
-        const [pace] = await connection<{ wait_ms: number }[]>`
-            select case when next_start_at = '-infinity'::timestamptz then 0
+        await pg.unsafe(`insert into igdb_private.request_budgets (credential_key) values ($1) on conflict (credential_key) do nothing`, [key])
+        const [pace] = await pg.unsafe(`select case when next_start_at = '-infinity'::timestamptz then 0
                 else greatest(0, floor(extract(epoch from (next_start_at - clock_timestamp())) * 1000))::int
             end as wait_ms
-            from igdb_private.request_budgets where credential_key = ${key}`
-        const waitMs = Math.min(STEAM_IMPORT_TURN_GAP_MS, Math.max(0, pace?.wait_ms ?? 0))
+            from igdb_private.request_budgets where credential_key = $1`, [key]) as { wait_ms: number }[]
+        const waitMs = Math.min(STEAM_IMPORT_TURN_GAP_MS, Math.max(0, Number(pace?.wait_ms ?? 0)))
         if (waitMs > 0) await new Promise(resolve => setTimeout(resolve, waitMs))
-        await connection`
-            update igdb_private.request_budgets
+        await pg.unsafe(`update igdb_private.request_budgets
             set next_start_at = clock_timestamp() + (${STEAM_IMPORT_TURN_GAP_MS} * interval '1 millisecond')
-            where credential_key = ${key}`
+            where credential_key = $1`, [key])
         return await run()
     } finally {
-        if (locked) await connection`select pg_advisory_unlock(${STEAM_IMPORT_LOCK_NAMESPACE}, hashtext(${userId}))`
-        connection.release()
+        clearInterval(timer)
+        if (held) {
+            try { await releaseSteamImportLease(pg, userId, token) }
+            catch (error) {
+                logger.warn('catalog:steam-import', 'Steam import lease release failed', { error: error instanceof Error ? error.message : String(error) })
+            }
+        }
     }
 }
 
-async function runSteamImportBatchUnlocked(userId: string, request: SteamImportRequest): Promise<SteamImportBatch | { error: string }> {
-    let steamId: string
-    try { steamId = await steamIdFor(userId) }
-    catch (error) {
-        if (error instanceof SteamImportInputError) return { error: error.message }
-        throw error
-    }
-    let ownedRaw: SteamOwnedGames
-    try { ownedRaw = await getOwnedGames(steamId) }
-    catch (error) {
-        logger.warn('catalog:steam-import', 'Owned games lookup failed', { error: error instanceof Error ? error.message : String(error) })
-        return { error: 'Steam is unavailable. Your matched games are still listed.' }
-    }
-    if (!ownedRaw.games) return { error: 'Steam library details are not public.' }
-    const owned = dedupeOwnedApps(ownedRaw.games.map(game => ({
-        appid: game.appid, name: game.name ?? '', playtimeMinutes: game.playtime_forever ?? 0,
-    })))
+async function runSteamImportBatchUnlocked(userId: string, request: SteamImportRequest, steamId: string, owned: OwnedSteamApp[]): Promise<SteamImportBatch | { error: string }> {
     const now = new Date()
     const store = createDbSteamImportStore()
     const before = await inspectOwned(owned, store, now)
@@ -692,7 +770,23 @@ async function runSteamImportBatchUnlocked(userId: string, request: SteamImportR
 
 export async function runSteamImportBatch(userId: string, request: SteamImportRequest): Promise<SteamImportBatch | { error: string }> {
     try {
-        const turn = await withSteamImportTurn(userId, () => runSteamImportBatchUnlocked(userId, request))
+        let steamId: string
+        try { steamId = await steamIdFor(userId) }
+        catch (error) {
+            if (error instanceof SteamImportInputError) return { error: error.message }
+            throw error
+        }
+        let ownedRaw: SteamOwnedGames
+        try { ownedRaw = await getOwnedGames(steamId) }
+        catch (error) {
+            logger.warn('catalog:steam-import', 'Owned games lookup failed', { error: error instanceof Error ? error.message : String(error) })
+            return { error: 'Steam is unavailable. Your matched games are still listed.' }
+        }
+        if (!ownedRaw.games) return { error: 'Steam library details are not public.' }
+        const owned = dedupeOwnedApps(ownedRaw.games.map(game => ({
+            appid: game.appid, name: game.name ?? '', playtimeMinutes: game.playtime_forever ?? 0,
+        })))
+        const turn = await withSteamImportTurn(userId, () => runSteamImportBatchUnlocked(userId, request, steamId, owned))
         if ('busy' in turn) return busyBatch(request.cursor)
         return turn
     } catch (error) {
