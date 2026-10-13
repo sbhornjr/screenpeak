@@ -1,8 +1,11 @@
 import { resolve } from 'node:path'
 import postgres from 'postgres'
 import { clearIgdbBudget } from '../lib/catalog/budget-admin'
+import { closeDatabasePool, endDatabaseClient } from '../lib/catalog/close-pool'
 import { assertDatabaseTarget, assertLocalCopy, databaseTargetFromArgv } from '../lib/catalog/database-url'
 import { loadEnvFile } from '../lib/catalog/env-file'
+import { formatSeedProgress } from '../lib/catalog/seed-progress'
+import { applySeedPoolTimeouts, poolConnectionTimeouts } from '../lib/db-timeouts'
 import type { MigrationSql } from '../lib/catalog/migrations'
 
 const help = `Seed IGDB main games through the shared rate limiter and catalogue writer.
@@ -14,9 +17,12 @@ const help = `Seed IGDB main games through the shared rate limiter and catalogue
   --resume              Skip IGDB ids already stored. The top-N list is computed again first.
                         Writes are upserts either way. A short list is still a failure.
   --clear-budget        Delete IGDB rate-limit leases, reset the spacing clock, and terminate
-                        idle-in-transaction sessions that have held an igdb_private lock for
-                        more than 15 seconds. Run this only while no seed, audit, or app
-                        process is calling IGDB. It may be combined with --top or --ids.
+                        sessions that have been idle in a transaction for more than 15
+                        seconds while holding an advisory lock or a lock on public or
+                        igdb_private. Run this only while no seed, audit, or app process
+                        is running. It may be combined with --top or --ids. It does not
+                        change the catalogue.
+  --confirm-local-copy  Local copy only. Required when that database has Supabase dump markers.
   --confirm-local-copy  Local copy only. Required when that database has Supabase dump markers.
   --target-hosted       Hosted database. Requires --confirm-host and --confirm-database.
                         Refuses a local host. Do not combine with --confirm-local-copy.
@@ -24,10 +30,13 @@ const help = `Seed IGDB main games through the shared rate limiter and catalogue
   --confirm-database NAME
                         Type the URL database name. Must match exactly.
 
-The script only upserts games, in batches of 50. It does not clear library entries, reviews, lists, or accounts.
+The script only upserts games, in batches of 50. Each batch is a handful of multi-row
+statements, not one query per genre, platform, company, or Steam id. It does not clear
+library entries, reviews, lists, or accounts.
 Steam app ids are written only for the games in this run. Shared ids among those games are dropped.
 A failed batch leaves earlier batches committed and prints the remaining ids. Re-run with --resume.
-Progress is printed to stderr. The final JSON summary is printed to stdout.
+Progress is printed to stderr, including fetch and commit timings. The final JSON summary is printed to stdout.
+The seed pool uses a 5s lock timeout and a 30s statement timeout, then closes the pool and exits.
 If IGDB returns fewer rated main games than --top asked for, the command writes those games and exits non-zero.
 Twitch credentials (TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET) are read from the environment or apps/web/.env.local.
 Existing environment variables win. KEY = value spacing is accepted.
@@ -39,21 +48,26 @@ function argument(name: string): string | undefined {
 }
 
 let pool: { end: (options?: { timeout?: number }) => Promise<void> } | undefined
+let finishing: Promise<void> | undefined
+
+function finish(code: number): Promise<void> {
+    finishing ??= closeDatabasePool(pool, { code })
+    return finishing
+}
 
 function shutdown(signal: string): void {
     console.error(`seed:igdb received ${signal}. Closing the database connection. Re-run the same command with --resume.`)
-    const force = setTimeout(() => process.exit(1), 5_000)
-    force.unref()
-    void pool?.end({ timeout: 2 }).catch(() => undefined).finally(() => process.exit(1))
+    void finish(1)
 }
 
-async function main(): Promise<void> {
+async function main(): Promise<number> {
     const envName = argument('--database-env')
     if (!envName || process.argv.includes('--help')) {
         console.log(help)
         process.exit(process.argv.includes('--help') ? 0 : 1)
     }
     loadEnvFile(resolve(__dirname, '../.env.local'))
+    applySeedPoolTimeouts(process.env)
     const url = process.env[envName]
     if (!url) throw new Error(`Set ${envName}. This command does not fall back to DATABASE_POOL_URL.`)
     const target = databaseTargetFromArgv(process.argv)
@@ -72,7 +86,7 @@ async function main(): Promise<void> {
     const explicit = idsArg?.split(',').map(part => Number(part.trim())) ?? []
     if (idsArg && explicit.some(id => !Number.isInteger(id) || id <= 0)) throw new Error('--ids must be positive integers.')
 
-    const sql = postgres(url, { max: 1, onnotice: () => {}, connection: { idle_in_transaction_session_timeout: 15_000 } })
+    const sql = postgres(url, { max: 1, onnotice: () => {}, connection: poolConnectionTimeouts() })
     pool = sql
     process.once('SIGINT', () => shutdown('SIGINT'))
     process.once('SIGTERM', () => shutdown('SIGTERM'))
@@ -84,9 +98,10 @@ async function main(): Promise<void> {
             else console.error(line)
         }
     } finally {
-        await sql.end()
+        await endDatabaseClient(sql)
+        if (pool === sql) pool = undefined
     }
-    if (!idsArg && !top) return
+    if (!idsArg && !top) return 0
     process.env.DATABASE_POOL_URL = url
     const { db, pg } = await import('../lib/db')
     pool = pg
@@ -100,18 +115,29 @@ async function main(): Promise<void> {
         const outcome = seedOutcome(explicit.length ? explicit.length : limit, ranked, stored, process.argv.includes('--resume'))
         if (outcome.shortfall) console.error(`igdb seed: ${outcome.shortfall}`)
         const games: Awaited<ReturnType<typeof igdbProvider.getGamesByIds>> = []
+        if (outcome.ids.length) {
+            console.error('igdb seed: each batch is one games request; genres, platforms, companies, covers, and external ids are expanded in that response')
+        }
         for (let offset = 0; offset < outcome.ids.length; offset += 50) {
             const slice = outcome.ids.slice(offset, offset + 50)
-            console.error(`igdb seed: fetching games ${offset + 1}-${offset + slice.length} of ${outcome.ids.length}`)
+            const from = offset + 1
+            const to = offset + slice.length
+            const started = performance.now()
+            console.error(`igdb seed: fetching games ${from}-${to} of ${outcome.ids.length}`)
             try {
-                games.push(...await igdbProvider.getGamesByIds(slice, { mainOnly: true }))
+                const page = await igdbProvider.getGamesByIds(slice, { mainOnly: true })
+                games.push(...page)
+                console.error(formatSeedProgress({
+                    phase: 'fetched', from, to, total: outcome.ids.length, count: page.length,
+                    ms: Math.round(performance.now() - started),
+                }))
             } catch (error) {
                 const message = error instanceof Error ? error.message : String(error)
                 throw new Error(`Stopped while fetching IGDB games (${games.length} fetched, none of this run written yet). Re-run with --resume. ${message}`)
             }
         }
         const result = await seedCatalogGames(db, games, {
-            onBatch: progress => console.error(`igdb seed: committed ${progress.written} of ${progress.total}`),
+            onPhase: event => console.error(formatSeedProgress(event)),
         })
         console.log(JSON.stringify({
             target: outcome.target,
@@ -120,13 +146,14 @@ async function main(): Promise<void> {
             shortfall: outcome.shortfall,
             ...result,
         }, null, 2))
-        if (outcome.shortfall) process.exitCode = 1
-    } finally {
-        await pg.end()
+        return outcome.shortfall ? 1 : 0
+    } catch (error) {
+        console.error(error instanceof Error ? error.message : error)
+        return 1
     }
 }
 
-main().catch(error => {
+main().then(code => finish(code ?? 1)).catch(error => {
     console.error(error instanceof Error ? error.message : error)
-    process.exitCode = 1
+    return finish(1)
 })

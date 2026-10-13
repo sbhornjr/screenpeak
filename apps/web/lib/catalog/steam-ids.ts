@@ -35,3 +35,31 @@ export async function omitForeignSteamIds(tx: Executor, game: CatalogGame): Prom
         game: { ...game, steamAppIds: game.steamAppIds.filter(id => !foreign.has(id)) },
     }
 }
+
+/** One lookup for a seed batch. An app id owned by a different IGDB game is dropped. */
+export async function omitForeignSteamIdsBatch(tx: { execute: (query: SQL) => Promise<unknown> }, games: CatalogGame[]): Promise<{
+    games: CatalogGame[]
+    omitted: { igdbId: number; appIds: number[] }[]
+}> {
+    const wanted = [...new Set(games.flatMap(game => game.steamAppIds))]
+    if (!wanted.length) return { games, omitted: [] }
+    const result = await tx.execute(sql`select e.external_id, g.igdb_id from public.game_external_ids e
+        join public.games g on g.id = e.game_id
+        where e.provider = 'steam' and e.external_id in (${sql.join(wanted.map(id => sql`${String(id)}`), sql`, `)})`)
+    const rows = (Array.isArray(result) ? result : []) as { external_id: string; igdb_id: number | null }[]
+    const ownerOf = new Map(rows.map(row => [String(row.external_id), Number(row.igdb_id)]))
+    const omitted: { igdbId: number; appIds: number[] }[] = []
+    return {
+        omitted,
+        games: games.map(game => {
+            const foreign = [...new Set(game.steamAppIds)].filter(id => {
+                const owner = ownerOf.get(String(id))
+                return owner != null && owner !== game.igdbId
+            })
+            if (!foreign.length) return game
+            omitted.push({ igdbId: game.igdbId, appIds: foreign })
+            const drop = new Set(foreign)
+            return { ...game, steamAppIds: game.steamAppIds.filter(id => !drop.has(id)) }
+        }),
+    }
+}

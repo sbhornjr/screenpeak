@@ -31,10 +31,10 @@ export function catalogSlug(providerSlug: string): string {
         .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 160).replace(/-$/, '') || 'game'
 }
 
-function taxonCandidates(preferred: string, igdbId: number): string[] {
+export function taxonCandidates(preferred: string, igdbId: number): string[] {
     return [preferred, `igdb-${igdbId}`, `${preferred}-igdb-${igdbId}`]
 }
-function taxonIsNewer(stored: string | null, incoming: string | null): boolean {
+export function taxonIsNewer(stored: string | null, incoming: string | null): boolean {
     if (!incoming) return false
     if (!stored) return true
     return parseDbTimestamp(incoming).getTime() > parseDbTimestamp(stored).getTime()
@@ -50,7 +50,7 @@ const relations = [
 const identifier = (name: string) => sql.identifier(name)
 const sortedTaxa = (values: CatalogTaxon[]) => [...values].sort((a, b) => a.igdbId - b.igdbId)
 const taxonContent = (values: CatalogTaxon[]) => sortedTaxa(values).map(({ igdbId, name, slug }) => ({ igdbId, name, slug }))
-function content(game: CatalogGame): string {
+export function catalogContent(game: CatalogGame): string {
     // Source timestamp and relation order are not display-content changes.
     return JSON.stringify({ igdbId: game.igdbId, name: game.name, providerSlug: game.providerSlug,
         gameType: game.gameType, released: game.released, description: game.description,
@@ -97,7 +97,7 @@ export async function writeCatalogGame(
         }
         const mappings = await tx.select({ externalId: gameExternalIds.externalId }).from(gameExternalIds)
             .where(and(eq(gameExternalIds.gameId, existing.id), eq(gameExternalIds.provider, 'steam')))
-        previousContent = content({ ...existing, igdbId: game.igdbId, providerSlug: existing.providerSlug ?? '',
+        previousContent = catalogContent({ ...existing, igdbId: game.igdbId, providerSlug: existing.providerSlug ?? '',
             screenshots: existing.screenshots ?? [], genres: oldTaxa.genres, platforms: oldTaxa.platforms,
             developers: oldTaxa.developers, publishers: oldTaxa.publishers,
             steamAppIds: mappings.map(m => Number(m.externalId)) })
@@ -180,7 +180,7 @@ export async function writeCatalogGame(
             ? sql`delete from public.game_external_ids where game_id=${row.id}::uuid and provider='steam' and external_id not in (${sql.join(steamIds.map(id => sql`${String(id)}`), sql`, `)})`
             : sql`delete from public.game_external_ids where game_id=${row.id}::uuid and provider='steam'`)
     }
-    if (previousContent !== content({ ...game, genres: effectiveTaxa.genres, platforms: effectiveTaxa.platforms,
+    if (previousContent !== catalogContent({ ...game, genres: effectiveTaxa.genres, platforms: effectiveTaxa.platforms,
         developers: effectiveTaxa.developers, publishers: effectiveTaxa.publishers })) {
         await tx.update(games).set({ updatedAt: now }).where(eq(games.id, row.id))
     }

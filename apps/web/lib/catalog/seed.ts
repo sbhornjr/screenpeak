@@ -1,8 +1,9 @@
 import 'server-only'
 import { sql } from 'drizzle-orm'
 import type { DB } from '@/lib/db'
-import { writeCatalogGame } from './upsert'
-import { detachSharedSteamAppIds, omitForeignSteamIds } from './steam-ids'
+import { writeCatalogBatch } from './batch-write'
+import { detachSharedSteamAppIds, omitForeignSteamIdsBatch } from './steam-ids'
+import type { SeedProgress } from './seed-progress'
 import type { CatalogGame } from './types'
 
 export const SEED_BATCH = 50
@@ -60,33 +61,59 @@ export async function storedIgdbIds(database: Pick<DB, 'execute'>, ids: number[]
 }
 
 /** Upsert staged games in batches. Never clears library, reviews, lists, or accounts. */
-export async function seedCatalogGames(database: Database, games: CatalogGame[], options: { onBatch?: (progress: { written: number; total: number; batches: number }) => void } = {}) {
+export async function seedCatalogGames(database: Database, games: CatalogGame[], options: {
+    onBatch?: (progress: { written: number; total: number; batches: number; ms: number; statements: number }) => void
+    onPhase?: (event: SeedProgress) => void
+} = {}) {
+    const detachStarted = performance.now()
     const detached = detachSharedSteamAppIds(games)
+    options.onPhase?.({
+        phase: 'detach', games: detached.games.length, shared: detached.shared.length,
+        ms: Math.round(performance.now() - detachStarted),
+    })
     const omittedForeign: { igdbId: number; appIds: number[] }[] = []
     let written = 0
     let batches = 0
     for (let offset = 0; offset < detached.games.length; offset += SEED_BATCH) {
         const batch = detached.games.slice(offset, offset + SEED_BATCH)
+        const from = offset + 1
+        const to = offset + batch.length
+        options.onPhase?.({ phase: 'writing', from, to, total: detached.games.length })
+        const started = performance.now()
+        let statements = 0
         try {
             const omitted = await database.transaction(async tx => {
-                await tx.execute(sql`set local lock_timeout = '5s'`)
-                await tx.execute(sql`set local statement_timeout = '2min'`)
-                await tx.execute(sql`set local idle_in_transaction_session_timeout = '15s'`)
-                const found: { igdbId: number; appIds: number[] }[] = []
-                for (const game of batch) {
-                    const prepared = await omitForeignSteamIds(tx, game)
-                    if (prepared.omitted.length) found.push({ igdbId: game.igdbId, appIds: prepared.omitted })
-                    await writeCatalogGame(tx, prepared.game)
+                const counting = {
+                    async execute(query: Parameters<typeof tx.execute>[0]) {
+                        statements += 1
+                        return tx.execute(query)
+                    },
                 }
-                return found
+                // A bulk statement is short. These limits fail a lock wait or a stuck
+                // statement instead of leaving the batch silent for minutes.
+                await counting.execute(sql`set local lock_timeout = '5s'`)
+                await counting.execute(sql`set local statement_timeout = '30s'`)
+                await counting.execute(sql`set local idle_in_transaction_session_timeout = '15s'`)
+                const prepared = await omitForeignSteamIdsBatch(counting, batch)
+                await writeCatalogBatch(counting, prepared.games)
+                return prepared.omitted
             })
             omittedForeign.push(...omitted)
             written += batch.length
             batches += 1
-            options.onBatch?.({ written, total: detached.games.length, batches })
+            const progress = {
+                written, total: detached.games.length, batches, statements,
+                ms: Math.round(performance.now() - started),
+            }
+            options.onPhase?.({ phase: 'committed', ...progress })
+            options.onBatch?.(progress)
         } catch (error) {
             if (error instanceof SeedInterrupted) throw error
-            throw new SeedInterrupted(written, detached.games.slice(offset).map(game => game.igdbId), error)
+            const message = error instanceof Error ? error.message : String(error)
+            const cause = /lock timeout|statement timeout|idle-in-transaction/i.test(message)
+                ? new Error(`${message} Stop every other seed and the app, then retry with --clear-budget --resume.`)
+                : error
+            throw new SeedInterrupted(written, detached.games.slice(offset).map(game => game.igdbId), cause)
         }
     }
     return { written, batches, shared: detached.shared, omittedForeign }
