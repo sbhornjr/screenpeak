@@ -274,6 +274,33 @@ it('upserts a batch of taxonomy, slugs, and steam ids without a query per row', 
     expect(await client`select slug from genres where igdb_id = 601`).toEqual([{ slug: 'igdb-601' }])
 }, 60_000)
 
+it('hands a taxonomy slug to the other row in the same batch', async () => {
+    const game = (stamp: string, first: string, second: string): CatalogGame => ({
+        ...staged(920, []),
+        providerUpdatedAt: stamp,
+        genres: [
+            { igdbId: 9201, name: 'Alpha', slug: first, providerUpdatedAt: stamp },
+            { igdbId: 9202, name: 'Beta', slug: second, providerUpdatedAt: stamp },
+        ],
+    })
+    await seedCatalogGames(database, [game('2026-10-01T00:00:00.000Z', 'alpha', 'beta')])
+    await seedCatalogGames(database, [game('2026-11-01T00:00:00.000Z', 'beta', 'alpha')])
+    expect(await client`select igdb_id, slug from genres where igdb_id in (9201, 9202) order by igdb_id`).toEqual([
+        { igdb_id: 9201, slug: 'igdb-9201' },
+        { igdb_id: 9202, slug: 'alpha' },
+    ])
+}, 60_000)
+
+it('moves a Steam id released by one game in the batch onto the game that claims it', async () => {
+    await seedCatalogGames(database, [staged(930, [9300]), staged(931, [])])
+    await seedCatalogGames(database, [staged(930, []), staged(931, [9300])])
+    expect(await client`select g.igdb_id, e.external_id
+        from game_external_ids e
+        join games g on g.id = e.game_id
+        where e.provider = 'steam' and g.igdb_id in (930, 931)
+        order by g.igdb_id`).toEqual([{ igdb_id: 931, external_id: '9300' }])
+}, 60_000)
+
 it('allows an empty reset at 25 games and skips reset_backup when that apply is refused', async () => {
     const fresh = await createDatabase('floor_')
     const dir = await mkdtemp(join(tmpdir(), 'screenpeak-reset-'))

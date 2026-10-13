@@ -1,7 +1,8 @@
 import { expect, it } from 'vitest'
 import type { SQL } from 'drizzle-orm'
 import type { DB } from '@/lib/db'
-import { planGameWrites, planTaxonWrites, assertSteamOwners, type StoredGame } from '@/lib/catalog/batch-write'
+import { planGameWrites, planTaxonWrites, planSteamOwnership, slugsToVacate, writeCatalogBatch, type StoredGame } from '@/lib/catalog/batch-write'
+import { omitForeignSteamIdsBatch } from '@/lib/catalog/steam-ids'
 import { seedCatalogGames } from '@/lib/catalog/seed'
 import { formatSeedProgress } from '@/lib/catalog/seed-progress'
 import type { CatalogGame, CatalogTaxon } from '@/lib/catalog/types'
@@ -91,15 +92,105 @@ it('keeps a taxonomy row when the incoming timestamp is missing or older', () =>
     expect(created.effective[0][0].slug).toBe('fresh')
 })
 
-it('rejects a Steam id that already belongs to another game', () => {
-    expect(() => assertSteamOwners(
-        [{ gameId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', appIds: [42] }],
-        [{ externalId: '42', gameId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb' }],
+it('moves a released Steam id to the other game in the batch', () => {
+    const released = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
+    const claimed = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
+    const foreign = 'cccccccc-cccc-cccc-cccc-cccccccccccc'
+    const handed = planSteamOwnership(
+        [{ gameId: released, appIds: [] }, { gameId: claimed, appIds: [100] }],
+        [{ externalId: '100', gameId: released }],
+    )
+    expect(handed.final.get('100')).toBe(claimed)
+    expect(handed.transfers).toEqual([{ externalId: '100', fromGameId: released, gameId: claimed }])
+    expect(handed.inserts).toEqual([])
+    const reversed = planSteamOwnership(
+        [{ gameId: claimed, appIds: [100] }, { gameId: released, appIds: [] }],
+        [{ externalId: '100', gameId: released }],
+    )
+    expect(reversed.transfers).toEqual(handed.transfers)
+    expect(planSteamOwnership(
+        [{ gameId: released, appIds: [42, 42] }],
+        [{ externalId: '42', gameId: released }],
+    ).inserts).toEqual([{ externalId: '42', gameId: released }])
+    expect(() => planSteamOwnership(
+        [{ gameId: claimed, appIds: [42] }],
+        [{ externalId: '42', gameId: foreign }],
     )).toThrow(/another catalogue game/)
-    expect(assertSteamOwners(
-        [{ gameId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', appIds: [42, 42] }],
-        [{ externalId: '42', gameId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' }],
-    ).get('42')).toBe('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')
+    expect(() => planSteamOwnership(
+        [{ gameId: released, appIds: [100] }, { gameId: claimed, appIds: [100] }],
+        [{ externalId: '100', gameId: released }],
+    )).toThrow(/another catalogue game/)
+})
+
+it('vacates a taxonomy slug before another row in the batch takes it', () => {
+    const known = [
+        { id: 'id-9201', igdbId: 9201, name: 'Alpha', slug: 'alpha', providerUpdatedAt: '2026-10-01T00:00:00.000Z' },
+        { id: 'id-9202', igdbId: 9202, name: 'Beta', slug: 'beta', providerUpdatedAt: '2026-10-01T00:00:00.000Z' },
+    ]
+    const swapped = planTaxonWrites([{ taxa: [
+        taxon(9201, 'beta', 'Alpha', '2026-11-01T00:00:00.000Z'),
+        taxon(9202, 'alpha', 'Beta', '2026-11-01T00:00:00.000Z'),
+    ] }], known)
+    expect(swapped.effective[0].map(row => row.slug)).toEqual(['igdb-9201', 'alpha'])
+    expect(slugsToVacate(swapped.writes, known).map(row => row.tempSlug).sort()).toEqual([
+        'seed-tmp-id-9201', 'seed-tmp-id-9202',
+    ])
+    const renamed = planTaxonWrites([{ taxa: [
+        taxon(9201, 'alpha', 'Alpha Renamed', '2026-11-01T00:00:00.000Z'),
+    ] }], [known[0]])
+    expect(renamed.writes[0]).toMatchObject({ slug: 'alpha', name: 'Alpha Renamed' })
+    expect(slugsToVacate(renamed.writes, [known[0]])).toEqual([])
+})
+
+it('keeps a Steam id the batch owner is releasing', async () => {
+    const owned = [{ external_id: '9300', igdb_id: 930 }]
+    const handed = await omitForeignSteamIdsBatch(
+        { async execute() { return owned } },
+        [game(930, { steamAppIds: [] }), game(931, { steamAppIds: [9300] })],
+    )
+    expect(handed.omitted).toEqual([])
+    expect(handed.games.map(row => row.steamAppIds)).toEqual([[], [9300]])
+    const blocked = await omitForeignSteamIdsBatch(
+        { async execute() { return [{ external_id: '9300', igdb_id: 999 }] } },
+        [game(931, { steamAppIds: [9300] })],
+    )
+    expect(blocked.games[0].steamAppIds).toEqual([])
+    expect(blocked.omitted).toEqual([{ igdbId: 931, appIds: [9300] }])
+    const held = await omitForeignSteamIdsBatch(
+        { async execute() { return owned } },
+        [game(930, { steamAppIds: [9300] }), game(931, { steamAppIds: [9300] })],
+    )
+    expect(held.games.map(row => row.steamAppIds)).toEqual([[9300], []])
+})
+
+it('writes a Steam handoff before deleting the released id', async () => {
+    const released = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
+    const claimed = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
+    const calls: string[] = []
+    const tx = {
+        async execute(query: SQL) {
+            const text = sqlText(query)
+            calls.push(text)
+            if (text.includes('from public.games where igdb_id')) {
+                return [released, claimed].map((id, index) => ({
+                    id, igdbId: 930 + index, slug: `staged-${930 + index}`, name: 'Stored',
+                    providerSlug: `staged-${930 + index}`, gameType: 0, released: null, description: null,
+                    coverImageUrl: null, artworkImageUrl: null, screenshots: [], esrbRating: null,
+                    redditUrl: null, providerUpdatedAt: '2026-10-01T00:00:00.000Z', updatedAt: '2026-10-01T00:00:00.000Z',
+                }))
+            }
+            if (text.includes('from public.game_external_ids')) return [{ externalId: '9300', gameId: released }]
+            return []
+        },
+    }
+    await writeCatalogBatch(tx, [
+        game(930, { steamAppIds: [], genres: [], platforms: [], developers: [], publishers: [] }),
+        game(931, { steamAppIds: [9300], genres: [], platforms: [], developers: [], publishers: [] }),
+    ])
+    const updateAt = calls.findIndex(statement => statement.includes('update public.game_external_ids'))
+    const deleteAt = calls.findIndex(statement => statement.includes('delete from public.game_external_ids'))
+    expect(updateAt).toBeGreaterThanOrEqual(0)
+    expect(deleteAt).toBeGreaterThan(updateAt)
 })
 
 it('writes a 50-game batch in one round trip per table', async () => {

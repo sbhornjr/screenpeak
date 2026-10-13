@@ -138,22 +138,68 @@ export function planTaxonWrites(games: { taxa: CatalogTaxon[] }[], known: KnownT
     return { writes: [...writes.values()], effective }
 }
 
+/**
+ * Rows whose slug changes have to leave the unique index before the batch
+ * writes the new slugs. A single upsert checks that index per row, so one
+ * statement cannot hand a slug from one taxon to another.
+ */
+export function slugsToVacate(writes: TaxonWrite[], known: KnownTaxon[]): { id: string; tempSlug: string }[] {
+    const current = new Map(known.map(row => [row.igdbId, row]))
+    return writes.flatMap(write => {
+        const stored = current.get(write.igdbId)
+        if (!stored || stored.slug === write.slug) return []
+        return [{ id: stored.id, tempSlug: `seed-tmp-${stored.id}` }]
+    })
+}
+
 const STEAM_TAKEN = 'Steam external ID is already associated with another catalogue game'
 
-export function assertSteamOwners(assignments: { gameId: string; appIds: number[] }[], owners: { externalId: string; gameId: string }[]): Map<string, string> {
-    const ownerOf = new Map(owners.map(row => [row.externalId, row.gameId]))
-    const claimed = new Map<string, string>()
+export type SteamOwnership = {
+    final: Map<string, string>
+    transfers: { externalId: string; fromGameId: string; gameId: string }[]
+    inserts: { externalId: string; gameId: string }[]
+}
+
+/**
+ * Final Steam ownership for the whole batch. A written game replaces the ids
+ * it holds. An id released by one written game and claimed by another moves;
+ * it is not deleted. A claim against any other owner, including a skipped
+ * game, is refused. Two written games cannot claim the same id.
+ */
+export function planSteamOwnership(
+    assignments: { gameId: string; appIds: number[] }[],
+    owners: { externalId: string; gameId: string }[],
+): SteamOwnership {
+    const kept = new Map<string, Set<string>>()
     for (const row of assignments) {
-        for (const appId of [...new Set(row.appIds)].sort((a, b) => a - b)) {
-            const externalId = String(appId)
+        kept.set(row.gameId, new Set(row.appIds.map(appId => String(appId))))
+    }
+    const claimed = new Map<string, string>()
+    for (const [gameId, ids] of kept) {
+        for (const externalId of [...ids].sort()) {
             const prior = claimed.get(externalId)
-            if (prior && prior !== row.gameId) throw new Error(STEAM_TAKEN)
-            claimed.set(externalId, row.gameId)
-            const owner = ownerOf.get(externalId)
-            if (owner && owner !== row.gameId) throw new Error(STEAM_TAKEN)
+            if (prior && prior !== gameId) throw new Error(STEAM_TAKEN)
+            claimed.set(externalId, gameId)
         }
     }
-    return claimed
+    const ownerOf = new Map(owners.map(row => [row.externalId, row.gameId]))
+    const transfers: SteamOwnership['transfers'] = []
+    const inserts: SteamOwnership['inserts'] = []
+    for (const externalId of [...claimed.keys()].sort()) {
+        const gameId = claimed.get(externalId)!
+        const owner = ownerOf.get(externalId)
+        if (!owner || owner === gameId) {
+            inserts.push({ externalId, gameId })
+            continue
+        }
+        const ownerKept = kept.get(owner)
+        if (ownerKept && !ownerKept.has(externalId)) {
+            transfers.push({ externalId, fromGameId: owner, gameId })
+            continue
+        }
+        throw new Error(STEAM_TAKEN)
+    }
+    return { final: claimed, transfers, inserts }
 }
 
 function rowsOf(result: unknown): Record<string, unknown>[] {
@@ -310,7 +356,8 @@ export async function writeCatalogBatch(tx: Executor, games: CatalogGame[]): Pro
                 ${updates.length ? sql`or game_id in (${inList(updates.map(row => row.id))})` : sql``})`))
         : []
     const owners = steamRows.map(row => ({ externalId: textOf(row.externalId) ?? '', gameId: textOf(row.gameId) ?? '' }))
-    const claimed = assertSteamOwners(writes.map(row => ({ gameId: row.id, appIds: row.game.steamAppIds })), owners)
+    const steamPlan = planSteamOwnership(writes.map(row => ({ gameId: row.id, appIds: row.game.steamAppIds })), owners)
+    const claimed = steamPlan.final
     const oldSteam = new Map<string, number[]>()
     for (const row of owners) {
         const appId = Number(row.externalId)
@@ -356,6 +403,13 @@ export async function writeCatalogBatch(tx: Executor, games: CatalogGame[]): Pro
         updated_at = excluded.updated_at`)
     for (const relation of RELATIONS) {
         const taxonRows = taxonWrites.get(relation.key) ?? []
+        const vacated = slugsToVacate(taxonRows, known.get(relation.key) ?? [])
+        if (vacated.length) {
+            await tx.execute(sql`update public.${sql.identifier(relation.table)} as current_taxon
+                set slug = vacated.slug
+                from (values ${sql.join(vacated.map(row => sql`(${row.id}::uuid, ${row.tempSlug})`), sql`, `)}) as vacated(id, slug)
+                where current_taxon.id = vacated.id`)
+        }
         if (taxonRows.length) {
             await tx.execute(sql`insert into public.${sql.identifier(relation.table)} as current_taxon
                 (id, igdb_id, name, slug, provider_updated_at)
@@ -375,6 +429,14 @@ export async function writeCatalogBatch(tx: Executor, games: CatalogGame[]): Pro
             await tx.execute(sql`insert into public.${sql.identifier(relation.join)} (game_id, ${sql.identifier(relation.fk)})
                 values ${sql.join(links, sql`, `)} on conflict do nothing`)
         }
+    }
+    if (steamPlan.transfers.length) {
+        await tx.execute(sql`update public.game_external_ids as stored
+            set game_id = moved.game_id, verified_at = ${now}::timestamptz
+            from (values ${sql.join(steamPlan.transfers.map(row => sql`(${row.externalId}, ${row.gameId}::uuid, ${row.fromGameId}::uuid)`), sql`, `)})
+                as moved(external_id, game_id, from_game_id)
+            where stored.provider = 'steam' and stored.external_id = moved.external_id
+                and stored.game_id = moved.from_game_id`)
     }
     if (claimed.size) {
         const pairs = [...claimed].map(([externalId, gameId]) => sql`(${externalId}, ${gameId}::uuid)`)

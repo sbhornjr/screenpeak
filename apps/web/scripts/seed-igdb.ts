@@ -17,12 +17,12 @@ const help = `Seed IGDB main games through the shared rate limiter and catalogue
   --resume              Skip IGDB ids already stored. The top-N list is computed again first.
                         Writes are upserts either way. A short list is still a failure.
   --clear-budget        Delete IGDB rate-limit leases, reset the spacing clock, and terminate
-                        sessions that have been idle in a transaction for more than 15
-                        seconds while holding an advisory lock or a lock on public or
-                        igdb_private. Run this only while no seed, audit, or app process
-                        is running. It may be combined with --top or --ids. It does not
+                        this database user's own sessions that have been idle in a
+                        transaction for more than 15 seconds while holding a seed
+                        advisory lock or an igdb_private lock. It re-checks the backend
+                        before terminating it. Run this only while no other seed is
+                        running. It may be combined with --top or --ids. It does not
                         change the catalogue.
-  --confirm-local-copy  Local copy only. Required when that database has Supabase dump markers.
   --confirm-local-copy  Local copy only. Required when that database has Supabase dump markers.
   --target-hosted       Hosted database. Requires --confirm-host and --confirm-database.
                         Refuses a local host. Do not combine with --confirm-local-copy.

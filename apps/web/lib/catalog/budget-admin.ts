@@ -17,23 +17,35 @@ function countOf(row: Record<string, unknown> | undefined): number {
 }
 
 /**
- * Sessions left idle in a transaction by Ctrl-C. Advisory locks (catalogue
- * writes) have no relation, so they are matched on locktype. Relation locks
- * on the catalogue or the rate-limit schema are matched by namespace.
- * Excludes this backend. Only sessions idle for more than 15 seconds.
+ * This seed's own leftovers: the catalogue advisory namespaces
+ * (1936745319 game, 1936745320 slug, 1936745322 taxonomy) or a relation lock
+ * in igdb_private. Same database and role only. Idle for more than 15 seconds.
+ * Not this backend, and not another user's session or an ordinary public lock.
  */
-export const stuckBackendSql = `select distinct a.pid
+export const stuckBackendSql = `select distinct a.pid, a.backend_start
     from pg_stat_activity a
     join pg_locks l on l.pid = a.pid
     left join pg_class c on c.oid = l.relation
     left join pg_namespace n on n.oid = c.relnamespace
     where a.pid <> pg_backend_pid()
+      and a.datname = current_database()
+      and a.usename = current_user
       and a.state like 'idle in transaction%'
       and a.state_change < clock_timestamp() - interval '15 seconds'
       and (
-        l.locktype = 'advisory'
-        or n.nspname in ('igdb_private', 'public')
+        (l.locktype = 'advisory' and l.classid in (1936745319, 1936745320, 1936745322))
+        or n.nspname = 'igdb_private'
       )`
+
+/** Re-check pid and backend_start so a recycled backend is not terminated. */
+export const terminateStuckBackendSql = `select pg_terminate_backend(a.pid) as terminated
+    from pg_stat_activity a
+    where a.pid = $1
+      and a.backend_start = $2
+      and a.datname = current_database()
+      and a.usename = current_user
+      and a.pid <> pg_backend_pid()
+      and a.state like 'idle in transaction%'`
 
 /**
  * Drop leftover IGDB rate-limit state. Run only while no seed, audit, or app
@@ -48,7 +60,8 @@ export async function clearIgdbBudget(sql: BudgetSql): Promise<ClearedBudget> {
         const terminated: number[] = []
         for (const row of stuck) {
             const pid = pidFrom(row.pid)
-            const [result] = await sql.unsafe('select pg_terminate_backend($1) as terminated', [pid])
+            if (row.backend_start == null || row.backend_start === '') throw new Error('Refusing to terminate a backend without a start time.')
+            const [result] = await sql.unsafe(terminateStuckBackendSql, [pid, row.backend_start])
             if (result?.terminated === true) terminated.push(pid)
         }
         const [deleted] = await sql.unsafe(`with removed as (delete from igdb_private.request_leases returning 1)
