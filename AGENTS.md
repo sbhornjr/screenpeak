@@ -64,7 +64,7 @@ npm run build                        # web production build
 npm run lint                         # eslint (core-web-vitals + typescript)
 npm test                             # vitest run (one-off)
 npm run mobile                       # expo start for apps/mobile (flags pass through: npm run mobile -- --clear)
-npm run seed:igdb -w @screenpeak/web -- --help  # IGDB catalogue seed; hosted order is docs/igdb-cutover-checklist.md
+npm run seed:igdb -w @screenpeak/web -- --help  # IGDB catalogue seed; see docs/igdb.md
 npm run test:watch -w @screenpeak/web # vitest in watch mode
 ```
 
@@ -87,20 +87,19 @@ No typecheck script — use `npx tsc --noEmit -p apps/web` for type checking.
 - `lib/` — shared logic: Supabase clients, the Drizzle client (`lib/db.ts`),
   `requireUser()` (`lib/auth.ts`), DB queries (`lib/queries/`), page loaders
   (`lib/loaders/`), utilities
-- `scripts/` — IGDB cutover and audit scripts (`seed-igdb.ts`, `reset-catalog-to-igdb.ts`, `establish-migration-journal.ts`). The hosted order is `docs/igdb-cutover-checklist.md`.
+- `scripts/` — IGDB seed and the migration journal (`seed-igdb.ts`, `establish-migration-journal.ts`). See `docs/igdb.md`. `seed:igdb` is local-only. `migrate:journal --apply-pending` can target hosted with `--target-hosted`, `--confirm-host`, and `--confirm-database`.
 - `test/` — Vitest suite. Shared TS types (mirroring `lib/queries/`) and the zod
   schemas live in `packages/shared`, not here — see Monorepo layout
 - `assets/fonts/` — OFL fonts read by `lib/og.tsx` via `process.cwd()` for OG images
 
 ## Supabase Clients & Drizzle
 
-Four different Supabase clients exist, plus a Drizzle client for direct Postgres access — use the right one for context:
+Three Supabase clients exist, plus a Drizzle client for direct Postgres access — use the right one for context:
 
 | File | Context | Import |
 |------|---------|--------|
 | `lib/supabase-server.ts` | Server Components / Route Handlers | `import { createClient } from '@/lib/supabase-server'` (async) |
 | `lib/supabase-browser.ts` | Client Components via `@supabase/ssr` | `import { createClient } from '@/lib/supabase-browser'` |
-| `lib/supabase.ts` | Browser only — raw `supabase-js` client with debug logging | `import { supabase } from '@/lib/supabase'` |
 | `lib/supabase-stateless.ts` | Server — verifying a bearer token (`auth.getUser(token)`); no cookies, no session storage. Only `lib/auth.ts` should need it | `import { createStatelessClient } from '@/lib/supabase-stateless'` (sync, one per request) |
 | `lib/db.ts` | Postgres queries outside Auth/Storage (`lib/queries/*`) | `import { db } from '@/lib/db'` (sync, module-scope singleton — never pass it as a function param) |
 
@@ -207,12 +206,12 @@ return the contract type itself is called directly by both the page and the rout
 
 ## Env Vars
 
-Required in `.env.local` (gitignored):
+Required in `apps/web/.env.local` (gitignored):
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SECRET_KEY` (admin client in `delete-account`)
-- `DATABASE_URL` (session pooler — `drizzle-kit` tooling only, e.g. `npx drizzle-kit push`)
+- `DATABASE_URL` (session pooler — read by `apps/web/drizzle.config.ts`. Apply schema changes with `migrate:journal`, not `drizzle-kit push`. See `docs/igdb.md`)
 - `DATABASE_POOL_URL` (transaction pooler — the app's runtime Drizzle client, `lib/db.ts`; throws at module load if unset)
-- `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET` (IGDB seed, Steam-app matching, audit)
+- `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET` (IGDB seed and Steam-app matching)
 - `ANTHROPIC_API_KEY` (for loadout generation)
 - `STEAM_API_KEY` (Steam library import + achievements)
 - `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL`

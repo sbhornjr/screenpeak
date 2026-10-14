@@ -39,14 +39,13 @@ is mocked — logging behaviour is asserted through real `console` spies.
 | `lib/auth.test.ts` | `getOptionalUser`, `requireUser` | Bearer valid / expired (403 `bad_jwt`) / empty / deleted-user → `{ id, email }` or 401 `invalid_token`; an invalid bearer never falls back to a valid cookie (fails closed); no bearer (or a non-Bearer scheme) → cookie session, else 401 `unauthenticated`; `getOptionalUser` returns `null` when signed out but still rejects a bad token; an Auth outage (`AuthRetryableFetchError`) is 503 `auth_unavailable` on every path. `next/headers` and both Supabase clients mocked; real supabase-js error classes |
 | `lib/api.test.ts` | `apiError`, `withAuth` | `{ error: { code, message } }` body; handler + route context passed through; `UnauthenticatedError` → 401 with `WWW-Authenticate: Bearer` / `Bearer error="invalid_token"`; `AuthUnavailableError` → 503 + `Retry-After`; any `ApiError` rendered as-is; unexpected errors → generic 500 `internal` with the detail logged, never in the body |
 | `lib/supabase-logging.test.ts` | `createLoggingFetch` | Response passed through with body still readable (uses `.clone()`); error line on non-ok; request-body redaction; oversized-body truncation; network errors rethrown after logging |
-| `scripts/igdb-audit.test.ts` / `scripts/audit-igdb-cli.test.ts` | Read-only IGDB audit | Exact/ambiguous/missing mapping, pagination, metadata failures, main-game filtering, token refresh/backoff, supplied image URL validation, and real CLI argument handling without credentials |
-| `scripts/inventory-igdb-baseline-cli.test.ts` | Read-only database inventory CLI | Help without credentials, explicit missing-credential error, and rejection of private exports inside the repository |
+| `lib/catalog/catalog-policy.test.ts` | Seed and journal guards | Local-only database URLs, retired cutover flags refused before connect, rating-count ranking, shared Steam ids removed before write, 401/429 never a negative-cache decision |
 | `lib/igdb/*.test.ts` | Production IGDB adapter | Token single-flight/expiry/401; retries/timeouts/cooldowns; fail-closed budget; lookup references, paging, safe queries, metadata/image normalization and pre-1970 dates |
 | `integration/igdb-budget.integration.ts` (separate config) | Real Postgres request budget | Explicit disposable TEST_DATABASE_URL; cross-connection and cross-process rate coordination, active cap, expired leases and browser-role denial |
 | `lib/catalog/upsert.test.ts` | Catalogue boundary | Required complete snapshots, valid IDs/dates/URLs, unique taxonomy IDs, and unsuffixed local slugs |
-| `lib/catalog/cutover.test.ts` | Reset/seed policy | Local-only database URLs, rating-count ranking, shared Steam ids removed before write, 401/429 never a negative-cache decision, stable reset checksums |
 | `integration/catalog-migration.integration.ts` (separate config) | Real Postgres catalogue | Preparation chain, concurrent writes, relation replacement, rollback, stale snapshots, unsuffixed and colliding slugs (including the `igdb-<id>` and `<slug>-igdb-<id>` fallbacks), missing provider timestamps, shared Steam ids, 401/429 cache refusal, grant revocation, and guarded cleanup |
-| `integration/catalog-reset.integration.ts` (separate config) | Migration journal and catalogue reset | Baseline stamp before 0003/0004, `--through 0006` while a legacy row blocks 0007, full pending batch rolls back, empty-database chain drops `rawg_id` / `metacritic_score` / `steam_appid`, duplicate-slug abort, seed without clearing users, dry-run, rollback, stale manifest, replay refusal, and in-database backup restore |
+| `integration/apply-pending.integration.ts` (separate config) | Local migration journal | Empty database runs 0000–0008, records nine hashes, drops `rawg_id` / `metacritic_score` / `steam_appid`, and a second apply is empty. A database that already has games and no 0000–0002 journal is refused |
+| `integration/catalog-seed.integration.ts` (separate config) | IGDB seed on a migrated database | Seed leaves library, reviews, and accounts in place, commits a batch before a later failure, upserts taxonomy and Steam ids, hands off a slug and a Steam id inside one batch, and `--resume` skips ids already stored |
 | `lib/steam.test.ts` | `getOwnedGames`, `getPlayerAchievementCompletion`, `getFullyCompletedAppids` | Public-profile mapping; hidden-details → `undefined` (not zero); throw/log on non-ok owned-games; achievement completion truth table; errors swallowed to `false`; concurrent 100%-set collection |
 | `lib/loadout.test.ts` | `generateLoadoutIdentity` | Returns model text on success; degrades to `''` + logs on API failure; `''` for non-text content blocks |
 | `lib/queries.game.test.ts` | `getGameTaxonomy`, `getDistinctEsrbRatings`, `getDeveloperNameMap` | Embedded-row flattening + missing sections; a taxonomy query error rejects instead of an empty section; de-dupe/drop-null/sort; first-wins map with string-normalised keys; developer-map error → empty map + log |
@@ -78,8 +77,7 @@ is mocked — logging behaviour is asserted through real `console` spies.
 - Server Components, route handlers, `proxy.ts`, and `feed-actions.ts` — these
   are integration/E2E territory (they compose auth + DB + framework) and need a
   running stack, not unit mocks.
-- `scripts/seed-igdb.ts`, `scripts/reset-catalog-to-igdb.ts`, and
-  `scripts/establish-migration-journal.ts` — owner cutover commands. The
-  gates they share (`assertDisposableDatabase`, reset size, ranking) are
-  covered by `lib/catalog/cutover.test.ts`. The SQL they apply is covered by
-  the Postgres integration files.
+- `scripts/seed-igdb.ts` and `scripts/establish-migration-journal.ts` — local
+  operator commands. Their URL gate and retired flags are covered by
+  `lib/catalog/catalog-policy.test.ts`. The SQL they apply, and the seed
+  writer, are covered by the Postgres integration files.

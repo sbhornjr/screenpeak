@@ -9,12 +9,9 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "audit:igdb": "tsx scripts/audit-igdb.ts",
     "test:igdb-integration": "vitest run --config vitest.igdb-integration.config.mts",
-    "audit:igdb:adapter": "node --conditions=react-server --import tsx scripts/audit-igdb-adapter.ts",
     "migrate:journal": "tsx scripts/establish-migration-journal.ts",
-    "seed:igdb": "node --conditions=react-server --import tsx scripts/seed-igdb.ts",
-    "reset:catalog": "node --conditions=react-server --import tsx scripts/reset-catalog-to-igdb.ts"
+    "seed:igdb": "node --conditions=react-server --import tsx scripts/seed-igdb.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
@@ -31,7 +28,6 @@
     "postgres": "^3.4.9",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "recharts": "^3.10.0",
     "server-only": "^0.0.1",
     "zod": "^4.5.4"
   },

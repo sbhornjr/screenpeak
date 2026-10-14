@@ -202,8 +202,8 @@ hr{border:0;border-top:1px solid var(--border);margin:2.5rem 0}
     <div class="concept">
       <h3>Public vs secret environment variables</h3>
       <p><strong>Anything named <code>NEXT_PUBLIC_*</code></strong> is copied into the browser JavaScript bundle <em>at build time</em>. Any visitor can read it in devtools. That's fine for <code>NEXT_PUBLIC_SUPABASE_URL</code> and the anon key — they're designed to be public, and Row Level Security is what actually protects the data. Consequence: changing one of these needs a fresh build + redeploy.</p>
-      <p><strong>Every other variable</strong> (<code>SUPABASE_SECRET_KEY</code>, <code>ANTHROPIC_API_KEY</code>, <code>TWITCH_CLIENT_SECRET</code>, <code>STEAM_API_KEY</code>) is only readable on the server — in Route Handlers, Server Components, and <code>proxy.ts</code>. Never prefix a secret with <code>NEXT_PUBLIC_</code>. <code>TWITCH_CLIENT_ID</code> is also server-only. Nothing reads <code>RAWG_API_KEY</code>.</p>
-      <p><code>.env.local</code> is your machine-only copy and is gitignored. <code>.env.example</code> is a committed copy with the same keys but blank values — it documents what the project needs.</p>
+      <p><strong>Every other variable</strong> (<code>SUPABASE_SECRET_KEY</code>, <code>ANTHROPIC_API_KEY</code>, <code>TWITCH_CLIENT_SECRET</code>, <code>STEAM_API_KEY</code>) is only readable on the server — in Route Handlers, Server Components, and <code>proxy.ts</code>. Never prefix a secret with <code>NEXT_PUBLIC_</code>. <code>TWITCH_CLIENT_ID</code> is also server-only.</p>
+      <p><code>.env.local</code> is your machine-only copy and is gitignored. The README lists the variables the app reads. There is no committed <code>.env.example</code>.</p>
     </div>
 
     <div class="concept">
@@ -1108,7 +1108,7 @@ STEAM_API_KEY=</code></pre>
             <li><strong>Anthropic spend limit</strong> — set a monthly cap / alert on your Anthropic account so a B1 regression can't surprise you with a bill.</li>
             <li><strong>Vercel deploy branch</strong> — Settings → Git: confirm production deploys track the branch you expect (usually <code>main</code>).</li>
             <li><strong>Preview protection</strong> — Settings → Deployment Protection: require auth for preview URLs so half-built features aren't publicly linkable.</li>
-            <li><strong>IGDB</strong> — catalogue seeding is a manual command, not a request path. Keep <code>TWITCH_CLIENT_ID</code> and <code>TWITCH_CLIENT_SECRET</code> on the server. A written commercial agreement is required before public launch; see <code>docs/igdb-cutover-checklist.md</code>.</li>
+            <li><strong>IGDB</strong> — catalogue seeding is a manual command, not a request path. Keep <code>TWITCH_CLIENT_ID</code> and <code>TWITCH_CLIENT_SECRET</code> on the server. A written commercial agreement is required before public launch; see <code>docs/igdb.md</code> and <code>docs/backlog.md</code>.</li>
           </ul>
         </div>
       </div>

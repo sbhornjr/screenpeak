@@ -412,6 +412,8 @@ export const steamImportRuns = igdbPrivate.table('steam_import_runs', {
     heartbeatAt: timestamp('heartbeat_at', { withTimezone: true, mode: 'string' }).notNull(),
     startedAt: timestamp('started_at', { withTimezone: true, mode: 'string' }).notNull(),
 }).enableRLS()
+// 0004 created this table. The reset command is gone; the table stays so
+// schema.ts still matches the applied migration.
 export const catalogResetRuns = igdbPrivate.table('catalog_reset_runs', {
     runId: uuid('run_id').primaryKey(),
     manifestChecksum: text('manifest_checksum').notNull(),

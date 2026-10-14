@@ -2,11 +2,10 @@ import { resolve } from 'node:path'
 import postgres from 'postgres'
 import { clearIgdbBudget } from '../lib/catalog/budget-admin'
 import { closeDatabasePool, endDatabaseClient } from '../lib/catalog/close-pool'
-import { assertDatabaseTarget, assertLocalCopy, databaseTargetFromArgv } from '../lib/catalog/database-url'
+import { assertDisposableDatabase, refuseRetiredFlags } from '../lib/catalog/database-url'
 import { loadEnvFile } from '../lib/catalog/env-file'
 import { formatSeedProgress } from '../lib/catalog/seed-progress'
 import { applySeedPoolTimeouts, poolConnectionTimeouts } from '../lib/db-timeouts'
-import type { MigrationSql } from '../lib/catalog/migrations'
 
 const help = `Seed IGDB main games through the shared rate limiter and catalogue writer.
 
@@ -23,13 +22,10 @@ const help = `Seed IGDB main games through the shared rate limiter and catalogue
                         before terminating it. Run this only while no other seed is
                         running. It may be combined with --top or --ids. It does not
                         change the catalogue.
-  --confirm-local-copy  Local copy only. Required when that database has Supabase dump markers.
-  --target-hosted       Hosted database. Requires --confirm-host and --confirm-database.
-                        Refuses a local host. Do not combine with --confirm-local-copy.
-  --confirm-host HOST   Type the URL hostname. Must match exactly.
-  --confirm-database NAME
-                        Type the URL database name. Must match exactly.
 
+The database host must be local and the name must end in _test or _copy.
+This command refuses any other URL, including --target-hosted. It does not fall
+back to DATABASE_POOL_URL. Hosted schema changes use migrate:journal.
 The script only upserts games, in batches of 50. Each batch is a handful of multi-row
 statements, not one query per genre, platform, company, or Steam id. It does not clear
 library entries, reviews, lists, or accounts.
@@ -40,7 +36,7 @@ The seed pool uses a 5s lock timeout and a 30s statement timeout, then closes th
 If IGDB returns fewer rated main games than --top asked for, the command writes those games and exits non-zero.
 Twitch credentials (TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET) are read from the environment or apps/web/.env.local.
 Existing environment variables win. KEY = value spacing is accepted.
-See docs/igdb-cutover-checklist.md.`
+See docs/igdb.md.`
 
 function argument(name: string): string | undefined {
     const index = process.argv.indexOf(name)
@@ -70,8 +66,10 @@ async function main(): Promise<number> {
     applySeedPoolTimeouts(process.env)
     const url = process.env[envName]
     if (!url) throw new Error(`Set ${envName}. This command does not fall back to DATABASE_POOL_URL.`)
-    const target = databaseTargetFromArgv(process.argv)
-    assertDatabaseTarget(url, target)
+    refuseRetiredFlags(process.argv)
+    if (['--target-hosted', '--confirm-host', '--confirm-database'].some(flag => process.argv.includes(flag)))
+        throw new Error('seed:igdb only accepts a local _test or _copy database. migrate:journal is the command that can target a hosted database. See docs/igdb.md.')
+    assertDisposableDatabase(url)
     const idsArg = argument('--ids')
     const top = process.argv.includes('--top')
     const clear = process.argv.includes('--clear-budget')
@@ -91,7 +89,6 @@ async function main(): Promise<number> {
     process.once('SIGINT', () => shutdown('SIGINT'))
     process.once('SIGTERM', () => shutdown('SIGTERM'))
     try {
-        if (!target.targetHosted) await assertLocalCopy(sql as unknown as MigrationSql, target.confirmLocalCopy)
         if (clear) {
             const line = JSON.stringify({ cleared: await clearIgdbBudget(sql) })
             if (!idsArg && !top) console.log(line)
