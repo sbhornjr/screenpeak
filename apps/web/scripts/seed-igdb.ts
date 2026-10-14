@@ -24,7 +24,8 @@ const help = `Seed IGDB main games through the shared rate limiter and catalogue
                         change the catalogue.
 
 The database host must be local and the name must end in _test or _copy.
-This command refuses any other URL. It does not fall back to DATABASE_POOL_URL.
+This command refuses any other URL, including --target-hosted. It does not fall
+back to DATABASE_POOL_URL. Hosted schema changes use migrate:journal.
 The script only upserts games, in batches of 50. Each batch is a handful of multi-row
 statements, not one query per genre, platform, company, or Steam id. It does not clear
 library entries, reviews, lists, or accounts.
@@ -66,6 +67,8 @@ async function main(): Promise<number> {
     const url = process.env[envName]
     if (!url) throw new Error(`Set ${envName}. This command does not fall back to DATABASE_POOL_URL.`)
     refuseRetiredFlags(process.argv)
+    if (['--target-hosted', '--confirm-host', '--confirm-database'].some(flag => process.argv.includes(flag)))
+        throw new Error('seed:igdb only accepts a local _test or _copy database. migrate:journal is the command that can target a hosted database. See docs/igdb.md.')
     assertDisposableDatabase(url)
     const idsArg = argument('--ids')
     const top = process.argv.includes('--top')

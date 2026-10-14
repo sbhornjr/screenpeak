@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { describe, expect, it } from 'vitest'
-import { assertDisposableDatabase, refuseRetiredFlags } from '@/lib/catalog/database-url'
+import { assertDatabaseTarget, assertDisposableDatabase, refuseRetiredFlags } from '@/lib/catalog/database-url'
 import { negativeCacheStatus } from '@/lib/catalog/match-cache'
 import { selectTopRatedGames } from '@/lib/catalog/rank'
 import { detachSharedSteamAppIds } from '@/lib/catalog/steam-ids'
@@ -23,16 +23,34 @@ describe('disposable database gate', () => {
     })
     it('refuses a retired cutover flag before any database check', () => {
         expect(() => refuseRetiredFlags(['--stamp-baseline'])).toThrow(/removed/)
-        expect(() => refuseRetiredFlags(['--target-hosted', '--confirm-host', 'example'])).toThrow(/--target-hosted/)
-        expect(() => refuseRetiredFlags(['--apply-pending', '--ids', '1'])).not.toThrow()
+        expect(() => refuseRetiredFlags(['--through', '0006_two_score_rpcs'])).toThrow(/--through/)
+        expect(() => refuseRetiredFlags(['--local-auth-stubs'])).toThrow(/removed/)
+        expect(() => refuseRetiredFlags(['--apply-pending', '--target-hosted'])).not.toThrow()
+    })
+    it('accepts a hosted URL only when the typed host and database match', () => {
+        const url = 'postgresql://u:p@db.example.supabase.co:5432/postgres'
+        const hosted = { targetHosted: true, confirmHost: 'db.example.supabase.co', confirmDatabase: 'postgres' }
+        expect(() => assertDatabaseTarget(url, hosted)).not.toThrow()
+        expect(() => assertDatabaseTarget(url, { ...hosted, confirmDatabase: 'other' })).toThrow(/does not match/)
+        expect(() => assertDatabaseTarget(url, { targetHosted: true })).toThrow(/confirm-host/)
+        expect(() => assertDatabaseTarget('postgresql://u@127.0.0.1:5432/screenpeak_copy', { ...hosted, confirmHost: '127.0.0.1', confirmDatabase: 'screenpeak_copy' })).toThrow(/local host/)
+        expect(() => assertDatabaseTarget(url, { targetHosted: false })).toThrow(/non-local/)
     })
     it('refuses a remote URL before opening a connection', async () => {
+        const remote = 'postgresql://u:p@db.example.supabase.co:5432/postgres'
         await expect(exec(process.execPath, ['--import', 'tsx', 'scripts/establish-migration-journal.ts', '--database-env', 'REMOTE_URL', '--apply-pending'], {
-            env: { ...process.env, REMOTE_URL: 'postgresql://u:p@db.example.supabase.co:5432/postgres' },
+            env: { ...process.env, REMOTE_URL: remote },
         })).rejects.toThrow(/non-local/)
+        const mismatch = await exec(process.execPath, ['--import', 'tsx', 'scripts/establish-migration-journal.ts', '--database-env', 'REMOTE_URL', '--apply-pending', '--target-hosted', '--confirm-host', 'db.example.supabase.co', '--confirm-database', 'wrong'], {
+            env: { ...process.env, REMOTE_URL: remote },
+        }).then(() => '', reason => String(reason))
+        expect(mismatch).toMatch(/does not match/)
         await expect(exec(process.execPath, ['--import', 'tsx', 'scripts/seed-igdb.ts', '--database-env', 'REMOTE_URL', '--clear-budget'], {
-            env: { ...process.env, REMOTE_URL: 'postgresql://u:p@db.example.supabase.co:5432/postgres' },
+            env: { ...process.env, REMOTE_URL: remote },
         })).rejects.toThrow(/non-local/)
+        await expect(exec(process.execPath, ['--import', 'tsx', 'scripts/seed-igdb.ts', '--database-env', 'LOCAL_URL', '--clear-budget', '--target-hosted', '--confirm-host', '127.0.0.1', '--confirm-database', 'screenpeak_igdb_test'], {
+            env: { ...process.env, LOCAL_URL: 'postgresql://screenpeak@127.0.0.1:5432/screenpeak_igdb_test' },
+        })).rejects.toThrow(/seed:igdb only accepts a local/)
     })
     it('refuses a leftover stamp command on a local URL', async () => {
         await expect(exec(process.execPath, ['--import', 'tsx', 'scripts/establish-migration-journal.ts', '--database-env', 'LOCAL_URL', '--stamp-baseline'], {

@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, expect, it } from 'vitest'
 import postgres from 'postgres'
@@ -29,15 +30,7 @@ async function createDatabase(prefix: string) {
     return postgres(databaseUrl(name), { max: 4, prepare: false, onnotice: () => {} })
 }
 
-async function localAuthStubs(sql: postgres.Sql) {
-    await sql.unsafe('CREATE SCHEMA IF NOT EXISTS auth')
-    await sql.unsafe(`CREATE TABLE IF NOT EXISTS auth.users (
-        id uuid PRIMARY KEY,
-        email text,
-        raw_user_meta_data jsonb
-    )`)
-    await sql.unsafe(`CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$ SELECT NULL::uuid $$`)
-}
+const authStubs = () => readFile('db/local/auth-stubs.sql', 'utf8')
 
 const staged = (id: number, steamAppIds: number[]): CatalogGame => ({
     igdbId: id, name: 'Staged ' + id, providerSlug: 'staged-' + id, gameType: 0,
@@ -52,12 +45,8 @@ let keptId: string
 let userA: string
 
 beforeAll(async () => {
-    await admin.unsafe(`DO $$ BEGIN
-        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN CREATE ROLE anon; END IF;
-        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated') THEN CREATE ROLE authenticated; END IF;
-    END $$`)
     client = await createDatabase('seed_')
-    await localAuthStubs(client)
+    await client.unsafe(await authStubs())
     await applyPending(client as unknown as MigrationSql)
     database = drizzle(client) as unknown as DB
 }, 60_000)
@@ -195,7 +184,7 @@ it('moves a Steam id released by one game in the batch onto the game that claims
 it('resumes after the first 200 games are already stored', async () => {
     const fresh = await createDatabase('resume_')
     try {
-        await localAuthStubs(fresh)
+        await fresh.unsafe(await authStubs())
         await applyPending(fresh as unknown as MigrationSql)
         const resumeDb = drizzle(fresh) as unknown as DB
         const ranked = Array.from({ length: 250 }, (_, index) => index + 1)

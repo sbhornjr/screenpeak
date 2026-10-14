@@ -24,7 +24,6 @@ both out of 10, side by side: the ScreenPeak community average, and yours.
 | Backend | Supabase (Postgres, Auth, Storage) — Auth/Storage via `@supabase/ssr`, everything else via Drizzle |
 | ORM | Drizzle ORM (`drizzle-orm`, `postgres`) — direct Postgres access outside Auth/Storage |
 | AI | Anthropic SDK (`@anthropic-ai/sdk`) — Loadout identity text |
-| Charts | Recharts |
 | Validation | Zod |
 | Auth (Steam) | `openid` (Steam OpenID 2.0) |
 | Tests | Vitest + Testing Library |
@@ -40,7 +39,7 @@ both out of 10, side by side: the ScreenPeak community average, and yours.
 
 ### Environment
 
-Create `.env.local` in the project root (gitignored):
+Create `apps/web/.env.local` (gitignored). The Next.js app and the catalogue scripts read that file, not a `.env.local` at the repo root.
 
 ```bash
 # Supabase — client-side (public)
@@ -51,7 +50,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key>
 SUPABASE_SECRET_KEY=<service-role-key>
 
 # Postgres — Drizzle's direct DB access (lib/db.ts and lib/queries/*)
-DATABASE_URL=<session-pooler-connection-string>       # drizzle-kit tooling only (e.g. `npx drizzle-kit push`)
+DATABASE_URL=<session-pooler-connection-string>       # read by apps/web/drizzle.config.ts; schema changes are applied with migrate:journal, not drizzle-kit push
 DATABASE_POOL_URL=<transaction-pooler-connection-string> # the app's runtime client; throws at module load if unset
 
 # Absolute site URL — used as metadataBase and for OG tags (optional in dev,
@@ -74,18 +73,20 @@ npm run dev      # dev server on http://localhost:3000
 
 ### Database schema & migrations
 
-The schema lives in `db/schema.ts` / `db/relations.ts` (Drizzle) plus
-hand-authored SQL in `db/migrations/`. Applied files `0000`–`0008` and
-`db/migrations/meta/_journal.json` are the journal. Do not edit them.
+The schema lives in `apps/web/db/schema.ts` / `db/relations.ts` (Drizzle) plus
+hand-authored SQL in `apps/web/db/migrations/`. Applied files `0000`–`0008` and
+`db/migrations/meta/_journal.json` are the journal. Do not edit them, and do
+not apply schema changes with `drizzle-kit push`.
 
-On a local disposable database whose name ends in `_test` or `_copy`:
+A new migration is the next SQL file plus a journal entry. On an empty local
+Postgres, create the auth stubs first, then apply. Hosted apply uses the same
+command with `--target-hosted` and the host and database name typed from the
+URL. The exact commands are in [docs/igdb.md](docs/igdb.md).
 
 ```bash
-npm run migrate:journal -w @screenpeak/web -- --database-env NAME --apply-pending
+psql "$LOCAL_DATABASE_URL" -v ON_ERROR_STOP=1 -f apps/web/db/local/auth-stubs.sql
+npm run migrate:journal -w @screenpeak/web -- --database-env LOCAL_DATABASE_URL --apply-pending
 ```
-
-That command refuses a non-local URL. Hosted schema changes are applied by the
-owner as SQL. See [docs/igdb.md](docs/igdb.md).
 
 A table created via raw SQL (rather than Supabase's own dashboard/tooling)
 does **not** automatically get its `anon`/`authenticated`/`service_role`
@@ -194,14 +195,13 @@ Path alias: `@/*` maps to the project root. Single package — no monorepo.
 
 ### Supabase clients & Drizzle
 
-Three Supabase clients exist for three contexts, plus a Drizzle client for
-direct Postgres access — **do not mix them**:
+Two Supabase clients cover the website, plus a Drizzle client for direct
+Postgres access — **do not mix them**:
 
 | File | Use in | Import |
 |------|--------|--------|
 | `lib/supabase-server.ts` | Server Components / Route Handlers | `import { createClient } from '@/lib/supabase-server'` — **async**, `await createClient()` |
 | `lib/supabase-browser.ts` | Client Components (`@supabase/ssr`) | `import { createClient } from '@/lib/supabase-browser'` — sync |
-| `lib/supabase.ts` | Browser only — raw `supabase-js` with debug logging | `import { supabase } from '@/lib/supabase'` |
 | `lib/db.ts` | `lib/queries/*` — everything outside Auth/Storage | `import { db } from '@/lib/db'` — sync, module-scope singleton, never pass as a function param |
 
 The admin client (service-role key) is constructed inline where needed
@@ -210,7 +210,7 @@ the browser.
 
 `db` connects through Supabase's transaction pooler using a role with
 `BYPASSRLS` — Drizzle queries never go through Row-Level Security, unlike the
-three `supabase-js` clients above. Any Drizzle mutation has to enforce its own
+`supabase-js` clients above. Any Drizzle mutation has to enforce its own
 ownership check (Server Actions do this via `requireUser()`, `lib/auth.ts`),
 and any Drizzle read of a privacy-gated resource (a private library, a
 non-public list) has to be gated in application code — there's no RLS policy

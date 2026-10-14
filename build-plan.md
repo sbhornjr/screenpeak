@@ -272,7 +272,7 @@ UI is the biggest *chunk of work*, but the differences that bite are about
 | Styling | **`StyleSheet` + `tokens.ts`** (decided in the Phase 0 spike — NativeWind v5 doesn't build yet; see Phase 0 step 5) | Tokens come from `packages/shared/tokens.ts`, mirroring `globals.css`; mobile imports them via `@/theme` |
 | Fonts | `expo-font` + `@expo-google-fonts/{chakra-petch,ibm-plex-sans,ibm-plex-mono}` | Same three families and weights as the web; per-weight imports, weight chosen by `fontFamily` |
 | Images | `expo-image` | Caching for IGDB cover art + R2 avatars |
-| Charts | `victory-native` or `react-native-gifted-charts` | Replaces recharts (DistributionChart, Loadout stats) |
+| Charts | CSS bars on the web (`DistributionChart`) | No chart library. A native chart can wait until a screen needs one. |
 | Icons | `lucide-react-native` | Same icon set the web uses |
 | Errors | `@sentry/react-native` | Same Sentry org as the web |
 | Builds / release | EAS Build, EAS Submit, EAS Update | |

@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
-import { afterAll, beforeAll, expect, it } from 'vitest'
+import { afterAll, expect, it } from 'vitest'
 import postgres from 'postgres'
 import { applyPending, inspectMigrations, type MigrationSql } from '@/lib/catalog/migrations'
 
@@ -26,26 +26,7 @@ async function createDatabase(prefix: string) {
     return postgres(databaseUrl(name), { max: 4, prepare: false, onnotice: () => {} })
 }
 
-async function localAuthStubs(sql: postgres.Sql) {
-    await sql.unsafe(`DO $$ BEGIN
-        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN CREATE ROLE anon; END IF;
-        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated') THEN CREATE ROLE authenticated; END IF;
-    END $$`)
-    await sql.unsafe('CREATE SCHEMA IF NOT EXISTS auth')
-    await sql.unsafe(`CREATE TABLE IF NOT EXISTS auth.users (
-        id uuid PRIMARY KEY,
-        email text,
-        raw_user_meta_data jsonb
-    )`)
-    await sql.unsafe(`CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$ SELECT NULL::uuid $$`)
-}
-
-beforeAll(async () => {
-    await admin.unsafe(`DO $$ BEGIN
-        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN CREATE ROLE anon; END IF;
-        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated') THEN CREATE ROLE authenticated; END IF;
-    END $$`)
-}, 60_000)
+const authStubs = () => readFile('db/local/auth-stubs.sql', 'utf8')
 
 afterAll(async () => {
     for (const name of names) await admin.unsafe(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`)
@@ -56,7 +37,7 @@ it('applies the whole chain on an empty database and records every file', async 
     const fresh = await createDatabase('empty_')
     try {
         const sql = fresh as unknown as MigrationSql
-        await localAuthStubs(fresh)
+        await fresh.unsafe(await authStubs())
         const before = await inspectMigrations(sql)
         expect(before.baseline).toBe('empty')
         expect(before.pending[0]).toBe('0000_illegal_kinsey_walden')
@@ -84,7 +65,7 @@ it('refuses to replay 0000 when games already exist and the journal does not', a
     const fresh = await createDatabase('legacy_')
     try {
         const sql = fresh as unknown as MigrationSql
-        await localAuthStubs(fresh)
+        await fresh.unsafe(await authStubs())
         await fresh.unsafe(await readFile('db/migrations/0000_illegal_kinsey_walden.sql', 'utf8'))
         await fresh`insert into games (rawg_id, name, slug) values (1, 'Legacy', 'legacy')`
         const report = await inspectMigrations(sql)
