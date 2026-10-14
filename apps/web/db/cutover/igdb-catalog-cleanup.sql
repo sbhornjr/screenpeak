@@ -1,4 +1,0 @@
--- Moved to db/migrations/0007_igdb_catalog_cleanup.sql and recorded in
--- db/migrations/meta/_journal.json. Do not execute this file.
--- Apply 0007 with npm run migrate:journal after the catalogue reset.
--- See docs/igdb-cutover-checklist.md.

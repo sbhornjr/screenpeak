@@ -64,7 +64,7 @@ npm run build                        # web production build
 npm run lint                         # eslint (core-web-vitals + typescript)
 npm test                             # vitest run (one-off)
 npm run mobile                       # expo start for apps/mobile (flags pass through: npm run mobile -- --clear)
-npm run seed:igdb -w @screenpeak/web -- --help  # IGDB catalogue seed; hosted order is docs/igdb-cutover-checklist.md
+npm run seed:igdb -w @screenpeak/web -- --help  # IGDB catalogue seed; see docs/igdb.md
 npm run test:watch -w @screenpeak/web # vitest in watch mode
 ```
 
@@ -87,7 +87,7 @@ No typecheck script — use `npx tsc --noEmit -p apps/web` for type checking.
 - `lib/` — shared logic: Supabase clients, the Drizzle client (`lib/db.ts`),
   `requireUser()` (`lib/auth.ts`), DB queries (`lib/queries/`), page loaders
   (`lib/loaders/`), utilities
-- `scripts/` — IGDB cutover and audit scripts (`seed-igdb.ts`, `reset-catalog-to-igdb.ts`, `establish-migration-journal.ts`). The hosted order is `docs/igdb-cutover-checklist.md`.
+- `scripts/` — IGDB seed and local journal (`seed-igdb.ts`, `establish-migration-journal.ts`). See `docs/igdb.md`. Both refuse a non-local database.
 - `test/` — Vitest suite. Shared TS types (mirroring `lib/queries/`) and the zod
   schemas live in `packages/shared`, not here — see Monorepo layout
 - `assets/fonts/` — OFL fonts read by `lib/og.tsx` via `process.cwd()` for OG images
@@ -212,7 +212,7 @@ Required in `.env.local` (gitignored):
 - `SUPABASE_SECRET_KEY` (admin client in `delete-account`)
 - `DATABASE_URL` (session pooler — `drizzle-kit` tooling only, e.g. `npx drizzle-kit push`)
 - `DATABASE_POOL_URL` (transaction pooler — the app's runtime Drizzle client, `lib/db.ts`; throws at module load if unset)
-- `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET` (IGDB seed, Steam-app matching, audit)
+- `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET` (IGDB seed and Steam-app matching)
 - `ANTHROPIC_API_KEY` (for loadout generation)
 - `STEAM_API_KEY` (Steam library import + achievements)
 - `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL`

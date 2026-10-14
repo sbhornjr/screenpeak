@@ -1,6 +1,6 @@
 # Backlog
 
-Open product and cutover items. Not scheduled with the IGDB import work.
+Open product items. The hosted IGDB catalogue is already in place.
 
 ## Steam import
 
@@ -24,8 +24,6 @@ Open product and cutover items. Not scheduled with the IGDB import work.
 
 9. **Loadout Read-Out on the splash page, before launch.** Show a real Read-Out at the bottom of `/`. Hard-coding it to the owner's library is enough.
 
-## Cutover
+## Before launch
 
-10. **Post-migration file trimming and consolidation.** The one-time cutover scripts stay in the tree (`establish-migration-journal`, `reset-catalog-to-igdb`, the IGDB audit and inventory scripts) along with the migration runbook. After the hosted cutover is accepted, trim or consolidate those files so the reset path is not kept beside the running app.
-
-11. **IGDB commercial partnership, before launch.** A written partnership has to cover storage, caching, and attribution. The Twitch Developer Agreement defaults to 24-hour caching. The free noncommercial documentation is not permission to ship, and this development reset does not satisfy that gate.
+10. **IGDB commercial partnership.** A written partnership has to cover storage, caching, and attribution. The Twitch Developer Agreement defaults to 24-hour caching. The free noncommercial documentation is not permission to ship. The footer already credits IGDB. See `docs/igdb.md`.

@@ -3,7 +3,7 @@
 A plan for shipping ScreenPeak as a native iOS + Android app alongside the
 existing Next.js web app. Written 2026-09-25 against the codebase at `562ff48`.
 
-Catalogue art and metadata come from IGDB. A game page shows You and Community, both out of 10. The hosted database cutover is still an owner step: `docs/igdb-cutover-checklist.md`.
+Catalogue art and metadata come from IGDB. A game page shows You and Community, both out of 10. Ongoing catalogue notes are in `docs/igdb.md`.
 
 **TL;DR**
 

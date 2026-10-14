@@ -75,20 +75,17 @@ npm run dev      # dev server on http://localhost:3000
 ### Database schema & migrations
 
 The schema lives in `db/schema.ts` / `db/relations.ts` (Drizzle) plus
-hand-authored SQL in `db/migrations/` for the parts Drizzle doesn't model —
-Postgres functions/triggers and RLS policies. On a fresh Supabase project:
+hand-authored SQL in `db/migrations/`. Applied files `0000`–`0008` and
+`db/migrations/meta/_journal.json` are the journal. Do not edit them.
+
+On a local disposable database whose name ends in `_test` or `_copy`:
 
 ```bash
-npx drizzle-kit push          # applies db/schema.ts (tables, columns, RLS policies) — uses DATABASE_URL
+npm run migrate:journal -w @screenpeak/web -- --database-env NAME --apply-pending
 ```
 
-Then apply the SQL migrations in order against the same database (they aren't
-run by `drizzle-kit push`, since it only diffs `schema.ts`):
-
-```bash
-psql "$DATABASE_URL" -f db/migrations/0001_functions_and_triggers.sql
-psql "$DATABASE_URL" -f db/migrations/0002_fix_get_feed_library_privacy.sql
-```
+That command refuses a non-local URL. Hosted schema changes are applied by the
+owner as SQL. See [docs/igdb.md](docs/igdb.md).
 
 A table created via raw SQL (rather than Supabase's own dashboard/tooling)
 does **not** automatically get its `anon`/`authenticated`/`service_role`
@@ -98,14 +95,13 @@ grants — only RLS auto-enables. If the app gets `permission denied for table
 
 ### Seed game data
 
-Catalogue seeding reads IGDB with Twitch credentials. It does not use a RAWG
-key. `/steamlink` matches a Steam library through IGDB
-(`lib/catalog/steam-import.ts`). The hosted cutover order, including
-`seed:igdb --top` after the catalogue reset, is
-[docs/igdb-cutover-checklist.md](docs/igdb-cutover-checklist.md).
+Catalogue seeding reads IGDB with Twitch credentials. It upserts games and
+does not clear library entries, reviews, lists, or accounts. `/steamlink`
+matches a Steam library through IGDB (`lib/catalog/steam-import.ts`).
+See [docs/igdb.md](docs/igdb.md).
 
 ```bash
-npm run seed:igdb -w @screenpeak/web -- --help
+npm run seed:igdb -w @screenpeak/web -- --database-env NAME --top
 ```
 
 ## Scripts
@@ -115,7 +111,7 @@ npm run dev         # Next.js dev server
 npm run build       # production build
 npm run start       # serve the production build
 npm run lint        # ESLint
-npm run seed:igdb -w @screenpeak/web -- --help   # IGDB catalogue seed (see docs/igdb-cutover-checklist.md)
+npm run seed:igdb -w @screenpeak/web -- --help   # IGDB catalogue seed (see docs/igdb.md)
 npm test            # run the Vitest suite once
 npm run test:watch  # Vitest in watch mode
 npx tsc --noEmit    # type-check (no dedicated script)
@@ -185,8 +181,6 @@ lib/
 
 scripts/
   seed-igdb.ts           IGDB catalogue seed (npm run seed:igdb)
-  reset-catalog-to-igdb.ts
-                         catalogue reset (npm run reset:catalog)
   establish-migration-journal.ts
                          local migration journal (npm run migrate:journal)
 
