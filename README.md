@@ -5,9 +5,8 @@ app: track your library, rate and review what you've played, build lists, follow
 other players, and get an AI-written "Loadout" that describes who you are as a
 gamer.
 
-The defining idea is the **three-source rating** — every game carries up to three
-independent scores shown side by side like players sharing a split screen: the
-critics' verdict (Metacritic), the ScreenPeak community average, and yours.
+The defining idea is **you and the community** — every game shows two scores,
+both out of 10, side by side: the ScreenPeak community average, and yours.
 
 > The repo directory is historically named `ng-plus`. The product was renamed
 > from **NG+** to **ScreenPeak** over a trademark conflict. Some internal
@@ -25,7 +24,6 @@ critics' verdict (Metacritic), the ScreenPeak community average, and yours.
 | Backend | Supabase (Postgres, Auth, Storage) — Auth/Storage via `@supabase/ssr`, everything else via Drizzle |
 | ORM | Drizzle ORM (`drizzle-orm`, `postgres`) — direct Postgres access outside Auth/Storage |
 | AI | Anthropic SDK (`@anthropic-ai/sdk`) — Loadout identity text |
-| Charts | Recharts |
 | Validation | Zod |
 | Auth (Steam) | `openid` (Steam OpenID 2.0) |
 | Tests | Vitest + Testing Library |
@@ -37,22 +35,22 @@ critics' verdict (Metacritic), the ScreenPeak community average, and yours.
 
 - Node.js 20+ (developed on Node 24)
 - A Supabase project (Postgres + Auth + Storage)
-- API keys for RAWG, Anthropic, and Steam (see below)
+- API keys for Twitch (IGDB), Anthropic, and Steam (see below)
 
 ### Environment
 
-Create `.env.local` in the project root (gitignored):
+Create `apps/web/.env.local` (gitignored). The Next.js app and the catalogue scripts read that file, not a `.env.local` at the repo root.
 
 ```bash
 # Supabase — client-side (public)
 NEXT_PUBLIC_SUPABASE_URL=https://<project>.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key>
 
-# Supabase — server-only secret (admin client: seed script, account deletion)
+# Supabase — server-only secret (admin client: account deletion)
 SUPABASE_SECRET_KEY=<service-role-key>
 
 # Postgres — Drizzle's direct DB access (lib/db.ts and lib/queries/*)
-DATABASE_URL=<session-pooler-connection-string>       # drizzle-kit tooling only (e.g. `npx drizzle-kit push`)
+DATABASE_URL=<session-pooler-connection-string>       # read by apps/web/drizzle.config.ts; schema changes are applied with migrate:journal, not drizzle-kit push
 DATABASE_POOL_URL=<transaction-pooler-connection-string> # the app's runtime client; throws at module load if unset
 
 # Absolute site URL — used as metadataBase and for OG tags (optional in dev,
@@ -60,9 +58,10 @@ DATABASE_POOL_URL=<transaction-pooler-connection-string> # the app's runtime cli
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 
 # External APIs
-RAWG_API_KEY=<rawg-key>          # game data — seed script
-ANTHROPIC_API_KEY=<anthropic-key> # Loadout identity generation
-STEAM_API_KEY=<steam-web-api-key> # Steam library import + achievements
+TWITCH_CLIENT_ID=<twitch-client-id>         # IGDB catalogue seed and Steam-app matching
+TWITCH_CLIENT_SECRET=<twitch-client-secret>
+ANTHROPIC_API_KEY=<anthropic-key>           # Loadout identity generation
+STEAM_API_KEY=<steam-web-api-key>           # Steam library import + achievements
 ```
 
 ### Install & run
@@ -74,20 +73,19 @@ npm run dev      # dev server on http://localhost:3000
 
 ### Database schema & migrations
 
-The schema lives in `db/schema.ts` / `db/relations.ts` (Drizzle) plus
-hand-authored SQL in `db/migrations/` for the parts Drizzle doesn't model —
-Postgres functions/triggers and RLS policies. On a fresh Supabase project:
+The schema lives in `apps/web/db/schema.ts` / `db/relations.ts` (Drizzle) plus
+hand-authored SQL in `apps/web/db/migrations/`. Applied files `0000`–`0008` and
+`db/migrations/meta/_journal.json` are the journal. Do not edit them, and do
+not apply schema changes with `drizzle-kit push`.
+
+A new migration is the next SQL file plus a journal entry. On an empty local
+Postgres, create the auth stubs first, then apply. Hosted apply uses the same
+command with `--target-hosted` and the host and database name typed from the
+URL. The exact commands are in [docs/igdb.md](docs/igdb.md).
 
 ```bash
-npx drizzle-kit push          # applies db/schema.ts (tables, columns, RLS policies) — uses DATABASE_URL
-```
-
-Then apply the SQL migrations in order against the same database (they aren't
-run by `drizzle-kit push`, since it only diffs `schema.ts`):
-
-```bash
-psql "$DATABASE_URL" -f db/migrations/0001_functions_and_triggers.sql
-psql "$DATABASE_URL" -f db/migrations/0002_fix_get_feed_library_privacy.sql
+psql "$LOCAL_DATABASE_URL" -v ON_ERROR_STOP=1 -f apps/web/db/local/auth-stubs.sql
+npm run migrate:journal -w @screenpeak/web -- --database-env LOCAL_DATABASE_URL --apply-pending
 ```
 
 A table created via raw SQL (rather than Supabase's own dashboard/tooling)
@@ -98,15 +96,14 @@ grants — only RLS auto-enables. If the app gets `permission denied for table
 
 ### Seed game data
 
-The `games` table is populated from the RAWG API. This needs
-`RAWG_API_KEY` and `SUPABASE_SECRET_KEY` in `.env.local`:
+Catalogue seeding reads IGDB with Twitch credentials. It upserts games and
+does not clear library entries, reviews, lists, or accounts. `/steamlink`
+matches a Steam library through IGDB (`lib/catalog/steam-import.ts`).
+See [docs/igdb.md](docs/igdb.md).
 
 ```bash
-npm run seed     # fetches top-rated games from RAWG and upserts them
+npm run seed:igdb -w @screenpeak/web -- --database-env NAME --top
 ```
-
-`scripts/seed-games.ts` skips games already in the DB, so it's safe to re-run
-and resumes after a crash.
 
 ## Scripts
 
@@ -115,7 +112,7 @@ npm run dev         # Next.js dev server
 npm run build       # production build
 npm run start       # serve the production build
 npm run lint        # ESLint
-npm run seed        # seed games from RAWG (needs RAWG_API_KEY + SUPABASE_SECRET_KEY)
+npm run seed:igdb -w @screenpeak/web -- --help   # IGDB catalogue seed (see docs/igdb.md)
 npm test            # run the Vitest suite once
 npm run test:watch  # Vitest in watch mode
 npx tsc --noEmit    # type-check (no dedicated script)
@@ -130,7 +127,7 @@ app/                     Next.js App Router
   globals.css            design tokens (CSS custom properties) + the one keyframe
   explore/               discovery — trending games, lists, recommendations
   games/                 game browse + filters
-  games/[slug]/          game detail — three scores, reviews, screenshots
+  games/[slug]/          game detail — You and Community, reviews, screenshots
   user/[username]/        profile
     library/             the user's tracked games
     lists/  lists/[listId]/  user lists + list detail
@@ -171,7 +168,6 @@ lib/
   logger.ts              structured JSON logger with sensitive-key redaction
   plus1.ts               fire the "+1" tic event (signature interaction)
   titles.ts              compute selectable profile titles from a user's stats
-  rawg.ts                RAWG fetch + game upsert; Steam→RAWG name matcher
   steam.ts               Steam Web API — owned games, achievement completion
   steam-openid.ts        Steam OpenID 2.0 relying-party helpers
   schemas.ts             shared Zod schemas (forms + query-layer input checks)
@@ -185,8 +181,9 @@ lib/
                          bundle (see Architecture notes)
 
 scripts/
-  seed-games.ts          bulk-seed games from RAWG
-  inspect-rawg.ts        ad-hoc RAWG response inspection
+  seed-igdb.ts           IGDB catalogue seed (npm run seed:igdb)
+  establish-migration-journal.ts
+                         local migration journal (npm run migrate:journal)
 
 types/                   shared TypeScript types, mirroring lib/queries domains
 test/                    Vitest characterization suite (see test/README.md)
@@ -198,23 +195,22 @@ Path alias: `@/*` maps to the project root. Single package — no monorepo.
 
 ### Supabase clients & Drizzle
 
-Three Supabase clients exist for three contexts, plus a Drizzle client for
-direct Postgres access — **do not mix them**:
+Two Supabase clients cover the website, plus a Drizzle client for direct
+Postgres access — **do not mix them**:
 
 | File | Use in | Import |
 |------|--------|--------|
 | `lib/supabase-server.ts` | Server Components / Route Handlers | `import { createClient } from '@/lib/supabase-server'` — **async**, `await createClient()` |
 | `lib/supabase-browser.ts` | Client Components (`@supabase/ssr`) | `import { createClient } from '@/lib/supabase-browser'` — sync |
-| `lib/supabase.ts` | Browser only — raw `supabase-js` with debug logging | `import { supabase } from '@/lib/supabase'` |
 | `lib/db.ts` | `lib/queries/*` — everything outside Auth/Storage | `import { db } from '@/lib/db'` — sync, module-scope singleton, never pass as a function param |
 
 The admin client (service-role key) is constructed inline where needed
-(`app/api/delete-account/route.ts`, `scripts/seed-games.ts`) and never used from
+(`app/api/delete-account/route.ts`) and never used from
 the browser.
 
 `db` connects through Supabase's transaction pooler using a role with
 `BYPASSRLS` — Drizzle queries never go through Row-Level Security, unlike the
-three `supabase-js` clients above. Any Drizzle mutation has to enforce its own
+`supabase-js` clients above. Any Drizzle mutation has to enforce its own
 ownership check (Server Actions do this via `requireUser()`, `lib/auth.ts`),
 and any Drizzle read of a privacy-gated resource (a private library, a
 non-public list) has to be gated in application code — there's no RLS policy
@@ -268,7 +264,7 @@ all land on `app/auth/confirm/route.ts`, which handles both the custom-template
 
 ### External APIs
 
-- **RAWG** — game catalog source. Used by `scripts/seed-games.ts` via `lib/rawg.ts`.
+- **IGDB** — catalogue seed and Steam-app matching, via the Twitch client-credentials API (`lib/igdb/`). `/steamlink` reads `game_external_ids`.
 - **Anthropic** — generates the Loadout identity paragraph in `lib/loadout.ts`
   (model `claude-sonnet-4-6`, `max_tokens: 200`). Failures degrade gracefully to
   an empty string; the paragraph is a bonus, not required page content. Rate
@@ -277,7 +273,7 @@ all land on `app/auth/confirm/route.ts`, which handles both the custom-template
   behind a Steam OpenID 2.0 sign-in (`lib/steam-openid.ts`). Powers the
   `/steamlink` library-import flow.
 - **Supabase Storage** — user avatars and game images. Remote image patterns
-  (`next.config.ts`): `media.rawg.io` and `*.supabase.co/storage/v1/object/public/**`.
+  (`next.config.ts`): `images.igdb.com` for game art, plus the R2 public host for avatars.
 
 ### Security headers
 
@@ -317,7 +313,7 @@ vertical cyan "seam" as the recurring structural marker.
 Vitest characterization suite in `test/` — it pins the *current* observable
 behaviour of the project's logic so refactors have a safety net. Tests sit at
 public seams (exported functions, rendered components); the only mocks are true
-system boundaries (`fetch` to RAWG/Steam/Anthropic, and the Supabase client).
+system boundaries (`fetch` to IGDB/Steam/Anthropic, and the Supabase client).
 
 Node is the default environment; DOM specs opt in per file with a
 `// @vitest-environment jsdom` docblock. Config: `vitest.config.mts`. See

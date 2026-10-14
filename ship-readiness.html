@@ -202,8 +202,8 @@ hr{border:0;border-top:1px solid var(--border);margin:2.5rem 0}
     <div class="concept">
       <h3>Public vs secret environment variables</h3>
       <p><strong>Anything named <code>NEXT_PUBLIC_*</code></strong> is copied into the browser JavaScript bundle <em>at build time</em>. Any visitor can read it in devtools. That's fine for <code>NEXT_PUBLIC_SUPABASE_URL</code> and the anon key — they're designed to be public, and Row Level Security is what actually protects the data. Consequence: changing one of these needs a fresh build + redeploy.</p>
-      <p><strong>Every other variable</strong> (<code>SUPABASE_SECRET_KEY</code>, <code>ANTHROPIC_API_KEY</code>, <code>RAWG_API_KEY</code>, <code>STEAM_API_KEY</code>) is only readable on the server — in Route Handlers, Server Components, and <code>proxy.ts</code>. Never prefix a secret with <code>NEXT_PUBLIC_</code>.</p>
-      <p><code>.env.local</code> is your machine-only copy and is gitignored. <code>.env.example</code> is a committed copy with the same keys but blank values — it documents what the project needs.</p>
+      <p><strong>Every other variable</strong> (<code>SUPABASE_SECRET_KEY</code>, <code>ANTHROPIC_API_KEY</code>, <code>TWITCH_CLIENT_SECRET</code>, <code>STEAM_API_KEY</code>) is only readable on the server — in Route Handlers, Server Components, and <code>proxy.ts</code>. Never prefix a secret with <code>NEXT_PUBLIC_</code>. <code>TWITCH_CLIENT_ID</code> is also server-only.</p>
+      <p><code>.env.local</code> is your machine-only copy and is gitignored. The README lists the variables the app reads. There is no committed <code>.env.example</code>.</p>
     </div>
 
     <div class="concept">
@@ -522,7 +522,7 @@ export default function Loading() {
       <div class="item-body">
         <div class="field">
           <span class="flabel">Status — implemented &amp; verified</span>
-          <p><code>/games/[slug]</code> and <code>/user/[username]</code> both have <code>generateMetadata</code> with full <code>og:*</code> / <code>twitter:*</code> tags, confirmed via <code>curl</code> — game pages carry the RAWG cover image, profile pages carry the real avatar URL as <code>og:image</code>. <strong>Social previews (Discord, iMessage, …) can't be tested against <code>localhost</code></strong> — the crawler runs on their servers and can't reach your machine. Deploy or run a tunnel (<code>cloudflared tunnel --url http://localhost:3000</code>) to see an actual card; <code>curl -s &lt;url&gt; | grep og:</code> is the reliable local check.</p>
+          <p><code>/games/[slug]</code> and <code>/user/[username]</code> both have <code>generateMetadata</code> with full <code>og:*</code> / <code>twitter:*</code> tags, confirmed via <code>curl</code> — game pages carry the IGDB cover image, profile pages carry the real avatar URL as <code>og:image</code>. <strong>Social previews (Discord, iMessage, …) can't be tested against <code>localhost</code></strong> — the crawler runs on their servers and can't reach your machine. Deploy or run a tunnel (<code>cloudflared tunnel --url http://localhost:3000</code>) to see an actual card; <code>curl -s &lt;url&gt; | grep og:</code> is the reliable local check.</p>
         </div>
         <div class="field">
           <span class="flabel">What <code>generateMetadata</code> is</span>
@@ -600,7 +600,7 @@ export default function Loading() {
           <span class="flabel">What was built</span>
           <ul>
             <li><code>robots.ts</code> disallows <code>/settings</code>, <code>/steamlink</code>, <code>/auth/</code>, <code>/api/</code>.</li>
-            <li><code>sitemap.ts</code> includes: the three static pages; every game, ordered by <code>metacritic_score desc nulls last</code> before the 5000-row cap — without an explicit order Postgres returns rows in an unstable sequence, so ordering first means a cap (if it ever binds) drops the least-notable games, not an arbitrary slice; every user profile (there are no private profiles, so it's an unconditional include); and every list where <code>is_public = true</code>, joined back to its owner's username for the real <code>/user/&lt;username&gt;/lists/&lt;id&gt;</code> path.</li>
+            <li><code>sitemap.ts</code> includes: the three static pages; every game, ordered by <code>updated_at</code> then id, paged in the database rather than by a Metacritic score; every user profile (there are no private profiles, so it's an unconditional include); and every list where <code>is_public = true</code>, joined back to its owner's username for the real <code>/user/&lt;username&gt;/lists/&lt;id&gt;</code> path.</li>
             <li>Not filtered further by popularity — at this scale, "all public lists" is simpler and correct. Revisit with a sitemap index (multiple files) only if you ever approach Google's 50,000-URL-per-file limit.</li>
           </ul>
         </div>
@@ -968,7 +968,7 @@ npm run build</code></pre>
         </div>
         <div class="field">
           <span class="flabel">Why / what if it's not clean</span>
-          <p>Must print nothing. If it prints commits, your keys are in git history and stay there even after deleting the file — <strong>rotate every key before the repo goes anywhere</strong>: Supabase → Settings → API → roll the <code>service_role</code> / secret key; regenerate the Anthropic, RAWG, and Steam keys in their dashboards; update <code>.env.local</code>.</p>
+          <p>Must print nothing. If it prints commits, your keys are in git history and stay there even after deleting the file — <strong>rotate every key before the repo goes anywhere</strong>: Supabase → Settings → API → roll the <code>service_role</code> / secret key; regenerate the Anthropic, Twitch, and Steam keys in their dashboards; update <code>.env.local</code>.</p>
         </div>
       </div>
     </article>
@@ -987,7 +987,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 NEXT_PUBLIC_SITE_URL=
 SUPABASE_SECRET_KEY=
 ANTHROPIC_API_KEY=
-RAWG_API_KEY=
+TWITCH_CLIENT_ID=
+TWITCH_CLIENT_SECRET=
 STEAM_API_KEY=</code></pre>
           <p>Confirm <code>.gitignore</code> still lists <code>.env*.local</code>. Commit <code>.env.example</code>. Push to a GitHub repo — private is fine.</p>
         </div>
@@ -1023,7 +1024,7 @@ STEAM_API_KEY=</code></pre>
           <ul>
             <li><code>NEXT_PUBLIC_SUPABASE_URL</code>, <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> — public; safe here, they're in the browser bundle by design.</li>
             <li><code>NEXT_PUBLIC_SITE_URL</code> — your production URL, e.g. <code>https://ngplus.vercel.app</code> (or your custom domain). Used by <code>metadataBase</code> (S3), <code>robots.ts</code>/<code>sitemap.ts</code> (S4), and the auth <code>redirectTo</code> (B2).</li>
-            <li><code>SUPABASE_SECRET_KEY</code>, <code>ANTHROPIC_API_KEY</code>, <code>RAWG_API_KEY</code>, <code>STEAM_API_KEY</code> — secret; server-only, never prefixed <code>NEXT_PUBLIC</code>.</li>
+            <li><code>SUPABASE_SECRET_KEY</code>, <code>ANTHROPIC_API_KEY</code>, <code>TWITCH_CLIENT_ID</code>, <code>TWITCH_CLIENT_SECRET</code>, <code>STEAM_API_KEY</code> — secret; server-only, never prefixed <code>NEXT_PUBLIC</code>.</li>
             <li><code>SENTRY_AUTH_TOKEN</code> (see <a href="#S6">S6</a>) — locally it's read from the gitignored <code>.env.sentry-build-plugin</code>, which won't exist on the host. Without it here, builds still succeed but source maps never upload, so Sentry stack traces point at minified code.</li>
           </ul>
         </div>
@@ -1107,7 +1108,7 @@ STEAM_API_KEY=</code></pre>
             <li><strong>Anthropic spend limit</strong> — set a monthly cap / alert on your Anthropic account so a B1 regression can't surprise you with a bill.</li>
             <li><strong>Vercel deploy branch</strong> — Settings → Git: confirm production deploys track the branch you expect (usually <code>main</code>).</li>
             <li><strong>Preview protection</strong> — Settings → Deployment Protection: require auth for preview URLs so half-built features aren't publicly linkable.</li>
-            <li><strong>RAWG</strong> — the seed script is run manually, not at runtime, so no action; just don't put <code>RAWG_API_KEY</code> anywhere client-side.</li>
+            <li><strong>IGDB</strong> — catalogue seeding is a manual command, not a request path. Keep <code>TWITCH_CLIENT_ID</code> and <code>TWITCH_CLIENT_SECRET</code> on the server. A written commercial agreement is required before public launch; see <code>docs/igdb.md</code> and <code>docs/backlog.md</code>.</li>
           </ul>
         </div>
       </div>

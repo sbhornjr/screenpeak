@@ -1,0 +1,106 @@
+"use client"
+
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import Modal from "@/app/components/util/Modal"
+import { createListAndAddGame } from "@/app/list-actions"
+import { plus1 } from "@/lib/plus1"
+import { Check } from "lucide-react"
+
+export default function CreateListFromGamePageButton({ gameId, close, defaultListPrivacy } : { gameId: string, close: () => void, defaultListPrivacy?: boolean }) {
+    const [name, setName] = useState("")
+    const [description, setDescription] = useState("")
+    const [isPinned, setIsPinned] = useState(false)
+    const [isPublic, setIsPublic] = useState(defaultListPrivacy ?? true)
+    const [isCreateListModalOpen, setIsCreateListModalOpen] = useState(false)
+    const [error, setError] = useState("")
+    const router = useRouter()
+
+    async function submitList() {
+        setError("")
+
+        const { error } = await createListAndAddGame(gameId, { name, description, isPublic, isPinned })
+        if (error) {
+            setError(error)
+            return
+        }
+
+        setIsCreateListModalOpen(false)
+        close()
+        // one chip for the whole action — the new list, not also LISTED
+        plus1("NEW LIST")
+        router.refresh()
+    }
+
+    return (
+        <div className="mb-4 self-center">
+            <button onClick={() => setIsCreateListModalOpen(true)} className="px-4 py-1 text-md bg-(--color-accent) text-(--color-bg) font-semibold rounded-[3px] hover:bg-(--color-accent-hover) transition-colors duration-200">
+                New List
+            </button>
+            {isCreateListModalOpen && (
+                <Modal
+                    onClose={() => setIsCreateListModalOpen(false)}
+                    title="Create a List"
+                    titleClassName="font-semibold text-3xl mb-2 self-center"
+                    panelClassName="w-full max-w-xl max-h-8/10 p-8 gap-4"
+                >
+                    <form onSubmit={(e) => { e.preventDefault(); submitList() }} className="flex flex-col gap-4">
+                        <div>
+                            <h2 className="font-semibold text-md px-1">List Name</h2>
+                            <input
+                                type="text"
+                                placeholder="List Name..."
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                className="w-full bg-(--color-surface) text-(--color-text) placeholder:text-(--color-muted) self-center justify-self-center border border-(--color-border) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-accent) focus-visible:border-(--color-accent) rounded-[3px] px-2 py-1"
+                            />
+                        </div>
+                        <div>
+                            <h2 className="font-semibold text-md px-1">Description (Optional)</h2>
+                            <textarea
+                                placeholder="Description..."
+                                value={description}
+                                onChange={(e) => setDescription(e.target.value)}
+                                rows={4}
+                                className="w-full bg-(--color-surface) text-(--color-text) placeholder:text-(--color-muted) 
+                                    border border-(--color-border) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-accent) focus-visible:border-(--color-accent)
+                                    rounded-[3px] px-3 py-2 resize-none"
+                            />
+                        </div>
+                        <div className="flex flex-col gap-3">
+                            {[
+                                { label: 'Public', value: isPublic, setter: setIsPublic },
+                                { label: 'Pinned', value: isPinned, setter: setIsPinned },
+                            ].map(({ label, value, setter }) => (
+                                <button
+                                    key={label}
+                                    type="button"
+                                    onClick={() => setter(!value)}
+                                    className="flex items-center gap-3 text-left"
+                                >
+                                <div className={`w-5 h-5 rounded-[3px] border-2 flex items-center justify-center
+                                    transition-all duration-200 shrink-0
+                                    ${value 
+                                    ? 'bg-(--color-accent) border-(--color-accent)' 
+                                    : 'bg-transparent border-(--color-border) hover:border-(--color-accent)'}`}
+                                >
+                                    {value && (
+                                    <Check size={12} aria-hidden className="text-(--color-bg) [stroke-width:2.5]" />
+                                    )}
+                                </div>
+                                <span className="text-sm font-semibold text-(--color-text)">{label}</span>
+                                </button>
+                            ))}
+                        </div>
+                        {error && (
+                            <p className="text-sm font-semibold text-(--color-bad)">{error}</p>
+                        )}
+                        <button type="submit" className="px-4 py-1 text-md bg-(--color-accent) text-(--color-bg) font-semibold rounded-[3px] hover:bg-(--color-accent-hover) transition-colors duration-200">
+                            Create List
+                        </button>
+                    </form>
+                </Modal>
+            )}
+        </div>
+    )
+}

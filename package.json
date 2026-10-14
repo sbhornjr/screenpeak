@@ -1,51 +1,19 @@
 {
   "name": "screenpeak",
-  "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint",
-    "seed": "tsx --env-file=.env.local scripts/seed-games.ts",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "dev": "npm run dev -w @screenpeak/web --",
+    "build": "npm run build -w @screenpeak/web --",
+    "test": "npm test -w @screenpeak/web --",
+    "lint": "npm run lint -w @screenpeak/web --",
+    "mobile": "npm start -w @screenpeak/mobile --"
   },
-  "dependencies": {
-    "@anthropic-ai/sdk": "^0.115.0",
-    "@aws-sdk/client-s3": "^3.1139.0",
-    "@aws-sdk/s3-request-presigner": "^3.1139.0",
-    "@sentry/nextjs": "^11.0.0",
-    "@supabase/ssr": "^0.12.0",
-    "@supabase/supabase-js": "^2.108.2",
-    "drizzle-orm": "^0.45.3",
-    "next": "^16.2.12",
-    "openid": "^2.0.17",
-    "postgres": "^3.4.9",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
-    "recharts": "^3.10.0",
-    "server-only": "^0.0.1",
-    "zod": "^4.5.4"
-  },
-  "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@testing-library/dom": "^10.4.1",
-    "@testing-library/jest-dom": "^7.0.1",
-    "@testing-library/react": "^16.3.3",
-    "@testing-library/user-event": "^14.6.6",
-    "@types/node": "^20",
-    "@types/openid": "^2.0.5",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "dotenv": "^17.4.2",
-    "drizzle-kit": "^0.31.11",
-    "eslint": "^9.39.4",
-    "eslint-config-next": "16.2.9",
-    "jsdom": "^30.0.1",
-    "tailwindcss": "^4",
-    "tsx": "^4.22.4",
-    "typescript": "^5",
-    "vitest": "^4.1.11"
+  "overrides": {
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
   }
 }

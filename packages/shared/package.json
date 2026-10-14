@@ -1,0 +1,20 @@
+{
+  "name": "@screenpeak/shared",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Code imported by BOTH apps. Never import db, postgres, next/*, react, or anything server-only here — it all ships inside the phone app. See build-plan.md.",
+  "exports": {
+    "./api/*": "./api/*.ts",
+    "./constants": "./constants.ts",
+    "./tokens": "./tokens.ts",
+    "./schemas": "./schemas.ts",
+    "./types": "./types/index.ts",
+    "./types/*": "./types/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^4.5.4"
+  }
+}
