@@ -470,7 +470,4 @@ Recommended execution: implement this task by task, with a reviewable commit at 
 
 ## Backlog
 
-Recorded from the hosted Steam import check. Do not implement these in the matching-stall fix.
-
-- **Steam 100% achievement completion is not auto-applied on import.** First paint does not call Steam for achievements. Only apps newly mapped in the current batch are checked, and a non-2xx response, a game with no stats, a private profile, or a timed-out request is stored as not complete. The library row's existing flag is kept. The check is capped so a silent Steam stats response cannot hold the import; that cap is not a fix for applying completion.
-- **The play-count stepper cannot be set to 0.** On the Steam import row (`GameFromSteam`) and the library editor (`LibraryButton`), Times Played uses `min="1"` and `Math.max(1, …)`. Decrement at 0 jumps back to 1. Hours Played is a number field with `min="0"` and no minus button. Leave both controls unchanged until this is picked up.
+Open items are in [`docs/backlog.md`](../../backlog.md).
