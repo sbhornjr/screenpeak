@@ -57,6 +57,13 @@
       "when": 1791491677096,
       "tag": "0007_igdb_catalog_cleanup",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791491677097,
+      "tag": "0008_steam_import_lease",
+      "breakpoints": true
     }
   ]
 }

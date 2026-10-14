@@ -5,7 +5,7 @@ import type { SteamImportStore, SteamMatch } from '@/lib/catalog/steam-import'
 import {
     resolveSteamBatch, buildSteamLinkEntries, steamOwnershipBlock, parseSteamImportRequest,
     confirmSteamLibraryEntries, cacheUntil, hoursFromSteamMinutes, hoursForSteamLibrary,
-    mergeConfirmedSteamEntry, selectSteamImportQueue, KNOWN_INELIGIBLE_STEAM_APPS,
+    mergeConfirmedSteamEntry, selectSteamImportQueue, steamImportContinuation, KNOWN_INELIGIBLE_STEAM_APPS,
     STEAM_LOOKUP_BATCH,
 } from '@/lib/catalog/steam-import'
 import { negativeCacheStatus } from '@/lib/catalog/match-cache'
@@ -355,6 +355,37 @@ describe('retry queue', () => {
         expect(selected.appIds).toEqual([4, 8])
         expect(selected.nextCursor).toBeNull()
     })
+
+    it('resumes a pending cursor without replaying earlier apps or cached misses', () => {
+        const selected = selectSteamImportQueue({
+            retry: false,
+            cursor: { phase: 'pending', afterAppId: 20 },
+            pendingAppIds: [10, 30, 40],
+            cachedUnmatchedAppIds: [1, 2],
+            limit: 50,
+        })
+        expect(selected.appIds).toEqual([30, 40])
+        expect(selected.nextCursor).toBeNull()
+    })
+
+    it('keeps the cursor when a chunk is retryable and counts the apps left behind', () => {
+        const pending = [10, 20, 30, 40]
+        const selected = selectSteamImportQueue({ retry: false, pendingAppIds: pending, cachedUnmatchedAppIds: [], limit: 2 })
+        expect(selected.appIds).toEqual([10, 20])
+        const continued = steamImportContinuation({
+            selectedAppIds: selected.appIds,
+            queueCursor: selected.nextCursor,
+            pendingAppIds: [10, 30, 40],
+            cachedUnmatchedAppIds: [1],
+            retry: false,
+        })
+        expect(continued.nextCursor).toEqual({ phase: 'pending', afterAppId: 20 })
+        expect(continued.remaining).toBe(3)
+        const tail = selectSteamImportQueue({
+            retry: false, cursor: continued.nextCursor, pendingAppIds: [10, 30, 40], cachedUnmatchedAppIds: [1], limit: 50,
+        })
+        expect(tail.appIds).toEqual([30, 40])
+    })
 })
 
 describe('library collapse', () => {
@@ -433,6 +464,7 @@ describe('library collapse', () => {
 describe('import request', () => {
     it('reads only the retry flag', () => {
         expect(parseSteamImportRequest(null)).toEqual({ retry: false, cursor: null })
+        expect(parseSteamImportRequest({ cursor: { phase: 'pending', afterAppId: 4 } })).toEqual({ retry: false, cursor: { phase: 'pending', afterAppId: 4 } })
         expect(parseSteamImportRequest({ retry: true, userId: 'other', appids: [1, 2] })).toEqual({ retry: true, cursor: null })
         expect(parseSteamImportRequest({ retry: true, cursor: { phase: 'miss', afterAppId: 40 } })).toEqual({ retry: true, cursor: { phase: 'miss', afterAppId: 40 } })
         expect(() => parseSteamImportRequest({ retry: 'yes' })).toThrow(/Invalid import request/)

@@ -27,7 +27,8 @@ vi.mock('@/lib/db', () => ({
     }),
 }))
 
-import { confirmSteamLibraryEntries, createDbSteamImportStore, resolveSteamBatch, withSteamImportTurn } from '@/lib/catalog/steam-import'
+import { confirmSteamLibraryEntries, createDbSteamImportStore, resolveSteamBatch, runSteamImportBatch, withSteamImportTurn } from '@/lib/catalog/steam-import'
+import { SteamImportLeaseLost, type SteamImportLease } from '@/lib/catalog/steam-import-lease'
 import { upsertLibraryEntries } from '@/lib/queries/library'
 import type { SteamLinkEntry } from '@screenpeak/shared/types'
 
@@ -72,6 +73,10 @@ beforeAll(async () => {
     await client.begin(async tx => { await tx.unsafe(await migration('0004_igdb_catalog_preparation')) })
     await client.begin(async tx => { await tx.unsafe(await migration('0005_taxonomy_slug_unique')) })
     await client.begin(async tx => { await tx.unsafe(await migration('0006_two_score_rpcs')) })
+    for (const statement of (await migration('0008_steam_import_lease')).split('--> statement-breakpoint')) {
+        const text = statement.trim()
+        if (text) await client.unsafe(text)
+    }
     state.db = drizzle(client) as unknown as DB
     state.pg = client
 })
@@ -259,4 +264,133 @@ it('serializes two import turns for one user and lets the next user proceed', as
     expect(await withSteamImportTurn(otherId, async () => 'other' as const)).toBe('other')
     release()
     expect(await first).toBe('first')
+    const again = await withSteamImportTurn(userId, async () => 'after' as const)
+    expect(again).toBe('after')
+})
+
+it('stops a replaced run before it writes the cache or the catalogue', async () => {
+    const userId = randomUUID()
+    let firstLease: SteamImportLease | undefined
+    let release: () => void = () => {}
+    let entered: () => void = () => {}
+    const hold = new Promise<void>(resolve => { release = resolve })
+    const started = new Promise<void>(resolve => { entered = resolve })
+    const first = withSteamImportTurn(userId, async lease => {
+        firstLease = lease
+        entered()
+        await hold
+        if (lease.signal.aborted) throw new SteamImportLeaseLost()
+        const store = createDbSteamImportStore(lease)
+        await store.remember(5150, 200, 0, NOW)
+        return 'first' as const
+    })
+    await started
+    await client`update igdb_private.steam_import_runs set heartbeat_at = clock_timestamp() - interval '2 minutes' where user_id = ${userId}::uuid`
+    let winnerToken = ''
+    let releaseWinner: () => void = () => {}
+    let winnerEntered: () => void = () => {}
+    const winnerHold = new Promise<void>(resolve => { releaseWinner = resolve })
+    const winnerStarted = new Promise<void>(resolve => { winnerEntered = resolve })
+    const winner = withSteamImportTurn(userId, async lease => {
+        winnerToken = lease.token
+        winnerEntered()
+        await winnerHold
+        return 'winner' as const
+    })
+    await winnerStarted
+    expect(await firstLease!.pulse()).toBe(false)
+    expect(firstLease!.signal.aborted).toBe(true)
+    const stolen = createDbSteamImportStore(firstLease)
+    await expect(stolen.remember(5150, 200, 0, NOW)).rejects.toBeInstanceOf(SteamImportLeaseLost)
+    await expect(stolen.saveGames!([{ game: catalog(9001, [77], { name: 'Lost', providerSlug: 'lost-9001' }), ownedAppIds: [77] }])).rejects.toBeInstanceOf(SteamImportLeaseLost)
+    expect(await client`select steam_app_id from igdb_private.steam_match_cache where steam_app_id = 5150`).toEqual([])
+    expect(await client`select id from games where igdb_id = 9001`).toEqual([])
+    const [held] = await client`select owner_token::text as owner_token from igdb_private.steam_import_runs where user_id = ${userId}::uuid`
+    expect(held.owner_token).toBe(winnerToken)
+    release()
+    await expect(first).resolves.toEqual({ lost: true })
+    expect(held.owner_token).toBe(winnerToken)
+    releaseWinner()
+    expect(await winner).toBe('winner')
+    expect(await client`select count(*)::int as n from igdb_private.steam_import_runs where user_id = ${userId}::uuid`).toEqual([{ n: 0 }])
+})
+
+it('writes the cache and catalogue while the lease token still matches', async () => {
+    const userId = randomUUID()
+    expect(await withSteamImportTurn(userId, async lease => {
+        const store = createDbSteamImportStore(lease)
+        expect(await store.remember(6161, 200, 0, NOW)).toBe(true)
+        const saved = await store.saveGames!([{ game: catalog(9002, [78], { name: 'Kept Lease', providerSlug: 'kept-lease' }), ownedAppIds: [78] }])
+        expect(saved[0].attached).toEqual([78])
+        return 'ok' as const
+    })).toBe('ok')
+    expect(await client`select status from igdb_private.steam_match_cache where steam_app_id = 6161`).toEqual([{ status: 'unmatched' }])
+    expect(await client`select count(*)::int as n from games where igdb_id = 9002`).toEqual([{ n: 1 }])
+})
+
+it('does not call Steam when another run holds the lease', async () => {
+    const userId = randomUUID()
+    const steamId = '765' + userId.replaceAll('-', '').slice(0, 14)
+    await client`insert into auth.users (id, email, raw_user_meta_data) values
+        (${userId}, ${userId + '@example.com'}, ${JSON.stringify({ username: 's' + userId.slice(0, 8) })}::jsonb)`
+    await client`insert into steam_accounts (user_id, steam_id) values (${userId}, ${steamId})`
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Steam should not be called'))
+    let release: () => void = () => {}
+    let entered: () => void = () => {}
+    const hold = new Promise<void>(resolve => { release = resolve })
+    const started = new Promise<void>(resolve => { entered = resolve })
+    const running = withSteamImportTurn(userId, async () => { entered(); await hold; return 'held' as const })
+    try {
+        await started
+        const result = await runSteamImportBatch(userId, { retry: false, cursor: null })
+        expect(result).toMatchObject({ notice: 'Matching is already running for your library.' })
+        expect(fetchSpy).not.toHaveBeenCalled()
+    } finally {
+        fetchSpy.mockRestore()
+        release()
+        await running
+    }
+})
+
+it('runs an import turn while a leftover session advisory lock is held', async () => {
+    const userId = randomUUID()
+    const holder = postgres(parsed.toString(), { max: 1, prepare: false, onnotice: () => {} })
+    try {
+        await holder`select pg_advisory_lock(1936745323, hashtext(${userId}))`
+        expect(await withSteamImportTurn(userId, async () => 'ran' as const)).toBe('ran')
+        const left = await client`select count(*)::int as n from pg_locks l
+            join pg_stat_activity a on a.pid = l.pid
+            where l.locktype = 'advisory' and l.classid = 1936745323::oid and l.objid = hashtext(${userId})
+              and a.datname = current_database()`
+        expect(left).toEqual([{ n: 1 }])
+    } finally {
+        await holder`select pg_advisory_unlock(1936745323, hashtext(${userId}))`.catch(() => {})
+        await holder.end({ timeout: 1 }).catch(() => {})
+    }
+})
+
+it('keeps one game row and its slug when the same Steam match is written twice', async () => {
+    const provider = {
+        lookupSteamApps: vi.fn(async (ids: number[]) => ids.map(appid => ({ appid, candidates: [8000 + appid] }))),
+        getGamesByIds: vi.fn(async (ids: number[]) => ids.map(id => catalog(id, [id - 8000, id - 8000 + 50], {
+            providerSlug: 'Same Title', name: 'Same Title',
+        }))),
+    }
+    const apps = [{ appid: 810, name: 'Same Title' }, { appid: 811, name: 'Same Title' }]
+    const first = await resolveSteamBatch(apps, { provider, now: NOW })
+    expect(first.matched.map(row => row.appid).sort((a, b) => a - b)).toEqual([810, 811])
+    const stored = await client`select igdb_id, slug from games where igdb_id in (8810, 8811) order by igdb_id`
+    expect(stored).toHaveLength(2)
+    expect(stored[0].slug).toBe('same-title')
+    expect(stored[1].slug).not.toBe(stored[0].slug)
+    const [game] = await client`select id from games where igdb_id = 8810`
+    await client`insert into game_external_ids (provider, external_id, game_id, match_method)
+        values ('steam', '860', ${game.id}, 'igdb_external_id')`
+    const second = await resolveSteamBatch(apps, { provider, now: NOW })
+    expect(second.matched.map(row => row.appid).sort((a, b) => a - b)).toEqual([810, 811])
+    expect(await client`select igdb_id, slug from games where igdb_id in (8810, 8811) order by igdb_id`).toEqual(stored)
+    expect(await client`select count(*)::int as n from games where igdb_id in (8810, 8811)`).toEqual([{ n: 2 }])
+    expect(await client`select external_id from game_external_ids where external_id in ('810', '811', '860', '861') order by external_id`).toEqual([
+        { external_id: '810' }, { external_id: '811' }, { external_id: '860' },
+    ])
 })

@@ -61,6 +61,7 @@ export default function SteamLinkGamesSection({
         let cancelled = false
         const retry = cycle > 0
         let cursor: SteamImportCursor | null = null
+        let revisited = false
         async function run() {
             setMatching(true)
             setError(null)
@@ -68,7 +69,7 @@ export default function SteamLinkGamesSection({
             while (!cancelled) {
                 let result: SteamImportBatch | { error: string }
                 try {
-                    result = await resolveSteamImportBatch(retry ? { retry: true, cursor } : {})
+                    result = await resolveSteamImportBatch(cursor || retry ? { retry, cursor } : {})
                 } catch {
                     if (!cancelled) {
                         setError("Matching is unavailable. Your matched games are still listed.")
@@ -84,20 +85,31 @@ export default function SteamLinkGamesSection({
                     setMatching(false)
                     return
                 }
-                if (!result.notice) {
-                    setEntries(prev => mergeEntries(prev, result.entries, edited.current))
-                    setUnmatchedCount(result.unmatchedAppCount)
-                    setAmbiguousCount(result.ambiguousAppCount)
-                    setRemaining(result.remaining)
-                    setMatchedGameCount(result.matchedGameCount)
+                if (result.notice) {
+                    setNotice(result.notice)
+                    setRetryableCount(result.retryableAppCount)
+                    await new Promise(resolve => setTimeout(resolve, result.retryAfterMs ?? 5000))
+                    if (cancelled) return
+                    continue
                 }
+                setEntries(prev => mergeEntries(prev, result.entries, edited.current))
+                setUnmatchedCount(result.unmatchedAppCount)
+                setAmbiguousCount(result.ambiguousAppCount)
+                setRemaining(result.remaining)
+                setMatchedGameCount(result.matchedGameCount)
                 setRetryableCount(result.retryableAppCount)
-                setNotice(result.notice ?? null)
-                if (result.notice || result.retryableAppCount > 0 || !result.nextCursor) {
-                    setMatching(false)
-                    return
+                setNotice(null)
+                if (result.nextCursor) {
+                    cursor = result.nextCursor
+                    continue
                 }
-                cursor = result.nextCursor
+                if (!revisited && result.remaining > 0) {
+                    revisited = true
+                    cursor = null
+                    continue
+                }
+                setMatching(false)
+                return
             }
         }
         void run()
@@ -134,7 +146,7 @@ export default function SteamLinkGamesSection({
                 {ambiguousCount > 0 ? ` ${appLabel(ambiguousCount)} matched more than one game and were skipped.` : ""}
             </p>
             {notice && <p className="text-center text-sm text-(--color-bad)">{notice}</p>}
-            {(retryableCount > 0 || remaining > 0 || notice) && !matching && (
+            {(notice || ((retryableCount > 0 || remaining > 0) && !matching)) && (
                 <button
                     type="button"
                     onClick={() => setCycle(value => value + 1)}
