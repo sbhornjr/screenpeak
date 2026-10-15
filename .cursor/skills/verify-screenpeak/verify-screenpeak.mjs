@@ -479,6 +479,7 @@ function spawnLogged(name, command, args, env) {
         stdio: ['ignore', fd, fd],
         env: { ...process.env, ...env },
     })
+    closeSync(fd)
     child.unref()
     writeFileSync(join(pidDir, name), String(child.pid))
     return child.pid
@@ -742,6 +743,9 @@ async function up() {
     if (envInfo.r2Substituted) {
         log('R2_PUBLIC_URL is unset. Substituted https://verify-screenpeak.invalid so next.config.ts can parse a hostname. The Read-out does not call R2.')
     }
+    // PostgREST, the gateway, and Next are detached. Exit so an idle fetch
+    // socket cannot keep this command from returning.
+    process.exit(0)
 }
 
 async function forkGateway(secret) {
@@ -853,8 +857,10 @@ async function drive(feature) {
     const dir = join(evidenceRoot, 'loadout-readout')
     await mkdir(dir, { recursive: true })
     const chromePid = await launchChrome()
+    let page = null
+    let code = 0
     try {
-        const page = await connectChrome()
+        page = await connectChrome()
         await page.navigate(`http://127.0.0.1:${appPort}/`)
         await page.waitForText('Sign In')
         await page.clickButton('Sign In')
@@ -901,26 +907,24 @@ async function drive(feature) {
         await writeFile(join(dir, 'result.json'), JSON.stringify(result, null, 2))
         if (!anthropicSet) {
             console.error('Blocked: ANTHROPIC_API_KEY is unset. The Generate click ran. users.loadout_identity stayed null because lib/loadout.ts has no stub provider.')
-            process.exitCode = 2
-            return
-        }
-        if (!persisted || !paragraph) {
+            code = 2
+        } else if (!persisted || !paragraph) {
             console.error('Generate finished without a persisted paragraph. See result.json.')
-            process.exitCode = 1
-            return
-        }
-        if (!bodyText.includes(paragraph)) {
+            code = 1
+        } else if (!bodyText.includes(paragraph)) {
             console.error('The page text does not include the paragraph stored expectation.')
-            process.exitCode = 1
-            return
+            code = 1
+        } else {
+            log(`proved loadout-readout evidence ${dir}`)
         }
-        log(`proved loadout-readout evidence ${dir}`)
     } finally {
+        page?.close()
         stopRecorded('chrome')
         if (chromePid) {
             try { process.kill(chromePid, 'SIGTERM') } catch { /* already stopped */ }
         }
     }
+    process.exit(code)
 }
 
 async function launchChrome() {
@@ -1095,8 +1099,17 @@ async function connectChrome() {
         const shot = await send('Page.captureScreenshot', { format: 'png' })
         await writeFile(path, Buffer.from(shot.data, 'base64'))
     }
+    let captureTimer = null
+    let captureWatchdog = null
+    function stopLoadoutCapture() {
+        if (captureTimer) clearInterval(captureTimer)
+        if (captureWatchdog) clearTimeout(captureWatchdog)
+        captureTimer = null
+        captureWatchdog = null
+    }
     function armLoadoutCapture() {
-        const timer = setInterval(async () => {
+        stopLoadoutCapture()
+        captureTimer = setInterval(async () => {
             const event = events.find((item) => item.method === 'Network.responseReceived' && String(item.params?.response?.url || '').includes('/api/loadout'))
             if (!event || loadoutCapture.status) return
             loadoutCapture.status = event.params.response.status
@@ -1106,9 +1119,13 @@ async function connectChrome() {
             } catch (error) {
                 loadoutCapture.body = error instanceof Error ? error.message : String(error)
             }
-            clearInterval(timer)
+            stopLoadoutCapture()
         }, 200)
-        setTimeout(() => clearInterval(timer), 90_000)
+        captureWatchdog = setTimeout(() => stopLoadoutCapture(), 90_000)
+    }
+    function close() {
+        stopLoadoutCapture()
+        ws.close()
     }
     async function readoutParagraph() {
         return evaluate(`(() => {
@@ -1118,7 +1135,7 @@ async function connectChrome() {
     }
     return {
         navigate, waitForText, waitForTextEither, clickButton, clickDialogButton, clickLink, clickMenuLink,
-        fillPlaceholder, screenshot, bodyText, armLoadoutCapture, loadoutCapture, readoutParagraph,
+        fillPlaceholder, screenshot, bodyText, armLoadoutCapture, loadoutCapture, readoutParagraph, close,
     }
 }
 
