@@ -59,17 +59,88 @@ From the repo root (the root scripts forward to the web workspace, which runs
 with `apps/web/` as its working directory, so `process.cwd()` paths still resolve):
 
 ```bash
-npm run dev                          # web dev server on :3000
-npm run build                        # web production build
-npm run lint                         # eslint (core-web-vitals + typescript)
-npm test                             # vitest run (one-off)
-npm run mobile                       # expo start for apps/mobile (flags pass through: npm run mobile -- --clear)
-npm run seed:igdb -w @screenpeak/web -- --help  # IGDB catalogue seed; see docs/igdb.md
-npm run test:watch -w @screenpeak/web # vitest in watch mode
+npm run dev                                          # web dev server on :3000
+npx tsc --noEmit -p apps/web                         # web typecheck
+npx tsc --noEmit -p apps/mobile                      # mobile typecheck
+npx tsc --noEmit -p packages/shared                  # shared package typecheck
+npm run lint                                         # eslint (core-web-vitals + typescript)
+npm test                                             # unit tests (vitest run)
+TEST_DATABASE_URL='postgresql://USER:PASSWORD@127.0.0.1:5432/screenpeak_test' \
+  npm run test:igdb-integration -w @screenpeak/web   # Postgres integration tests
+npm run mobile                                       # expo start (flags: npm run mobile -- --clear)
 ```
 
-Tests: Vitest characterization suite in `test/` — see `test/README.md` for scope.
-No typecheck script — use `npx tsc --noEmit -p apps/web` for type checking.
+`TEST_DATABASE_URL` must be a local database whose name ends in `_test`, and the
+role must be allowed to `CREATE DATABASE`. The integration config is
+`apps/web/vitest.igdb-integration.config.mts`. Unit tests do not need a database.
+See `apps/web/test/README.md` for what each suite covers.
+
+Before calling work done, run the verify-screenpeak skill and attach its evidence.
+When you add or change a user-facing feature, update verify-screenpeak's feature map using the maintain-verification-skill skill, and include the new flow's evidence in the PR.
+
+## Local Postgres
+
+Cloud agents never connect to the hosted database. Do not pass `--target-hosted`.
+`DATABASE_URL`, `DATABASE_POOL_URL`, and `LOCAL_DATABASE_URL` for agent work point
+at `127.0.0.1`, `localhost`, or `::1`, and the database name ends in `_test` or `_copy`.
+
+`apps/web/.env.local` is gitignored. `migrate:journal` and `seed:igdb` read it and
+do not override variables already set in the shell. They never fall back to
+`DATABASE_POOL_URL`. A localhost URL can still be a tunnel: check the host.
+
+Empty local Postgres has no `anon` or `authenticated` role and no `auth.uid()`.
+Run the stub file once before the first migrate. Do not run it on Supabase.
+
+```bash
+psql "$LOCAL_DATABASE_URL" -v ON_ERROR_STOP=1 -f apps/web/db/local/auth-stubs.sql
+npm run migrate:journal -w @screenpeak/web -- --database-env LOCAL_DATABASE_URL --apply-pending
+```
+
+`seed:igdb` is local-only. The host must be `127.0.0.1`, `localhost`, or `::1`,
+and the database name must end in `_test` or `_copy`.
+
+```bash
+npm run seed:igdb -w @screenpeak/web -- --database-env LOCAL_DATABASE_URL --top
+npm run seed:igdb -w @screenpeak/web -- --database-env LOCAL_DATABASE_URL --ids 1,2,3
+```
+
+Details: `docs/igdb.md`.
+
+## Rules for agents
+
+- Talk to IGDB only through `lib/igdb/` and `scripts/seed-igdb.ts`. Talk to Steam only through `lib/steam.ts`, `lib/steam-openid.ts`, and `lib/catalog/steam-import.ts`. Do not call those APIs from a new client.
+- Never put `SUPABASE_SECRET_KEY` (the service role key) in client code, `NEXT_PUBLIC_*` env, or a module imported by a `'use client'` component. The admin client stays in `app/api/delete-account`.
+- Cloud agents never connect to the hosted database.
+
+## Test account
+
+Username `peek`, email `hornflakes+peek@mail.grokbot.com`, password `peekpeek`.
+The account exists on the hosted Supabase project and its email is verified.
+Agents may use it for testing however they see fit when a hosted-backed run is
+available. Cloud agents do not get that run: they stay on local Postgres.
+
+For a local database, create the same user after auth stubs and `migrate:journal`.
+`auth.users` in the stub file has no password column. Inserting the row fires
+`handle_new_user()`, which creates `public.users` (username from
+`raw_user_meta_data`) and the default Wishlist:
+
+```bash
+psql "$LOCAL_DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+INSERT INTO auth.users (id, email, raw_user_meta_data)
+SELECT gen_random_uuid(), 'hornflakes+peek@mail.grokbot.com', '{"username":"peek"}'::jsonb
+WHERE NOT EXISTS (
+  SELECT 1 FROM auth.users WHERE email = 'hornflakes+peek@mail.grokbot.com'
+);
+SQL
+```
+
+Signing in through the UI still needs a Supabase Auth server. The stub database
+is not one. `verify-screenpeak` starts a local Auth and PostgREST stand-in, stores
+`peekpeek` in `verify_local.passwords`, and gives `peek` five rated games.
+When `TWITCH_CLIENT_ID` and `TWITCH_CLIENT_SECRET` are set it seeds them with
+`seed:igdb --top 100` on the local database only. Otherwise it inserts the
+fixture games.
+Use that harness, or another fixture user you insert the same way, for local runs.
 
 ## Structure (`apps/web/`)
 
@@ -87,7 +158,7 @@ No typecheck script — use `npx tsc --noEmit -p apps/web` for type checking.
 - `lib/` — shared logic: Supabase clients, the Drizzle client (`lib/db.ts`),
   `requireUser()` (`lib/auth.ts`), DB queries (`lib/queries/`), page loaders
   (`lib/loaders/`), utilities
-- `scripts/` — IGDB seed and the migration journal (`seed-igdb.ts`, `establish-migration-journal.ts`). See `docs/igdb.md`. `seed:igdb` is local-only. `migrate:journal --apply-pending` can target hosted with `--target-hosted`, `--confirm-host`, and `--confirm-database`.
+- `scripts/` — IGDB seed and the migration journal (`seed-igdb.ts`, `establish-migration-journal.ts`). See `docs/igdb.md` and Local Postgres above. `seed:igdb` is local-only.
 - `test/` — Vitest suite. Shared TS types (mirroring `lib/queries/`) and the zod
   schemas live in `packages/shared`, not here — see Monorepo layout
 - `assets/fonts/` — OFL fonts read by `lib/og.tsx` via `process.cwd()` for OG images
@@ -123,7 +194,7 @@ Client-side mutations that used to call `lib/queries/*` directly with the browse
 
 ## Auth & Middleware
 
-`proxy.ts` handles Supabase session refresh on every request via cookie-based SSR. It is not wired as `middleware.ts` by default — verify before modifying.
+`apps/web/proxy.ts` is the Next.js 16 proxy (the old `middleware.ts` filename). It refreshes the Supabase session on matched requests. There is no `middleware.ts`.
 
 Supabase auth email links (signup, recovery, email change) all land on
 `app/auth/confirm/route.ts`, which handles both the `token_hash`+`type` and `code`

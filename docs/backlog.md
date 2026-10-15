@@ -20,10 +20,12 @@ Open product items. The hosted IGDB catalogue is already in place.
 
 7. **Loadout Read-Out inputs.** Add hours played and 100% achievement status to the inputs sent to the Loadout Read-Out model.
 
-8. **Signed-out splash page.** `/` needs a first screen now that there is no hero game.
+8. **Loadout Read-Out genre grounding.** The Read-Out said "leans toward platformers and puzzles" for a library of five Assassin's Creed games. Check the genre data passed to the model and/or prompt grounding.
 
-9. **Loadout Read-Out on the splash page, before launch.** Show a real Read-Out at the bottom of `/`. Hard-coding it to the owner's library is enough.
+9. **Signed-out splash page.** `/` needs a first screen now that there is no hero game.
+
+10. **Loadout Read-Out on the splash page, before launch.** Show a real Read-Out at the bottom of `/`. Hard-coding it to the owner's library is enough.
 
 ## Before launch
 
-10. **IGDB commercial partnership.** A written partnership has to cover storage, caching, and attribution. The Twitch Developer Agreement defaults to 24-hour caching. The free noncommercial documentation is not permission to ship. The footer already credits IGDB. See `docs/igdb.md`.
+11. **IGDB commercial partnership.** A written partnership has to cover storage, caching, and attribution. The Twitch Developer Agreement defaults to 24-hour caching. The free noncommercial documentation is not permission to ship. The footer already credits IGDB. See `docs/igdb.md`.
