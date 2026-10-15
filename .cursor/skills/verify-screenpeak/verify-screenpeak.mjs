@@ -2,7 +2,7 @@
 // Local ScreenPeak verification harness. See SKILL.md in this directory.
 import { spawn, spawnSync } from 'node:child_process'
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
-import { existsSync, openSync, readFileSync, writeFileSync } from 'node:fs'
+import { closeSync, existsSync, openSync, readFileSync, writeFileSync } from 'node:fs'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { request as httpRequest } from 'node:http'
@@ -28,6 +28,8 @@ const postgrestPort = 54322
 const peekEmail = 'hornflakes+peek@mail.grokbot.com'
 const peekPassword = 'peekpeek'
 const peekUsername = 'peek'
+const catalogueTop = 100
+const libraryPath = join(runDir, 'library.json')
 const postgrestVersion = 'v16.4'
 const postgrestUrl = `https://github.com/PostgREST/postgrest/releases/download/${postgrestVersion}/postgrest-${postgrestVersion}-linux-static-x86-64.tar.xz`
 
@@ -250,6 +252,55 @@ function applyLocalAppSql() {
     `)
 }
 
+function twitchReady() {
+    return Boolean(process.env.TWITCH_CLIENT_ID && process.env.TWITCH_CLIENT_SECRET)
+}
+
+function writeLibrary(library) {
+    mkdirSyncSafe(runDir)
+    writeFileSync(libraryPath, JSON.stringify(library, null, 2))
+    return library
+}
+
+function readLibrary() {
+    return JSON.parse(readFileSync(libraryPath, 'utf8'))
+}
+
+function clearPeekLibrary() {
+    psql(databaseUrl, `
+        DELETE FROM ratings_reviews WHERE user_id = (SELECT id FROM users WHERE username = '${peekUsername}');
+        DELETE FROM library_entries WHERE user_id = (SELECT id FROM users WHERE username = '${peekUsername}');
+        UPDATE users
+        SET loadout_identity = NULL, loadout_identity_at = NULL, profile_loadout_bio = NULL
+        WHERE username = '${peekUsername}';
+    `)
+}
+
+function givePeekFive(gameIds, marker, mode) {
+    if (gameIds.length < 5) throw new Error(`Need 5 catalogue games for peek's library, found ${gameIds.length}.`)
+    const ids = gameIds.slice(0, 5)
+    if (ids.some((id) => !/^[0-9a-f-]{36}$/i.test(id))) throw new Error('Catalogue game id was not a uuid.')
+    clearPeekLibrary()
+    const libraryRows = ids.map((id, index) => `('${id}'::uuid, ${index < 3 ? "'completed'" : "'playing'"})`).join(', ')
+    const ratingRows = ids.map((id, index) => `('${id}'::uuid, ${[9, 8, 8, 7, 6][index]})`).join(', ')
+    psql(databaseUrl, `
+        INSERT INTO library_entries (user_id, game_id, status, source)
+        SELECT u.id, rows.game_id, rows.status, 'manual'
+        FROM users u
+        JOIN (VALUES ${libraryRows}) AS rows(game_id, status) ON true
+        WHERE u.username = '${peekUsername}';
+
+        INSERT INTO ratings_reviews (user_id, game_id, rating, review)
+        SELECT u.id, rows.game_id, rows.rating, ''
+        FROM users u
+        JOIN (VALUES ${ratingRows}) AS rows(game_id, rating) ON true
+        WHERE u.username = '${peekUsername}';
+    `)
+    const names = psql(databaseUrl, `select name from games where id in (${ids.map((id) => `'${id}'`).join(', ')}) order by name`, ['-tA'])
+        .split('\n').filter(Boolean)
+    return writeLibrary({ mode, marker, games: names })
+}
+
 function seedFixture() {
     psql(databaseUrl, `
         INSERT INTO genres (igdb_id, name, slug)
@@ -303,6 +354,76 @@ function seedFixture() {
         SET loadout_identity = NULL, loadout_identity_at = NULL, profile_loadout_bio = NULL
         WHERE username = '${peekUsername}';
     `)
+    return writeLibrary({ mode: 'fixture', marker: 'Fixture Roguelike', games: [
+        'Peak Fixture 1', 'Peak Fixture 2', 'Peak Fixture 3', 'Peak Fixture 4', 'Peak Fixture 5',
+    ] })
+}
+
+function safeSeedLines(text) {
+    return text.split('\n').filter((line) => {
+        const trimmed = line.trim()
+        return trimmed.startsWith('igdb seed:') || trimmed.startsWith('{') || trimmed.startsWith('}') || trimmed.startsWith('"')
+    }).join('\n')
+}
+
+function seedIgdbTop() {
+    mkdirSyncSafe(logDir)
+    const logPath = join(logDir, 'seed-igdb.log')
+    const fd = openSync(logPath, 'w')
+    log(`Seeding ${catalogueTop} IGDB main games into ${dbName} on 127.0.0.1`)
+    const result = spawnSync('npm', ['run', 'seed:igdb', '-w', '@screenpeak/web', '--', '--database-env', 'LOCAL_DATABASE_URL', '--top', String(catalogueTop)], {
+        cwd: root,
+        stdio: ['ignore', fd, fd],
+        env: process.env,
+    })
+    closeSync(fd)
+    let summary = ''
+    try { summary = safeSeedLines(readFileSync(logPath, 'utf8')) } catch { /* log may be empty */ }
+    if (summary) log(summary)
+    const stored = Number(psql(databaseUrl, 'select count(*) from games', ['-tA']) || '0')
+    if (result.status !== 0 && stored < 5) {
+        throw new Error(`seed:igdb --top ${catalogueTop} failed (status ${result.status}) and wrote ${stored} games. Twitch keys were set, so this does not fall back to fixtures. See ${logPath}.`)
+    }
+    if (result.status !== 0) log(`seed:igdb exited ${result.status} after writing ${stored} games. Continuing with those rows.`)
+    const picked = psql(databaseUrl, `
+        select gn.id::text || '|' || gn.name
+        from genres gn
+        join game_genres gg on gg.genre_id = gn.id
+        group by gn.id, gn.name
+        having count(*) >= 5
+        order by count(*) desc, gn.name
+        limit 1
+    `, ['-tA'])
+    let gameIds
+    let marker
+    if (picked) {
+        const separator = picked.indexOf('|')
+        const genreId = picked.slice(0, separator)
+        marker = picked.slice(separator + 1)
+        if (!/^[0-9a-f-]{36}$/i.test(genreId)) throw new Error('Genre id from the local catalogue was not a uuid.')
+        gameIds = psql(databaseUrl, `
+            select g.id::text from games g
+            join game_genres gg on gg.game_id = g.id
+            where gg.genre_id = '${genreId}'
+            order by g.name
+            limit 5
+        `, ['-tA']).split('\n').filter(Boolean)
+    } else {
+        gameIds = psql(databaseUrl, 'select id::text from games order by name limit 5', ['-tA']).split('\n').filter(Boolean)
+        marker = gameIds[0] ? psql(databaseUrl, `select name from games where id = '${gameIds[0]}'`, ['-tA']) : ''
+    }
+    const library = givePeekFive(gameIds, marker, 'igdb')
+    log(`Local catalogue: ${stored} games. peek library marker: ${marker}`)
+    return library
+}
+
+function seedCatalogue() {
+    if (!twitchReady()) {
+        const missing = ['TWITCH_CLIENT_ID', 'TWITCH_CLIENT_SECRET'].filter((name) => !process.env[name])
+        log(`Missing ${missing.join(' and ')}. Seeding the fixture catalogue instead of IGDB.`)
+        return seedFixture()
+    }
+    return seedIgdbTop()
 }
 
 function readEnvFile() {
@@ -584,9 +705,9 @@ async function up() {
     log('Applying auth stubs (empty database only) and migrate:journal')
     applyMigrations()
     const authenticatorExisted = sudoPsql(`SELECT 1 FROM pg_roles WHERE rolname = 'authenticator'`).split('\n').some((line) => line.trim() === '1')
-    log('Applying local auth.uid(), grants, and the peek fixture')
+    log('Applying local auth.uid(), grants, and the peek account')
     applyLocalAppSql()
-    seedFixture()
+    const library = seedCatalogue()
     const postgrestBin = await ensurePostgrest()
     const postgrestPid = spawnLogged('postgrest', postgrestBin, [], {
         PGRST_DB_URI: `postgresql://authenticator:${authenticatorPassword}@127.0.0.1:5432/${dbName}`,
@@ -609,6 +730,9 @@ async function up() {
         r2: envInfo.r2,
         createdAuthenticator: !authenticatorExisted,
         anthropic: Boolean(process.env.ANTHROPIC_API_KEY),
+        twitch: twitchReady(),
+        catalogue: library.mode,
+        marker: library.marker,
         pids: { postgrest: postgrestPid, gateway: gatewayPid, next: nextPid },
     })
     log(`ready http://127.0.0.1:${appPort}`)
@@ -682,13 +806,16 @@ async function doctor() {
             where u.username = '${peekUsername}'
             group by u.id, u.username
         `, ['-tA'])
-        check('fixture', counts.startsWith('peek ratings=5 library=5'), counts || 'missing peek')
+        check('library', counts.startsWith('peek ratings=5 library=5'), counts || 'missing peek')
     } catch (error) {
-        check('fixture', false, error instanceof Error ? error.message : String(error))
+        check('library', false, error instanceof Error ? error.message : String(error))
     }
     const chrome = spawnSync('google-chrome', ['--version'], { encoding: 'utf8' })
     check('chrome', chrome.status === 0, (chrome.stdout || chrome.stderr || '').trim())
+    lines.push(`info catalogue: ${state?.catalogue || 'unknown'} marker=${state?.marker || 'unknown'}`)
     lines.push(`info ANTHROPIC_API_KEY: ${process.env.ANTHROPIC_API_KEY ? 'set' : 'unset'}`)
+    lines.push(`info TWITCH_CLIENT_ID: ${process.env.TWITCH_CLIENT_ID ? 'set' : 'unset'}`)
+    lines.push(`info TWITCH_CLIENT_SECRET: ${process.env.TWITCH_CLIENT_SECRET ? 'set' : 'unset'}`)
     lines.push(`info R2_PUBLIC_URL: ${state?.r2Substituted ? `unset; substituted ${state.r2}` : (state?.r2 || 'unknown')}`)
     lines.push(`info app: http://127.0.0.1:${appPort}`)
     const text = lines.join('\n')
@@ -741,15 +868,16 @@ async function drive(feature) {
         await page.waitForText("peek's Loadout")
         await page.waitForText('Generate your Read-out')
         await page.navigate(`http://127.0.0.1:${appPort}/user/${peekUsername}/loadout`)
+        const library = readLibrary()
         await page.waitForText('Generate your Read-out')
-        await page.waitForText('Fixture Roguelike')
+        await page.waitForText(library.marker)
         await page.screenshot(join(dir, 'before.png'))
         page.armLoadoutCapture()
         await page.clickButton('Generate your Read-out')
         await page.waitForTextEither([
             "Couldn't generate right now. Try again shortly.",
             'Regenerate',
-        ], 45_000)
+        ], 90_000)
         await page.screenshot(join(dir, 'after.png'))
         const bodyText = await page.bodyText()
         const api = page.loadoutCapture
@@ -760,6 +888,8 @@ async function drive(feature) {
         const persisted = row.includes('loadout_identity=') && !row.includes('loadout_identity=<null>')
         const result = {
             feature: 'loadout-readout',
+            catalogue: library.mode,
+            marker: library.marker,
             anthropicApiKey: anthropicSet ? 'set' : 'unset',
             api,
             paragraph,
@@ -978,7 +1108,7 @@ async function connectChrome() {
             }
             clearInterval(timer)
         }, 200)
-        setTimeout(() => clearInterval(timer), 40_000)
+        setTimeout(() => clearInterval(timer), 90_000)
     }
     async function readoutParagraph() {
         return evaluate(`(() => {

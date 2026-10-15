@@ -8,7 +8,7 @@ Steam import is not in this map. Agents have no Steam account, and the import fl
 
 - Launch with `node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs up` from the repo root.
 - The app is `http://127.0.0.1:3210`. The database is local `screenpeak_verify_copy`.
-- The fixture user is username `peek`, email `hornflakes+peek@mail.grokbot.com`, password `peekpeek`, with five library rows and five ratings.
+- The fixture user is username `peek`, email `hornflakes+peek@mail.grokbot.com`, password `peekpeek`, with five library rows and five ratings. Those rows are real IGDB games when both Twitch client variables are set, and the `Peak Fixture` rows otherwise.
 - Run `node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs doctor` and require the expected URL, database, and fixture counts.
 - Never drive an instance that was not started by this verification run.
 - Do not connect this run to a hosted database.

@@ -135,7 +135,10 @@ SQL
 
 Signing in through the UI still needs a Supabase Auth server. The stub database
 is not one. `verify-screenpeak` starts a local Auth and PostgREST stand-in, stores
-`peekpeek` in `verify_local.passwords`, and seeds a five-game fixture library.
+`peekpeek` in `verify_local.passwords`, and gives `peek` five rated games.
+When `TWITCH_CLIENT_ID` and `TWITCH_CLIENT_SECRET` are set it seeds them with
+`seed:igdb --top 100` on the local database only. Otherwise it inserts the
+fixture games.
 Use that harness, or another fixture user you insert the same way, for local runs.
 
 ## Structure (`apps/web/`)
