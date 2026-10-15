@@ -76,6 +76,7 @@ role must be allowed to `CREATE DATABASE`. The integration config is
 See `apps/web/test/README.md` for what each suite covers.
 
 Before calling work done, run the verify-screenpeak skill and attach its evidence.
+When you add or change a user-facing feature, update verify-screenpeak's feature map using the maintain-verification-skill skill, and include the new flow's evidence in the PR.
 
 ## Local Postgres
 
