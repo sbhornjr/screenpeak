@@ -24,7 +24,7 @@ Recorded 2026-10-16. Where an older sketch below disagrees with this section, th
 
 ### Order
 
-Follow Part 4. Bearer auth, the game loader, and `GET /api/v1/games/[slug]` plus reviews are done. The next slice is the native game screen (phone auth, display images, signed-out browsing) before any further loaders. Phase 1 and Phase 2 are rewritten to that order.
+Follow Part 4. Bearer auth, the game loader, `GET /api/v1/games/[slug]` plus reviews, and the native game screen are done. The next slice is the remaining loaders — library, loadout, list detail, and list index — each with its privacy test in the same change.
 
 ### API shape
 
@@ -34,7 +34,7 @@ Follow Part 4. Bearer auth, the game loader, and `GET /api/v1/games/[slug]` plus
 - Image fields on API payloads are display-ready URLs. The server picks the IGDB rendition with `packages/shared/images.ts` (`displayCoverUrl` at `large` is `t_cover_big_2x`; landscape art and shots go through `displayLandscapeUrl`). The phone does not choose a rendition. Byte checks for share cards stay in `apps/web/lib/catalog/images.ts` because they need `fetch` and Node's `Buffer`.
 - Phone Steam import is in v1, and it is late (still the last Phase 3 screen). The API exposes the batch cursor and lease the web already runs (`retry`, `cursor`, `nextCursor`, and the lease `notice` / `retryAfterMs` from `resolveSteamImportBatch`). It does not offer one `GET` of the whole Steam library. The OpenID `state` token from `POST /api/v1/me/steam/link-intent` is still required.
 - Each remaining loader moves its privacy gate with it and ships a privacy test in the same change. The four gates are library, loadout, list detail, and list index. There is no separate privacy pass after the routes exist.
-- Game ids in the shared types are uuid strings: `GameData.id`, `RatingReviewData.game_id`, `SimpleRatingReview.game_id`, and the library actions' `gameId`. New contracts copy those strings. `games.id` has been a uuid since the schema landed.
+- Game ids in the shared types are uuid strings: `GameData.id`, `RatingReviewData.game_id`, `SimpleRatingReview.game_id`, `AvgRatingsData.game_id`, `ListSummary.id`, `LibraryData.id`, and the library actions' `gameId`. New contracts copy those strings. `games.id` has been a uuid since the schema landed.
 - `queryGames` throws when the database errors. A web page that still wants an empty grid catches at the call site. An API route must not turn an outage into `[]`.
 - A game slug is the IGDB slug (`catalogSlug`). When that slug is already taken, the stored slug is `` `${base}-${games.id}` ``.
 - Steam app ids live in `game_external_ids`. There is no `games.steam_appid` column, and `GameDetail` does not include one.
@@ -341,10 +341,13 @@ and an Auth outage is a 503 `auth_unavailable`, never a 401.
 
 Route handlers are wrapped in `withAuth(handler)` (`lib/api.ts`), which turns a
 thrown `ApiError` into the standard `{ error: { code, message } }` JSON response,
-so every route doesn't repeat try/catch. Native fetch ignores CORS. Expo web does
-not: `withAuth` adds `Access-Control-Allow-Origin: *` (no `Allow-Credentials`, so
-the site's cookies stay same-origin) and `proxy.ts` answers `OPTIONS` on
-`/api/v1`. The phone still sends `Authorization: Bearer`.
+so every route doesn't repeat try/catch. `/api/v1` calls `getBearerUser()` and
+never reads the session cookie. `getOptionalUser()` stays the website helper.
+Native fetch ignores CORS. Expo web does not: `withAuth` adds
+`Access-Control-Allow-Origin: *` only on `/api/v1` (no `Allow-Credentials`).
+`proxy.ts` skips the session refresh for `/api/v1` and answers `OPTIONS` there.
+Cookie routes such as `DELETE /api/delete-account` do not send that header. The
+phone sends `Authorization: Bearer` and fetches with `credentials: 'omit'`.
 
 **Email links** (confirm signup, password reset) keep landing on the website's
 `/auth/confirm` for v1. Later, iOS Universal Links / Android App Links can make
@@ -637,9 +640,10 @@ tests. The website is unchanged for users.
    the layout. The welcome screen is not part of this slice.
    > **Done.** Phone auth (`src/lib/supabase.ts`, `src/lib/auth.tsx`), the
    > API client (`src/lib/api`), and the game screen. Image URLs on
-   > `GET /api/v1/games/[slug]` are display-ready. Shared game ids that were
-   > typed as numbers are uuid strings. `queryGames` throws on a database
-   > error. The welcome screen is still only the decision above.
+   > `GET /api/v1/games/[slug]` are display-ready. That slice moved
+   > `GameData.id`, `RatingReviewData.game_id`, `SimpleRatingReview.game_id`,
+   > and the library actions' `gameId` to uuid strings. `queryGames` throws on
+   > a database error. The welcome screen is still only the decision above.
 3. **Remaining loaders, one page at a time**, each with its privacy test in
    the same change (`db` bypasses RLS). The gates are library, loadout, list
    detail, and list index. Do not save them for a later audit pass.

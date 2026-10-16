@@ -28,7 +28,7 @@ export function createApiClient(opts: {
     const token = await opts.getToken()
     const headers: Record<string, string> = { Accept: 'application/json' }
     if (token) headers.Authorization = `Bearer ${token}`
-    const res = await fetchImpl(`${base}${path}`, { headers })
+    const res = await fetchImpl(`${base}${path}`, { headers, credentials: 'omit' })
     if (!res.ok) {
       const body = (await res.json().catch(() => null)) as ApiErrorBody | null
       throw new ApiClientError(res.status, body?.error?.code ?? 'internal', body?.error?.message ?? 'Something went wrong.')

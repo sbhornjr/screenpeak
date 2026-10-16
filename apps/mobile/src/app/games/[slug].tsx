@@ -19,18 +19,19 @@ export default function GameScreen() {
   const params = useLocalSearchParams<{ slug: string }>()
   const slug = typeof params.slug === 'string' ? params.slug : ''
   const router = useRouter()
-  const { session } = useAuth()
+  const { session, ready } = useAuth()
+  const viewerId = session?.user.id ?? null
   const configured = apiConfigured()
 
   const game = useQuery({
-    queryKey: ['game', slug],
+    queryKey: ['game', slug, viewerId],
     queryFn: () => api.games.get(slug),
-    enabled: configured && slug.length > 0,
+    enabled: ready && configured && slug.length > 0,
   })
   const reviews = useQuery({
-    queryKey: ['game', slug, 'reviews'],
+    queryKey: ['game', slug, 'reviews', viewerId],
     queryFn: () => api.games.reviews(slug),
-    enabled: configured && slug.length > 0 && game.isSuccess,
+    enabled: ready && configured && slug.length > 0 && game.isSuccess,
   })
 
   return (
@@ -38,7 +39,9 @@ export default function GameScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       {!configured ? (
         <Notice title="API URL missing" body="Set EXPO_PUBLIC_API_URL to the ScreenPeak server." />
-      ) : game.isPending ? (
+      ) : slug.length === 0 ? (
+        <Notice title="Missing game" body="This link does not include a game." />
+      ) : !ready || game.isLoading ? (
         <Notice title="Loading" body={slug} />
       ) : game.isError ? (
         <Notice title="Couldn't load this game" body={messageOf(game.error)} onRetry={() => { void game.refetch() }} />

@@ -3,6 +3,8 @@ import { useState } from 'react'
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
+import { parseOrError, usernameSchema } from '@screenpeak/shared/schemas'
+
 import { Eyebrow } from '@/components/eyebrow'
 import { useAuth } from '@/lib/auth'
 import { colors, face, radius, space } from '@/theme'
@@ -11,6 +13,7 @@ export default function SignUpScreen() {
   const router = useRouter()
   const { signUp, configured } = useAuth()
   const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -19,9 +22,14 @@ export default function SignUpScreen() {
   async function submit() {
     setError(null)
     setNotice(null)
+    const usernameCheck = parseOrError(usernameSchema, username)
+    if (!usernameCheck.success) {
+      setError(usernameCheck.error)
+      return
+    }
     setPending(true)
     try {
-      const message = await signUp(email.trim(), password)
+      const message = await signUp(email.trim(), password, usernameCheck.data)
       if (message) setNotice(message)
       else router.back()
     } catch (err) {
@@ -46,6 +54,16 @@ export default function SignUpScreen() {
           placeholderTextColor={colors.muted}
           value={email}
           onChangeText={setEmail}
+          style={styles.input}
+        />
+        <TextInput
+          accessibilityLabel="Username"
+          autoCapitalize="none"
+          autoComplete="username"
+          placeholder="Username"
+          placeholderTextColor={colors.muted}
+          value={username}
+          onChangeText={setUsername}
           style={styles.input}
         />
         <TextInput

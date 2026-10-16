@@ -1,7 +1,9 @@
 // expo-secure-store rejects values over 2048 bytes. A Supabase session is
-// larger than that, so the native adapter splits the JSON and joins it back.
+// larger than that, so the native adapter splits the JSON on UTF-8 byte
+// length and joins it back. Slicing by JS character length would put a
+// multibyte character over the cap.
 
-export const SECURE_CHUNK = 1800
+export const SECURE_CHUNK = 2048
 
 export type StringStore = {
   getItem: (key: string) => Promise<string | null>
@@ -26,9 +28,7 @@ export function createChunkedStorage(store: StringStore, size = SECURE_CHUNK): S
     },
     async setItem(key, value) {
       await clearChunks(store, key)
-      const chunks: string[] = []
-      for (let i = 0; i < value.length; i += size) chunks.push(value.slice(i, i + size))
-      if (chunks.length === 0) chunks.push('')
+      const chunks = chunkByUtf8Bytes(value, size)
       for (let i = 0; i < chunks.length; i += 1) await store.setItem(`${key}.${i}`, chunks[i])
       await store.setItem(`${key}.n`, String(chunks.length))
     },
@@ -36,6 +36,35 @@ export function createChunkedStorage(store: StringStore, size = SECURE_CHUNK): S
       await clearChunks(store, key)
     },
   }
+}
+
+function utf8Bytes(codePoint: number): number {
+  if (codePoint <= 0x7f) return 1
+  if (codePoint <= 0x7ff) return 2
+  if (codePoint <= 0xffff) return 3
+  return 4
+}
+
+export function chunkByUtf8Bytes(value: string, maxBytes: number): string[] {
+  if (maxBytes < 1) throw new Error('chunk size must be at least 1 byte')
+  const chunks: string[] = []
+  let start = 0
+  while (start < value.length) {
+    let end = start
+    let bytes = 0
+    while (end < value.length) {
+      const code = value.codePointAt(end) ?? 0
+      const size = utf8Bytes(code)
+      if (bytes + size > maxBytes) break
+      bytes += size
+      end += code > 0xffff ? 2 : 1
+    }
+    if (end === start) throw new Error(`A character needs more than ${maxBytes} UTF-8 bytes`)
+    chunks.push(value.slice(start, end))
+    start = end
+  }
+  if (chunks.length === 0) chunks.push('')
+  return chunks
 }
 
 async function clearChunks(store: StringStore, key: string) {

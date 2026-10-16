@@ -4,9 +4,9 @@ import { NextRequest } from 'next/server'
 // GET /api/v1/games/[slug] is the thin HTTP adapter over loadGamePage: auth →
 // loader → JSON. Its collaborators (auth, the loader) are mocked here; both are
 // tested on their own in test/lib/.
-const getOptionalUser = vi.fn()
+const getBearerUser = vi.fn()
 const loadGamePage = vi.fn()
-vi.mock('@/lib/auth', () => ({ getOptionalUser }))
+vi.mock('@/lib/auth', () => ({ getBearerUser }))
 vi.mock('@/lib/loaders/game-page', () => ({ loadGamePage }))
 
 const { GET } = await import('@/app/api/v1/games/[slug]/route')
@@ -17,7 +17,7 @@ const call = (slug: string) =>
     GET(new NextRequest(`http://localhost/api/v1/games/${slug}`), { params: Promise.resolve({ slug }) })
 
 beforeEach(() => {
-    getOptionalUser.mockReset().mockResolvedValue(null)
+    getBearerUser.mockReset().mockResolvedValue(null)
     loadGamePage.mockReset().mockResolvedValue(DATA)
 })
 
@@ -31,7 +31,7 @@ describe('GET /api/v1/games/[slug]', () => {
     })
 
     it("passes the signed-in viewer's id to the loader", async () => {
-        getOptionalUser.mockResolvedValue({ id: 'viewer-1', email: 'me@x.test' })
+        getBearerUser.mockResolvedValue({ id: 'viewer-1', email: 'me@x.test' })
 
         await call('baldurs-gate-3')
 
@@ -66,7 +66,7 @@ describe('GET /api/v1/games/[slug]', () => {
     })
 
     it('rejects a bad bearer token with 401 before loading anything', async () => {
-        getOptionalUser.mockRejectedValue(new UnauthenticatedError('invalid_token'))
+        getBearerUser.mockRejectedValue(new UnauthenticatedError('invalid_token'))
 
         const res = await call('baldurs-gate-3')
 

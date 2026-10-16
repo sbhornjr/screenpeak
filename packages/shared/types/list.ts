@@ -7,7 +7,7 @@ export type GameCover = {
 
 // Shape returned by get_user_lists / get_liked_lists RPCs
 export type ListSummary = {
-    id: number
+    id: string
     name: string
     description: string
     is_public: boolean
@@ -44,6 +44,6 @@ export type ListGameEntry = {
 }
 
 export type AvgRatingsData = {
-    game_id: number
+    game_id: string
     avg_rating: number
 }

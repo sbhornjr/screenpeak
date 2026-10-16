@@ -102,6 +102,40 @@ describe('GameDetail', () => {
     expect(screen.getByRole('link', { name: 'Game data and images from IGDB' }).textContent).toBe('Game data and images from IGDB')
   })
 
+  it('ignores a viewer payload when the player is signed out', () => {
+    render(
+      <GameDetail
+        data={{
+          ...DATA,
+          viewer: {
+            review: {
+              user_id: 'viewer',
+              rating: 8,
+              review: 'Sharp.',
+              created_at: '2026-03-01 00:00:00+00',
+              updated_at: '2026-03-01 00:00:00+00',
+              users: { username: 'peek', display_name: 'peek', avatar_url: '' },
+            },
+            libraryEntry: { id: 'le', status: 'playing', completed_all_achievements: false, hours_played: 12, play_count: 1 },
+            lists: [],
+            listIdsGameIsIn: [],
+            defaultListPrivacy: true,
+          },
+        }}
+        reviews={REVIEWS}
+        reviewsNote={null}
+        signedIn={false}
+        onBack={() => undefined}
+        onSignIn={() => undefined}
+        onSignUp={() => undefined}
+        onRetryReviews={() => undefined}
+      />,
+    )
+
+    expect(screen.queryByText('You · 8 / 10')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Save game' }).textContent).toBe('Save game')
+  })
+
   it('asks for an account when a signed-out player tries to save the game', () => {
     const onSignUp = vi.fn()
     render(

@@ -18,7 +18,7 @@ vi.mock('@/lib/supabase-server', () => ({
     createClient: async () => ({ auth: { getUser: cookieGetUser } }),
 }))
 
-const { requireUser, getOptionalUser } = await import('@/lib/auth')
+const { requireUser, getOptionalUser, getBearerUser } = await import('@/lib/auth')
 const { ApiError, UnauthenticatedError, AuthUnavailableError } = await import('@/lib/api')
 
 const USER = { id: 'user-123', email: 'player@screenpeak.test' }
@@ -140,6 +140,26 @@ describe('getOptionalUser — signed-out callers', () => {
         bearerGetUser.mockResolvedValue(fail(expired()))
 
         await rejectsWith(getOptionalUser(), 401, 'invalid_token')
+    })
+})
+
+describe('getBearerUser — /api/v1 ignores the website cookie', () => {
+    it('returns null when there is no Bearer token, even if a cookie session would succeed', async () => {
+        cookieGetUser.mockResolvedValue(ok(USER))
+
+        await expect(getBearerUser()).resolves.toBeNull()
+        expect(cookieGetUser).not.toHaveBeenCalled()
+        expect(bearerGetUser).not.toHaveBeenCalled()
+    })
+
+    it('returns the user for a valid bearer token and still does not read cookies', async () => {
+        withHeaders({ authorization: 'Bearer good.jwt.token' })
+        bearerGetUser.mockResolvedValue(ok(USER))
+        cookieGetUser.mockResolvedValue(ok({ id: 'cookie-user', email: 'other@screenpeak.test' }))
+
+        await expect(getBearerUser()).resolves.toEqual({ id: 'user-123', email: 'player@screenpeak.test' })
+        expect(bearerGetUser).toHaveBeenCalledWith('good.jwt.token')
+        expect(cookieGetUser).not.toHaveBeenCalled()
     })
 })
 

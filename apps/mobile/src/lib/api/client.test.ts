@@ -28,6 +28,7 @@ describe('createApiClient', () => {
     await expect(api.games.get('hades')).resolves.toEqual(GAME)
     expect(fetchImpl).toHaveBeenCalledWith('http://127.0.0.1:3210/api/v1/games/hades', {
       headers: { Accept: 'application/json' },
+      credentials: 'omit',
     })
   })
 
@@ -43,7 +44,7 @@ describe('createApiClient', () => {
 
     expect(fetchImpl).toHaveBeenCalledWith(
       'http://127.0.0.1:3210/api/v1/games/hades%20ii/reviews?page=1&pageSize=10&sort=date&order=desc',
-      { headers: { Accept: 'application/json', Authorization: 'Bearer access-token' } },
+      { headers: { Accept: 'application/json', Authorization: 'Bearer access-token' }, credentials: 'omit' },
     )
   })
 

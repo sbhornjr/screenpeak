@@ -118,7 +118,7 @@ export default async function Explore({ searchParams }: ExplorePageProps) {
                                                 {list.follower_like_count === 1 ? ' user' : ' users'} you follow liked this
                                             </div>                                            
                                             <ListPreview 
-                                                listId={parseInt(list.list_id)} 
+                                                listId={list.list_id} 
                                                 listName={list.list_name} 
                                                 description={list.list_description} 
                                                 username={list.owner_username} 
@@ -169,7 +169,7 @@ export default async function Explore({ searchParams }: ExplorePageProps) {
                     {trendingLists.map(list => (
                         <ListPreview 
                             key={list.list_id} 
-                            listId={parseInt(list.list_id)} 
+                            listId={list.list_id} 
                             listName={list.list_name} 
                             gameCovers={list.cover_urls?.map(url => ({ coverImageUrl: url, slug: null }))} 
                             isPinnable={false} 

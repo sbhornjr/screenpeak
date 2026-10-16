@@ -1,6 +1,8 @@
 import type { Session } from '@supabase/supabase-js'
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { AppState, Platform } from 'react-native'
 
+import { signUpAuthBody } from './sign-up'
 import { supabase } from './supabase'
 
 type AuthValue = {
@@ -8,7 +10,7 @@ type AuthValue = {
   session: Session | null
   configured: boolean
   signIn: (email: string, password: string) => Promise<void>
-  signUp: (email: string, password: string) => Promise<string>
+  signUp: (email: string, password: string, username: string) => Promise<string>
   signOut: () => Promise<void>
 }
 
@@ -36,6 +38,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  useEffect(() => {
+    const client = supabase
+    if (!client || Platform.OS === 'web') return
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') client.auth.startAutoRefresh()
+      else client.auth.stopAutoRefresh()
+    })
+    return () => sub.remove()
+  }, [])
+
   const value = useMemo<AuthValue>(() => ({
     ready,
     session,
@@ -45,9 +57,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) throw error
     },
-    async signUp(email, password) {
+    async signUp(email, password, username) {
       if (!supabase) throw new Error('Sign-up is not configured.')
-      const { data, error } = await supabase.auth.signUp({ email, password })
+      const parsed = signUpAuthBody(email, password, username)
+      if (!parsed.ok) throw new Error(parsed.error)
+      const { data, error } = await supabase.auth.signUp(parsed.body)
       if (error) throw error
       if (!data.session) return 'Check your email to confirm the account, then log in.'
       return ''

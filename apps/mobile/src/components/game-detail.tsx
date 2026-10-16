@@ -47,7 +47,8 @@ function asStatus(value: string | undefined): LibraryStatus | null {
 
 /** The native game page. Signed out, viewer is null and account actions ask you to sign up. */
 export function GameDetail({ data, reviews, reviewsNote, signedIn, onBack, onSignIn, onSignUp, onRetryReviews }: GameDetailProps) {
-  const { game, taxonomy, stats, viewer } = data
+  const { game, taxonomy, stats } = data
+  const viewer = signedIn ? data.viewer : null
   const community = communityScore(stats)
   const yours = viewer?.review?.rating ?? null
   const year = yearOf(game.released)

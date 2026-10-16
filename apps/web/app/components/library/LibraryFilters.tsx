@@ -10,8 +10,8 @@ import { defaultOrder } from "@/lib/game-catalog-sort"
 
 export default function LibraryFilters({ current, genres, platforms, developers, publishers, esrb_ratings, username }:
     { current: {query: string, genre: string, platform: string, developer: string, publisher: string, esrb: string, sort: string, order: string, status: string, is100: string},
-        genres: { id: number, name: string, slug: string }[], platforms: { id: number, name: string, slug: string }[],
-        developers: { id: number, name: string, slug: string }[], publishers: { id: number, name: string, slug: string }[],
+        genres: { id: string, name: string, slug: string }[], platforms: { id: string, name: string, slug: string }[],
+        developers: { id: string, name: string, slug: string }[], publishers: { id: string, name: string, slug: string }[],
         esrb_ratings: string[], username: string}) {
 
     const [searchQuery, setSearchQuery] = useState(current.query)

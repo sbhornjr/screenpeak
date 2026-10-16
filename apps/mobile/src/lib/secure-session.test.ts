@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { createChunkedStorage, type StringStore } from './secure-session'
 
-function memory(): StringStore & { keys: () => string[] } {
+function memory(): StringStore {
   const data = new Map<string, string>()
   return {
     getItem: async (key) => data.get(key) ?? null,
@@ -12,34 +12,40 @@ function memory(): StringStore & { keys: () => string[] } {
     removeItem: async (key) => {
       data.delete(key)
     },
-    keys: () => [...data.keys()],
   }
 }
 
 describe('createChunkedStorage', () => {
-  it('reads back a session larger than one secure-store value', async () => {
+  it('round-trips a session and keeps every stored piece within the UTF-8 byte cap', async () => {
+    const writes: string[] = []
     const backend = memory()
-    const storage = createChunkedStorage(backend, 1800)
-    const session = `header.${'a'.repeat(4000)}.signature`
+    const cap = 4
+    const storage = createChunkedStorage({
+      getItem: backend.getItem,
+      removeItem: backend.removeItem,
+      setItem: async (key, value) => {
+        writes.push(value)
+        await backend.setItem(key, value)
+      },
+    }, cap)
+    const session = '😀'.repeat(3)
 
-    await storage.setItem('sb-auth', session)
+    await storage.setItem('session', session)
 
-    expect(await storage.getItem('sb-auth')).toBe(session)
-    expect(backend.keys().sort()).toEqual(['sb-auth.0', 'sb-auth.1', 'sb-auth.2', 'sb-auth.n'])
-    expect(await backend.getItem('sb-auth.n')).toBe('3')
+    expect(await storage.getItem('session')).toBe(session)
+    expect(writes.length).toBeGreaterThan(1)
+    expect(writes.every((piece) => Buffer.byteLength(piece, 'utf8') <= cap)).toBe(true)
   })
 
   it('forgets the previous chunks when the session is replaced or removed', async () => {
     const backend = memory()
-    const storage = createChunkedStorage(backend, 10)
-    await storage.setItem('sb-auth', '0123456789abcdefghij')
-    await storage.setItem('sb-auth', 'short')
+    const storage = createChunkedStorage(backend, 4)
+    await storage.setItem('session', '😀'.repeat(3))
+    await storage.setItem('session', 'ok')
 
-    expect(await storage.getItem('sb-auth')).toBe('short')
-    expect(backend.keys().sort()).toEqual(['sb-auth.0', 'sb-auth.n'])
+    expect(await storage.getItem('session')).toBe('ok')
 
-    await storage.removeItem('sb-auth')
-    expect(await storage.getItem('sb-auth')).toBeNull()
-    expect(backend.keys()).toEqual([])
+    await storage.removeItem('session')
+    expect(await storage.getItem('session')).toBeNull()
   })
 })

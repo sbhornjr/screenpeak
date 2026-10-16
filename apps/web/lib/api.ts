@@ -51,14 +51,19 @@ export function apiError(status: number, code: ApiErrorCode, message: string, he
     return NextResponse.json<ApiErrorBody>({ error: { code, message } }, { status, headers })
 }
 
-// Expo web is a browser on another origin (Metro, usually :8081) calling this
-// API. Native fetch ignores CORS; a browser will not read the body without
-// these headers. `*` is safe here because credentialed cookies are not allowed
-// — the phone sends a bearer token, and Allow-Credentials stays unset.
+// Expo web is a browser on another origin (Metro, usually :8081) calling
+// /api/v1. Native fetch ignores CORS; a browser will not read the body without
+// these headers. They are not applied to cookie routes (delete-account,
+// steam/link): those still honor the website session. `*` stays credential-less
+// — the phone sends a bearer token and fetches with credentials: 'omit'.
 const CORS_HEADERS: Record<string, string> = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Authorization, Content-Type, Accept',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+}
+
+export function isV1ApiPath(pathname: string): boolean {
+    return pathname === '/api/v1' || pathname.startsWith('/api/v1/')
 }
 
 export function applyCors(res: Response): Response {
@@ -78,17 +83,21 @@ export function corsPreflight(): NextResponse {
  *
  *     export const GET = withAuth(async (req, ctx: RouteContext<'/api/v1/games/[slug]'>) => { … })
  */
+function finish(req: NextRequest, res: Response): Response {
+    return isV1ApiPath(req.nextUrl.pathname) ? applyCors(res) : res
+}
+
 export function withAuth<Ctx>(handler: (req: NextRequest, ctx: Ctx) => Promise<Response>) {
     return async (req: NextRequest, ctx: Ctx): Promise<Response> => {
         try {
-            return applyCors(await handler(req, ctx))
+            return finish(req, await handler(req, ctx))
         } catch (err) {
-            if (err instanceof ApiError) return applyCors(apiError(err.status, err.code, err.message, err.headers))
+            if (err instanceof ApiError) return finish(req, apiError(err.status, err.code, err.message, err.headers))
 
             logger.error('api', `Unhandled error in ${req.method} ${req.nextUrl.pathname}`, {
                 error: err instanceof Error ? { name: err.name, message: err.message, stack: err.stack } : String(err),
             })
-            return applyCors(apiError(500, 'internal', 'Something went wrong.'))
+            return finish(req, apiError(500, 'internal', 'Something went wrong.'))
         }
     }
 }
