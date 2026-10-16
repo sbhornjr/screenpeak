@@ -47,7 +47,8 @@ export async function loadUserLibrary(
         limit: LIBRARY_LIMIT,
     })
 
-    const ordered = query.sort === 'date_added' ? byDateAdded(rows, entries, query.order) : rows
+    const entryById = new Map(entries.map(entry => [String(entry.game_id), entry]))
+    const ordered = query.sort === 'date_added' ? byDateAdded(rows, entryById, query.order) : rows
     const developers = await getDeveloperNameMap(ordered.map(game => game.id))
 
     return {
@@ -60,7 +61,7 @@ export async function loadUserLibrary(
             esrb_ratings: facets.esrbRatings ?? [],
         },
         games: ordered.map(game => {
-            const entry = entries.find(item => String(item.game_id) === String(game.id))
+            const entry = entryById.get(String(game.id))
             return {
                 ...gameCard(game, developers.get(String(game.id)) ?? null),
                 library_status: entry?.status ?? null,
@@ -74,12 +75,12 @@ export async function loadUserLibrary(
 
 function byDateAdded<T extends { id: unknown }>(
     games: T[],
-    entries: { game_id: unknown; created_at: unknown }[],
+    entries: Map<string, { created_at: unknown }>,
     order: 'asc' | 'desc',
 ): T[] {
     return [...games].sort((a, b) => {
-        const aAt = entries.find(entry => String(entry.game_id) === String(a.id))?.created_at
-        const bAt = entries.find(entry => String(entry.game_id) === String(b.id))?.created_at
+        const aAt = entries.get(String(a.id))?.created_at
+        const bAt = entries.get(String(b.id))?.created_at
         const aTime = aAt ? parseDbTimestamp(text(aAt) ?? '').getTime() : null
         const bTime = bAt ? parseDbTimestamp(text(bAt) ?? '').getTime() : null
         if (aTime == null && bTime == null) return String(a.id) < String(b.id) ? -1 : 1

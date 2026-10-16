@@ -2,7 +2,7 @@ import 'server-only'
 import type { ListPageData } from '@screenpeak/shared/api/lists'
 import type { GameCardData } from '@screenpeak/shared/api/games'
 import { getDeveloperNameMap } from '@/lib/queries/game'
-import { getListById, getListGames, getListLikes } from '@/lib/queries/list'
+import { getListById, getListGames, getListLikeStats } from '@/lib/queries/list'
 import { getAvgRatingsForGames, getUserRatingsForGames } from '@/lib/queries/review'
 import { getProfileSummaryByUsername } from '@/lib/queries/user'
 import { gameCard, text } from '@/lib/loaders/shape'
@@ -26,7 +26,7 @@ export async function loadListPage(
         ids.length ? getAvgRatingsForGames(ids) : Promise.resolve([]),
         viewerId && ids.length ? getUserRatingsForGames(viewerId, ids) : Promise.resolve([]),
         ids.length ? getDeveloperNameMap(ids) : Promise.resolve(new Map<string, string | null>()),
-        getListLikes([list.id]),
+        getListLikeStats([list.id], viewerId),
     ])
 
     const avgById = new Map(averages.map(row => [String(row.game_id), row.avg_rating]))
@@ -40,7 +40,7 @@ export async function loadListPage(
         }, developers.get(id) ?? null)
     })
 
-    const likeRows = likes ?? []
+    const likeStat = likes.get(list.id)
     return {
         profile: { id: profile.id, username: profile.username, avatar_url: profile.avatar_url },
         list: {
@@ -53,10 +53,10 @@ export async function loadListPage(
             updated_at: text(list.updated_at) ?? '',
             game_count: games.length,
         },
-        like_count: likeRows.length,
+        like_count: likeStat?.like_count ?? 0,
         games,
         viewer: viewerId
-            ? { is_owner: viewerId === profile.id, has_liked: likeRows.some(like => like.user_id === viewerId) }
+            ? { is_owner: viewerId === profile.id, has_liked: likeStat?.viewer_has_liked ?? false }
             : null,
     }
 }

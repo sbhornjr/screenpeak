@@ -1,7 +1,7 @@
 import 'server-only'
 import type { ListCard, ListsPageData, ListsTab } from '@screenpeak/shared/api/lists'
 import type { GameCover } from '@screenpeak/shared/types'
-import { getListCoverMap, getListLikes, getLikedLists, getUserLists } from '@/lib/queries/list'
+import { getListCoverMap, getListLikeStats, getLikedLists, getUserLists } from '@/lib/queries/list'
 import { getAccountSettings, getProfileSummaryByUsername } from '@/lib/queries/user'
 import { cover, int, text } from '@/lib/loaders/shape'
 
@@ -30,19 +30,19 @@ export async function loadUserLists(
     const isOwner = viewerId === profile.id
     const rows = (tab === 'liked'
         ? await getLikedLists(profile.id)
-        : await getUserLists(profile.id, isOwner)) as ListRow[]
+        : await getUserLists(profile.id, isOwner)) as unknown as ListRow[]
 
     const visible = rows.filter(row => row.is_public || (tab === 'user' && isOwner))
     const ids = visible.map(row => String(row.id))
     const [covers, likes, settings] = await Promise.all([
         ids.length ? getListCoverMap(ids) : Promise.resolve(new Map<string, GameCover[]>()),
-        ids.length ? getListLikes(ids) : Promise.resolve([]),
+        getListLikeStats(ids, viewerId),
         isOwner ? getAccountSettings(profile.id) : Promise.resolve(null),
     ])
 
     const lists: ListCard[] = visible.map(row => {
         const id = String(row.id)
-        const listLikes = (likes ?? []).filter(like => String(like.list_id) === id)
+        const likeStat = likes.get(id)
         return {
             id,
             name: String(row.name ?? ''),
@@ -58,8 +58,8 @@ export async function loadUserLists(
                 cover_image_url: cover(item.coverImageUrl, 'small'),
                 slug: item.slug,
             })),
-            like_count: listLikes.length,
-            viewer_has_liked: viewerId != null && listLikes.some(like => like.user_id === viewerId),
+            like_count: likeStat?.like_count ?? 0,
+            viewer_has_liked: likeStat?.viewer_has_liked ?? false,
         }
     })
 

@@ -3,11 +3,12 @@ import GameCard from "@/app/components/game/GameCard";
 import { redirect } from "next/navigation"
 import LibraryFilters from "../../../components/library/LibraryFilters";
 import Link from "next/link";
-import EmptyState from "../../../components/util/EmptyState";
 import Eyebrow from "@/app/components/util/Eyebrow";
 import { getOptionalUser } from "@/lib/auth";
 import { loadUserLibrary } from "@/lib/loaders/library-page";
 import { parseLibraryQueryLenient } from "@/lib/screen-query";
+import type { LibraryPageData } from "@screenpeak/shared/api/library";
+import EmptyState from "../../../components/util/EmptyState";
 
 type LibraryPageProps = {
     params: Promise<{ username: string }>
@@ -23,12 +24,37 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
     }
 }
 
+const EMPTY_LIBRARY = (username: string): LibraryPageData => ({
+    username,
+    facets: { genres: [], platforms: [], developers: [], publishers: [], esrb_ratings: [] },
+    games: [],
+})
+
 export default async function LibraryPage({ params, searchParams } : LibraryPageProps) {
     const raw = await searchParams;
     const { username } = await params;
     const query = parseLibraryQueryLenient(raw)
+    if (!query) {
+        return (
+            <main>
+                <div className="w-full max-w-6xl mx-auto px-6 sm:px-8 pt-8 pb-16">
+                    <Eyebrow>Save select</Eyebrow>
+                    <h1 className="text-4xl font-bold font-(family-name:--font-display) tracking-tight mb-6">{username}&apos;s Library</h1>
+                    <EmptyState
+                        title="That status is not a library filter"
+                        description="Playing, completed, backlog, and abandoned are the statuses a library can show."
+                    />
+                </div>
+            </main>
+        )
+    }
     const viewer = await getOptionalUser()
-    const library = await loadUserLibrary(username, viewer?.id ?? null, query)
+    let library: LibraryPageData | null
+    try {
+        library = await loadUserLibrary(username, viewer?.id ?? null, query)
+    } catch {
+        library = EMPTY_LIBRARY(username)
+    }
 
     if (!library) redirect("/")
 

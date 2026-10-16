@@ -159,11 +159,8 @@ export async function getLibraryEntries(userId: string, filter: LibraryEntriesFi
         query = query.orderBy(filter.order === 'asc' ? asc(libraryEntries.createdAt) : desc(libraryEntries.createdAt))
     }
 
-    try {
-        return await query
-    } catch {
-        return []
-    }
+    // A database error must reject. Returning [] makes an outage look like an empty library.
+    return await query
 }
 
 /** Throws when the read fails. Steam confirm must not treat that as an empty library. */

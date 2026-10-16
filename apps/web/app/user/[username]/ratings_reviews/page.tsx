@@ -8,6 +8,7 @@ import Link from "next/link";
 import { loadUserReviews } from "@/lib/loaders/user-reviews";
 import { parseUserReviewsQueryLenient } from "@/lib/screen-query";
 import Eyebrow from "@/app/components/util/Eyebrow";
+import EmptyState from "@/app/components/util/EmptyState";
 import { ArrowLeft } from "lucide-react"
 
 type RatingsPageProps = {
@@ -27,7 +28,18 @@ export default async function RatingsPage({ params, searchParams }: RatingsPageP
     const { username } = await params;
     const raw = await searchParams
     const query = parseUserReviewsQueryLenient(raw)
-    const data = await loadUserReviews(username, query)
+    let data
+    try {
+        data = await loadUserReviews(username, query)
+    } catch {
+        return (
+            <main>
+                <div className="w-full max-w-4xl mx-auto px-6 sm:px-8 pt-8 pb-16">
+                    <EmptyState title="Couldn't load these ratings" description="Try again in a moment." />
+                </div>
+            </main>
+        )
+    }
     if (!data) notFound()
 
     const { filter: filterValue, sort: sortValue, order: orderValue, page: currentPage, pageSize: currentPageSize } = query

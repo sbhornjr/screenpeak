@@ -14,6 +14,7 @@ import Eyebrow from "@/app/components/util/Eyebrow";
 import EmptyState from "@/app/components/util/EmptyState";
 import { getOptionalUser } from "@/lib/auth";
 import { loadProfilePage } from "@/lib/loaders/profile-page";
+import { getProfileSummaryByUsername } from "@/lib/queries/user";
 import { Metadata } from "next";
 
 type ProfilePageProps = {
@@ -22,14 +23,14 @@ type ProfilePageProps = {
 
 export async function generateMetadata({ params }: { params: Promise<{ username: string }> }): Promise<Metadata> {
     const { username } = await params
-    const data = await loadProfilePage(username, null)
-    if (!data) return {}
+    const profile = await getProfileSummaryByUsername(username)
+    if (!profile) return {}
     return {
         title: username,
         description: `Follow ${username} on ScreenPeak.`,
         openGraph: {
             title: username,
-            images: data.profile.avatar_url ? [data.profile.avatar_url] : [],
+            images: profile.avatar_url ? [profile.avatar_url] : [],
         },
     }
 }
@@ -38,7 +39,18 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
     const { username } = await params;
 
     const viewer = await getOptionalUser()
-    const data = await loadProfilePage(username, viewer?.id ?? null)
+    let data
+    try {
+        data = await loadProfilePage(username, viewer?.id ?? null)
+    } catch {
+        return (
+            <main>
+                <div className="w-full max-w-6xl mx-auto px-6 sm:px-8 pt-8 pb-16">
+                    <EmptyState title="Couldn't load this profile" description="Try again in a moment." />
+                </div>
+            </main>
+        )
+    }
     if (!data) notFound()
 
     const profile = data.profile
@@ -46,8 +58,6 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
     const favoriteGames = data.favorites
     const recentReviews = data.recent_reviews
     const topDeveloperNames = data.viewer?.top_developer_names ?? []
-    const totalGames = data.library_stats?.total_games ?? 0
-    const completedCount = data.library_stats?.completed ?? 0
     const ratingCount = data.rating_count
     const avgRating = data.avg_rating ?? 0
     const currentTitle = profile.selected_title ? profile.selected_title : "Title-less Noob"
@@ -98,8 +108,10 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
                 </nav>
 
                 <StatGrid stats={[
-                    { label: 'Games', value: totalGames },
-                    { label: 'Completed', value: completedCount },
+                    ...(data.library_stats ? [
+                        { label: 'Games', value: data.library_stats.total_games },
+                        { label: 'Completed', value: data.library_stats.completed },
+                    ] : []),
                     { label: 'Rated', value: ratingCount },
                     { label: 'Avg Rating', value: ratingCount
                         ? <>{Math.trunc(avgRating * 100) / 100}<span className="text-base text-(--color-muted)"> / 10</span></>

@@ -649,7 +649,10 @@ tests. The website is unchanged for users.
    detail, and list index. Do not save them for a later audit pass.
    > **Done.** Each page calls the loader, and `GET /api/v1/...` calls the same
    > function with `getBearerUser()` only (a website cookie does not become
-   > `viewer`). Signed-out reads return public data with `viewer: null`.
+   > `viewer`). Signed-out reads return the public payload. `viewer` is null on
+   > the profile, list detail, loadout, games list, feed, and explore. The
+   > library, the list index, and home have no `viewer` field. `GET /api/v1/me`
+   > is `{ user: null }`.
    > `Cache-Control` is `private, no-store`.
    >
    > | Route | Loader |

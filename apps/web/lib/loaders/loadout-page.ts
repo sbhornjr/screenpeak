@@ -57,7 +57,7 @@ export async function loadLoadoutPage(username: string, viewerId: string | null)
         total_games: input.totalGames,
         completed_games: input.completedGames,
         rating_count: ratings.length,
-        avg_rating: input.avgRating,
+        avg_rating: ratings.length > 0 ? input.avgRating : null,
         identity: identity?.loadout_identity ?? '',
         can_generate: input.totalRatings >= 5,
         genres: (input.topGenres ?? []).filter(genre => genre.rated_count > 1).slice(0, 6),

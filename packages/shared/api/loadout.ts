@@ -23,7 +23,8 @@ export type LoadoutPageData = {
     total_games: number
     completed_games: number
     rating_count: number
-    avg_rating: number
+    /** Null when the player has no ratings. */
+    avg_rating: number | null
     identity: string
     /** True when the saved stats include at least five ratings. */
     can_generate: boolean

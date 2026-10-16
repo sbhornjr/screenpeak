@@ -7,6 +7,8 @@ import { getOptionalUser } from "@/lib/auth";
 import { loadUserLists } from "@/lib/loaders/lists-page";
 import { parseListsTabLenient } from "@/lib/screen-query";
 import Eyebrow from "@/app/components/util/Eyebrow";
+import EmptyState from "@/app/components/util/EmptyState";
+import type { ListsPageData } from "@screenpeak/shared/api/lists";
 
 type ListsPageProps = {
     params: Promise<{ username: string, tab?: string }>
@@ -26,7 +28,18 @@ export default async function ListsPage({ params, searchParams }: ListsPageProps
     const raw = await searchParams;
     const viewer = await getOptionalUser()
     const { tab } = parseListsTabLenient(raw)
-    const data = await loadUserLists(username, viewer?.id ?? null, tab)
+    let data: ListsPageData | null
+    try {
+        data = await loadUserLists(username, viewer?.id ?? null, tab)
+    } catch {
+        return (
+            <main>
+                <div className="w-full max-w-6xl mx-auto px-6 sm:px-8 pt-8 pb-16">
+                    <EmptyState title="Couldn't load these lists" description="Try again in a moment." />
+                </div>
+            </main>
+        )
+    }
 
     if (!data) notFound()
     const isOwnProfile = viewer?.id === data.profile.id

@@ -10,6 +10,8 @@ import CreateListButton from "@/app/components/lists/CreateListButton";
 import EmptyState from "@/app/components/util/EmptyState";
 import { getOptionalUser } from "@/lib/auth";
 import { loadListPage } from "@/lib/loaders/list-page";
+import { getListById } from "@/lib/queries/list";
+import { getProfileSummaryByUsername } from "@/lib/queries/user";
 import { ArrowLeft } from "lucide-react"
 
 type ListPageProps = {
@@ -20,18 +22,32 @@ type ListPageProps = {
 // reaches the title or OG tags, even for its owner.
 export async function generateMetadata({ params }: ListPageProps): Promise<Metadata> {
     const { username, listId } = await params
-    const data = await loadListPage(username, listId, null)
-    if (!data?.list.is_public) return { title: "List", robots: { index: false } }
+    const profile = await getProfileSummaryByUsername(username)
+    const list = profile ? await getListById(listId) : null
+    if (!profile || !list || list.user_id !== profile.id || !list.is_public) {
+        return { title: "List", robots: { index: false } }
+    }
     return {
-        title: `${data.list.name} by ${username}`,
-        description: data.list.description || `A game list by ${username} on ScreenPeak.`,
+        title: `${list.name} by ${username}`,
+        description: list.description || `A game list by ${username} on ScreenPeak.`,
     }
 }
 
 export default async function ListPage({ params }: ListPageProps) {
     const { username, listId } = await params;
     const viewer = await getOptionalUser()
-    const data = await loadListPage(username, listId, viewer?.id ?? null)
+    let data
+    try {
+        data = await loadListPage(username, listId, viewer?.id ?? null)
+    } catch {
+        return (
+            <main>
+                <div className="w-full max-w-6xl mx-auto px-6 sm:px-8 pt-8 pb-16">
+                    <EmptyState title="Couldn't load this list" description="Try again in a moment." />
+                </div>
+            </main>
+        )
+    }
 
     if (!data) notFound()
 

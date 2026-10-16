@@ -1,4 +1,5 @@
 import { eq, and, inArray, desc, sql } from 'drizzle-orm'
+import { uuidArrayParam } from '@/lib/sql-helpers'
 import { db } from '@/lib/db'
 import { lists, listGames, listLikes, games } from '@/db/schema'
 import { GameCover, ListDetail, ListGameEntry } from '@screenpeak/shared/types'
@@ -11,55 +12,46 @@ export async function getUserLists(userId: string | null | undefined, includePri
 }
 
 export async function getLikedLists(userId: string) {
-    try {
-        return await db.execute(sql`select * from get_liked_lists(p_user_id => ${userId})`)
-    } catch {
-        return []
-    }
+    // A database error must reject. Returning [] makes an outage look like no liked lists.
+    return await db.execute(sql`select * from get_liked_lists(p_user_id => ${userId})`)
 }
 
 export async function getListById(listId: string): Promise<ListDetail | null> {
-    try {
-        const rows = await db
-            .select({
-                id: lists.id,
-                user_id: lists.userId,
-                name: lists.name,
-                description: lists.description,
-                is_public: lists.isPublic,
-                is_pinned: lists.isPinned,
-                is_default: lists.isDefault,
-                created_at: lists.createdAt,
-                updated_at: lists.updatedAt,
-            })
-            .from(lists)
-            .where(eq(lists.id, listId))
-            .limit(1)
+    // A database error must reject. Returning null makes an outage look like a missing list.
+    const rows = await db
+        .select({
+            id: lists.id,
+            user_id: lists.userId,
+            name: lists.name,
+            description: lists.description,
+            is_public: lists.isPublic,
+            is_pinned: lists.isPinned,
+            is_default: lists.isDefault,
+            created_at: lists.createdAt,
+            updated_at: lists.updatedAt,
+        })
+        .from(lists)
+        .where(eq(lists.id, listId))
+        .limit(1)
 
-        return (rows[0] as unknown as ListDetail) ?? null
-    } catch {
-        return null
-    }
+    return (rows[0] as unknown as ListDetail) ?? null
 }
 
 export async function getListGames(listId: string): Promise<ListGameEntry[]> {
-    try {
-        const rows = await db
-            .select({
-                games: {
-                    id: games.id, name: games.name, slug: games.slug,
-                    cover_image_url: games.coverImageUrl, released: games.released,
-                },
-            })
-            .from(listGames)
-            .innerJoin(games, eq(listGames.gameId, games.id))
-            .where(eq(listGames.listId, listId))
-            .orderBy(listGames.position)
+    // A database error must reject. Returning [] makes an outage look like an empty list.
+    const rows = await db
+        .select({
+            games: {
+                id: games.id, name: games.name, slug: games.slug,
+                cover_image_url: games.coverImageUrl, released: games.released,
+            },
+        })
+        .from(listGames)
+        .innerJoin(games, eq(listGames.gameId, games.id))
+        .where(eq(listGames.listId, listId))
+        .orderBy(listGames.position)
 
-        return rows as unknown as ListGameEntry[]
-    } catch {
-        return []
-    }
+    return rows as unknown as ListGameEntry[]
 }
 
 export async function getListCoverMap(listIds: (string | number)[]): Promise<Map<string, GameCover[]>> {
@@ -92,6 +84,34 @@ export async function getListCoverMap(listIds: (string | number)[]): Promise<Map
     } catch {
         return new Map()
     }
+}
+
+export type ListLikeStat = { like_count: number; viewer_has_liked: boolean }
+
+/** Counts only. A database error rejects. An id with no likes is absent from the map. */
+export async function getListLikeStats(listIds: string[], viewerId: string | null): Promise<Map<string, ListLikeStat>> {
+    const stats = new Map<string, ListLikeStat>()
+    if (listIds.length === 0) return stats
+
+    const liked = viewerId
+        ? sql`coalesce(bool_or(user_id = ${viewerId}), false)`
+        : sql`false`
+    const rows = await db.execute(sql`
+        select list_id::text as list_id,
+               count(*) as like_count,
+               ${liked} as viewer_has_liked
+        from list_likes
+        where list_id = any(${uuidArrayParam(listIds)})
+        group by list_id
+    `) as unknown as { list_id: string; like_count: number; viewer_has_liked: boolean }[]
+
+    for (const row of rows) {
+        stats.set(String(row.list_id), {
+            like_count: row.like_count,
+            viewer_has_liked: row.viewer_has_liked === true,
+        })
+    }
+    return stats
 }
 
 export async function getListLikes(listIds: (string | number)[]) {

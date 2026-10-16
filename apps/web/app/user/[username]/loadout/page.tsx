@@ -7,6 +7,7 @@ import DistributionChart from "@/app/components/util/DistributionChart";
 import SectionHead from "@/app/components/util/SectionHead";
 import Eyebrow from "@/app/components/util/Eyebrow";
 import { panelClass } from "@/app/components/util/Panel";
+import EmptyState from "@/app/components/util/EmptyState";
 import { getOptionalUser } from "@/lib/auth";
 import { loadLoadoutPage } from "@/lib/loaders/loadout-page";
 
@@ -30,7 +31,18 @@ export default async function LoadoutPage({ params } : LoadoutPageProps) {
     const { username } = await params;
     
     const viewer = await getOptionalUser()
-    const data = await loadLoadoutPage(username, viewer?.id ?? null)
+    let data
+    try {
+        data = await loadLoadoutPage(username, viewer?.id ?? null)
+    } catch {
+        return (
+            <main className="bg-(--color-bg)">
+                <div className="w-full max-w-6xl mx-auto px-6 md:px-10 pt-8 pb-16">
+                    <EmptyState title="Couldn't load this Loadout" description="Try again in a moment." />
+                </div>
+            </main>
+        )
+    }
     if (!data) redirect("/")
 
     const totalGames = data.total_games
@@ -59,7 +71,7 @@ export default async function LoadoutPage({ params } : LoadoutPageProps) {
                         <span><span className="text-(--color-text)">{totalGames}</span> saved</span>
                         <span><span className="text-(--color-text)">{completedStat}</span> completed</span>
                         <span><span className="text-(--color-text)">{ratingCount}</span> rated</span>
-                        <span><span className="text-(--color-text)">{ratingCount ? Math.trunc(avgRating * 100) / 100 : "—"}</span> avg</span>
+                        <span><span className="text-(--color-text)">{avgRating == null ? "—" : Math.trunc(avgRating * 100) / 100}</span> avg</span>
                     </div>
                 </header>
 

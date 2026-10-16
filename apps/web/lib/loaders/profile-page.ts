@@ -2,9 +2,9 @@ import 'server-only'
 import type { ProfilePageData, ProfileReview } from '@screenpeak/shared/api/profile'
 import { getDeveloperNameMap, queryGames } from '@/lib/queries/game'
 import { getLibraryStatusBreakdown } from '@/lib/queries/library'
-import { getRecentReviews, getUserRatings } from '@/lib/queries/review'
+import { getRatingSummary, getRecentReviews } from '@/lib/queries/review'
 import { getLoadoutDeveloperStats } from '@/lib/queries/stats'
-import { getFollowers, getFollowing, getFullProfile } from '@/lib/queries/user'
+import { getFullProfile, getProfileFollowStats } from '@/lib/queries/user'
 import { gameCard, num, text } from '@/lib/loaders/shape'
 
 /** Null when the username does not exist. */
@@ -17,15 +17,14 @@ export async function loadProfilePage(username: string, viewerId: string | null)
     const canSeeLoadout = isOwner || !!profile.loadout_public
     const favoriteIds = profile.favorite_game_ids ?? []
 
-    const [followers, following, library, favorites, reviews, ratings, developers] = await Promise.all([
-        getFollowers(profile.id),
-        getFollowing(profile.id),
+    const [follows, library, favorites, reviews, ratings, developers] = await Promise.all([
+        getProfileFollowStats(profile.id, viewerId),
         canSeeLibrary ? getLibraryStatusBreakdown(profile.id) : Promise.resolve(null),
         favoriteIds.length
             ? queryGames({ userId: viewerId, gameIds: favoriteIds })
             : Promise.resolve([]),
         getRecentReviews(profile.id),
-        getUserRatings(profile.id),
+        getRatingSummary(profile.id),
         isOwner ? getLoadoutDeveloperStats(profile.id) : Promise.resolve([]),
     ])
 
@@ -36,10 +35,8 @@ export async function loadProfilePage(username: string, viewerId: string | null)
         .filter((game): game is NonNullable<typeof game> => !!game)
         .reverse()
 
-    const ratingCount = ratings.length
-    const average = ratingCount === 0
-        ? null
-        : ratings.reduce((sum, row) => sum + (num(row.rating) ?? 0), 0) / ratingCount
+    const ratingCount = ratings.rating_count
+    const average = ratings.avg_rating
 
     const recent: ProfileReview[] = reviews.map(review => ({
         user_id: String(review.user_id),
@@ -67,8 +64,8 @@ export async function loadProfilePage(username: string, viewerId: string | null)
             profile_loadout_bio: canSeeLoadout ? (profile.profile_loadout_bio ?? null) : null,
             library_public: !!profile.library_public,
             loadout_public: !!profile.loadout_public,
-            follower_count: followers.length,
-            following_count: following.length,
+            follower_count: follows.follower_count,
+            following_count: follows.following_count,
         },
         library_stats: library
             ? {
@@ -83,7 +80,7 @@ export async function loadProfilePage(username: string, viewerId: string | null)
         viewer: viewerId
             ? {
                 is_owner: isOwner,
-                is_following: followers.some(row => row.follower_id === viewerId),
+                is_following: follows.is_following,
                 top_developer_names: isOwner ? developers.slice(0, 6).map(row => row.developer_name) : [],
             }
             : null,

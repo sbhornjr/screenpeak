@@ -135,8 +135,10 @@ export function parseLibraryQuery(params: URLSearchParams): Parsed<LibraryQuery>
     }
 }
 
-export function parseLibraryQueryLenient(params: PageSearch): LibraryQuery {
+/** Null when `status` is not a library status. The page must not treat that as "every game". */
+export function parseLibraryQueryLenient(params: PageSearch): LibraryQuery | null {
     const status = (first(params.status) ?? '').trim()
+    if (!(STATUSES as readonly string[]).includes(status)) return null
     const sort = parseCatalogSortLenient({ sort: first(params.sort), order: first(params.order) }, LIBRARY_SORTS)
     return {
         q: blank(first(params.q)),
@@ -147,7 +149,7 @@ export function parseLibraryQueryLenient(params: PageSearch): LibraryQuery {
         esrb: blank(first(params.esrb)),
         sort: sort.sort as LibrarySort,
         order: sort.order,
-        status: (STATUSES as readonly string[]).includes(status) ? status as LibraryStatus : '',
+        status: status as LibraryStatus,
         is100: first(params.is100)?.trim() === 'true',
     }
 }

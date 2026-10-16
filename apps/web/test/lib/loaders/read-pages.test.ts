@@ -9,6 +9,7 @@ const userQ = {
     getFullProfile: vi.fn(),
     getFollowers: vi.fn(),
     getFollowing: vi.fn(),
+    getProfileFollowStats: vi.fn(),
     getProfileSummaryByUsername: vi.fn(),
     getFeaturedLoadout: vi.fn(),
     getCurrentLoadoutIdentity: vi.fn(),
@@ -32,12 +33,14 @@ const listQ = {
     getLikedLists: vi.fn(),
     getListCoverMap: vi.fn(),
     getListLikes: vi.fn(),
+    getListLikeStats: vi.fn(),
     getListById: vi.fn(),
     getListGames: vi.fn(),
 }
 const reviewQ = {
     getRecentReviews: vi.fn(),
     getUserRatings: vi.fn(),
+    getRatingSummary: vi.fn(),
     getAvgRatingsForGames: vi.fn(),
     getUserRatingsForGames: vi.fn(),
     getUserRatingsReviewsPage: vi.fn(),
@@ -128,10 +131,13 @@ beforeEach(() => {
     gameQ.getAllPlatforms.mockResolvedValue([])
     gameQ.getDistinctEsrbRatings.mockResolvedValue(['Mature'])
     listQ.getListCoverMap.mockResolvedValue(new Map([['list-public', [{ coverImageUrl: STORED, slug: 'secret-backlog' }]]]))
-    listQ.getListLikes.mockResolvedValue([
-        { list_id: 'list-public', user_id: LIKER },
-        { list_id: 'list-public', user_id: OTHER },
-    ])
+    listQ.getListLikeStats.mockImplementation(async (ids: string[], viewerId: string | null) => {
+        const stats = new Map<string, { like_count: number; viewer_has_liked: boolean }>()
+        if (ids.includes('list-public')) {
+            stats.set('list-public', { like_count: 2, viewer_has_liked: viewerId === OTHER })
+        }
+        return stats
+    })
 })
 
 describe('loadUserLibrary', () => {
@@ -271,7 +277,7 @@ describe('loadListPage', () => {
         listQ.getListGames.mockResolvedValue([{
             games: { id: SECRET_GAME.id, name: 'Secret Backlog Game', slug: 'secret-backlog', cover_image_url: STORED, released: '2020-01-01' },
         }])
-        listQ.getListLikes.mockResolvedValue([{ list_id: 'list-1', user_id: LIKER }])
+        listQ.getListLikeStats.mockResolvedValue(new Map([['list-1', { like_count: 1, viewer_has_liked: false }]]))
         reviewQ.getAvgRatingsForGames.mockResolvedValue([{ game_id: SECRET_GAME.id, avg_rating: 7.5 }])
         reviewQ.getUserRatingsForGames.mockResolvedValue([{ game_id: SECRET_GAME.id, rating: 9 }])
         gameQ.getDeveloperNameMap.mockResolvedValue(new Map([[SECRET_GAME.id, 'Studio']]))
@@ -377,6 +383,19 @@ describe('loadLoadoutPage', () => {
         expect(JSON.stringify(data)).not.toContain('best kept review')
     })
 
+    it('uses a null average when the player has no ratings', async () => {
+        reviewQ.getUserRatings.mockResolvedValue([])
+        loadoutQ.buildLoadoutInput.mockResolvedValue({
+            username: 'ada', totalGames: 0, completedGames: 0, totalRatings: 0, avgRating: 0,
+            topGenres: [], topDevelopers: [],
+        })
+
+        const data = await loadLoadoutPage('ada', OWNER)
+
+        expect(data!.rating_count).toBe(0)
+        expect(data!.avg_rating).toBeNull()
+    })
+
     it('returns a public loadout to a signed-out caller with viewer null', async () => {
         userQ.getAccountSettings.mockResolvedValue({ id: OWNER, loadout_public: true, library_public: false })
 
@@ -397,8 +416,11 @@ describe('loadProfilePage', () => {
             user_bio: 'hello', profile_loadout_bio: 'secret readout',
             library_public: false, loadout_public: false, default_list_public: false,
         })
-        userQ.getFollowers.mockResolvedValue([{ follower_id: LIKER }, { follower_id: OTHER }])
-        userQ.getFollowing.mockResolvedValue([{ following_id: '44444444-4444-4444-8444-444444444444' }])
+        userQ.getProfileFollowStats.mockImplementation(async (_userId: string, viewerId: string | null) => ({
+            follower_count: 2,
+            following_count: 1,
+            is_following: viewerId === OTHER,
+        }))
         libraryQ.getLibraryStatusBreakdown.mockResolvedValue({
             entries: [{ status: 'completed' }, { status: 'playing' }], totalCount: 2,
         })
@@ -411,10 +433,7 @@ describe('loadProfilePage', () => {
             users: { username: 'ada', display_name: 'Ada', avatar_url: '' },
             games: { name: 'Secret Backlog Game', slug: 'secret-backlog' },
         }])
-        reviewQ.getUserRatings.mockResolvedValue([
-            { game_id: 'g1', rating: 8, review: 'private words' },
-            { game_id: 'g2', rating: 6, review: '' },
-        ])
+        reviewQ.getRatingSummary.mockResolvedValue({ rating_count: 2, avg_rating: 7 })
         statsQ.getLoadoutDeveloperStats.mockResolvedValue([
             { developer_name: 'Secret Studio', weighted_rating: 9, rated_count: 2, game_count: 2, avg_rating: 9 },
         ])

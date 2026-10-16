@@ -150,7 +150,12 @@ export default async function Home() {
         )
     }
 
-    const feed = (await loadFeed(viewer.id, 0)).items
+    let feed: Awaited<ReturnType<typeof loadFeed>>['items'] = []
+    try {
+        feed = (await loadFeed(viewer.id, 0)).items
+    } catch {
+        feed = []
+    }
 
     return (
         <main>
