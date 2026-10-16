@@ -848,8 +848,90 @@ function readoutRow() {
     `, ['-tA'])
 }
 
+function ratedGame() {
+    const line = psql(databaseUrl, `
+        select g.slug || '|' || g.name || '|' || coalesce(g.cover_image_url, '')
+        from games g
+        join ratings_reviews rr on rr.game_id = g.id
+        join users u on u.id = rr.user_id
+        where u.username = '${peekUsername}'
+        order by g.slug
+        limit 1
+    `, ['-tA'])
+    if (!line) throw new Error('peek has no rated game to open.')
+    const [slug, name, cover] = line.split('|')
+    return { slug, name, cover: cover || null }
+}
+
+async function driveGamePage() {
+    const doctorRun = spawnSync(process.execPath, [fileURLToPath(import.meta.url), 'doctor'], { encoding: 'utf8' })
+    process.stdout.write(doctorRun.stdout || '')
+    if (doctorRun.status !== 0) fail('Doctor failed. Not driving.')
+    const game = ratedGame()
+    const dir = join(evidenceRoot, 'game-page')
+    await mkdir(dir, { recursive: true })
+    const gameUrl = `http://127.0.0.1:${appPort}/api/v1/games/${encodeURIComponent(game.slug)}`
+    const reviewsUrl = `${gameUrl}/reviews`
+    const gameRes = await fetch(gameUrl)
+    const gameBody = await gameRes.json()
+    const reviewsRes = await fetch(reviewsUrl)
+    const reviewsBody = await reviewsRes.json()
+    const payload = JSON.stringify(gameBody)
+    const cover = gameBody?.game?.cover_image_url ?? null
+    const problems = []
+    if (gameRes.status !== 200) problems.push(`game status ${gameRes.status}`)
+    if (gameBody?.game?.name !== game.name) problems.push(`name ${gameBody?.game?.name} != ${game.name}`)
+    if (gameBody?.game?.slug !== game.slug) problems.push(`slug ${gameBody?.game?.slug}`)
+    if (gameBody?.viewer !== null) problems.push('viewer was not null')
+    if (typeof gameBody?.stats?.avg_rating !== 'number') problems.push(`avg_rating ${gameBody?.stats?.avg_rating}`)
+    if (payload.includes('steam_appid') || payload.includes('metacritic') || payload.includes('avg_ngplus_rating')) {
+        problems.push('payload includes a retired field')
+    }
+    if (game.cover && (!cover || !cover.includes('/t_cover_big_2x/') || !cover.startsWith('https://images.igdb.com/'))) {
+        problems.push(`cover was not a display URL: ${cover}`)
+    }
+    if (!game.cover && cover !== null) problems.push(`cover should be null, got ${cover}`)
+    if (reviewsRes.status !== 200 || !Array.isArray(reviewsBody?.reviews)) problems.push(`reviews status ${reviewsRes.status}`)
+    const chromePid = await launchChrome()
+    let page = null
+    try {
+        page = await connectChrome()
+        await page.navigate(`http://127.0.0.1:${appPort}/games/${encodeURIComponent(game.slug)}`)
+        await page.waitForText(game.name)
+        await page.screenshot(join(dir, 'page.png'))
+        const bodyText = await page.bodyText()
+        if (!bodyText.includes(game.name)) problems.push('the page text does not include the game name')
+    } finally {
+        page?.close()
+        stopRecorded('chrome')
+        if (chromePid) {
+            try { process.kill(chromePid, 'SIGTERM') } catch { /* already stopped */ }
+        }
+    }
+    const result = {
+        feature: 'game-page',
+        slug: game.slug,
+        name: game.name,
+        storedCover: game.cover,
+        apiStatus: gameRes.status,
+        viewer: gameBody?.viewer ?? null,
+        avg_rating: gameBody?.stats?.avg_rating ?? null,
+        cover_image_url: cover,
+        reviewsStatus: reviewsRes.status,
+        reviewCount: Array.isArray(reviewsBody?.reviews) ? reviewsBody.reviews.length : null,
+        problems,
+    }
+    await writeFile(join(dir, 'result.json'), JSON.stringify(result, null, 2))
+    if (problems.length) {
+        console.error(problems.join('\n'))
+        process.exit(1)
+    }
+    log(`proved game-page evidence ${dir}`)
+}
+
 async function drive(feature) {
-    if (feature !== 'loadout-readout') fail(`Unknown feature ${feature || ''}. Mapped feature: loadout-readout.`)
+    if (feature === 'game-page') return driveGamePage()
+    if (feature !== 'loadout-readout') fail(`Unknown feature ${feature || ''}. Mapped features: loadout-readout, game-page.`)
     const doctorRun = spawnSync(process.execPath, [fileURLToPath(import.meta.url), 'doctor'], { encoding: 'utf8' })
     process.stdout.write(doctorRun.stdout || '')
     if (doctorRun.status !== 0) fail('Doctor failed. Not driving.')

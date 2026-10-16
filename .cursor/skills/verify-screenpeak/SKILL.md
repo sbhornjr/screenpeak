@@ -56,20 +56,32 @@ The harness is this script. Feature recipes name the exact subcommand. Prefer th
 
 ```bash
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive loadout-readout
+node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive game-page
 ```
+
+`drive game-page` does not sign in. It reads one of `peek`'s games from Postgres, fetches `GET /api/v1/games/[slug]` and the reviews route, and opens the website's game page. The native screen is checked with Expo web, not this drive.
 
 The drive resets `peek`'s Read-out columns to null, signs in through the dialog, opens Loadout from the account menu and from `/user/peek/loadout`, clicks `Generate your Read-out`, and reads `public.users` back. It exits 0 only when the page shows the generated paragraph and `loadout_identity` in Postgres equals that paragraph. It exits 2 when the click ran but the model call did not produce text. Any other failure exits 1.
 
 ## Evidence
 
-Proof for a drive is written to `/tmp/screenpeak-verify/evidence/loadout-readout/` and is not removed by `down`:
+Proof for a drive is written under `/tmp/screenpeak-verify/evidence/` and is not removed by `down`.
+
+`drive loadout-readout` writes `/tmp/screenpeak-verify/evidence/loadout-readout/`:
 
 - `before.png` — Loadout page before the click, with the fixture stats visible
 - `after.png` — the same page after the click
 - `result.json` — button outcome, `/api/loadout` status and body, and the Postgres row
 - `postgres.txt` — the `psql` output for the user, library count, rating count, and Read-out columns
 
-A passing proof shows the action (the Generate control) and the resulting state (the paragraph on screen and the same text in `users.loadout_identity`). A missing `ANTHROPIC_API_KEY` is a failed proof: the screenshot shows the page error, Postgres still has a null `loadout_identity`, and `result.json` names the env var. Do not substitute a canned paragraph.
+A passing Loadout proof shows the action (the Generate control) and the resulting state (the paragraph on screen and the same text in `users.loadout_identity`). A missing `ANTHROPIC_API_KEY` is a failed proof: the screenshot shows the page error, Postgres still has a null `loadout_identity`, and `result.json` names the env var. Do not substitute a canned paragraph.
+
+`drive game-page` writes `/tmp/screenpeak-verify/evidence/game-page/`:
+
+- `page.png` — the website game page, signed out, with the game's name visible
+- `result.json` — the slug, the API status, `viewer`, `avg_rating`, and the reviews status
+
+A passing game-page proof shows the game name in `page.png` and a 200 from `GET /api/v1/games/[slug]` with `viewer` null in `result.json`.
 
 ## Cleanup
 
@@ -77,7 +89,7 @@ A passing proof shows the action (the Generate control) and the resulting state 
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs down
 ```
 
-Kill only the pids in `/tmp/screenpeak-verify/pids`. After `down`, the evidence directory above must still exist. Confirm that before treating the run as finished.
+Kill only the pids in `/tmp/screenpeak-verify/pids`. After `down`, `/tmp/screenpeak-verify/evidence/loadout-readout/` and `/tmp/screenpeak-verify/evidence/game-page/` must still exist. Confirm that before treating the run as finished.
 
 ## Helpers
 

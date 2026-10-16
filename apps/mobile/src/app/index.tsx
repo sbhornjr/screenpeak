@@ -5,14 +5,14 @@ import { DataAttribution } from '@/components/data-attribution';
 import { Eyebrow } from '@/components/eyebrow';
 import { colors, face, space, tracking, trackingPx } from '@/theme';
 
-// Placeholder until the real Home/feed screen (build-plan.md Phase 3).
+// Placeholder until the welcome screen and the feed (build-plan.md).
 export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.screen}>
       <View style={styles.content}>
         <Eyebrow>ScreenPeak</Eyebrow>
-        <Text style={styles.title}>Your feed lands here.</Text>
-        <Text style={styles.body}>The mobile screens arrive once the /api/v1 layer is in place.</Text>
+        <Text style={styles.title}>The feed lands here.</Text>
+        <Text style={styles.body}>Game pages are already on this app. The welcome screen and the feed are still to come.</Text>
       </View>
       <View style={styles.attribution}>
         <DataAttribution />

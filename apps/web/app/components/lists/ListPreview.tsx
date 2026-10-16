@@ -11,7 +11,7 @@ import { parseDbTimestamp } from "@/lib/dates"
 import { Pin } from "lucide-react"
 
 export default function ListPreview({ listId, listName, gameCovers, isPinnable, isLikable, description, lastUpdated, username, listCount, isPinned, likeCount, userHasLiked, activeUserId, fullLength } :
-    { listId: number, listName: string, gameCovers: GameCover[] | undefined, isPinnable: boolean, isLikable: boolean, description: string | null, lastUpdated: string, username: string, listCount: number, isPinned?: boolean, likeCount: number, userHasLiked: boolean, activeUserId: string | undefined, fullLength: boolean }) {
+    { listId: string, listName: string, gameCovers: GameCover[] | undefined, isPinnable: boolean, isLikable: boolean, description: string | null, lastUpdated: string, username: string, listCount: number, isPinned?: boolean, likeCount: number, userHasLiked: boolean, activeUserId: string | undefined, fullLength: boolean }) {
     const [isPinnedNow, setIsPinnedNow] = useState<boolean | null | undefined>(isPinned)
     const router = useRouter()
 

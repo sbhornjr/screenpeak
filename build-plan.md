@@ -18,6 +18,40 @@ Catalogue art and metadata come from IGDB. A game page shows You and Community, 
   the 14 screens as native UI. Backend work is ~20% of the total because
   `lib/queries/*` already carries the logic.
 
+## Decisions
+
+Recorded 2026-10-16. Where an older sketch below disagrees with this section, this section wins. The sketches in Part 2 and Appendix B are updated to match.
+
+### Order
+
+Follow Part 4. Bearer auth, the game loader, `GET /api/v1/games/[slug]` plus reviews, and the native game screen are done. The next slice is the remaining loaders — library, loadout, list detail, and list index — each with its privacy test in the same change.
+
+### API shape
+
+- Paths mirror the site: `/api/v1/user/[username]/...`. Lists are nested there: `/api/v1/user/[username]/lists` and `/api/v1/user/[username]/lists/[listId]`.
+- Followers and following are counts on the profile payload in v1. There are no follower-list endpoints.
+- The community score field is `avg_rating` on every API payload. `query_games` still returns the column `avg_ngplus_rating`; the games-list route renames it when that route is built. The game page already sends `stats.avg_rating`. There is no Metacritic field and no Metacritic sort. Catalogue order is `name` (the default, ascending) or `ngplus_rating`, both implemented by `query_games`.
+- Image fields on API payloads are display-ready URLs. The server picks the IGDB rendition with `packages/shared/images.ts` (`displayCoverUrl` at `large` is `t_cover_big_2x`; landscape art and shots go through `displayLandscapeUrl`). The phone does not choose a rendition. Byte checks for share cards stay in `apps/web/lib/catalog/images.ts` because they need `fetch` and Node's `Buffer`.
+- Phone Steam import is in v1, and it is late (still the last Phase 3 screen). The API exposes the batch cursor and lease the web already runs (`retry`, `cursor`, `nextCursor`, and the lease `notice` / `retryAfterMs` from `resolveSteamImportBatch`). It does not offer one `GET` of the whole Steam library. The OpenID `state` token from `POST /api/v1/me/steam/link-intent` is still required.
+- Each remaining loader moves its privacy gate with it and ships a privacy test in the same change. The four gates are library, loadout, list detail, and list index. There is no separate privacy pass after the routes exist.
+- Game ids in the shared types are uuid strings: `GameData.id`, `RatingReviewData.game_id`, `SimpleRatingReview.game_id`, `AvgRatingsData.game_id`, `ListSummary.id`, `LibraryData.id`, and the library actions' `gameId`. New contracts copy those strings. `games.id` has been a uuid since the schema landed.
+- `queryGames` throws when the database errors. A web page that still wants an empty grid catches at the call site. An API route must not turn an outage into `[]`.
+- A game slug is the IGDB slug (`catalogSlug`). When that slug is already taken, the stored slug is `` `${base}-${games.id}` ``.
+- Steam app ids live in `game_external_ids`. There is no `games.steam_appid` column, and `GameDetail` does not include one.
+- Schema changes are applied with `migrate:journal`, not `drizzle-kit push`.
+
+### Signed-out home
+
+**Mobile — decided.** There is no sign-in wall (App Store Review Guideline 5.1.1). The screen is not a port of the web splash. A short welcome offers Sign up, Log in, and Browse first. Browse opens the native catalogue, the same job as the web `/games` page (search and filters), not a web view. After that the app is read-only: search, game pages, reviews, lists, and a sample Loadout. The first action that needs an account — rating, logging a game, following, or Steam import — prompts for signup. `GET /api/v1/games/[slug]` and the native game screen work signed out (`viewer: null`). The welcome screen is only planned here. The game-screen slice does not build it.
+
+**Web — still open.** The signed-out splash stays the open items in `docs/backlog.md` (the first screen, and a Read-out on it before launch). That page waits on owner and Lens input.
+
+### Testing and launch
+
+- Cloud agents verify API behaviour and logic with unit tests and a local Postgres, and they verify layouts with Expo web (`npm run mobile:web`). The owner checks a real device at milestones. The phone UI is not part of the `verify-screenpeak` browser drive; that drive covers the web app and the JSON the phone consumes.
+- Screens live in `apps/mobile/src/app/`. Mobile tests are Vitest (`npm test -w @screenpeak/mobile`), not Jest.
+- The IGDB commercial partnership blocks the App Store and a public launch only. It does not block TestFlight or other test builds. See Phase 5.
+
 ---
 
 ## Part 1 — Your open questions
@@ -119,7 +153,7 @@ Instagram, Messenger), Microsoft (Office, Teams pieces, Xbox app), Shopify
 - **Expo** is a framework *on top of* React Native — roughly what Next.js is to
   React. It adds:
   - **Expo Router** — file-based routing, deliberately modeled on the Next.js
-    App Router. `app/games/[slug].tsx` works the way you'd expect.
+    App Router. `apps/mobile/src/app/games/[slug].tsx` works the way you'd expect.
   - **The Expo SDK** — maintained native modules (secure storage, image picker,
     fonts, haptics, notifications, web-browser auth sessions, …).
   - **EAS** (cloud services) — builds your `.ipa`/`.apk` in the cloud, submits
@@ -142,9 +176,9 @@ screenpeak/
 │   │   ├── app/  lib/  db/  scripts/  test/  public/ …
 │   │   └── package.json
 │   └── mobile/             # new Expo app
-│       ├── app/            # Expo Router screens
-│       ├── components/
-│       ├── lib/api/        # fetch client for /api/v1 (mobile is its only user)
+│       ├── src/app/        # Expo Router screens
+│       ├── src/components/
+│       ├── src/lib/api/    # fetch client for /api/v1 (mobile is its only user)
 │       └── package.json
 └── packages/
     └── shared/             # imported by BOTH apps
@@ -188,7 +222,7 @@ no queries and no fetching:
 packages/shared/api/          ← NO db, no runtime code. Imported by both apps.
   types.ts                      GamePageData, UpdateLibraryEntryBody, ApiError …
 
-apps/mobile/lib/api/          ← the phone's side of the contract.
+apps/mobile/src/lib/api/      ← the phone's side of the contract.
   client.ts                     api.games.get(slug) → fetch(`${BASE}/api/v1/games/${slug}`)
                                 (adds the bearer header, parses JSON, throws ApiError)
 
@@ -204,7 +238,7 @@ apps/web/                     ← the ONLY place db is imported.
 A request from the phone:
 
 ```
-Game screen ─► api.games.get('elden-ring')          (apps/mobile/lib/api/client.ts, on the phone)
+Game screen ─► api.games.get('elden-ring')          (apps/mobile/src/lib/api/client.ts, on the phone)
             ─► HTTPS GET /api/v1/games/elden-ring
             ─► route.ts ─► loadGamePage() ─► lib/queries/* ─► db ─► Postgres   (all in apps/web, on the server)
             ◄─ JSON typed as GamePageData (the same type both sides import)
@@ -276,7 +310,7 @@ UI is the biggest *chunk of work*, but the differences that bite are about
 | Icons | `lucide-react-native` | Same icon set the web uses |
 | Errors | `@sentry/react-native` | Same Sentry org as the web |
 | Builds / release | EAS Build, EAS Submit, EAS Update | |
-| Tests | `jest-expo` + React Native Testing Library; Maestro for E2E flows | |
+| Tests | Vitest (`apps/mobile`, `npm test`). Expo web is how a cloud agent checks layout. Maestro, or a real device, is the owner's milestone check. | |
 
 ### Auth flow
 
@@ -307,8 +341,13 @@ and an Auth outage is a 503 `auth_unavailable`, never a 401.
 
 Route handlers are wrapped in `withAuth(handler)` (`lib/api.ts`), which turns a
 thrown `ApiError` into the standard `{ error: { code, message } }` JSON response,
-so every route doesn't repeat try/catch. Native apps don't enforce CORS, so no
-CORS config is needed for the mobile client.
+so every route doesn't repeat try/catch. `/api/v1` calls `getBearerUser()` and
+never reads the session cookie. `getOptionalUser()` stays the website helper.
+Native fetch ignores CORS. Expo web does not: `withAuth` adds
+`Access-Control-Allow-Origin: *` only on `/api/v1` (no `Allow-Credentials`).
+`proxy.ts` skips the session refresh for `/api/v1` and answers `OPTIONS` there.
+Cookie routes such as `DELETE /api/delete-account` do not send that header. The
+phone sends `Authorization: Bearer` and fetches with `credentials: 'omit'`.
 
 **Email links** (confirm signup, password reset) keep landing on the website's
 `/auth/confirm` for v1. Later, iOS Universal Links / Android App Links can make
@@ -357,26 +396,27 @@ export async function loadGamePage(slug: string, viewerId: string | null) {
     return { game, taxonomy, stats, viewer }      // satisfies GamePageData
 }
 
-async function loadViewerGameState(gameId: Game['id'], userId: string) {
-    const [review, libraryEntry, lists, settings] = await Promise.all([
-        getUserRatingReviewForGame(gameId, userId),
-        getLibraryEntry(userId, gameId),
-        getUserLists(userId, true),
-        getAccountSettings(userId),
+async function loadViewerState(gameId: string, viewerId: string): Promise<GamePageViewer> {
+    const [review, libraryEntry, listRows, defaultListPublic] = await Promise.all([
+        getUserRatingReviewForGame(gameId, viewerId),
+        getLibraryEntry(viewerId, gameId),
+        getUserLists(viewerId, true),
+        getDefaultListPublic(viewerId),
     ])
-    const listIdsGameIsIn = await getGameListMembership(gameId, lists.map(l => l.id))
-    return { review, libraryEntry, lists, listIdsGameIsIn, settings }
+    const lists = listRows.map(l => ({ id: l.id, name: l.name, game_count: l.game_count }))
+    const membership = await getGameListMembership(gameId, lists.map(l => l.id))
+    return { review, libraryEntry, lists, listIdsGameIsIn: [...membership], defaultListPrivacy: defaultListPublic ?? true }
 }
 ```
 
-So the JSON looks like:
+The built payload is `GamePageData` in `packages/shared/api/games.ts`. `game` is a `GameDetail` (uuid `id`, `igdb_id`, display-ready `cover_image_url` / `artwork_image_url` / `screenshots` — no `steam_appid`, no Metacritic). `stats.avg_rating` is the community score out of 10. Signed out, `viewer` is null. Signed in, `viewer` is `{ review, libraryEntry, lists, listIdsGameIsIn, defaultListPrivacy }` — `defaultListPrivacy` is the one settings bit the "add to list" control needs, not the whole account row, and `listIdsGameIsIn` is an array because a `Set` becomes `{}` in JSON.
 
 ```jsonc
 {
-  "game":     { "id": "…", "name": "Elden Ring", "slug": "elden-ring", … },
-  "taxonomy": { "genres": […], "platforms": […], "developers": […], … },
-  "stats":    { "avg": 8.7, "count": 41, "distribution": […] },
-  "viewer":   null   // signed out; otherwise { review, libraryEntry, lists, listIdsGameIsIn, settings }
+  "game":     { "id": "…uuid…", "name": "Elden Ring", "slug": "elden-ring", "igdb_id": 119133, "cover_image_url": "https://images.igdb.com/igdb/image/upload/t_cover_big_2x/….jpg", "screenshots": [] },
+  "taxonomy": { "genres": […], "platforms": […], "developers": […], "publishers": […] },
+  "stats":    { "avg_rating": 8.7, "total_ratings": 41, "total_reviews": 12, "rating_10": 9 },
+  "viewer":   null
 }
 ```
 
@@ -412,19 +452,17 @@ loaders):
 | `GET /me` | `getOptionalUser`, `getProfileSummaryById` | layout/nav |
 | `GET /feed?offset=` | `getFeed` (replaces the `fetchFeedPage` action for mobile) | `/` (signed-in) |
 | `GET /explore` | `getTrendingGames`, `getTrendingLists`, `getExploreRecommendations`, `getHeroGame` | `/explore`, `/` |
-| `GET /games?…filters` | `queryGames`, `getAllGenres`, `getAllPlatforms`, `getDistinctEsrbRatings` | `/games` |
 | `GET /games/search?q=` | `searchGamesByName` | search boxes |
 | `GET /games/[slug]` | `getGameBySlug`, `getGameTaxonomy`, `getGameRatingsStats`, viewer's rating/library entry/list membership | `/games/[slug]` |
 | `GET /games/[slug]/reviews?page=` | `getGameReviewsForPage` | `/games/[slug]` |
-| `GET /users/[username]` | `getFullProfile`, `getFeaturedLoadout`, `getRecentReviews`, follow state | `/user/[username]` |
-| `GET /users/[username]/library?…` | `getLibraryEntries`, `getLibraryFacets` — **gate on `library_public`** | `…/library` |
-| `GET /users/[username]/lists` | `getUserLists`, `getLikedLists`, `getListCoverMap` | `…/lists` |
-| `GET /lists/[listId]` | `getListById`, `getListGames`, `getListLikes` — **gate on `is_public`** | `…/lists/[listId]` |
-| `GET /users/[username]/reviews?page=` | `getUserRatingsReviewsPage`, `…Counts` | `…/ratings_reviews` |
-| `GET /users/[username]/loadout` | `getLoadoutGenreStats`, `…DeveloperStats`, `…StatusBreakdown`, `…RatingHighlights`, `getCurrentLoadoutIdentity` | `…/loadout` |
-| `GET /users/[username]/followers`, `/following` | `getFollowers`, `getFollowing` | profile |
+| `GET /games?…filters` | `queryGames` (sort `name` or `ngplus_rating`; throws on a DB error), `getAllGenres`, `getAllPlatforms`, `getDistinctEsrbRatings`. The route renames `avg_ngplus_rating` to `avg_rating`. | `/games` |
+| `GET /user/[username]` | `getFullProfile`, `getFeaturedLoadout`, `getRecentReviews`, follow state. Follower and following **counts** only — no list endpoints in v1. | `/user/[username]` |
+| `GET /user/[username]/library?…` | `getLibraryEntries`, `getLibraryFacets` — **gate on `library_public`**, with a privacy test in the same change | `…/library` |
+| `GET /user/[username]/lists` | `getUserLists`, `getLikedLists`, `getListCoverMap` — **gate private lists**, with a privacy test in the same change | `…/lists` |
+| `GET /user/[username]/lists/[listId]` | `getListById`, `getListGames`, `getListLikes` — **gate on `is_public`**, with a privacy test in the same change | `…/lists/[listId]` |
+| `GET /user/[username]/reviews?page=` | `getUserRatingsReviewsPage`, `…Counts` | `…/ratings_reviews` |
+| `GET /user/[username]/loadout` | `getLoadoutGenreStats`, `…DeveloperStats`, `…StatusBreakdown`, `…RatingHighlights`, `getCurrentLoadoutIdentity` — **privacy gate with the loader**, tested in the same change | `…/loadout` |
 | `GET /me/settings` | `getAccountSettings`, `getSteamAccount` | `/settings` |
-| `GET /me/steam/library` | Steam owned games + `getGamesFromSteamIds` | `/steamlink` |
 
 Writes (auth required):
 
@@ -433,15 +471,16 @@ Writes (auth required):
 | `PUT /games/[gameId]/review` | `submitRatingReview` |
 | `GET` / `PUT` / `DELETE /me/library/[gameId]` | `fetchLibraryEntry`, `addOrUpdateLibraryEntry`, `removeLibraryEntry` |
 | `POST /me/library/import` | `importSteamLibraryEntries` |
-| `POST /lists`, `PATCH /lists/[listId]` | `createOrUpdateList`, `createListAndAddGame`, `toggleListPinned` |
-| `POST` / `DELETE /lists/[listId]/like` | `toggleListLike` |
-| `POST` / `DELETE /lists/[listId]/games/[gameId]` | `toggleGameInList`, `removeGameFromListAction` |
-| `POST /lists/[listId]/games/sync` | `syncListGamesAction` |
+| `POST /user/[username]/lists`, `PATCH /user/[username]/lists/[listId]` | `createOrUpdateList`, `createListAndAddGame`, `toggleListPinned` |
+| `POST` / `DELETE /user/[username]/lists/[listId]/like` | `toggleListLike` |
+| `POST` / `DELETE /user/[username]/lists/[listId]/games/[gameId]` | `toggleGameInList`, `removeGameFromListAction` |
+| `POST /user/[username]/lists/[listId]/games/sync` | `syncListGamesAction` |
 | `PATCH /me` `{username?, bio?, selectedTitle?, loadoutBio?, favoriteGames?, privacy?}` | `saveUsername`, `saveBio`, `saveSelectedTitle`, `saveLoadoutBio`, `saveFavoriteGames`, `togglePrivacyAction` |
 | `DELETE /me/loadout` | `clearLoadout` |
 | `POST /me/avatar/upload-url`, `PUT /me/avatar` | `createAvatarUploadUrl`, `saveAvatarUrl` |
-| `POST` / `DELETE /users/[userId]/follow` | `toggleFollow` |
-| `POST /me/steam/link-intent`, `DELETE /me/steam` | new, `unlinkSteamAccountAction` |
+| `POST` / `DELETE /user/[username]/follow` | `toggleFollow` |
+| `POST /me/steam/link-intent`, `DELETE /me/steam` | OpenID `state` token (still required), `unlinkSteamAccountAction` |
+| `POST /me/steam/import` | `resolveSteamImportBatch` — body `{ retry, cursor }`, response `SteamImportBatch` (`nextCursor`, lease `notice`, `retryAfterMs`). Not a single library GET. |
 | `POST /api/loadout` | existing — just switch to `requireUser()` + `withAuth` (`DELETE /api/delete-account` and `GET /api/steam/link` already did) |
 
 Note on write semantics: the web actions are "toggle" style
@@ -570,8 +609,11 @@ tests. The website is unchanged for users.
    > Appendix B: the viewer block sends `defaultListPrivacy` (not the whole
    > settings row) and `listIdsGameIsIn` as an array (the query's `Set` becomes
    > `{}` in JSON); lists are narrowed to `{ id, name, game_count }`; `game` is
-   > built field by field so extra columns (`steam_appid`) don't leak; library
-   > `hours_played` is a number.
+   > built field by field so a dropped column cannot leak (`steam_appid` is gone;
+   > Steam apps are `game_external_ids` and are not on `GameDetail`); library
+   > `hours_played` is a number. Image fields are display-ready
+   > (`t_cover_big_2x` for the cover, landscape renditions for art and shots)
+   > via `packages/shared/images.ts`. Community score is `stats.avg_rating`.
    >
    > **`games/[slug]/reviews` done** — no loader: a single query needs none.
    > `getGameReviewsForPage` (`lib/queries/review.ts`) returns the shared
@@ -585,14 +627,30 @@ tests. The website is unchanged for users.
    > size ≤ 100 to match the web's menu) and lenient on the web page (per-field
    > fallback). Fixed unstable paging: the query now tie-breaks (rating →
    > `updated_at` → row id), so tied ratings no longer repeat/skip across pages.
-   > Both game-page endpoints are done; next loader: another page.
-3. **Privacy audit pass**: for every read endpoint, write a test that a
-   non-owner cannot see a private library / private list. This is the #1 way
-   this phase can go wrong — `db` bypasses RLS.
+   > Both game-page endpoints are done. Per Part 4, the native game screen
+   > (phone auth, TanStack Query, display images, signed-out browsing) comes
+   > before any further loader. That slice is Phase 1 step 2b.
+2b. **Native game screen** — the vertical slice from Part 4, before the
+   remaining loaders. Supabase Auth on the phone (`@supabase/supabase-js` +
+   `expo-secure-store`, sign-in direct to Supabase, bearer token on `/api/v1`
+   through the existing `withAuth`). TanStack Query and `apps/mobile/src/lib/api`.
+   The screen is `apps/mobile/src/app/games/[slug].tsx`. It works signed out
+   (`viewer: null`). Rate, Save, and Add to list prompt for signup when there
+   is no session. Expo web (`npm run mobile:web`) is how a cloud agent checks
+   the layout. The welcome screen is not part of this slice.
+   > **Done.** Phone auth (`src/lib/supabase.ts`, `src/lib/auth.tsx`), the
+   > API client (`src/lib/api`), and the game screen. Image URLs on
+   > `GET /api/v1/games/[slug]` are display-ready. That slice moved
+   > `GameData.id`, `RatingReviewData.game_id`, `SimpleRatingReview.game_id`,
+   > and the library actions' `gameId` to uuid strings. `queryGames` throws on
+   > a database error. The welcome screen is still only the decision above.
+3. **Remaining loaders, one page at a time**, each with its privacy test in
+   the same change (`db` bypasses RLS). The gates are library, loadout, list
+   detail, and list index. Do not save them for a later audit pass.
 4. Write routes (mirror the Server Actions). Have both the action and the route
    call the same function; validate request bodies with the shared zod schemas.
 5. Put request/response types in `packages/shared/api/`. (The fetch client that
-   calls these routes lives in `apps/mobile/lib/api/` — Phase 2 — since the
+   calls these routes lives in `apps/mobile/src/lib/api/` — Phase 1 step 2b — since the
    website never calls `/api/v1` itself.)
 6. Retire `game-search.ts`: reimplement its three functions on `db` in
    `lib/queries/game.ts` (`searchGamesByName`, `searchTaxonomyTable`,
@@ -616,27 +674,34 @@ tests. The website is unchanged for users.
 
 ### Phase 2 — Mobile foundation (≈1–2 weeks)
 
-Goal: sign in on the phone, navigate between empty screens, see real data on
-one screen.
+Goal: the rest of the shell around the game screen from Phase 1 step 2b.
+Sign-in, the API client, TanStack Query, and one real screen are already in
+place. This phase does not go back and extract loaders — that stays Phase 1
+step 3, and it can proceed in parallel once the game screen has proved the
+stack.
 
-1. Navigation skeleton (Expo Router):
+1. Navigation skeleton (Expo Router), under `apps/mobile/src/app/`:
    ```
-   app/
-     (auth)/sign-in.tsx, sign-up.tsx, forgot-password.tsx
-     (tabs)/_layout.tsx          # tab bar
-     (tabs)/index.tsx            # Feed
+   src/app/
+     sign-in.tsx, sign-up.tsx          # direct to Supabase Auth; welcome screen is still planned, not this skeleton
+     (tabs)/_layout.tsx                # tab bar
+     (tabs)/index.tsx                  # Feed (signed-in). Signed-out home is the welcome screen in Decisions.
      (tabs)/explore.tsx
-     (tabs)/games/index.tsx      # Browse + search
-     (tabs)/profile.tsx          # → your /users/[username]
-     games/[slug].tsx
-     users/[username]/index.tsx, library.tsx, lists.tsx, reviews.tsx, loadout.tsx
-     lists/[listId].tsx
+     (tabs)/games/index.tsx            # Browse + search — where the welcome screen's Browse button goes
+     (tabs)/profile.tsx                # → your /user/[username]
+     games/[slug].tsx                  # done in Phase 1 step 2b
+     user/[username]/index.tsx, library.tsx, lists.tsx, reviews.tsx, loadout.tsx
+     user/[username]/lists/[listId].tsx
      settings.tsx, steamlink.tsx
    ```
-2. Supabase client with SecureStore session storage; an auth context that
-   redirects between `(auth)` and `(tabs)`.
-3. API client in `apps/mobile/lib/api/` (bearer header, typed with the shared
-   contract types — see Appendix B.3) + TanStack Query provider.
+   There is no sign-in wall. Signed-out players can open browse, a game, reviews, public lists, and a sample Loadout. Rating, logging, following, and Steam import prompt for signup.
+2. Auth context already stores the session in SecureStore (chunked; the value
+   limit is 2048 bytes) and in `localStorage` on Expo web. Finish forgot-password
+   and the welcome screen when that screen is built. Do not redirect every
+   signed-out open into `(auth)`.
+3. API client lives in `apps/mobile/src/lib/api/` (bearer header, shared
+   contract types — Appendix B.3) with the TanStack Query provider. Done with
+   the game screen. Later screens add endpoints to the same client.
 4. Theme + the core primitives, ported from `app/components/util/`:
    `Eyebrow`, `SectionHead`, `Wordmark`, `Panel`, `EmptyState`, `Avatar`, a
    rating badge (tier colours), buttons, text inputs, `Modal` → bottom sheet.
@@ -646,19 +711,17 @@ one screen.
 
 Build in order of the core loop — each is shippable to TestFlight on its own:
 
-1. **Game detail** — hero, the two-score compare (You and Community, both /10), taxonomy,
-   reviews list. Then the actions: rate/review, library entry sheet,
-   add-to-list sheet.
+1. **Game detail** — the read screen (hero, You and Community both /10 via `avg_rating`, taxonomy, reviews) landed in Phase 1 step 2b, including the signed-out signup prompt. Still to build: the rate/review sheet, the library sheet, and the add-to-list sheet, which call the write routes.
 2. **Profile** — header, favorites, featured Loadout, follow/unfollow.
 3. **Library** — virtualized list, filters/facets, status breakdown.
 4. **Lists** — index, detail, create/edit, like, reorder/sync games.
 5. **Feed** — infinite scroll (`useInfiniteQuery` + `FEED_PAGE_SIZE`), pull-to-refresh.
-6. **Explore** and **Games browse** — search, filters.
+6. **Explore** and **Games browse** — search, filters. This browse screen is the native `/games` page. The welcome screen's Browse button opens it, not a web view.
 7. **Ratings & reviews** page.
 8. **Loadout** — stats charts + generate/clear.
 9. **Settings** — username, bio, title, privacy toggles, avatar
    (`expo-image-picker` → presigned R2 PUT), email/password, delete account.
-10. **Steam link + import** — the `state` flow from Part 2.
+10. **Steam link + import** — in v1, last. OpenID `state` token, then `POST /me/steam/import` one batch at a time (cursor + lease). Not a single library download.
 
 For each screen: loading skeleton, empty state, error + retry, pull-to-refresh,
 and check it on a small phone (iPhone SE size) and with the keyboard open.
@@ -696,8 +759,9 @@ and check it on a small phone (iPhone SE size) and with the keyboard open.
    in Settings (Guideline 5.1.1(v) ✓). Sign in with Apple isn't required
    because you only offer email/password sign-in — Steam is account *linking*,
    not login. If you ever add "Sign in with Steam/Google", revisit Guideline 4.8.
-4. `eas submit`. Expect a first-submission rejection or two; it's normal.
-5. Decide an update policy: JS/UI fixes via `eas update`; native changes via a
+4. **IGDB commercial partnership** before a public launch or an App Store submission that ships the catalogue. A written partnership has to cover storage, caching, and attribution (`docs/igdb.md`, `docs/backlog.md`). It does not block TestFlight or other test builds. The footer and the phone's `DataAttribution` already credit IGDB.
+5. `eas submit`. Expect a first-submission rejection or two; it's normal.
+6. Decide an update policy: JS/UI fixes via `eas update`; native changes via a
    store build; bump `minSupportedVersion` only as a last resort.
 
 ---
@@ -815,7 +879,7 @@ with the app it configures.
 | `package.json` (new, tiny) + `package-lock.json` | Workspace root; npm keeps **one** lockfile for all workspaces. Next.js also finds the monorepo root by looking for this lockfile — never let a second one appear in `apps/web/` |
 | `AGENTS.md` / `CLAUDE.md` | Repo-wide instructions. Rewrite the Structure/Commands sections for the monorepo; web-specific detail can later move to `apps/web/AGENTS.md` (Claude Code also reads nested ones) |
 | `DESIGN.md` | The design system covers both apps |
-| `README.md`, `docs/`, `build-plan.md`, `backlog.txt`, `ship-readiness.html` | Project docs |
+| `README.md`, `docs/` (including `docs/backlog.md`), `build-plan.md`, `ship-readiness.html` | Project docs |
 | `.claude/` | Claude Code project settings |
 
 **Delete, don't move** (regenerated): `node_modules/`, `.next/`, `tsconfig.tsbuildinfo`.
@@ -840,7 +904,8 @@ with the app it configures.
    `npm run <x> -w <workspace>` runs the script *with the workspace folder as
    the working directory*, so every `process.cwd()`-relative path (`policy.html`,
    `assets/fonts`, `.env.local` in the `seed` script and `drizzle.config.ts`)
-   keeps resolving exactly as today.
+   keeps resolving exactly as today. Schema changes after the move go through
+   `npm run migrate:journal -w @screenpeak/web`, not `drizzle-kit push`.
 2. **`.gitignore`:** entries with a leading slash only match at the root. Change
    `/node_modules` → `node_modules/`, `/.next/` → `.next/`, `/out/` → `out/`,
    `/build` → `build/`, `/coverage` → `coverage/`. (`.env*`, `*.tsbuildinfo`,
@@ -920,25 +985,25 @@ Component. The new layout lifts job 2 into a **loader**.
 import type { GameData, GameRatingsStats, ListSummary /* … */ } from '../types'  // today's types/, moved here
 
 export type GamePageData = {
-    game: GameData
-    taxonomy: { genres: Taxon[]; platforms: Taxon[]; developers: Taxon[]; publishers: Taxon[] }
-    stats: GameRatingsStats
-    viewer: null | {                 // null = signed out
-        review: RatingReview | null
-        libraryEntry: LibraryEntry | null
-        lists: ListSummary[]
+    game: GameDetail          // uuid id, igdb_id, display-ready image URLs. No steam_appid, no Metacritic.
+    taxonomy: GameTaxonomy
+    stats: GameRatingsStats   // community score is avg_rating
+    viewer: null | {          // null = signed out
+        review: GameRatingReview | null
+        libraryEntry: ViewerLibraryEntry | null
+        lists: ViewerListOption[]
         listIdsGameIsIn: string[]
-        settings: AccountSettings
+        defaultListPrivacy: boolean
     }
 }
 ```
 
 A description only — no queries, compiles to nothing.
 
-### B.3 `apps/mobile/lib/api/client.ts` — how the phone asks for it
+### B.3 `apps/mobile/src/lib/api/client.ts` — how the phone asks for it
 
 ```ts
-import type { GamePageData } from '@screenpeak/shared/api'
+import type { GamePageData } from '@screenpeak/shared/api/games'
 
 export function createApiClient(opts: { baseUrl: string; getToken: () => Promise<string | null> }) {
     async function get<T>(path: string): Promise<T> {
@@ -968,7 +1033,7 @@ token. See B.8 for how this object works, and B.9 for why it isn't in shared.
 
 ```ts
 import 'server-only'
-import type { GamePageData } from '@screenpeak/shared/api'
+import type { GamePageData } from '@screenpeak/shared/api/games'
 import { getGameBySlug, getGameTaxonomy } from '@/lib/queries/game'
 import { getGameRatingsStats, getUserRatingReviewForGame } from '@/lib/queries/review'
 // …
@@ -986,8 +1051,11 @@ export async function loadGamePage(slug: string, viewerId: string | null): Promi
 }
 ```
 
-> Built in Phase 1 step 2 as `apps/web/lib/loaders/game-page.ts` — see the
-> step 2 note for how the real contract differs from this sketch.
+> Built in Phase 1 step 2 as `apps/web/lib/loaders/game-page.ts`. The real
+> return uses `GameDetail`, `defaultListPrivacy`, and display-ready image
+> URLs (`displayGameImages` from `@screenpeak/shared/images`). See the step 2
+> note. Slugs are the IGDB slug, or `` `${base}-${games.id}` `` when that slug
+> is already taken.
 
 **This is where `db` is used** (through `lib/queries/*`, as today). The return
 type is imported from shared, so the loader is type-checked against the
@@ -1028,7 +1096,7 @@ export async function GET(req: NextRequest, ctx: RouteContext<'/api/v1/games/[sl
 ### B.7 `apps/mobile` — configure the client once, use it per screen
 
 ```ts
-// apps/mobile/lib/api/index.ts
+// apps/mobile/src/lib/api/index.ts
 import { createApiClient } from './client'
 import { supabase } from '../supabase'
 
@@ -1039,7 +1107,7 @@ export const api = createApiClient({
 ```
 
 ```tsx
-// apps/mobile/app/games/[slug].tsx
+// apps/mobile/src/app/games/[slug].tsx
 export default function GameScreen() {
     const { slug } = useLocalSearchParams<{ slug: string }>()
     const { data, isLoading, error, refetch } = useQuery({
@@ -1053,7 +1121,7 @@ export default function GameScreen() {
     const { game, stats, viewer } = data                        // typed as GamePageData automatically
     return (
         <ScrollView>
-            <StatCompare signedIn={!!viewer} you={viewer?.review?.rating} community={stats.avg_rating} communityCount={stats.total_ratings} />
+            <StatCompare signedIn={!!viewer} you={viewer?.review?.rating ?? null} community={stats.avg_rating} communityCount={stats.total_ratings} />
             …
         </ScrollView>
     )
@@ -1070,7 +1138,7 @@ MOBILE  [slug].tsx ─► api.games.get() ─HTTPS─► route.ts ─► loadGam
 
 ### B.8 How the client object works (nothing is fetched up front)
 
-`createApiClient(...)` runs **once**, when `apps/mobile/lib/api/index.ts` is first
+`createApiClient(...)` runs **once**, when `apps/mobile/src/lib/api/index.ts` is first
 imported, and makes **zero** requests. It returns a plain object whose values
 are *functions* — a menu, not a meal:
 
@@ -1107,7 +1175,7 @@ never calls `/api/v1`:
 - Client components call **Server Actions** — including search, which gets
   `app/search-actions.ts` rather than going through the API (Phase 1 step 6).
 
-So the fetch client has exactly one user, and it lives with that user. What
+So the fetch client has exactly one user, and it lives at `apps/mobile/src/lib/api/`. What
 *is* shared is the contract types (`GamePageData` etc.), because both sides
 compile against them: the loader/route produces them, the phone consumes them.
 

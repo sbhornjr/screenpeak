@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const mockDb = { select: vi.fn(), execute: vi.fn() }
 vi.mock('@/lib/db', () => ({ db: mockDb }))
 
-const { getGameTaxonomy, getDistinctEsrbRatings, getDeveloperNameMap, getHeroGame } = await import('@/lib/queries/game')
+const { getGameTaxonomy, getDistinctEsrbRatings, getDeveloperNameMap, getHeroGame, queryGames } = await import('@/lib/queries/game')
 
 // Most of lib/queries/* is a thin pass-through to Drizzle and not worth
 // pinning. These three do real work on the result set — de-duping + sorting,
@@ -11,6 +11,13 @@ const { getGameTaxonomy, getDistinctEsrbRatings, getDeveloperNameMap, getHeroGam
 // db (a DB boundary) is mocked with just the chain each function calls.
 
 beforeEach(() => { mockDb.select.mockReset(); mockDb.execute.mockReset() })
+
+describe('queryGames', () => {
+    it('rejects when the catalogue query fails instead of looking like an empty page', async () => {
+        mockDb.execute.mockRejectedValue(new Error('database unavailable'))
+        await expect(queryGames({ q: 'hades' })).rejects.toThrow('database unavailable')
+    })
+})
 
 describe('getGameTaxonomy', () => {
     it('returns joined rows per taxonomy and tolerates an empty section', async () => {

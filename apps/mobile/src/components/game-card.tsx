@@ -30,7 +30,7 @@ const STATUS = {
 
 export function GameCard({ game, developer, spRating, userRating, libraryStatus, onPress }: GameCardProps) {
   const status = libraryStatus ? STATUS[libraryStatus] : null;
-  const year = game.released ? new Date(game.released).getFullYear() : null;
+  const year = game.released ? game.released.slice(0, 4) : null;
   const cover = igdbImageUri(game.cover_image_url);
 
   return (

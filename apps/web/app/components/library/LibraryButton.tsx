@@ -9,7 +9,7 @@ import { addOrUpdateLibraryEntry, removeLibraryEntry, fetchLibraryEntry } from "
 import { plus1 } from "@/lib/plus1"
 import { Check, Layers, Play, X } from "lucide-react"
 
-export default function LibraryButton({ game_id }: { game_id: number }) {
+export default function LibraryButton({ game_id }: { game_id: string }) {
     const { user } = useUser()
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
     const [isLibraryModalOpen, setIsLibraryModalOpen] = useState(false)

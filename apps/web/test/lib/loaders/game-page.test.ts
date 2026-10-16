@@ -16,17 +16,28 @@ vi.mock('@/lib/queries/user', () => ({ getDefaultListPublic: q.getDefaultListPub
 
 const { loadGamePage } = await import('@/lib/loaders/game-page')
 
+const STORED_COVER = 'https://images.igdb.com/igdb/image/upload/t_cover_big/x.jpg'
+const STORED_ART = 'https://images.igdb.com/igdb/image/upload/t_1080p/y.jpg'
+const STORED_SHOT = 'https://images.igdb.com/igdb/image/upload/t_screenshot_huge/shot.jpg'
 const GAME = {
     id: 'game-1', name: "Baldur's Gate III", slug: 'baldurs-gate-3', igdb_id: 1942,
-    cover_image_url: 'https://images.igdb.com/igdb/image/upload/t_cover_big/x.jpg',
-    artwork_image_url: 'https://images.igdb.com/igdb/image/upload/t_1080p/y.jpg',
+    cover_image_url: 'https://images.igdb.com/igdb/image/upload/t_cover_big_2x/x.jpg',
+    artwork_image_url: STORED_ART,
     released: '2023-08-03',
-    description: 'Gather your party.', esrb_rating: 'Mature', reddit_url: null, screenshots: ['a.jpg'],
+    description: 'Gather your party.', esrb_rating: 'Mature', reddit_url: null,
+    screenshots: [STORED_SHOT],
     created_at: '2026-01-01 00:00:00+00',
+}
+// The row still holds whatever rendition IGDB was seeded with, plus a portrait
+// thumb and a non-IGDB string that must not leave the loader.
+const GAME_STORED = {
+    ...GAME,
+    cover_image_url: STORED_COVER,
+    screenshots: ['https://images.igdb.com/igdb/image/upload/t_thumb/nope.jpg', STORED_SHOT, 'not-a-url'],
 }
 // A removed column must not leak if a row still carries it. The loader sends
 // only the contract's fields.
-const GAME_ROW = { ...GAME, steam_appid: 1086940 }
+const GAME_ROW = { ...GAME_STORED, steam_appid: 1086940 }
 const TAXONOMY = { genres: [{ id: 'g1', name: 'RPG', slug: 'rpg' }], platforms: [], developers: [], publishers: [] }
 const STATS = { total_ratings: 3, total_reviews: 2, avg_rating: 9.67, rating_10: 2, rating_9: 1 }
 const REVIEW = { user_id: 'viewer-1', rating: 10, review: 'Best game', created_at: '2026-02-01 00:00:00+00', updated_at: '2026-02-01 00:00:00+00', users: { username: 'me', display_name: 'Me', avatar_url: '' } }

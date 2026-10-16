@@ -29,7 +29,7 @@ afterEach(cleanup)
 
 const list = (coverImageUrl: string | null) => (
     <ListPreview
-        listId={1}
+        listId="11111111-1111-1111-1111-111111111111"
         listName="Shelf"
         gameCovers={[{ coverImageUrl, slug: 'example' }]}
         isPinnable={false}

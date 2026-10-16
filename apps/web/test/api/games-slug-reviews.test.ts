@@ -5,10 +5,10 @@ import { NextRequest } from 'next/server'
 // getGameReviewsForPage → JSON. Auth and the two queries are mocked (each is
 // tested on its own); the query-param parser is the real one — validation is
 // this route's job.
-const getOptionalUser = vi.fn()
+const getBearerUser = vi.fn()
 const getGameIdBySlug = vi.fn()
 const getGameReviewsForPage = vi.fn()
-vi.mock('@/lib/auth', () => ({ getOptionalUser }))
+vi.mock('@/lib/auth', () => ({ getBearerUser }))
 vi.mock('@/lib/queries/game', () => ({ getGameIdBySlug }))
 vi.mock('@/lib/queries/review', () => ({ getGameReviewsForPage }))
 
@@ -20,7 +20,7 @@ const call = (slug: string, qs = '') =>
     GET(new NextRequest(`http://localhost/api/v1/games/${slug}/reviews${qs}`), { params: Promise.resolve({ slug }) })
 
 beforeEach(() => {
-    getOptionalUser.mockReset().mockResolvedValue(null)
+    getBearerUser.mockReset().mockResolvedValue(null)
     getGameIdBySlug.mockReset().mockResolvedValue('game-1')
     getGameReviewsForPage.mockReset().mockResolvedValue(PAGE)
 })
@@ -36,7 +36,7 @@ describe('GET /api/v1/games/[slug]/reviews', () => {
     })
 
     it('passes the parsed query and the viewer through', async () => {
-        getOptionalUser.mockResolvedValue({ id: 'viewer-1', email: null })
+        getBearerUser.mockResolvedValue({ id: 'viewer-1', email: null })
 
         await call('baldurs-gate-3', '?page=2&pageSize=25&sort=rating&order=asc')
 
@@ -79,7 +79,7 @@ describe('GET /api/v1/games/[slug]/reviews', () => {
     })
 
     it('rejects a bad bearer token with 401', async () => {
-        getOptionalUser.mockRejectedValue(new UnauthenticatedError('invalid_token'))
+        getBearerUser.mockRejectedValue(new UnauthenticatedError('invalid_token'))
 
         const res = await call('baldurs-gate-3')
 

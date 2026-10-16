@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server'
 import type { GameReviewsPage } from '@screenpeak/shared/api/games'
 import { ApiError, withAuth } from '@/lib/api'
-import { getOptionalUser } from '@/lib/auth'
+import { getBearerUser } from '@/lib/auth'
 import { parseGameReviewsQuery } from '@/lib/game-reviews-query'
 import { getGameIdBySlug } from '@/lib/queries/game'
 import { getGameReviewsForPage } from '@/lib/queries/review'
@@ -12,7 +12,7 @@ import { getGameReviewsForPage } from '@/lib/queries/review'
 // A DB error propagates to withAuth → 500, rather than looking like "no reviews".
 export const GET = withAuth(async (req: NextRequest, ctx: RouteContext<'/api/v1/games/[slug]/reviews'>) => {
     const { slug } = await ctx.params
-    const user = await getOptionalUser()
+    const user = await getBearerUser()
 
     const parsed = parseGameReviewsQuery(req.nextUrl.searchParams)
     if (!parsed.ok) throw new ApiError(400, 'invalid_request', parsed.message)

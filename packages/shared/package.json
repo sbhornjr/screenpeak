@@ -6,6 +6,7 @@
   "exports": {
     "./api/*": "./api/*.ts",
     "./constants": "./constants.ts",
+    "./images": "./images.ts",
     "./tokens": "./tokens.ts",
     "./schemas": "./schemas.ts",
     "./types": "./types/index.ts",

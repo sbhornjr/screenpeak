@@ -29,13 +29,13 @@ const LIBRARY_ENTRY_COLUMNS = {
     play_count: libraryEntries.playCount,
 }
 
-export async function getLibraryEntry(userId: string, gameId: string | number) {
+export async function getLibraryEntry(userId: string, gameId: string) {
     // A database error must reject. Returning null makes an outage look like
     // "not in your save yet" on the game page.
     const rows = await db
         .select(LIBRARY_ENTRY_COLUMNS)
         .from(libraryEntries)
-        .where(and(eq(libraryEntries.userId, userId), eq(libraryEntries.gameId, String(gameId))))
+        .where(and(eq(libraryEntries.userId, userId), eq(libraryEntries.gameId, gameId)))
         .limit(1)
 
     return rows[0] ?? null
@@ -48,13 +48,13 @@ type LibraryEntryFields = {
     playedCount: number
 }
 
-export async function createLibraryEntry(userId: string, gameId: number, fields: LibraryEntryFields) {
+export async function createLibraryEntry(userId: string, gameId: string, fields: LibraryEntryFields) {
     try {
         const rows = await db
             .insert(libraryEntries)
             .values({
                 userId,
-                gameId: String(gameId),
+                gameId,
                 status: fields.status,
                 completedAllAchievements: fields.is100,
                 hoursPlayed: fields.hours != null ? String(fields.hours) : null,
@@ -68,7 +68,7 @@ export async function createLibraryEntry(userId: string, gameId: number, fields:
     }
 }
 
-export async function updateLibraryEntry(userId: string, gameId: number, fields: LibraryEntryFields) {
+export async function updateLibraryEntry(userId: string, gameId: string, fields: LibraryEntryFields) {
     try {
         const rows = await db
             .update(libraryEntries)
@@ -78,7 +78,7 @@ export async function updateLibraryEntry(userId: string, gameId: number, fields:
                 hoursPlayed: fields.hours != null ? String(fields.hours) : null,
                 playCount: fields.playedCount,
             })
-            .where(and(eq(libraryEntries.userId, userId), eq(libraryEntries.gameId, String(gameId))))
+            .where(and(eq(libraryEntries.userId, userId), eq(libraryEntries.gameId, gameId)))
             .returning(LIBRARY_ENTRY_COLUMNS)
 
         return rows[0] ?? null

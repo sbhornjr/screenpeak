@@ -86,7 +86,7 @@ export default async function LibraryPage({ params, searchParams } : LibraryPage
         userId: viewer?.id ?? null,
         gameIds: libraryGameIds,
         limit: 9999
-    })
+    }).catch(() => [])
 
     const listedGames = sortQuery === 'date_added'
         ? [...games].sort((a, b) => {

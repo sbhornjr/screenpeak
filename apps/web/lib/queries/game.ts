@@ -109,28 +109,26 @@ type QueryGamesParams = {
 }
 
 export async function queryGames(params: QueryGamesParams): Promise<GameData[]> {
-    try {
-        const rows = await db.execute(sql`
-            select * from query_games(
-                p_q => ${params.q ?? null},
-                p_genre => ${params.genre ?? null},
-                p_platform => ${params.platform ?? null},
-                p_developer => ${params.developer ?? null},
-                p_publisher => ${params.publisher ?? null},
-                p_esrb => ${params.esrb ?? null},
-                p_sort => ${params.sort ?? 'name'},
-                p_order => ${params.order ?? 'asc'},
-                p_limit => ${params.limit ?? 10},
-                p_offset => ${params.offset ?? 0},
-                p_user_id => ${params.userId ?? null},
-                p_game_ids => ${uuidArrayParam(params.gameIds)}
-            )
-        `)
+    // A database error must reject. Returning [] makes an outage look like an
+    // empty catalogue. Web pages that still want that fallback catch here.
+    const rows = await db.execute(sql`
+        select * from query_games(
+            p_q => ${params.q ?? null},
+            p_genre => ${params.genre ?? null},
+            p_platform => ${params.platform ?? null},
+            p_developer => ${params.developer ?? null},
+            p_publisher => ${params.publisher ?? null},
+            p_esrb => ${params.esrb ?? null},
+            p_sort => ${params.sort ?? 'name'},
+            p_order => ${params.order ?? 'asc'},
+            p_limit => ${params.limit ?? 10},
+            p_offset => ${params.offset ?? 0},
+            p_user_id => ${params.userId ?? null},
+            p_game_ids => ${uuidArrayParam(params.gameIds)}
+        )
+    `)
 
-        return rows as unknown as GameData[]
-    } catch {
-        return []
-    }
+    return rows as unknown as GameData[]
 }
 
 export { HERO_MIN_RATINGS } from '@/lib/hero-game'
