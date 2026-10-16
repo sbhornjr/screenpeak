@@ -5,8 +5,8 @@ import { getOptionalUser } from '@/lib/auth'
 import { loadGamePage } from '@/lib/loaders/game-page'
 
 // The game page for the phone app: the same loader app/games/[slug]/page.tsx
-// renders from, as JSON. Works signed out (viewer: null). Reviews are paged
-// separately (GET /api/v1/games/[slug]/reviews, still to come).
+// renders from, as JSON. Works signed out (viewer: null). Image fields are
+// display-ready. Reviews are paged separately (GET /api/v1/games/[slug]/reviews).
 export const GET = withAuth(async (_req: NextRequest, ctx: RouteContext<'/api/v1/games/[slug]'>) => {
     const { slug } = await ctx.params
     const user = await getOptionalUser()

@@ -5,6 +5,7 @@ import { getGameRatingsStats, getUserRatingReviewForGame } from '@/lib/queries/r
 import { getLibraryEntry } from '@/lib/queries/library'
 import { getUserLists, getGameListMembership } from '@/lib/queries/list'
 import { getDefaultListPublic } from '@/lib/queries/user'
+import { displayGameImages } from '@screenpeak/shared/images'
 
 // The game page's data, for both the website (app/games/[slug]/page.tsx calls
 // this directly) and the phone (GET /api/v1/games/[slug] returns it as JSON).
@@ -28,22 +29,31 @@ export async function loadGamePage(slug: string, viewerId: string | null): Promi
 
 // Field by field, not the row as-is. Anything the API sends becomes part of
 // the payload. TypeScript won't flag extra fields on an existing object, so
-// a leftover such as steam_appid would leak silently.
-type GameRow = GameDetail & { steam_appid?: number | null }
+// a leftover column would leak silently. Image fields are display URLs: the
+// server picks the IGDB rendition (large cover, landscape art and shots).
+type GameRow = Omit<GameDetail, 'screenshots'> & {
+    steam_appid?: number | null
+    screenshots: string[] | null
+}
 
 function toGameDetail(g: GameRow): GameDetail {
+    const images = displayGameImages({
+        cover_image_url: g.cover_image_url,
+        artwork_image_url: g.artwork_image_url,
+        screenshots: g.screenshots,
+    })
     return {
         id: g.id,
         name: g.name,
         slug: g.slug,
         igdb_id: g.igdb_id,
-        cover_image_url: g.cover_image_url,
-        artwork_image_url: g.artwork_image_url,
+        cover_image_url: images.cover_image_url,
+        artwork_image_url: images.artwork_image_url,
         released: g.released,
         description: g.description,
         esrb_rating: g.esrb_rating,
         reddit_url: g.reddit_url,
-        screenshots: g.screenshots,
+        screenshots: images.screenshots,
         created_at: g.created_at,
     }
 }

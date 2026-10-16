@@ -21,15 +21,23 @@ export type GameDetail = {
      * that has not applied that migration yet.
      */
     igdb_id: number | null
+    /**
+     * Display-ready cover. The server rewrites whatever rendition is stored to
+     * `t_cover_big_2x`. Null when the stored value is not an IGDB image.
+     */
     cover_image_url: string | null
-    /** Landscape artwork. Null when IGDB has neither artwork nor a screenshot. */
+    /**
+     * Display-ready landscape artwork. Portrait cover renditions are dropped.
+     * Null when IGDB has neither artwork nor a usable landscape image.
+     */
     artwork_image_url: string | null
     /** "YYYY-MM-DD" */
     released: string | null
     description: string | null
     esrb_rating: string | null
     reddit_url: string | null
-    screenshots: string[] | null
+    /** Display-ready landscape shots. Portrait and non-IGDB entries are omitted. */
+    screenshots: string[]
     created_at: string | null
 }
 
@@ -77,6 +85,7 @@ export type GamePageViewer = {
 export type GamePageData = {
     game: GameDetail
     taxonomy: GameTaxonomy
+    /** Community score is `avg_rating` (out of 10). There is no critic score. */
     stats: GameRatingsStats
     /** null when signed out */
     viewer: GamePageViewer | null

@@ -24,6 +24,8 @@ describe('withAuth', () => {
 
         expect(handler).toHaveBeenCalledWith(r, ctx)
         expect(await res.json()).toEqual({ slug: 'baldurs-gate-3' })
+        expect(res.headers.get('access-control-allow-origin')).toBe('*')
+        expect(res.headers.get('access-control-allow-credentials')).toBeNull()
     })
 
     it('turns an unauthenticated error into a 401 with a Bearer challenge', async () => {
@@ -55,6 +57,8 @@ describe('withAuth', () => {
 
         expect(res.status).toBe(404)
         expect(await res.json()).toEqual({ error: { code: 'not_found', message: 'No such game' } })
+        expect(res.headers.get('access-control-allow-origin')).toBe('*')
+        expect(res.headers.get('access-control-allow-headers')).toContain('Authorization')
     })
 
     it('hides unexpected errors behind a generic 500 and logs the detail server-side', async () => {

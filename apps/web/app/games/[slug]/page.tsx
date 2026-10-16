@@ -207,10 +207,7 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
                                 <p className={label}>Your turn</p>
                                 <RateReviewButton game_id={game.id} existing_rating_review={userReview} />
                                 <StickyGameActions gameName={game.name}>
-                                    {/* LibraryButton's game_id prop is typed number, but games.id is a uuid
-                                        string — a pre-existing mismatch predating this conversion (library.ts
-                                        still on supabase-js). Cast preserves the existing runtime behavior. */}
-                                    <LibraryButton game_id={game.id as unknown as number} />
+                                    <LibraryButton game_id={game.id} />
                                     <AddToListButton
                                         gameId={game.id}
                                         lists={lists.map(l => ({ listId: l.id, listName: l.name, listCount: l.game_count }))}

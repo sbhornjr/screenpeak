@@ -1,10 +1,11 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
-import { DarkTheme, ThemeProvider } from 'expo-router';
+import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
-import AppTabs from '@/components/app-tabs';
+import { AuthProvider } from '@/lib/auth';
 import { colors, fontFiles } from '@/theme';
 
 SplashScreen.preventAutoHideAsync();
@@ -31,6 +32,7 @@ export default function RootLayout() {
   // a load error, render anyway — a system-font fallback beats a stuck splash.
   const [fontsLoaded, fontError] = useFonts(fontFiles);
   const ready = fontsLoaded || !!fontError;
+  const [queryClient] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: 1 } } }));
 
   useEffect(() => {
     if (ready) SplashScreen.hideAsync();
@@ -39,9 +41,18 @@ export default function RootLayout() {
   if (!ready) return null;
 
   return (
-    <ThemeProvider value={navigationTheme}>
-      <StatusBar style="light" />
-      <AppTabs />
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <ThemeProvider value={navigationTheme}>
+          <StatusBar style="light" />
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: colors.bg },
+            }}
+          />
+        </ThemeProvider>
+      </AuthProvider>
+    </QueryClientProvider>
   );
 }

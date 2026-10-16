@@ -56,7 +56,7 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
 
     const favoriteGameIds = profile.favorite_game_ids ?? []
     const favoriteGamesData = favoriteGameIds.length > 0
-        ? await queryGames({ userId: viewer ? viewer.id : null, gameIds: favoriteGameIds })
+        ? await queryGames({ userId: viewer ? viewer.id : null, gameIds: favoriteGameIds }).catch(() => [])
         : []
     const favoriteGames = favoriteGamesData as GameData[]
     const orderedFavorites = favoriteGameIds.map((id: string) => favoriteGames?.find(g => String(g.id) === id)).filter(Boolean).reverse() as GameData[]

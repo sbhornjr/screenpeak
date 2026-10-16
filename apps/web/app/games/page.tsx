@@ -44,7 +44,7 @@ export default async function SearchPage({ searchParams } : SearchPageProps) {
         offset: (pageQuery - 1) * pageSizeQuery,
         userId: user ? user.id : null,
         gameIds: null
-    })
+    }).catch(() => [])
 
     const totalCount = games[0]?.total_count ?? 0
     const totalPages = Math.ceil(totalCount / pageSizeQuery)

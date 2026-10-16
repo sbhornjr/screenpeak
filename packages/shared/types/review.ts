@@ -18,7 +18,7 @@ export type RatingReviewData = {
     review: string
     created_at: string
     updated_at: string
-    game_id: number
+    game_id: string
     game_name: string
     game_slug: string
     game_cover_image_url: string
@@ -52,7 +52,7 @@ export type GameRatingsStats = {
 
 // Minimal rating/review shape used for loadout stat calculations
 export type SimpleRatingReview = {
-    game_id: number
+    game_id: string
     rating: number
     review: string
 }

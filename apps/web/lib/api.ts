@@ -51,6 +51,26 @@ export function apiError(status: number, code: ApiErrorCode, message: string, he
     return NextResponse.json<ApiErrorBody>({ error: { code, message } }, { status, headers })
 }
 
+// Expo web is a browser on another origin (Metro, usually :8081) calling this
+// API. Native fetch ignores CORS; a browser will not read the body without
+// these headers. `*` is safe here because credentialed cookies are not allowed
+// — the phone sends a bearer token, and Allow-Credentials stays unset.
+const CORS_HEADERS: Record<string, string> = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type, Accept',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+}
+
+export function applyCors(res: Response): Response {
+    for (const [key, value] of Object.entries(CORS_HEADERS)) res.headers.set(key, value)
+    return res
+}
+
+/** Preflight for Expo web. Answered from proxy.ts so each route doesn't export OPTIONS. */
+export function corsPreflight(): NextResponse {
+    return new NextResponse(null, { status: 204, headers: CORS_HEADERS })
+}
+
 /**
  * Wraps a route handler so a thrown ApiError (e.g. from requireUser)
  * becomes its JSON error response. Anything else is a bug: it's logged with
@@ -61,14 +81,14 @@ export function apiError(status: number, code: ApiErrorCode, message: string, he
 export function withAuth<Ctx>(handler: (req: NextRequest, ctx: Ctx) => Promise<Response>) {
     return async (req: NextRequest, ctx: Ctx): Promise<Response> => {
         try {
-            return await handler(req, ctx)
+            return applyCors(await handler(req, ctx))
         } catch (err) {
-            if (err instanceof ApiError) return apiError(err.status, err.code, err.message, err.headers)
+            if (err instanceof ApiError) return applyCors(apiError(err.status, err.code, err.message, err.headers))
 
             logger.error('api', `Unhandled error in ${req.method} ${req.nextUrl.pathname}`, {
                 error: err instanceof Error ? { name: err.name, message: err.message, stack: err.stack } : String(err),
             })
-            return apiError(500, 'internal', 'Something went wrong.')
+            return applyCors(apiError(500, 'internal', 'Something went wrong.'))
         }
     }
 }

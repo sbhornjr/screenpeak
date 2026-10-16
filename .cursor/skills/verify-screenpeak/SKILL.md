@@ -56,7 +56,10 @@ The harness is this script. Feature recipes name the exact subcommand. Prefer th
 
 ```bash
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive loadout-readout
+node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive game-page
 ```
+
+`drive game-page` does not sign in. It reads one of `peek`'s games from Postgres, fetches `GET /api/v1/games/[slug]` and the reviews route, and opens the website's game page. The native screen is checked with Expo web, not this drive.
 
 The drive resets `peek`'s Read-out columns to null, signs in through the dialog, opens Loadout from the account menu and from `/user/peek/loadout`, clicks `Generate your Read-out`, and reads `public.users` back. It exits 0 only when the page shows the generated paragraph and `loadout_identity` in Postgres equals that paragraph. It exits 2 when the click ran but the model call did not produce text. Any other failure exits 1.
 

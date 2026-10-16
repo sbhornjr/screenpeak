@@ -12,13 +12,13 @@ type LibraryEntryFields = {
     playedCount: number
 }
 
-export async function fetchLibraryEntry(gameId: number) {
+export async function fetchLibraryEntry(gameId: string) {
     const user = await requireUser().catch(() => null)
     if (!user) return null
     return getLibraryEntry(user.id, gameId)
 }
 
-export async function addOrUpdateLibraryEntry(gameId: number, fields: LibraryEntryFields) {
+export async function addOrUpdateLibraryEntry(gameId: string, fields: LibraryEntryFields) {
     const user = await requireUser()
     const existing = await getLibraryEntry(user.id, gameId)
     return existing

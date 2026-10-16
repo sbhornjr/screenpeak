@@ -1,8 +1,13 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { corsPreflight } from '@/lib/api'
 import { createLoggingFetch } from '@/lib/supabase-logging'
 
 export async function proxy(request: NextRequest) {
+    if (request.nextUrl.pathname.startsWith('/api/v1') && request.method === 'OPTIONS') {
+        return corsPreflight()
+    }
+
     let supabaseResponse = NextResponse.next({ request })
 
     const supabase = createServerClient(

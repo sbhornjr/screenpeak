@@ -9,7 +9,7 @@ export type Game = {
 
 // Game shape returned by the `query_games` RPC (search/library/explore listings)
 export type GameData = {
-    id: number
+    id: string
     name: string
     slug: string
     cover_image_url: string
