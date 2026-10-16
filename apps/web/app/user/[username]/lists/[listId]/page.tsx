@@ -9,10 +9,7 @@ import LikeListButton from "@/app/components/lists/LikeListButton";
 import CreateListButton from "@/app/components/lists/CreateListButton";
 import EmptyState from "@/app/components/util/EmptyState";
 import { getOptionalUser } from "@/lib/auth";
-import { getProfileSummaryByUsername } from "@/lib/queries/user";
-import { getListById, getListGames, getListLikes } from "@/lib/queries/list";
-import { getAvgRatingsForGames, getUserRatingsForGames } from "@/lib/queries/review";
-import { getDeveloperNameMap } from "@/lib/queries/game";
+import { loadListPage } from "@/lib/loaders/list-page";
 import { ArrowLeft } from "lucide-react"
 
 type ListPageProps = {
@@ -23,51 +20,25 @@ type ListPageProps = {
 // reaches the title or OG tags, even for its owner.
 export async function generateMetadata({ params }: ListPageProps): Promise<Metadata> {
     const { username, listId } = await params
-    const list = await getListById(listId)
-    if (!list?.is_public) return { title: "List", robots: { index: false } }
+    const data = await loadListPage(username, listId, null)
+    if (!data?.list.is_public) return { title: "List", robots: { index: false } }
     return {
-        title: `${list.name} by ${username}`,
-        description: list.description || `A game list by ${username} on ScreenPeak.`,
+        title: `${data.list.name} by ${username}`,
+        description: data.list.description || `A game list by ${username} on ScreenPeak.`,
     }
 }
 
 export default async function ListPage({ params }: ListPageProps) {
     const { username, listId } = await params;
     const viewer = await getOptionalUser()
+    const data = await loadListPage(username, listId, viewer?.id ?? null)
 
-    const profile = await getProfileSummaryByUsername(username)
+    if (!data) notFound()
 
-    const list = await getListById(listId)
-
-    if (!list || !profile) notFound()
-
-    const isOwnProfile = viewer?.id === profile.id
-
-    if (!isOwnProfile && !list.is_public) notFound()
-
-    const games = await getListGames(list.id)
-
-    let avgRatingMap = new Map()
-    let userRatingMap = new Map()
-    let developerMap = new Map()
-    const gameIds = games.map(g => g.games.id)
-
-    const likesData = await getListLikes([listId])
-
-    const likeCount = likesData?.length ?? 0
-    const userHasLiked = viewer ? likesData?.some(l => l.user_id === viewer.id) ?? false : false
-
-    if (viewer) {
-        const [avgRatings, userRatings, developerMapResult] = await Promise.all([
-            getAvgRatingsForGames(gameIds),
-            getUserRatingsForGames(viewer.id, gameIds),
-            getDeveloperNameMap(gameIds),
-        ])
-
-        avgRatingMap = new Map(avgRatings?.map(r => [r.game_id, r.avg_rating]))
-        userRatingMap = new Map(userRatings?.map(r => [r.game_id, r.rating]))
-        developerMap = developerMapResult
-    }
+    const { profile, list, games } = data
+    const isOwnProfile = data.viewer?.is_owner ?? false
+    const likeCount = data.like_count
+    const userHasLiked = data.viewer?.has_liked ?? false
 
     return (
         <main>
@@ -98,17 +69,17 @@ export default async function ListPage({ params }: ListPageProps) {
                 {isOwnProfile && (
                     <div className="flex flex-wrap gap-2 mb-8">
                         <CreateListButton type="update" current={{ listId: listId, name: list.name, description: list.description, isPinned: list.is_pinned, isPublic: list.is_public}} />
-                        <AddToListFromListButton listId={listId} currentGames={games.map(g => g.games)} />
+                        <AddToListFromListButton listId={listId} currentGames={games.map(g => ({ id: g.id, name: g.name, slug: g.slug, cover_image_url: g.cover_image_url, released: g.released }))} />
                     </div>
                 )}
 
                 {games && games.length > 0 ? (
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                         {games.map(game => (
-                            <div key={game.games.id} className="flex flex-col gap-1">
-                                <GameCard game={game.games} developer={developerMap.get(String(game.games.id))} userRating={userRatingMap.get(game.games.id)} ngplusRating={avgRatingMap.get(game.games.id) ?? null}/>
+                            <div key={game.id} className="flex flex-col gap-1">
+                                <GameCard game={{ id: game.id, name: game.name, slug: game.slug, cover_image_url: game.cover_image_url, released: game.released }} developer={game.developer} userRating={game.user_rating} ngplusRating={game.avg_rating}/>
                                 {isOwnProfile && (
-                                    <RemoveFromListButton listId={listId} gameId={game.games.id} />
+                                    <RemoveFromListButton listId={listId} gameId={game.id} />
                                 )}
                             </div>
                         ))}

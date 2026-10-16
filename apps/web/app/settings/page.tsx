@@ -7,8 +7,7 @@ import ChangePasswordButton from "../components/settings/ChangePasswordButton";
 import DeleteAccountButton from "../components/settings/DeleteUserButton";
 import ChangePrivacyButton from "../components/settings/ChangePrivacyButton";
 import { getOptionalUser } from "@/lib/auth";
-import { getAccountSettings } from "@/lib/queries/user";
-import { getSteamAccount } from "@/lib/queries/steam";
+import { loadSettings } from "@/lib/loaders/me";
 import UnlinkSteamAccountButton from "../components/settings/UnlinkSteamAccountButton";
 import Link from "next/link";
 import Eyebrow from "@/app/components/util/Eyebrow";
@@ -28,13 +27,13 @@ export default async function Settings({ searchParams } : SettingsPageProps) {
 
     if (!viewer) redirect("/")
 
-    const user = await getAccountSettings(viewer.id)
+    const user = await loadSettings({ id: viewer.id, email: viewer.email })
 
     if (!user) {
         redirect("/")
     }
 
-    const steamUser = await getSteamAccount(viewer.id)
+    const steamLinked = user.steam_linked
 
     return (
         <main>
@@ -60,8 +59,8 @@ export default async function Settings({ searchParams } : SettingsPageProps) {
                                 <ChangeUsernameButton currentUsername={user.username} />
                             </div>
                             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3">
-                                <p className="text-(--color-muted) min-w-0 truncate">Email <span className="text-(--color-text) ml-2">{viewer.email}</span></p>
-                                <ChangeEmailButton currentEmail={viewer.email!} />
+                                <p className="text-(--color-muted) min-w-0 truncate">Email <span className="text-(--color-text) ml-2">{user.email}</span></p>
+                                <ChangeEmailButton currentEmail={user.email ?? ''} />
                             </div>
                             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3">
                                 <p className="text-(--color-muted)">Password <span className="text-(--color-text) ml-2">••••••••</span></p>
@@ -93,8 +92,8 @@ export default async function Settings({ searchParams } : SettingsPageProps) {
                     <section className="border border-(--color-border) rounded-[3px] bg-(--color-surface) p-6">
                         <h2 className="text-xl font-semibold mb-4">Connections</h2>
                         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-                            <p className="text-(--color-muted)">Steam <span className="text-(--color-text) ml-2">{steamUser ? "Linked" : "Not linked"}</span></p>
-                            {steamUser ? (
+                            <p className="text-(--color-muted)">Steam <span className="text-(--color-text) ml-2">{steamLinked ? "Linked" : "Not linked"}</span></p>
+                            {steamLinked ? (
                                 <div className="flex gap-2">
                                     <Link href="/steamlink">
                                         <button className="px-4 py-1.5 text-sm bg-(--color-accent) text-(--color-bg) font-semibold rounded-[3px] hover:bg-(--color-accent-hover) transition-colors duration-200">

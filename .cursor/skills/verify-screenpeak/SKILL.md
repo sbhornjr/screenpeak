@@ -57,9 +57,12 @@ The harness is this script. Feature recipes name the exact subcommand. Prefer th
 ```bash
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive loadout-readout
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive game-page
+node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive read-endpoints
 ```
 
 `drive game-page` does not sign in. It reads one of `peek`'s games from Postgres, fetches `GET /api/v1/games/[slug]` and the reviews route, and opens the website's game page. The native screen is checked with Expo web, not this drive.
+
+`drive read-endpoints` does not sign in. It fetches the public read routes, hides `peek`'s library and loadout, inserts one private list, and checks that those stay off the JSON. It restores the public flags and deletes that list before it exits.
 
 The drive resets `peek`'s Read-out columns to null, signs in through the dialog, opens Loadout from the account menu and from `/user/peek/loadout`, clicks `Generate your Read-out`, and reads `public.users` back. It exits 0 only when the page shows the generated paragraph and `loadout_identity` in Postgres equals that paragraph. It exits 2 when the click ran but the model call did not produce text. Any other failure exits 1.
 
@@ -83,13 +86,20 @@ A passing Loadout proof shows the action (the Generate control) and the resultin
 
 A passing game-page proof shows the game name in `page.png` and a 200 from `GET /api/v1/games/[slug]` with `viewer` null in `result.json`.
 
+`drive read-endpoints` writes `/tmp/screenpeak-verify/evidence/read-endpoints/`:
+
+- `page.png` — `/user/peek` signed out, with the username visible
+- `result.json` — status codes for the public profile, library, loadout, lists, catalogue, `/me`, and `/me/settings`, plus the 404s after the library and loadout are made private
+
+A passing read-endpoints proof shows `peek` in `page.png`, 200s for the public reads, `viewer` null, 404 `Not found.` for the private library, loadout, and list, and 401 from `/api/v1/me/settings`.
+
 ## Cleanup
 
 ```bash
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs down
 ```
 
-Kill only the pids in `/tmp/screenpeak-verify/pids`. After `down`, `/tmp/screenpeak-verify/evidence/loadout-readout/` and `/tmp/screenpeak-verify/evidence/game-page/` must still exist. Confirm that before treating the run as finished.
+Kill only the pids in `/tmp/screenpeak-verify/pids`. After `down`, `/tmp/screenpeak-verify/evidence/loadout-readout/`, `/tmp/screenpeak-verify/evidence/game-page/`, and `/tmp/screenpeak-verify/evidence/read-endpoints/` must still exist. Confirm that before treating the run as finished.
 
 ## Helpers
 

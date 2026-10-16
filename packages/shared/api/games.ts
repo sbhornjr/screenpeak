@@ -110,8 +110,47 @@ export type GameReviewsPage = {
     totalPages: number
 }
 
-// GET /api/v1/games
+// GET /api/v1/games?q=&genre=&platform=&developer=&publisher=&esrb=&page=&pageSize=&sort=&order=
+//
+// One page of the catalogue. Community score is `avg_rating` (the query_games
+// column is still `avg_ngplus_rating`; this payload renames it). Covers are
+// display-ready `t_cover_big_2x`. `user_rating` is the viewer's score, or null
+// when signed out. sort is `name` (default, ascending) or `ngplus_rating`.
 
-export type GamesPageData = {
-    
+export type GamesListQuery = {
+    q: string | null
+    genre: string | null
+    platform: string | null
+    developer: string | null
+    publisher: string | null
+    esrb: string | null
+    sort: 'name' | 'ngplus_rating'
+    order: 'asc' | 'desc'
+    page: number
+    pageSize: number
+}
+
+/** A game card. `avg_rating` is the community score out of 10. */
+export type GameCardData = {
+    id: string
+    name: string
+    slug: string
+    /** Display-ready cover, or null when the stored value is not an IGDB image. */
+    cover_image_url: string | null
+    released: string | null
+    developer: string | null
+    avg_rating: number | null
+    /** The viewer's own score. Null when signed out or unrated. */
+    user_rating: number | null
+}
+
+export type GamesListPage = {
+    games: GameCardData[]
+    total: number
+    total_pages: number
+    genres: Taxon[]
+    platforms: Taxon[]
+    esrb_ratings: string[]
+    /** Null when signed out. `user_rating` on each game belongs to this viewer. */
+    viewer: { id: string } | null
 }

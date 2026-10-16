@@ -39,6 +39,22 @@ export async function getFullProfile(username: string) {
     }
 }
 
+export async function getProfileById(userId: string) {
+    const rows = await db
+        .select({
+            id: users.id,
+            username: users.username,
+            display_name: users.displayName,
+            avatar_url: users.avatarUrl,
+            selected_title: users.selectedTitle,
+        })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1)
+
+    return rows[0] ?? null
+}
+
 export async function getUserIdFromUsername(username: string) {
     try {
         const rows = await db.select({ id: users.id }).from(users).where(eq(users.username, username)).limit(1)

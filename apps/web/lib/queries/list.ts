@@ -23,6 +23,7 @@ export async function getListById(listId: string): Promise<ListDetail | null> {
         const rows = await db
             .select({
                 id: lists.id,
+                user_id: lists.userId,
                 name: lists.name,
                 description: lists.description,
                 is_public: lists.isPublic,

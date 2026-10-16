@@ -28,6 +28,8 @@ export type ListWithOwner = ListSummary & {
 // Row shape for a single list fetched directly from the `lists` table
 export type ListDetail = {
     id: string
+    /** Owner. Required so a list URL can refuse a list that belongs to someone else. */
+    user_id: string
     name: string
     description: string
     is_public: boolean
