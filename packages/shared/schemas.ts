@@ -126,6 +126,31 @@ export const taxonomySlugSchema = z.string().trim().min(1, 'Enter a slug.').max(
  * cap. This schema matches that: `upsertLibraryEntries` writes the selection
  * in one statement, so clients do not chunk.
  */
+const pkceChallengeSchema = z.string().regex(/^[A-Za-z0-9_-]{43,128}$/, 'Invalid code challenge')
+const pkceVerifierSchema = z.string().regex(/^[A-Za-z0-9._~-]{43,128}$/, 'Invalid code verifier')
+
+/** POST /api/v1/me/steam/link-intent. The S256 challenge only. No redirect and no user id. */
+export const steamLinkIntentSchema = z.object({
+    codeChallenge: pkceChallengeSchema,
+}).strict()
+
+/** POST /api/v1/me/steam/link-complete. The one-time code plus the PKCE verifier. */
+export const steamLinkCompleteSchema = z.object({
+    code: z.string().regex(/^[A-Za-z0-9_-]{43,128}$/, 'Invalid link code'),
+    verifier: pkceVerifierSchema,
+}).strict()
+
+const STEAM_APP_ID_MAX = 2_147_483_647
+
+/** POST /api/v1/me/steam/import. Owned app ids stay on the server. */
+export const steamImportBatchSchema = z.object({
+    retry: z.boolean().optional(),
+    cursor: z.object({
+        phase: z.enum(['pending', 'miss']),
+        afterAppId: z.number().int().min(0).max(STEAM_APP_ID_MAX),
+    }).strict().nullable().optional(),
+}).strict()
+
 export const steamLibraryImportSchema = z.array(z.object({
     gameId: uuidIdSchema,
     playtimeSelected: hoursPlayedSchema,

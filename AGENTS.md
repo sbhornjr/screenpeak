@@ -256,9 +256,10 @@ link formats.
   `withAuth` must be imported from `@/lib/api`, and the handler must call
   `getBearerUser` or `requireBearerUser` imported from `@/lib/auth`. A local
   function with those names does not count. `GET /home` and
-  `GET /user/[username]/ratings_reviews` are the exception: those payloads have
-  no caller, and their tests lock that they do not read a session. A new route
-  is not in that set.
+  `GET /user/[username]/ratings_reviews` have no caller. `GET /app-config` is
+  the other exception: the phone reads it before sign-in, including with a
+  stale bearer, so it must not touch the session. Their tests lock that. A new
+  route is not in that set.
 - **A route's `@/lib` imports, and one level of functions those imports call,
   must not swallow a failed read** as `[]`, `null`, `new Set()`, `new Map()`,
   `catch { return fallback() }`, `const empty = []; return empty`, or
@@ -326,7 +327,25 @@ return the contract type itself is called directly by both the page and the rout
   `claude-sonnet-4-6`. `new Anthropic()` reads `ANTHROPIC_API_KEY` from env implicitly.
   Failures degrade to `''` — the paragraph is optional page content.
 - **Steam** — Web API for owned games + achievement completion (`lib/steam.ts`), behind
-  Steam OpenID 2.0 sign-in (`lib/steam-openid.ts`); powers the `/steamlink` import flow
+  Steam OpenID 2.0 sign-in (`lib/steam-openid.ts`); powers the `/steamlink` import flow.
+  Phone linking does not use the website session. `POST /api/v1/me/steam/link-intent`
+  takes an S256 PKCE `codeChallenge` and returns a 5-minute HMAC `state` bound
+  to the bearer user (`STEAM_LINK_INTENT_SECRET`, at least 32 characters). The
+  signature is not stored. The phone opens the relative `path`
+  (`GET /api/steam/link?state=…&client=mobile`). When `state` is present, that
+  request and `GET /api/steam/callback` must not read cookies. The callback
+  checks that `openid.return_to`'s `state` equals the request state (both
+  absent on the website flow) and only then stores the Steam id on the intent.
+  It redirects to `screenpeak://steamlink?code=<one-time>`. A bad, expired, or
+  reused state, or a missing secret, redirects to `screenpeak://steamlink?ok=0`.
+  `POST /api/v1/me/steam/link-complete` (bearer + write budget) commits the link
+  when the bearer user, the intent user, and the PKCE verifier all match.
+  Realm and `return_to` use `NEXT_PUBLIC_SITE_URL`, not the request host. The
+  website button omits `state` and still uses the session cookie.
+  `POST /api/v1/me/steam/import` is the batch cursor (`runSteamImportBatch`,
+  lease heartbeat 5s, takeover 30s). A busy lease does not spend the write
+  budget. There is no whole-library GET. `POST /api/v1/me/library/import` still
+  confirms the selection.
 - **Cloudflare R2** — user avatars, via a presigned direct-to-R2 upload (`lib/r2.ts`,
   `createAvatarUploadUrl` in `app/user-actions.ts`). The R2 env is read when an
   upload URL is signed, not when the module loads: `user-actions.ts` shares a
@@ -345,6 +364,7 @@ Required in `apps/web/.env.local` (gitignored):
 - `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET` (IGDB seed and Steam-app matching)
 - `ANTHROPIC_API_KEY` (for loadout generation)
 - `STEAM_API_KEY` (Steam library import + achievements)
+- `STEAM_LINK_INTENT_SECRET` (phone Steam OpenID state; at least 32 characters. The website Steam button does not read it. Missing or short, `POST /api/v1/me/steam/link-intent` is 500. The mobile callback and link GET redirect to `screenpeak://steamlink?ok=0` instead of throwing)
 - `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL`
   (Cloudflare R2 — avatar uploads)
 - `NEXT_PUBLIC_SITE_URL` (metadataBase / OG tags; defaults to `http://localhost:3000`)

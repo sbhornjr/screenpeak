@@ -24,7 +24,7 @@ Recorded 2026-10-16. Where an older sketch below disagrees with this section, th
 
 ### Order
 
-Follow Part 4. Bearer auth, the game loader, `GET /api/v1/games/[slug]` plus reviews, the native game screen, the remaining read loaders, the write routes (Phase 1 step 4), search and taxonomy search (step 6), and Postgres rate limits on `/api/v1` writes and search (step 8) are done. Steam `link-intent` and the import batch stay step 7. There is still no `GET` of the whole Steam library.
+Follow Part 4. Bearer auth, the game loader, `GET /api/v1/games/[slug]` plus reviews, the native game screen, the remaining read loaders, the write routes (Phase 1 step 4), search and taxonomy search (step 6), Postgres rate limits on `/api/v1` writes and search (step 8), and phone Steam linking (step 7: `link-intent`, the import batch, and `app-config`) are done. There is still no `GET` of the whole Steam library. The phone Steam screen is still Phase 3.
 
 ### API shape
 
@@ -721,8 +721,8 @@ tests. The website is unchanged for users.
    > | `POST /api/loadout` | `requireUser()` + `withAuth`, and the row update goes through `db` so a bearer and a cookie session persist the same way |
    >
    > The signed-in native game screen calls rate, library save, and add-to-list.
-   > Not in this slice: `POST /me/steam/link-intent` and `POST /me/steam/import`
-   > (step 7). Search landed in step 6. Rate limiting landed in step 8.
+   > `POST /me/steam/link-intent` and `POST /me/steam/import` landed in step 7.
+   > Search landed in step 6. Rate limiting landed in step 8.
 5. Put request/response types in `packages/shared/api/`. (The fetch client that
    calls these routes lives in `apps/mobile/src/lib/api/` — Phase 1 step 2b — since the
    website never calls `/api/v1` itself.)
@@ -759,6 +759,34 @@ tests. The website is unchanged for users.
    > and `taxonomy.search`. A `'use client'` file must not import
    > `lib/queries/game.ts` (`test/api/client-boundary.test.ts`).
 7. Steam `state` flow + `app-config` endpoint.
+   > **Done.** `POST /api/v1/me/steam/link-intent` (bearer + write budget) takes
+   > `{ codeChallenge }` (S256) and returns `{ state, expiresAt, path }`. `state`
+   > is an HMAC (`STEAM_LINK_INTENT_SECRET`, at least 32 characters) over
+   > `v1.userId.jti.exp`, valid for 5 minutes. The signature is not stored.
+   > `steam_link_intents` (migration `0010`) records the jti and the challenge.
+   > One live row per user: the issuer locks `users` and a partial unique index
+   > covers `consumed_at is null`. `path` is a relative
+   > `/api/steam/link?state=…&client=mobile`. A caller-supplied redirect is 400.
+   > `GET /api/steam/link` and `GET /api/steam/callback` use that state and do not
+   > read cookies. Realm and `return_to` are `NEXT_PUBLIC_SITE_URL`. The redirect
+   > to Steam is `no-store` and `no-referrer`, and only if the Location starts
+   > with `https://steamcommunity.com/openid/login`. Verification requires the
+   > `state` on the signed `openid.return_to` to equal the argument (both absent
+   > for the website). The callback stores the Steam id and redirects to
+   > `screenpeak://steamlink?code=<one-time>`. It does not write `steam_accounts`.
+   > A missing secret, or a bad state, redirects to `screenpeak://steamlink?ok=0`.
+   > `POST /api/v1/me/steam/link-complete` commits the link when the bearer user,
+   > the intent user, and the PKCE verifier match. The website button still omits
+   > `state` and uses the session cookie.
+   > `POST /api/v1/me/steam/import` calls `runSteamImportBatch` (same lease:
+   > heartbeat 5s, takeover 30s). The body is `{ retry, cursor }` only. A held
+   > lease is 200 with `notice` and `retryAfterMs` and does not spend the write
+   > budget. Failures are a code (`steam-import-errors.ts`), not a matched
+   > sentence. Steam or matching down is 503 `unavailable`. The lease-not-installed
+   > hint stays in the server log. There is no `GET` of the whole library.
+   > `GET /api/v1/app-config` returns `{ minSupportedVersion: "1.0.0" }` with no
+   > session, so a stale bearer still sees a forced upgrade. Contracts and
+   > `createApiClient` methods are in `@screenpeak/shared/api`.
 8. Consider rate limiting on write routes (Upstash or Vercel's firewall) — the
    API is now a public, documented surface in a way Server Actions weren't.
    > **Done, in Postgres.** Migration `0009_api_rate_limits` adds
@@ -864,6 +892,28 @@ and check it on a small phone (iPhone SE size) and with the keyboard open.
    Settings → Build & Deployment) and copy the env vars from
    `apps/web/.env.local`. Point the mobile `production`/`preview` EAS profiles
    at that URL.
+
+   **Before first deploy**
+
+   - [ ] Set the Vercel project's **Root Directory** to `apps/web`.
+     `apps/web/vercel.json` schedules `GET /api/cron/rate-limits`. If the
+     project root stays the repo root, that file is not read and the cron does
+     not run. Either set the root to `apps/web`, or place `vercel.json` at the
+     project root. Do not keep two copies.
+   - [ ] Set `CRON_SECRET` in the Vercel project. The cron sends
+     `Authorization: Bearer $CRON_SECRET`. If it is unset, the route is 401 and
+     old `api_rate_limits` rows are not deleted.
+   - [ ] Set `STEAM_LINK_INTENT_SECRET` to at least 32 characters
+     (`openssl rand -base64 32`). Without it,
+     `POST /api/v1/me/steam/link-intent` is 500 and the phone cannot start
+     Steam linking. The website Steam button does not read this secret.
+   - [ ] Apply migration `0010_steam_link_intents` with `migrate:journal`
+     (`npm run migrate:journal -w @screenpeak/web -- --database-env DATABASE_URL --apply-pending`
+     against the database this deploy uses). Phone linking reads
+     `steam_link_intents`. A database that stopped at `0009` has no table for it.
+   - [ ] Copy the rest of `apps/web/.env.local` (Phase 5 step 0). Phone Steam
+     import adds no other variable. `STEAM_API_KEY` was already required for
+     the website import. `NEXT_PUBLIC_SITE_URL` is the OpenID realm.
 1. `eas build --profile preview` → TestFlight (iOS) and Internal testing
    (Android). Get 3–5 friends on it for a week.
 2. Store listings: screenshots, description, keywords, privacy policy URL (you

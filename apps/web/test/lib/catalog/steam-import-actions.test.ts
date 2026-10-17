@@ -59,8 +59,8 @@ describe('steam import actions', () => {
 
     it('uses the signed-in user and ignores a posted user id or app list', async () => {
         requireUser.mockResolvedValue({ id: 'user-a', email: null })
-        runSteamImportBatch.mockResolvedValue(batch)
-        await resolveSteamImportBatch({ userId: 'user-b', appids: [99], retry: true })
+        runSteamImportBatch.mockResolvedValue({ charged: true, batch })
+        await expect(resolveSteamImportBatch({ userId: 'user-b', appids: [99], retry: true })).resolves.toEqual(batch)
         expect(runSteamImportBatch).toHaveBeenCalledWith('user-a', { retry: true, cursor: null })
         importConfirmedSteamLibrary.mockResolvedValue(undefined)
         await importSteamLibraryEntries([])

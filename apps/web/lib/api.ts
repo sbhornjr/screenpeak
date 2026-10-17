@@ -50,7 +50,7 @@ export class AuthUnavailableError extends ApiError {
 export function apiError(status: number, code: ApiErrorCode, message: string, headers?: Record<string, string>) {
     const retryHeader = headers?.['Retry-After']
     const retry = retryHeader == null ? Number.NaN : Number(retryHeader)
-    const body: ApiErrorBody = code === 'rate_limited' && Number.isFinite(retry)
+    const body: ApiErrorBody = (code === 'rate_limited' || code === 'unavailable') && Number.isFinite(retry)
         ? { error: { code, message, retry_after: retry } }
         : { error: { code, message } }
     return NextResponse.json<ApiErrorBody>(body, { status, headers })
