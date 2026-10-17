@@ -7,9 +7,9 @@ import { ScreenScroll, screenStyles, SignupButtons } from './screen-scroll'
 
 function statusLabel(status: string | null): string | null {
   if (status === 'playing') return 'Playing'
-  if (status === 'completed') return 'Done'
+  if (status === 'completed') return 'Completed'
   if (status === 'backlog') return 'Backlog'
-  if (status === 'abandoned') return 'Dropped'
+  if (status === 'abandoned') return 'Abandoned'
   if (!status) return null
   return status
 }

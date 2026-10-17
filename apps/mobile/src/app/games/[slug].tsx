@@ -7,6 +7,7 @@ import { GameDetail } from '@/components/game-detail'
 import { api, apiConfigured } from '@/lib/api'
 import { ApiClientError } from '@/lib/api/client'
 import { useAuth } from '@/lib/auth'
+import { back } from '@/lib/go'
 import { colors, face, space } from '@/theme'
 
 function messageOf(error: unknown): string {
@@ -65,7 +66,7 @@ export default function GameScreen() {
           reviews={reviews.data ?? null}
           reviewsNote={reviews.isError ? messageOf(reviews.error) : null}
           signedIn={signedIn}
-          onBack={() => router.back()}
+          onBack={back}
           onSignIn={() => router.push('/sign-in')}
           onSignUp={() => router.push('/sign-up')}
           onRetryReviews={() => { void reviews.refetch() }}

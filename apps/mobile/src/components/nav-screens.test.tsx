@@ -336,6 +336,8 @@ describe('explore', () => {
     expect(screen.getByText('Type a game name.').textContent).toBe('Type a game name.')
     expect(screen.getByText("Sign up to see what people you follow are playing.").textContent)
       .toBe("Sign up to see what people you follow are playing.")
+    expect(screen.getByText('Sign up to get recommendations.').textContent).toBe('Sign up to get recommendations.')
+    expect(screen.getAllByRole('button', { name: 'Sign up' })).toHaveLength(2)
     expect(screen.queryByText('2 followers completed')).toBeNull()
   })
 })
@@ -353,9 +355,12 @@ describe('library', () => {
   it('lists a signed-in library and opens the game', () => {
     const onOpen = vi.fn()
     render(<LibraryScreen locked={false} games={[HADES]} onOpen={onOpen} />)
-    expect(screen.getByText('Done').textContent).toBe('Done')
+    expect(screen.getByText('Completed').textContent).toBe('Completed')
     fireEvent.click(screen.getByRole('link', { name: 'Hades' }))
     expect(onOpen).toHaveBeenCalledWith('/games/hades')
+    cleanup()
+    render(<LibraryScreen locked={false} games={[{ ...HADES, id: '22222222-2222-2222-2222-222222222222', name: 'Celeste', slug: 'celeste', library_status: 'abandoned' }]} onOpen={onOpen} />)
+    expect(screen.getByText('Abandoned').textContent).toBe('Abandoned')
   })
 })
 
@@ -440,6 +445,27 @@ describe('profile hub', () => {
       ['/user/ada/lists'],
       ['/user/ada/library'],
     ])
+  })
+
+  it('hides Loadout, the library counts, and the loadout bio when another player is private even if the payload includes them', () => {
+    const data = profilePage({
+      username: 'ada',
+      owner: false,
+      libraryPublic: false,
+      loadoutPublic: false,
+      stats: { total_games: 10, completed: 3 },
+      viewer: 'other',
+    })
+    data.profile.profile_loadout_bio = 'A patient roguelike reader.'
+    const model = profileHubModel(data)
+    expect(model.loadoutHref).toBeNull()
+    expect(model.library).toBeNull()
+    render(<ProfileHub model={model} onOpen={vi.fn()} />)
+    expect(screen.queryByRole('button', { name: 'Loadout' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Library/ })).toBeNull()
+    expect(screen.queryByText('10 games · 3 completed')).toBeNull()
+    expect(screen.queryByText('A patient roguelike reader.')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Lists' })).toBeTruthy()
   })
 
   it('omits Loadout and the library preview when another player has hidden them, and still links Lists', () => {

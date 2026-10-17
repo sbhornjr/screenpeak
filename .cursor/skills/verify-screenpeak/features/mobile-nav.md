@@ -27,6 +27,7 @@ Preconditions:
 - `peek` has five ratings and five library games, three of them completed. You start signed out.
 
 - **Open Feed signed out.** The drive opens `http://localhost:8081/`. The screen says Welcome and "Sign up, log in, or browse the catalogue."
+- **Browse, then Back.** Click Browse. The catalogue title is Games. Click Back. The welcome is showing again.
 - **Open Explore signed out.** Click the Explore tab. The screen has a Search games field, Browse all, and "Sign up to see what people you follow are playing."
 - **Open Library signed out.** Click the Library tab. The screen says "Sign up to see your library." None of peek's games are in that panel.
 - **Open your profile signed out.** Click the Profile tab. The screen says "Sign up to see your loadout and lists." Loadout, Lists, and the library counts are absent.
@@ -34,8 +35,10 @@ Preconditions:
 - **Open a private profile signed out.** Open `http://localhost:8081/user/ada`. The screen shows ada and Lists. Loadout and the library counts are absent. The hub does not request `/api/v1/user/ada/library`, `/loadout`, or `/lists`.
 - **Log in.** Open `http://localhost:8081/sign-in`, fill Email and Password for peek, and click Log in.
 - **Open the tabs signed in.** Feed no longer shows the welcome. Explore no longer asks you to sign up. Library shows one of peek's games. Profile shows peek, Loadout, Lists, and "5 games · 3 completed".
+- **Open the library from the hub.** On the Profile tab, click the library preview. The Library tab is selected, the address is `/library`, and the hub is not left on top. Open `http://localhost:8081/user/peek` and click that preview again. The same Library tab is showing.
 - **Open the private profile as peek.** Open `http://localhost:8081/user/ada` again. Lists stays. Loadout and the library counts stay absent, and those routes are still not requested.
-- **Proof.** The drive writes `/tmp/screenpeak-verify/evidence/mobile-nav/`. The png files are the tabs and the profile views. `result.json` records the profile JSON: peek's signed-out `library_stats.total_games` is 5, ada's `library_stats` is null, ada's library and loadout routes are 404, and peek's own profile JSON has `viewer.is_owner` true.
+- **Open the hidden routes.** Open `http://localhost:8081/user/ada/library` and `http://localhost:8081/user/ada/loadout`. Each says Couldn't load this screen and Not found. Neither shows a game title.
+- **Proof.** The drive writes `/tmp/screenpeak-verify/evidence/mobile-nav/`. The png files are the tabs, the profile views, the Library tab after each preview tap, and ada's not-found library and loadout. `result.json` records the profile JSON: peek's signed-out `library_stats.total_games` is 5, ada's `library_stats` is null, ada's library and loadout routes are 404, and peek's own profile JSON has `viewer.is_owner` true. It also records the Library tab path after each preview tap.
 
 ```bash
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-nav

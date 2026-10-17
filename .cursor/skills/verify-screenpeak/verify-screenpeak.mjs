@@ -1674,6 +1674,13 @@ async function driveMobileNav() {
         if (!feedOut.includes('Welcome')) problems.push('signed-out feed is missing Welcome')
         if (await page.controlInView('Loadout') === 'yes') problems.push('signed-out feed shows Loadout')
 
+        await page.clickControl('Browse')
+        await page.waitForText('Games')
+        await page.clickControl('Back')
+        await page.waitForText('Sign up, log in, or browse the catalogue.')
+        const afterBrowse = await page.panelText()
+        if (!afterBrowse.includes('Welcome')) problems.push('Back from the catalogue did not return to the welcome')
+
         await page.clickTab('Explore')
         const exploreOut = await shot('explore-signed-out.png', 'Sign up to see what people you follow are playing.')
         if (!exploreOut.includes('Browse all')) problems.push('signed-out explore is missing Browse all')
@@ -1743,6 +1750,43 @@ async function driveMobileNav() {
         if (await page.controlInView('Lists') !== 'yes') problems.push('own profile hides Lists')
         if (!ownIn.includes(peekUsername)) problems.push('own profile is missing peek')
 
+        async function assertLibraryTab(label) {
+            await page.waitForText(library.games[0])
+            const state = await page.evaluate(`(() => {
+                const tab = document.querySelector('[role="tab"][aria-selected="true"]')
+                const panel = document.querySelector('[role="tabpanel"][data-state="active"]')
+                const root = panel || document.body
+                const controls = [...root.querySelectorAll('button, [role="button"]')].map((item) => item.textContent.trim())
+                return {
+                    path: location.pathname,
+                    tab: tab ? tab.textContent.trim() : '',
+                    back: controls.includes('Back'),
+                    loadout: controls.includes('Loadout'),
+                    game: (root.innerText || '').includes(${JSON.stringify(library.games[0])}),
+                }
+            })()`)
+            if (!String(state.path || '').endsWith('/library')) problems.push(`${label} landed on ${state.path}`)
+            if (state.tab !== 'Library') problems.push(`${label} selected tab was ${state.tab || 'missing'}`)
+            if (state.back) problems.push(`${label} left a Back control over the library`)
+            if (state.loadout) problems.push(`${label} left the hub on top of the library`)
+            if (!state.game) problems.push(`${label} library tab is missing a game`)
+            return state
+        }
+
+        await page.clickControl(counts)
+        const fromProfile = await assertLibraryTab('profile library preview')
+        const fromProfilePath = join(dir, 'library-from-profile.png')
+        await page.screenshot(fromProfilePath)
+        shots['library-from-profile.png'] = fromProfilePath
+
+        await page.navigate(`${expoOrigin}/user/${peekUsername}`)
+        await page.waitForText(counts)
+        await page.clickControl(counts)
+        const fromPeek = await assertLibraryTab('peek profile library preview')
+        const fromPeekPath = join(dir, 'library-from-peek.png')
+        await page.screenshot(fromPeekPath)
+        shots['library-from-peek.png'] = fromPeekPath
+
         const adaInMark = page.eventMark()
         await page.navigate(`${expoOrigin}/user/${adaUsername}`)
         const adaIn = await shot('user-ada-as-peek.png', adaUsername)
@@ -1751,6 +1795,21 @@ async function driveMobileNav() {
         if (adaIn.includes('completed') || adaIn.includes('games ·')) problems.push('ada as peek shows a library preview')
         const adaInLeaks = page.requestUrlsSince(adaInMark).filter((url) => /\/api\/v1\/user\/ada\/(library|loadout|lists)/.test(url))
         if (adaInLeaks.length) problems.push(`ada as peek fetched ${adaInLeaks.join(', ')}`)
+
+        async function hiddenRoute(path, shotName) {
+            await page.navigate(`${expoOrigin}${path}`)
+            await page.waitForText('Not found.')
+            const text = await page.bodyText()
+            const leaked = library.games.filter((name) => text.includes(name))
+            if (!text.includes("Couldn't load this screen")) problems.push(`${path} is missing the not-found title`)
+            if (leaked.length) problems.push(`${path} showed ${leaked.join(', ')}`)
+            const file = join(dir, shotName)
+            await page.screenshot(file)
+            shots[shotName] = file
+            return { leaked }
+        }
+        const adaLibraryScreen = await hiddenRoute(`/user/${adaUsername}/library`, 'user-ada-library.png')
+        const adaLoadoutScreen = await hiddenRoute(`/user/${adaUsername}/loadout`, 'user-ada-loadout.png')
 
         const token = await page.evaluate(`(() => {
             for (let i = 0; i < localStorage.length; i += 1) {
@@ -1792,6 +1851,10 @@ async function driveMobileNav() {
             adaLoadoutStatus: adaLoadout.status,
             adaAsPeek: { status: adaAsPeek.status, is_owner: adaAsPeek.body?.viewer?.is_owner ?? null, library_stats: adaAsPeek.body?.library_stats ?? null },
             peekAsPeek: { status: peekAsPeek.status, is_owner: peekAsPeek.body?.viewer?.is_owner ?? null },
+            libraryFromProfile: fromProfile,
+            libraryFromPeek: fromPeek,
+            adaLibraryScreen,
+            adaLoadoutScreen,
             problems,
         }, null, 2))
     } catch (error) {

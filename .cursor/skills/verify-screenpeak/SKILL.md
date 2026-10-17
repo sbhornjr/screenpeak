@@ -65,7 +65,7 @@ node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-nav
 
 `drive search` does not start signed in. It reads one of `peek`'s rated games and that game's developer and publisher from Postgres, fetches the game and taxonomy search routes, and types into the catalogue's developer dropdown and the signed-in favorite-game picker. It does not click Lock.
 
-`drive mobile-nav` starts Expo web on `localhost:8081` with `EXPO_PUBLIC_API_URL` pointed at the local website and the public Supabase URL and anon key from the env file this skill wrote. It does not write those values into the repo. It screenshots the four tabs signed out and signed in as peek, peek's public profile signed out, and a second local user `ada` whose library and loadout are private, both signed out and as peek. It deletes `ada` and stops Expo before it exits. Port 8081 must be free.
+`drive mobile-nav` starts Expo web on `localhost:8081` with `EXPO_PUBLIC_API_URL` pointed at the local website and the public Supabase URL and anon key from the env file this skill wrote. It does not write those values into the repo. It screenshots the four tabs signed out and signed in as peek, peek's public profile signed out, and a second local user `ada` whose library and loadout are private, both signed out and as peek. It also opens the catalogue from Browse and comes Back, opens the Library tab from the profile preview, and opens ada's library and loadout, which stay Not found. It deletes `ada` and stops Expo before it exits. Port 8081 must be free.
 
 `drive game-page` does not sign in. It reads one of `peek`'s games from Postgres, fetches `GET /api/v1/games/[slug]` and the reviews route, and opens the website's game page. The native screen is checked with Expo web, not this drive.
 
@@ -125,7 +125,9 @@ A passing search proof shows the developer name in `filters.png`, the game name 
 - `user-ada-signed-out.png` — ada's private profile, Lists only
 - `feed-signed-in.png`, `explore-signed-in.png`, `library-signed-in.png`, `own-profile-as-peek.png` — the same tabs as peek
 - `user-ada-as-peek.png` — ada's private profile while signed in as peek
-- `result.json` — the profile JSON checks, including ada's 404 library and loadout
+- `library-from-profile.png` and `library-from-peek.png` — the Library tab after the preview is tapped, with the hub no longer on top
+- `user-ada-library.png` and `user-ada-loadout.png` — Not found, with no game titles
+- `result.json` — the profile JSON checks, the library-tab landing, and ada's 404 library and loadout
 
 A passing mobile-nav proof shows ScreenPeak on each screenshot, the welcome and signup prompts while signed out, peek's games on the signed-in library, Loadout and the library counts on peek's own hub and on the signed-out public profile, and neither Loadout nor the library counts on ada. `result.json` has an empty `problems` list, `library_stats` null for ada, and `viewer.is_owner` true for peek.
 

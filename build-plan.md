@@ -48,7 +48,7 @@ Follow Part 4. Bearer auth, the game loader, `GET /api/v1/games/[slug]` plus rev
 
 ### Testing and launch
 
-- Cloud agents verify API behaviour and logic with unit tests and a local Postgres, and they verify layouts with Expo web (`npm run mobile:web`). The owner checks a real device at milestones. The phone UI is not part of the `verify-screenpeak` browser drive; that drive covers the web app and the JSON the phone consumes.
+- Cloud agents verify API behaviour and logic with unit tests and a local Postgres, and they verify layouts with Expo web (`npm run mobile:web`). The phone tabs are proved by `node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-nav`. The owner checks a real device at milestones.
 - Screens live in `apps/mobile/src/app/`. Mobile tests are Vitest (`npm test -w @screenpeak/mobile`), not Jest.
 - The IGDB commercial partnership blocks the App Store and a public launch only. It does not block TestFlight or other test builds. See Phase 5.
 

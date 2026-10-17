@@ -127,7 +127,10 @@ export function ExploreScreen({
 
       <SectionLabel>Recommendations</SectionLabel>
       {data.recommendations == null ? (
-        <Text style={screenStyles.muted}>Sign up to get recommendations.</Text>
+        <>
+          <Text style={screenStyles.muted}>Sign up to get recommendations.</Text>
+          <SignupButtons onOpen={onOpen} />
+        </>
       ) : (
         <>
           {data.recommendations.lists.length === 0 && data.recommendations.users.length === 0 ? (

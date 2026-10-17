@@ -33,6 +33,9 @@ export default function SignInScreen() {
     <SafeAreaView style={styles.screen}>
       <View style={styles.content}>
         <Eyebrow>ScreenPeak</Eyebrow>
+        <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={backOrHome}>
+          <Text style={styles.link}>Back</Text>
+        </Pressable>
         <Text style={styles.title}>Log in</Text>
         {configured ? null : <Text style={styles.error}>Sign-in is not configured.</Text>}
         <TextInput

@@ -44,6 +44,9 @@ export default function SignUpScreen() {
     <SafeAreaView style={styles.screen}>
       <View style={styles.content}>
         <Eyebrow>ScreenPeak</Eyebrow>
+        <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={backOrHome}>
+          <Text style={styles.link}>Back</Text>
+        </Pressable>
         <Text style={styles.title}>Sign up</Text>
         {configured ? null : <Text style={styles.error}>Sign-up is not configured.</Text>}
         <TextInput
