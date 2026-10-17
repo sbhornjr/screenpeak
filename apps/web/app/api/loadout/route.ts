@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server'
+import { withAuth } from '@/lib/api'
+import { requireUser } from '@/lib/auth'
 import { createClient } from '@/lib/supabase-server'
 import { buildLoadoutInput, generateLoadoutIdentity } from '@/lib/loadout'
 import { logger } from '@/lib/logger'
@@ -7,11 +9,9 @@ import { logger } from '@/lib/logger'
 // Never called during page render — see app/user/[username]/loadout/page.tsx.
 // Takes no body: the caller is identified by their session, and the stats are
 // recomputed here from that user's own rows so they can't be spoofed.
-export async function POST() {
+export const POST = withAuth(async () => {
+    const user = await requireUser()
     const supabase = await createClient()
-
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 
     const { data: current } = await supabase
         .from('users')
@@ -53,4 +53,4 @@ export async function POST() {
     }
 
     return NextResponse.json({ text })
-}
+})

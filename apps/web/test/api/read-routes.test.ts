@@ -19,7 +19,15 @@ const loadListPage = vi.fn()
 const loadUserReviews = vi.fn()
 const loadLoadoutPage = vi.fn()
 
-vi.mock('@/lib/auth', () => ({ getBearerUser }))
+vi.mock('@/lib/auth', () => ({ getBearerUser, requireBearerUser: vi.fn() }))
+vi.mock('@/lib/queries/user', () => ({
+    updateBio: vi.fn(),
+    updateFavoriteGames: vi.fn(),
+    updateLoadoutBio: vi.fn(),
+    updatePrivacy: vi.fn(),
+    updateSelectedTitle: vi.fn(),
+    updateUsername: vi.fn(),
+}))
 vi.mock('@/lib/loaders/games-page', () => ({ loadGamesPage }))
 vi.mock('@/lib/loaders/feed', () => ({ loadFeed }))
 vi.mock('@/lib/loaders/explore', () => ({ loadExplore }))

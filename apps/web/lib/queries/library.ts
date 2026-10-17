@@ -41,7 +41,7 @@ export async function getLibraryEntry(userId: string, gameId: string) {
     return rows[0] ?? null
 }
 
-type LibraryEntryFields = {
+export type LibraryEntryFields = {
     status: string
     is100: boolean
     hours: number | null
@@ -63,8 +63,9 @@ export async function createLibraryEntry(userId: string, gameId: string, fields:
             .returning(LIBRARY_ENTRY_COLUMNS)
 
         return rows[0] ?? null
-    } catch {
-        return null
+    } catch (error) {
+        logger.error('queries:library', 'Failed to create library entry', { userId, gameId, error: error instanceof Error ? error.message : String(error) })
+        throw error
     }
 }
 
@@ -82,9 +83,27 @@ export async function updateLibraryEntry(userId: string, gameId: string, fields:
             .returning(LIBRARY_ENTRY_COLUMNS)
 
         return rows[0] ?? null
-    } catch {
-        return null
+    } catch (error) {
+        logger.error('queries:library', 'Failed to update library entry', { userId, gameId, error: error instanceof Error ? error.message : String(error) })
+        throw error
     }
+}
+
+/** The website's Save action and PUT /api/v1/me/library/[gameId] both call this. */
+export async function upsertLibraryEntry(userId: string, gameId: string, fields: LibraryEntryFields) {
+    const existing = await getLibraryEntry(userId, gameId)
+    return existing
+        ? updateLibraryEntry(userId, gameId, fields)
+        : createLibraryEntry(userId, gameId, fields)
+}
+
+/** Deletes the caller's row for this game. Null when they had no row. A database error rejects. */
+export async function deleteLibraryEntryByGame(userId: string, gameId: string) {
+    const rows = await db
+        .delete(libraryEntries)
+        .where(and(eq(libraryEntries.userId, userId), eq(libraryEntries.gameId, gameId)))
+        .returning({ id: libraryEntries.id })
+    return rows[0]?.id ?? null
 }
 
 export async function upsertLibraryEntries(userId: string, entries: SteamLinkEntry[]) {

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import type { GamePageData, GameReviewsPage } from '@screenpeak/shared/api/games'
 import React from 'react'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { GameDetail } from './game-detail'
@@ -25,6 +25,19 @@ vi.mock('react-native', () => ({
   ),
   View: ({ children }: { children?: React.ReactNode }) => React.createElement('div', null, children),
   Text: ({ children }: { children?: React.ReactNode }) => React.createElement('span', null, children),
+  TextInput: ({
+    accessibilityLabel,
+    value,
+    onChangeText,
+  }: {
+    accessibilityLabel?: string
+    value?: string
+    onChangeText?: (value: string) => void
+  }) => React.createElement('input', {
+    'aria-label': accessibilityLabel,
+    value: value ?? '',
+    onChange: (event: { target: { value: string } }) => onChangeText?.(event.target.value),
+  }),
   ScrollView: ({ children }: { children?: React.ReactNode }) => React.createElement('div', null, children),
   StyleSheet: { create: (styles: unknown) => styles, absoluteFill: {} },
 }))
@@ -191,5 +204,64 @@ describe('GameDetail', () => {
     expect(screen.queryByText('Sign up to rate, log, or list this game.')).toBeNull()
     expect(screen.getByText('You · 8 / 10').textContent).toBe('You · 8 / 10')
     expect(screen.getByRole('button', { name: 'Save game' }).textContent).toBe('Playing')
+  })
+
+  const SIGNED_IN = {
+    ...DATA,
+    viewer: {
+      review: {
+        user_id: 'viewer',
+        rating: 8,
+        review: 'Sharp.',
+        created_at: '2026-03-01 00:00:00+00',
+        updated_at: '2026-03-01 00:00:00+00',
+        users: { username: 'peek', display_name: 'peek', avatar_url: '' },
+      },
+      libraryEntry: { id: 'le', status: 'playing', completed_all_achievements: false, hours_played: 12, play_count: 1 },
+      lists: [{ id: 'list-1', name: 'Backlog', game_count: 2 }],
+      listIdsGameIsIn: [],
+      defaultListPrivacy: true,
+    },
+  }
+
+  it('saves a rating, a library status, and a list for a signed-in player', async () => {
+    const onRate = vi.fn(async () => null)
+    const onSave = vi.fn(async () => null)
+    const onAddToList = vi.fn(async () => null)
+    const onCreateList = vi.fn(async () => null)
+    render(
+      <GameDetail
+        data={SIGNED_IN}
+        reviews={REVIEWS}
+        reviewsNote={null}
+        signedIn
+        onBack={() => undefined}
+        onSignIn={() => undefined}
+        onSignUp={() => undefined}
+        onRetryReviews={() => undefined}
+        onRate={onRate}
+        onSave={onSave}
+        onAddToList={onAddToList}
+        onCreateList={onCreateList}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rate' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Review note' }), { target: { value: 'sharp' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Score 9' }))
+    await waitFor(() => expect(onRate).toHaveBeenCalledWith(9, 'sharp'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save game' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Log as completed' }))
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith('completed'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add to list' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add to Backlog' }))
+    await waitFor(() => expect(onAddToList).toHaveBeenCalledWith('list-1'))
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'New list name' }), { target: { value: 'Favorites' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create list' }))
+    await waitFor(() => expect(onCreateList).toHaveBeenCalledWith('Favorites'))
+    expect(screen.queryByText('Sign up to rate, log, or list this game.')).toBeNull()
   })
 })

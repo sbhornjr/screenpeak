@@ -73,17 +73,14 @@ export async function getAccountSettings(userId: string) {
 // Just the one setting the game page needs (whether a list created there starts
 // public), so a game page view doesn't select the whole settings row.
 export async function getDefaultListPublic(userId: string): Promise<boolean | null> {
-    try {
-        const rows = await db
-            .select({ default_list_public: users.defaultListPublic })
-            .from(users)
-            .where(eq(users.id, userId))
-            .limit(1)
+    // A database error must reject. Null is "no row", which the game page treats as public.
+    const rows = await db
+        .select({ default_list_public: users.defaultListPublic })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1)
 
-        return rows[0]?.default_list_public ?? null
-    } catch {
-        return null
-    }
+    return rows[0]?.default_list_public ?? null
 }
 
 export async function updateBio(userId: string, bio: string) {
@@ -223,20 +220,19 @@ export async function getFollowing(userId: string) {
     }
 }
 
-export async function followUser(followerId: string, followingId: string) {
-    try {
-        await db.insert(follows).values({ followerId, followingId })
-    } catch {
-        // Original supabase-js version never checked/surfaced this error either — fire and forget.
-    }
+export async function userExists(userId: string): Promise<boolean> {
+    const rows = await db.select({ id: users.id }).from(users).where(eq(users.id, userId)).limit(1)
+    return Boolean(rows[0])
 }
 
+/** Idempotent. A database error rejects. The caller rejects a self-follow before this. */
+export async function followUser(followerId: string, followingId: string) {
+    await db.insert(follows).values({ followerId, followingId }).onConflictDoNothing()
+}
+
+/** Idempotent. A database error rejects. */
 export async function unfollowUser(followerId: string, followingId: string) {
-    try {
-        await db.delete(follows).where(and(eq(follows.followerId, followerId), eq(follows.followingId, followingId)))
-    } catch {
-        // Original supabase-js version never checked/surfaced this error either — fire and forget.
-    }
+    await db.delete(follows).where(and(eq(follows.followerId, followerId), eq(follows.followingId, followingId)))
 }
 
 // The landing page's sample Loadout. `db` bypasses RLS, so the loadout_public

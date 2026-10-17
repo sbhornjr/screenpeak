@@ -24,7 +24,7 @@ Recorded 2026-10-16. Where an older sketch below disagrees with this section, th
 
 ### Order
 
-Follow Part 4. Bearer auth, the game loader, `GET /api/v1/games/[slug]` plus reviews, the native game screen, and the remaining read loaders are done. The next slice is the write routes (Phase 1 step 4). Search (`game-search.ts`, `GET /api/v1/games/search`) stays step 6. There is still no `GET` of the whole Steam library.
+Follow Part 4. Bearer auth, the game loader, `GET /api/v1/games/[slug]` plus reviews, the native game screen, the remaining read loaders, and the write routes (Phase 1 step 4) are done. Search (`game-search.ts`, `GET /api/v1/games/search`) stays step 6. Steam `link-intent` and the import batch stay step 7. There is still no `GET` of the whole Steam library.
 
 ### API shape
 
@@ -682,12 +682,39 @@ tests. The website is unchanged for users.
    > Steam-library GET.
 4. Write routes (mirror the Server Actions). Have both the action and the route
    call the same function; validate request bodies with the shared zod schemas.
+   > **Done.** `requireBearerUser()` — 401 `unauthenticated` when the Bearer
+   > header is absent, and a website cookie is ignored. Bodies use
+   > `@screenpeak/shared/schemas`. The query checks `user_id`; a miss is 404
+   > `not_found`. Ids are uuid strings. Likes, follows, and list-game inserts
+   > are idempotent. The website actions call the same functions
+   > (`saveRatingReview`, `upsertLibraryEntry`, `createListWithGame`).
+   >
+   > | Route | Shared function |
+   > | --- | --- |
+   > | `PUT /api/v1/games/[slug]/review` | `saveRatingReview`. The segment is the game uuid. A `[gameId]` folder cannot sit beside `[slug]`. |
+   > | `GET` / `PUT` / `DELETE /api/v1/me/library/[gameId]` | `getLibraryEntry`, `upsertLibraryEntry`, `deleteLibraryEntryByGame` |
+   > | `POST /api/v1/me/library/import` | `importConfirmedSteamLibrary` |
+   > | `POST /api/v1/lists`, `PATCH /api/v1/lists/[listId]` | `createList`, `createListWithGame`, `updateList`, `setListPinned`. Writes sit on the bearer, not under `/user/[username]`, so the path cannot name a different player. Reads stay at `/user/[username]/lists`. |
+   > | `POST` / `DELETE /api/v1/lists/[listId]/like` | `likeList`, `unlikeList` |
+   > | `POST` / `DELETE /api/v1/lists/[listId]/games/[gameId]` | `addGameToList`, `removeGameFromList` |
+   > | `POST /api/v1/lists/[listId]/games/sync` | `syncListGames` |
+   > | `PATCH /api/v1/me` | `updateUsername`, `updateBio`, `updateSelectedTitle`, `updateLoadoutBio`, `updateFavoriteGames`, `updatePrivacy` |
+   > | `DELETE /api/v1/me/loadout` | `clearLoadoutIdentity` |
+   > | `POST /api/v1/me/avatar/upload-url`, `PUT /api/v1/me/avatar` | `createPresignedAvatarUploadUrl`, `updateAvatarUrl` |
+   > | `POST` / `DELETE /api/v1/user/[username]/follow` | `followUser`, `unfollowUser`. The segment is the target user's uuid (`[userId]` would clash with `[username]`). |
+   > | `DELETE /api/v1/me/steam` | `unlinkSteamAccount` |
+   > | `POST /api/loadout` | `requireUser()` + `withAuth` (website route; cookie or bearer) |
+   >
+   > The signed-in native game screen calls rate, library save, and add-to-list.
+   > Not in this slice: `POST /me/steam/link-intent` and `POST /me/steam/import`
+   > (step 7), rate limiting (step 8), and search (step 6).
 5. Put request/response types in `packages/shared/api/`. (The fetch client that
    calls these routes lives in `apps/mobile/src/lib/api/` — Phase 1 step 2b — since the
    website never calls `/api/v1` itself.)
    > **Read routes from step 3** already have their types in
    > `@screenpeak/shared/api`, and `createApiClient` lives there too. The phone
-   > client re-exports it. Write-route types still belong with step 4.
+   > client re-exports it. **Write routes from step 4** add
+   > `@screenpeak/shared/api/writes` and the write methods on `createApiClient`.
 6. Retire `game-search.ts`: reimplement its three functions on `db` in
    `lib/queries/game.ts` (`searchGamesByName`, `searchTaxonomyTable`,
    `getTaxonomyNameBySlug`). Then, same pattern as every other feature:

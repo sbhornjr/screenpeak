@@ -219,6 +219,25 @@ link formats.
   `getOptionalUser()` / `requireUser()` (bearer, else cookie).
   `GET /api/v1/me` returns `{ user: null }` with no email. `GET /api/v1/me/settings`
   is 401 without a bearer and never includes a Steam id (`steam_linked` only).
+- **`/api/v1` writes call `requireBearerUser()`.** It is `getBearerUser()` plus a
+  401 `unauthenticated` when the Bearer header is absent. It never reads the
+  session cookie. Reads stay on `getBearerUser()` so a missing token is the
+  signed-out payload, not an error.
+- Files under `app/api/v1/` cannot import cookie auth. `eslint/v1-bearer-only.mjs`
+  (rule `screenpeak/v1-bearer-only`) fails lint on `getOptionalUser`,
+  `requireUser`, `cookies` from `next/headers` (including a `.cookies()` call),
+  and `@/lib/supabase-server`. `test/api/v1-routes-auth.test.ts` enumerates
+  every route file and requires `withAuth` plus a `getBearerUser()` or
+  `requireBearerUser()` call. `GET /home` and `GET /user/[username]/ratings_reviews`
+  are the exception: those payloads have no caller, and their tests lock that
+  they do not read a session. A new route is not in that set.
+- **A route's own `@/lib` imports must not swallow a failed read** as `[]`,
+  `null`, `new Set()`, or `new Map()` (`test/api/v1-reads-throw.test.ts`).
+  The check stops at the function the route file imports. It does not walk
+  into loader callees: catalogue helpers such as `getDeveloperNameMap` still
+  return an empty fallback for the website, and a characterization test locks
+  that. An outage inside one of those helpers can still look empty on a read
+  route until those helpers throw too.
 - **A bad bearer token fails closed** — 401 `invalid_token`, never a fallback to a
   cookie, and it throws even from `getOptionalUser()`. An unreachable Auth
   server is **503 `auth_unavailable`, never 401** (a 401 makes the app sign the user out);

@@ -44,3 +44,4 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 - [Loadout Read-out](./loadout-readout.md) covers signing in, opening your Loadout, generating the Read-out, and the saved paragraph.
 - [Game page](./game-page.md) covers the signed-out game JSON at `GET /api/v1/games/[slug]` and the same game on the website. The native screen is not driven here.
 - [Read endpoints](./read-endpoints.md) covers the signed-out profile, library, lists, loadout, catalogue, and `/me` JSON, including the private 404s.
+- [Game writes](./game-writes.md) covers peek's bearer token updating a rating, a library status, and a list, then restoring the fixture.

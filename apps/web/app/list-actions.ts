@@ -1,7 +1,7 @@
 'use server'
 
 import { requireUser } from '@/lib/auth'
-import { likeList, unlikeList, addGameToList, removeGameFromList, syncListGames, createList, updateList, setListPinned } from '@/lib/queries/list'
+import { likeList, unlikeList, addGameToList, removeGameFromList, syncListGames, createList, updateList, setListPinned, createListWithGame } from '@/lib/queries/list'
 
 type ListFields = {
     name: string
@@ -37,13 +37,8 @@ export async function createOrUpdateList(fields: ListFields, existingListId?: st
 
 export async function createListAndAddGame(gameId: string, fields: ListFields) {
     const user = await requireUser()
-    const { data: list, error: createError } = await createList(user.id, fields)
-    if (createError) return { error: createError }
-    if (list) {
-        const { error: addError } = await addGameToList(list.id, gameId, user.id)
-        if (addError) return { error: addError }
-    }
-    return { error: null }
+    const { error } = await createListWithGame(user.id, gameId, fields)
+    return { error }
 }
 
 export async function toggleListPinned(listId: string | number, pinned: boolean) {

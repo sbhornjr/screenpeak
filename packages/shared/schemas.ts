@@ -46,6 +46,71 @@ export const favoriteGameIdsSchema = z.array(z.string().min(1)).max(5, 'You can 
 
 export const privacyTypeSchema = z.enum(['Default List', 'Library', 'Loadout'])
 
+/** Account, game, and list ids on `/api/v1` are uuid strings. */
+export const uuidIdSchema = z.uuid('Must be a uuid.')
+
+export const libraryStatusSchema = z.enum(['playing', 'completed', 'backlog', 'abandoned'])
+
+/** PUT /api/v1/me/library/[gameId]. Status is required; the rest match the website's defaults. */
+export const libraryEntryWriteSchema = z.object({
+    status: libraryStatusSchema,
+    completed_all_achievements: z.boolean().optional(),
+    hours_played: z.number().min(0, 'Hours cannot be negative').nullable().optional(),
+    play_count: z.number().int('Play count must be a whole number').min(0, 'Play count cannot be negative').optional(),
+})
+
+/** POST /api/v1/lists. `gameId` creates the list and adds that game in one call. */
+export const createListSchema = listFieldsSchema.extend({
+    gameId: uuidIdSchema.optional(),
+})
+
+/** PATCH /api/v1/lists/[listId] when the body only changes the pin. */
+export const listPinSchema = z.object({
+    isPinned: z.boolean(),
+}).strict()
+
+export const listGameSyncSchema = z.object({
+    toAdd: z.array(z.object({ id: uuidIdSchema })).max(500),
+    toRemove: z.array(z.object({ id: uuidIdSchema })).max(500),
+})
+
+export const patchMeSchema = z.object({
+    username: usernameSchema.optional(),
+    bio: bioSchema.optional(),
+    selectedTitle: selectedTitleSchema.optional(),
+    loadoutBio: bioSchema.optional(),
+    favoriteGames: z.array(uuidIdSchema).max(5, 'You can only select 5 favorite games').optional(),
+    privacy: z.object({
+        type: privacyTypeSchema,
+        public: z.boolean(),
+    }).optional(),
+}).refine(value => Object.values(value).some(item => item !== undefined), {
+    message: 'Nothing to update.',
+})
+
+export const avatarUploadSchema = z.object({
+    contentType: z.string().min(1, 'Choose an image type.'),
+    contentLength: z.number().int().positive('Image size is required.'),
+})
+
+export const avatarUrlSchema = z.object({
+    url: z.url('Enter the uploaded image URL.'),
+})
+
+export const steamLibraryImportSchema = z.array(z.object({
+    gameId: uuidIdSchema,
+    playtimeSelected: z.number(),
+    status: libraryStatusSchema,
+    selected: z.boolean(),
+    coverImageUrl: z.string().nullable(),
+    gameName: z.string(),
+    gameDeveloper: z.string(),
+    gameReleased: z.string().nullable(),
+    timesPlayed: z.number().int().optional(),
+    completedAllAchievements: z.boolean(),
+    steamPlaytimeMinutes: z.number().int().nullable().optional(),
+})).max(500)
+
 // Runs a schema and collapses the result to a single message, so every query
 // function can return the same { data, error } shape regardless of whether
 // the failure came from validation or from Supabase. `success` is the

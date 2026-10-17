@@ -92,6 +92,13 @@ export async function getGameReviewsForPage(gameId: string, query: GameReviewsQu
     }
 }
 
+/** The website's Rate action and PUT /api/v1/games/[slug]/review both call this. */
+export async function saveRatingReview(userId: string, gameId: string, rating: number | string, review: string, isUpdate: boolean) {
+    return isUpdate
+        ? updateRatingReview({ userId, gameId, rating, review })
+        : createRatingReview({ userId, gameId, rating, review })
+}
+
 export async function createRatingReview({ userId, gameId, rating, review }: { userId: string, gameId: string, rating: number | string, review: string }) {
     const parsed = parseOrError(ratingReviewSchema, { rating, review })
     if (!parsed.success) return { data: null, error: parsed.error }

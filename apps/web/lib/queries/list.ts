@@ -126,16 +126,14 @@ export async function getListLikes(listIds: (string | number)[]) {
 }
 
 export async function getGameListMembership(gameId: string, listIds: (string | number)[]): Promise<Set<string>> {
-    try {
-        const rows = await db
-            .select({ list_id: listGames.listId })
-            .from(listGames)
-            .where(and(eq(listGames.gameId, gameId), inArray(listGames.listId, listIds.map(String))))
+    if (listIds.length === 0) return new Set()
+    // A database error must reject. An empty set would look like "in no lists".
+    const rows = await db
+        .select({ list_id: listGames.listId })
+        .from(listGames)
+        .where(and(eq(listGames.gameId, gameId), inArray(listGames.listId, listIds.map(String))))
 
-        return new Set(rows.map(g => g.list_id))
-    } catch {
-        return new Set()
-    }
+    return new Set(rows.map(g => g.list_id))
 }
 
 export async function addGameToList(listId: string, gameId: string, userId: string) {
@@ -150,7 +148,7 @@ export async function addGameToList(listId: string, gameId: string, userId: stri
             .orderBy(desc(listGames.position))
             .limit(1)
 
-        await db.insert(listGames).values({ listId, gameId, position: (maxPosRows[0]?.position ?? -1) + 1 })
+        await db.insert(listGames).values({ listId, gameId, position: (maxPosRows[0]?.position ?? -1) + 1 }).onConflictDoNothing()
         return { error: null }
     } catch (error) {
         return { error: error instanceof Error ? error.message : String(error) }
@@ -192,15 +190,26 @@ export async function createList(userId: string, fields: ListFields) {
     }
 }
 
+/** Creates a list and puts one game on it. The website action and POST /api/v1/lists share this. */
+export async function createListWithGame(userId: string, gameId: string, fields: ListFields) {
+    const { data: list, error: createError } = await createList(userId, fields)
+    if (createError || !list) return { data: null, error: createError ?? 'Could not create the list.' }
+    const { error: addError } = await addGameToList(list.id, gameId, userId)
+    if (addError) return { data: null, error: addError }
+    return { data: list, error: null }
+}
+
 export async function updateList(listId: string, fields: ListFields, userId: string) {
     const parsed = parseOrError(listFieldsSchema, fields)
     if (!parsed.success) return { error: parsed.error }
 
     try {
-        await db
+        const rows = await db
             .update(lists)
             .set({ name: parsed.data.name, description: parsed.data.description, isPublic: parsed.data.isPublic, isPinned: parsed.data.isPinned })
             .where(and(eq(lists.id, listId), eq(lists.userId, userId)))
+            .returning({ id: lists.id })
+        if (rows.length === 0) return { error: 'List not found' }
         return { error: null }
     } catch (error) {
         return { error: error instanceof Error ? error.message : String(error) }
@@ -245,7 +254,10 @@ export async function syncListGames(listId: string, { toAdd, toRemove }: { toAdd
 
 export async function likeList(listId: string, userId: string) {
     try {
-        await db.insert(listLikes).values({ listId, userId })
+        const list = await db.select({ id: lists.id }).from(lists).where(eq(lists.id, listId)).limit(1)
+        if (list.length === 0) return { error: 'List not found' }
+        // A retry must stay liked. The primary key makes a second insert a no-op.
+        await db.insert(listLikes).values({ listId, userId }).onConflictDoNothing()
         return { error: null }
     } catch (error) {
         return { error: error instanceof Error ? error.message : String(error) }
@@ -269,6 +281,7 @@ export async function setListPinned(listId: string | number, pinned: boolean, us
             .where(and(eq(lists.id, String(listId)), eq(lists.userId, userId)))
             .returning({ is_pinned: lists.isPinned })
 
+        if (rows.length === 0) return { isPinned: undefined, error: 'List not found' }
         return { isPinned: rows[0]?.is_pinned, error: null }
     } catch (error) {
         return { isPinned: undefined, error: error instanceof Error ? error.message : String(error) }

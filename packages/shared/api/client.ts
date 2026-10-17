@@ -11,6 +11,24 @@ import type { LoadoutPageData } from './loadout'
 import type { MeData, SettingsData } from './me'
 import type { ProfilePageData } from './profile'
 import type { UserReviewsPage, UserReviewsQuery } from './user-reviews'
+import type {
+    AvatarSave,
+    AvatarUploadRequest,
+    AvatarUploadResult,
+    FollowResult,
+    LibraryWrite,
+    LibraryWriteResult,
+    ListCreated,
+    ListGameSync,
+    ListLikeResult,
+    ListPinWrite,
+    ListWrite,
+    MePatch,
+    OkResult,
+    RatingWrite,
+    RatingWriteResult,
+    SteamLibraryImportEntry,
+} from './writes'
 
 export class ApiClientError extends Error {
     readonly status: number
@@ -32,7 +50,12 @@ type FetchResponse = {
     json: () => Promise<unknown>
 }
 
-type FetchInit = { headers: Record<string, string>; credentials: 'omit' }
+type FetchInit = {
+    method?: string
+    headers: Record<string, string>
+    credentials: 'omit'
+    body?: string
+}
 type FetchImpl = (url: string, init: FetchInit) => Promise<FetchResponse>
 
 function defaultFetch(url: string, init: FetchInit): Promise<FetchResponse> {
@@ -71,13 +94,37 @@ export function createApiClient(opts: {
         return res.json() as Promise<T>
     }
 
+    async function send<T>(method: string, path: string, body?: unknown): Promise<T> {
+        if (!base) throw new ApiClientError(0, 'invalid_request', 'EXPO_PUBLIC_API_URL is not set.')
+        const token = await opts.getToken()
+        const headers: Record<string, string> = { Accept: 'application/json' }
+        if (token) headers.Authorization = `Bearer ${token}`
+        const init: FetchInit = { method, headers, credentials: 'omit' }
+        if (body !== undefined) {
+            headers['Content-Type'] = 'application/json'
+            init.body = JSON.stringify(body)
+        }
+        const res = await fetchImpl(`${base}${path}`, init)
+        if (res.status === 204) return undefined as T
+        const payload = await res.json().catch(() => null)
+        if (!res.ok) {
+            const err = payload as ApiErrorBody | null
+            throw new ApiClientError(res.status, err?.error?.code ?? 'internal', err?.error?.message ?? 'Something went wrong.')
+        }
+        return payload as T
+    }
+
     const user = (username: string) => `/api/v1/user/${encodeURIComponent(username)}`
+    const gameIdPath = (gameId: string) => encodeURIComponent(gameId)
+    const listIdPath = (listId: string) => `/api/v1/lists/${encodeURIComponent(listId)}`
 
     return {
         games: {
             get: (slug: string) => get<GamePageData>(`/api/v1/games/${encodeURIComponent(slug)}`),
             reviews: (slug: string) => get<GameReviewsPage>(`/api/v1/games/${encodeURIComponent(slug)}/reviews?${REVIEWS_QUERY}`),
             list: (query: Partial<GamesListQuery> = {}) => get<GamesListPage>(`/api/v1/games${qs(query)}`),
+            putReview: (gameId: string, body: RatingWrite) =>
+                send<RatingWriteResult>('PUT', `/api/v1/games/${gameIdPath(gameId)}/review`, body),
         },
         feed: {
             get: (offset = 0) => get<FeedPageData>(`/api/v1/feed${qs({ offset })}`),
@@ -91,6 +138,33 @@ export function createApiClient(opts: {
         me: {
             get: () => get<MeData>('/api/v1/me'),
             settings: () => get<SettingsData>('/api/v1/me/settings'),
+            patch: (body: MePatch) => send<OkResult>('PATCH', '/api/v1/me', body),
+            clearLoadout: () => send<OkResult>('DELETE', '/api/v1/me/loadout'),
+            library: {
+                get: (gameId: string) => send<LibraryWriteResult>('GET', `/api/v1/me/library/${gameIdPath(gameId)}`),
+                put: (gameId: string, body: LibraryWrite) =>
+                    send<LibraryWriteResult>('PUT', `/api/v1/me/library/${gameIdPath(gameId)}`, body),
+                delete: (gameId: string) => send<void>('DELETE', `/api/v1/me/library/${gameIdPath(gameId)}`),
+                importSteam: (entries: SteamLibraryImportEntry[]) =>
+                    send<OkResult>('POST', '/api/v1/me/library/import', entries),
+            },
+            avatarUploadUrl: (body: AvatarUploadRequest) =>
+                send<AvatarUploadResult>('POST', '/api/v1/me/avatar/upload-url', body),
+            saveAvatar: (body: AvatarSave) => send<OkResult>('PUT', '/api/v1/me/avatar', body),
+            unlinkSteam: () => send<void>('DELETE', '/api/v1/me/steam'),
+        },
+        lists: {
+            create: (body: ListWrite) => send<ListCreated>('POST', '/api/v1/lists', body),
+            update: (listId: string, body: ListWrite | ListPinWrite) =>
+                send<OkResult>('PATCH', listIdPath(listId), body),
+            like: (listId: string) => send<ListLikeResult>('POST', `${listIdPath(listId)}/like`),
+            unlike: (listId: string) => send<ListLikeResult>('DELETE', `${listIdPath(listId)}/like`),
+            addGame: (listId: string, gameId: string) =>
+                send<OkResult>('POST', `${listIdPath(listId)}/games/${gameIdPath(gameId)}`),
+            removeGame: (listId: string, gameId: string) =>
+                send<OkResult>('DELETE', `${listIdPath(listId)}/games/${gameIdPath(gameId)}`),
+            syncGames: (listId: string, body: ListGameSync) =>
+                send<OkResult>('POST', `${listIdPath(listId)}/games/sync`, body),
         },
         users: {
             get: (username: string) => get<ProfilePageData>(user(username)),
@@ -103,6 +177,8 @@ export function createApiClient(opts: {
             reviews: (username: string, query: Partial<UserReviewsQuery> = {}) =>
                 get<UserReviewsPage>(`${user(username)}/ratings_reviews${qs(query)}`),
             loadout: (username: string) => get<LoadoutPageData>(`${user(username)}/loadout`),
+            follow: (userId: string) => send<FollowResult>('POST', `/api/v1/user/${encodeURIComponent(userId)}/follow`),
+            unfollow: (userId: string) => send<FollowResult>('DELETE', `/api/v1/user/${encodeURIComponent(userId)}/follow`),
         },
     }
 }

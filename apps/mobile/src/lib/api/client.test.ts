@@ -60,4 +60,54 @@ describe('createApiClient', () => {
     })
     await expect(api.games.get('missing')).rejects.toBeInstanceOf(ApiClientError)
   })
+
+  it('puts a review and a library status with the bearer token', async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse(200, { ok: true }))
+    const api = createApiClient({
+      baseUrl: 'http://127.0.0.1:3210',
+      getToken: async () => 'access-token',
+      fetchImpl,
+    })
+    const gameId = GAME.game.id
+
+    await api.games.putReview(gameId, { rating: 8, review: 'sharp' })
+    await api.me.library.put(gameId, { status: 'playing' })
+    await api.lists.addGame('list-1', gameId)
+
+    expect(fetchImpl).toHaveBeenNthCalledWith(1, `http://127.0.0.1:3210/api/v1/games/${gameId}/review`, {
+      method: 'PUT',
+      headers: {
+        Accept: 'application/json',
+        Authorization: 'Bearer access-token',
+        'Content-Type': 'application/json',
+      },
+      credentials: 'omit',
+      body: JSON.stringify({ rating: 8, review: 'sharp' }),
+    })
+    expect(fetchImpl).toHaveBeenNthCalledWith(2, `http://127.0.0.1:3210/api/v1/me/library/${gameId}`, {
+      method: 'PUT',
+      headers: {
+        Accept: 'application/json',
+        Authorization: 'Bearer access-token',
+        'Content-Type': 'application/json',
+      },
+      credentials: 'omit',
+      body: JSON.stringify({ status: 'playing' }),
+    })
+    expect(fetchImpl).toHaveBeenNthCalledWith(3, 'http://127.0.0.1:3210/api/v1/lists/list-1/games/' + gameId, {
+      method: 'POST',
+      headers: { Accept: 'application/json', Authorization: 'Bearer access-token' },
+      credentials: 'omit',
+    })
+  })
+
+  it('treats 204 as an empty success', async () => {
+    const fetchImpl = vi.fn(async () => ({ ok: true, status: 204, json: async () => { throw new Error('no json') } }))
+    const api = createApiClient({
+      baseUrl: 'http://127.0.0.1:3210',
+      getToken: async () => 'access-token',
+      fetchImpl,
+    })
+    await expect(api.me.library.delete(GAME.game.id)).resolves.toBeUndefined()
+  })
 })
