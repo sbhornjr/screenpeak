@@ -1,4 +1,4 @@
-import { eq, and, ne, desc, asc, inArray, sql } from 'drizzle-orm'
+import { eq, and, ne, desc, asc, avg, count, inArray, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { ratingsReviews, users, games } from '@/db/schema'
 import { GameRatingReview, RatingReviewData, RatingReviewCounts, AvgRatingsData, GameRatingsStats } from '@screenpeak/shared/types'
@@ -134,6 +134,24 @@ export async function updateRatingReview({ userId, gameId, rating, review }: { u
         return { data: rows[0], error: null }
     } catch (error) {
         return { data: null, error: error instanceof Error ? error.message : String(error) }
+    }
+}
+
+/** One aggregate row. A database error rejects. Null average means the player has no ratings. */
+export async function getRatingSummary(userId: string): Promise<{ rating_count: number; avg_rating: number | null }> {
+    const rows = await db
+        .select({
+            rating_count: count(),
+            avg_rating: avg(ratingsReviews.rating),
+        })
+        .from(ratingsReviews)
+        .where(eq(ratingsReviews.userId, userId))
+    const row = rows[0]
+    const ratingCount = row?.rating_count ?? 0
+    const average = row?.avg_rating == null || row.avg_rating === '' ? null : Number(row.avg_rating)
+    return {
+        rating_count: ratingCount,
+        avg_rating: ratingCount === 0 || average == null || !Number.isFinite(average) ? null : average,
     }
 }
 

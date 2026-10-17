@@ -5,11 +5,12 @@ import Link from "next/link";
 import Pagination from "../components/util/Pagination";
 import EmptyState from "../components/util/EmptyState";
 import { getOptionalUser } from "@/lib/auth";
-import { queryGames, getAllGenres, getAllPlatforms, getDistinctEsrbRatings, getDeveloperNameMap } from "@/lib/queries/game";
-import { CATALOG_SORTS, parseCatalogSortLenient } from "@/lib/game-catalog-sort";
+import { loadGamesPage } from "@/lib/loaders/games-page";
+import { parseGamesListQueryLenient } from "@/lib/screen-query";
+import type { GamesListPage } from "@screenpeak/shared/api/games";
 
 type SearchPageProps = {
-    searchParams: Promise<{ q?: string, genre?: string, platform?: string, developer?: string, publisher?: string, esrb?: string, page?: number, pageSize?: string, sort?: string, order?: string }>
+    searchParams: Promise<{ q?: string, genre?: string, platform?: string, developer?: string, publisher?: string, esrb?: string, page?: string, pageSize?: string, sort?: string, order?: string }>
 }
 
 export const metadata: Metadata = {
@@ -18,43 +19,28 @@ export const metadata: Metadata = {
 }
 
 export default async function SearchPage({ searchParams } : SearchPageProps) {
-    const { q, genre, platform, developer, publisher, esrb, page, pageSize, sort, order } = await searchParams;
-    const query = q?.trim() ?? '';
-    const genreQuery = genre?.trim() ?? '';
-    const platformQuery = platform?.trim() ?? '';
-    const developerQuery = developer?.trim() ?? '';
-    const publisherQuery = publisher?.trim() ?? '';
-    const pageQuery = page ? Number(page) : 1
-    const pageSizeQuery = pageSize ? Number(pageSize) : 10
-    const { sort: sortQuery, order: orderQuery } = parseCatalogSortLenient({ sort, order }, CATALOG_SORTS)
-    const esrbQuery = esrb?.trim() ?? '';
-
+    const raw = await searchParams
+    const query = parseGamesListQueryLenient(raw)
     const user = await getOptionalUser()
 
-    const games = await queryGames({
-        q: query || null,
-        genre: genreQuery || null,
-        platform: platformQuery || null,
-        developer: developerQuery || null,
-        publisher: publisherQuery || null,
-        esrb: esrbQuery || null,
-        sort: sortQuery,
-        order: orderQuery,
-        limit: pageSizeQuery,
-        offset: (pageQuery - 1) * pageSizeQuery,
-        userId: user ? user.id : null,
-        gameIds: null
-    }).catch(() => [])
+    let data: GamesListPage
+    try {
+        data = await loadGamesPage(query, user?.id ?? null)
+    } catch {
+        data = { games: [], total: 0, total_pages: 0, genres: [], platforms: [], esrb_ratings: [], viewer: null }
+    }
 
-    const totalCount = games[0]?.total_count ?? 0
-    const totalPages = Math.ceil(totalCount / pageSizeQuery)
-
-    const genres = await getAllGenres()
-    const platforms = await getAllPlatforms()
-    const esrb_ratings = await getDistinctEsrbRatings()
-
-    const finalGameIds = games?.map(g => g.id) ?? []
-    const developerMap = await getDeveloperNameMap(finalGameIds)
+    const { games, total: totalCount, total_pages: totalPages, genres, platforms, esrb_ratings } = data
+    const pageQuery = query.page
+    const pageSizeQuery = query.pageSize
+    const sortQuery = query.sort
+    const orderQuery = query.order
+    const genreQuery = query.genre ?? ''
+    const platformQuery = query.platform ?? ''
+    const developerQuery = query.developer ?? ''
+    const publisherQuery = query.publisher ?? ''
+    const esrbQuery = query.esrb ?? ''
+    const textQuery = query.q ?? ''
 
     return (
         <main>
@@ -64,7 +50,7 @@ export default async function SearchPage({ searchParams } : SearchPageProps) {
                 </h1>
                 {/* Filters */}
                 <GameFilters
-                    current={{query: query, genre: genreQuery, platform: platformQuery, developer: developerQuery, publisher: publisherQuery, esrb: esrbQuery, pageSize: String(pageSizeQuery), order: orderQuery, sort: sortQuery}}
+                    current={{query: textQuery, genre: genreQuery, platform: platformQuery, developer: developerQuery, publisher: publisherQuery, esrb: esrbQuery, pageSize: String(pageSizeQuery), order: orderQuery, sort: sortQuery}}
                     genres={genres}
                     platforms={platforms}
                     esrb_ratings={esrb_ratings}
@@ -74,12 +60,12 @@ export default async function SearchPage({ searchParams } : SearchPageProps) {
                 {games && games.length > 0 ? (
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-10">
                         {games.map(game => (
-                            <GameCard 
-                                key={game.id} 
-                                game={{ id: String(game.id), name: game.name, slug: game.slug, cover_image_url: game.cover_image_url, released: game.released }} 
-                                developer={developerMap.get(String(game.id))}
-                                userRating={game.user_rating} 
-                                ngplusRating={game.avg_ngplus_rating}
+                            <GameCard
+                                key={game.id}
+                                game={{ id: game.id, name: game.name, slug: game.slug, cover_image_url: game.cover_image_url, released: game.released }}
+                                developer={game.developer}
+                                userRating={game.user_rating}
+                                ngplusRating={game.avg_rating}
                             />
                         ))}
                     </div>
@@ -96,7 +82,7 @@ export default async function SearchPage({ searchParams } : SearchPageProps) {
                     <Pagination 
                         page={pageQuery}
                         maxPages={totalPages}
-                        params={{ q: query, genre: genreQuery, platform: platformQuery, developer: developerQuery, publisher: publisherQuery, esrb: esrbQuery, pageSize: String(pageSizeQuery), sort: sortQuery, order: orderQuery }}
+                        params={{ q: textQuery, genre: genreQuery, platform: platformQuery, developer: developerQuery, publisher: publisherQuery, esrb: esrbQuery, pageSize: String(pageSizeQuery), sort: sortQuery, order: orderQuery }}
                         url="games"
                     />
                 }

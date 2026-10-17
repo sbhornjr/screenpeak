@@ -1,4 +1,4 @@
-import { eq, and } from 'drizzle-orm'
+import { eq, and, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { users, follows } from '@/db/schema'
 import {
@@ -7,63 +7,67 @@ import {
 } from '@screenpeak/shared/schemas'
 
 export async function getProfileSummaryByUsername(username: string) {
-    try {
-        const rows = await db
-            .select({ id: users.id, username: users.username, display_name: users.displayName, avatar_url: users.avatarUrl })
-            .from(users)
-            .where(eq(users.username, username))
-            .limit(1)
+    // A database error must reject. Returning null makes an outage look like an unknown player.
+    const rows = await db
+        .select({ id: users.id, username: users.username, display_name: users.displayName, avatar_url: users.avatarUrl })
+        .from(users)
+        .where(eq(users.username, username))
+        .limit(1)
 
-        return rows[0] ?? null
-    } catch {
-        return null
-    }
+    return rows[0] ?? null
 }
 
 export async function getFullProfile(username: string) {
-    try {
-        const rows = await db
-            .select({
-                id: users.id, username: users.username, display_name: users.displayName, avatar_url: users.avatarUrl,
-                created_at: users.createdAt, selected_title: users.selectedTitle, favorite_game_ids: users.favoriteGameIds,
-                user_bio: users.userBio, default_list_public: users.defaultListPublic, library_public: users.libraryPublic,
-                loadout_public: users.loadoutPublic, profile_loadout_bio: users.profileLoadoutBio,
-            })
-            .from(users)
-            .where(eq(users.username, username))
-            .limit(1)
+    // A database error must reject. Returning null makes an outage look like an unknown player.
+    const rows = await db
+        .select({
+            id: users.id, username: users.username, display_name: users.displayName, avatar_url: users.avatarUrl,
+            created_at: users.createdAt, selected_title: users.selectedTitle, favorite_game_ids: users.favoriteGameIds,
+            user_bio: users.userBio, default_list_public: users.defaultListPublic, library_public: users.libraryPublic,
+            loadout_public: users.loadoutPublic, profile_loadout_bio: users.profileLoadoutBio,
+        })
+        .from(users)
+        .where(eq(users.username, username))
+        .limit(1)
 
-        return rows[0] ?? null
-    } catch {
-        return null
-    }
+    return rows[0] ?? null
+}
+
+export async function getProfileById(userId: string) {
+    const rows = await db
+        .select({
+            id: users.id,
+            username: users.username,
+            display_name: users.displayName,
+            avatar_url: users.avatarUrl,
+            selected_title: users.selectedTitle,
+        })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1)
+
+    return rows[0] ?? null
 }
 
 export async function getUserIdFromUsername(username: string) {
-    try {
-        const rows = await db.select({ id: users.id }).from(users).where(eq(users.username, username)).limit(1)
-        return rows[0] ?? null
-    } catch {
-        return null
-    }
+    // A database error must reject. Returning null makes an outage look like an unknown player.
+    const rows = await db.select({ id: users.id }).from(users).where(eq(users.username, username)).limit(1)
+    return rows[0] ?? null
 }
 
 export async function getAccountSettings(userId: string) {
-    try {
-        const rows = await db
-            .select({
-                id: users.id, username: users.username, avatar_url: users.avatarUrl, selected_title: users.selectedTitle,
-                created_at: users.createdAt, default_list_public: users.defaultListPublic,
-                library_public: users.libraryPublic, loadout_public: users.loadoutPublic,
-            })
-            .from(users)
-            .where(eq(users.id, userId))
-            .limit(1)
+    // A database error must reject. Returning null makes a public library or loadout look private.
+    const rows = await db
+        .select({
+            id: users.id, username: users.username, avatar_url: users.avatarUrl, selected_title: users.selectedTitle,
+            created_at: users.createdAt, default_list_public: users.defaultListPublic,
+            library_public: users.libraryPublic, loadout_public: users.loadoutPublic,
+        })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1)
 
-        return rows[0] ?? null
-    } catch {
-        return null
-    }
+    return rows[0] ?? null
 }
 
 // Just the one setting the game page needs (whether a list created there starts
@@ -181,6 +185,25 @@ export async function updatePrivacy(privacy: boolean, type: string, userId: stri
         return null
     } catch (error) {
         return error instanceof Error ? error.message : String(error)
+    }
+}
+
+/** Counts and one existence check. A database error rejects. Follower ids are not returned. */
+export async function getProfileFollowStats(userId: string, viewerId: string | null) {
+    const isFollowing = viewerId
+        ? sql`exists (select 1 from follows where following_id = ${userId} and follower_id = ${viewerId})`
+        : sql`false`
+    const rows = await db.execute(sql`
+        select
+            (select count(*) from follows where following_id = ${userId}) as follower_count,
+            (select count(*) from follows where follower_id = ${userId}) as following_count,
+            ${isFollowing} as is_following
+    `) as unknown as { follower_count: number; following_count: number; is_following: boolean }[]
+    const row = rows[0]
+    return {
+        follower_count: row?.follower_count ?? 0,
+        following_count: row?.following_count ?? 0,
+        is_following: row?.is_following === true,
     }
 }
 

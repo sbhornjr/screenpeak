@@ -213,6 +213,12 @@ link formats.
   locally, so sign-out / account deletion take effect immediately. (The project
   signs with ES256, so `getClaims()` could verify locally and skip the round trip —
   at the cost of revoked tokens working until they expire.)
+- **`/api/v1` handlers call `getBearerUser()`**, which reads only
+  `Authorization: Bearer`. No header means signed out (`null`), even when the
+  browser also sent a session cookie. Pages and Server Actions keep
+  `getOptionalUser()` / `requireUser()` (bearer, else cookie).
+  `GET /api/v1/me` returns `{ user: null }` with no email. `GET /api/v1/me/settings`
+  is 401 without a bearer and never includes a Steam id (`steam_linked` only).
 - **A bad bearer token fails closed** — 401 `invalid_token`, never a fallback to a
   cookie, and it throws even from `getOptionalUser()`. An unreachable Auth
   server is **503 `auth_unavailable`, never 401** (a 401 makes the app sign the user out);
@@ -258,9 +264,13 @@ return the contract type itself is called directly by both the page and the rout
   for the web page (per-field `.catch(default)`, as hand-edited URLs always have been) —
   `lib/game-reviews-query.ts` is the reference. Shared limits go in
   `@screenpeak/shared/constants`.
-- The route: `withAuth` → `getOptionalUser()`/`requireUser()` → loader → `404
-  not_found` or `Response.json(data)` with `Cache-Control: private, no-store` when
-  it contains viewer data.
+- The route: `withAuth` → `getBearerUser()` → loader → `404 not_found` or
+  `Response.json(data)` with `Cache-Control: private, no-store`. Paths mirror the
+  site: `/api/v1/user/[username]/library`, `/lists`, `/lists/[listId]`,
+  `/ratings_reviews`, `/loadout`, plus `/games`, `/feed`, `/explore`, `/home`,
+  `/me`, and `/me/settings`. A missing player and a private library, loadout, or
+  list are the same 404. Response types and `createApiClient` live in
+  `@screenpeak/shared/api`.
 
 ## External APIs
 

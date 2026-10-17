@@ -7,13 +7,9 @@ import DistributionChart from "@/app/components/util/DistributionChart";
 import SectionHead from "@/app/components/util/SectionHead";
 import Eyebrow from "@/app/components/util/Eyebrow";
 import { panelClass } from "@/app/components/util/Panel";
+import EmptyState from "@/app/components/util/EmptyState";
 import { getOptionalUser } from "@/lib/auth";
-import { getUserIdFromUsername, getAccountSettings, getCurrentLoadoutIdentity } from "@/lib/queries/user";
-import { getDeveloperNameMap } from "@/lib/queries/game";
-import { getLoadoutRatingHighlights } from "@/lib/queries/stats";
-import { getUserRatings, getAvgRatingsForGames, getUserRatingsForGames } from "@/lib/queries/review";
-import { AvgRatingsData } from "@screenpeak/shared/types";
-import { buildLoadoutInput } from "@/lib/loadout";
+import { loadLoadoutPage } from "@/lib/loaders/loadout-page";
 
 type LoadoutPageProps = {
     params: Promise<{ username: string }>
@@ -35,48 +31,33 @@ export default async function LoadoutPage({ params } : LoadoutPageProps) {
     const { username } = await params;
     
     const viewer = await getOptionalUser()
-    const ownerId = await getUserIdFromUsername(username)
-
-    if (!ownerId) redirect("/")
-
-    if (!viewer || viewer.id != ownerId.id) {
-        const ownerSettings = await getAccountSettings(ownerId.id)
-        if (!ownerSettings || !ownerSettings.loadout_public) redirect("/")
+    let data
+    try {
+        data = await loadLoadoutPage(username, viewer?.id ?? null)
+    } catch {
+        return (
+            <main className="bg-(--color-bg)">
+                <div className="w-full max-w-6xl mx-auto px-6 md:px-10 pt-8 pb-16">
+                    <EmptyState title="Couldn't load this Loadout" description="Try again in a moment." />
+                </div>
+            </main>
+        )
     }
+    if (!data) redirect("/")
 
-    const loadoutInput = await buildLoadoutInput(ownerId.id, username)
-    const totalGames = loadoutInput.totalGames
-    const completedStat = loadoutInput.completedGames
-    const avgRating = loadoutInput.avgRating
-    const topGenres = loadoutInput.topGenres
-    const topDevelopers = loadoutInput.topDevelopers
-
-    const [highlights, ratingsReviews, currentLoadoutIdentity] = await Promise.all([
-        getLoadoutRatingHighlights(ownerId.id),
-        getUserRatings(ownerId.id),
-        getCurrentLoadoutIdentity(ownerId.id)
-    ])
-
-    const ratingDistribution = [10,9,8,7,6,5,4,3,2,1].map(n => ({
-        name: n,
-        count: ratingsReviews.filter(r => r.rating === n).length
-    }))
-
-    const developerMap = await getDeveloperNameMap(highlights.map(h => h.game_id))
-    const avgRatings = await getAvgRatingsForGames(highlights.map(h => h.game_id)) as AvgRatingsData[]
-    const viewerRatings = viewer ? await getUserRatingsForGames(viewer.id ?? "", highlights.map(h => h.game_id)) : []
-
-    // Only sections with something to show get rendered — an empty labelled
-    // section reads as broken.
-    const genreFavs = topGenres?.filter(g => g.rated_count > 1).slice(0, 6) ?? []
-    const developerFavs = topDevelopers?.filter(d => d.rated_count > 1).slice(0, 6) ?? []
-    const topGames = highlights.filter(h => h.highlight_type === "top")
-    const bottomGames = highlights.filter(h => h.highlight_type === "bottom")
-
-    const isOwner = !!viewer && viewer.id === ownerId.id
-    const loadoutIdentity = currentLoadoutIdentity?.loadout_identity ?? ""
-    const canGenerate = loadoutInput.totalRatings >= 5
-    const ratingsToUnlock = Math.max(0, 5 - ratingsReviews.length)
+    const totalGames = data.total_games
+    const completedStat = data.completed_games
+    const avgRating = data.avg_rating
+    const ratingCount = data.rating_count
+    const ratingDistribution = data.distribution.map(row => ({ name: row.rating, count: row.count }))
+    const genreFavs = data.genres
+    const developerFavs = data.developers
+    const topGames = data.top_games
+    const bottomGames = data.bottom_games
+    const isOwner = data.viewer?.is_owner ?? false
+    const loadoutIdentity = data.identity
+    const canGenerate = data.can_generate
+    const ratingsToUnlock = Math.max(0, 5 - ratingCount)
 
     return (
         <main className="bg-(--color-bg)">
@@ -89,8 +70,8 @@ export default async function LoadoutPage({ params } : LoadoutPageProps) {
                     <div className="flex flex-wrap gap-x-6 gap-y-1 font-mono text-xs text-(--color-muted) tabular-nums">
                         <span><span className="text-(--color-text)">{totalGames}</span> saved</span>
                         <span><span className="text-(--color-text)">{completedStat}</span> completed</span>
-                        <span><span className="text-(--color-text)">{ratingsReviews.length}</span> rated</span>
-                        <span><span className="text-(--color-text)">{ratingsReviews.length ? Math.trunc(avgRating * 100) / 100 : "—"}</span> avg</span>
+                        <span><span className="text-(--color-text)">{ratingCount}</span> rated</span>
+                        <span><span className="text-(--color-text)">{avgRating == null ? "—" : Math.trunc(avgRating * 100) / 100}</span> avg</span>
                     </div>
                 </header>
 
@@ -124,9 +105,9 @@ export default async function LoadoutPage({ params } : LoadoutPageProps) {
                                     <>
                                         <div className="flex items-center gap-3 mb-4">
                                             <div className="flex-1 h-1.5 bg-(--color-surface-light) rounded-full overflow-hidden">
-                                                <div className="h-full bg-(--color-accent) rounded-full" style={{ width: `${Math.min(100, (ratingsReviews.length / 5) * 100)}%` }} />
+                                                <div className="h-full bg-(--color-accent) rounded-full" style={{ width: `${Math.min(100, (ratingCount / 5) * 100)}%` }} />
                                             </div>
-                                            <span className="font-mono text-xs text-(--color-muted) tabular-nums">{Math.min(ratingsReviews.length, 5)} / 5</span>
+                                            <span className="font-mono text-xs text-(--color-muted) tabular-nums">{Math.min(ratingCount, 5)} / 5</span>
                                         </div>
                                         <Link href="/games" className="inline-block px-4 py-2 rounded-[3px] text-sm font-semibold bg-(--color-accent) text-(--color-bg) hover:bg-(--color-accent-hover) transition-colors duration-200">
                                             Find games to rate
@@ -212,11 +193,11 @@ export default async function LoadoutPage({ params } : LoadoutPageProps) {
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-14">
                         {topGames.map(h =>
                             <GameCard
-                                key={h.game_id}
-                                game={{ id: h.game_id, name: h.game_name, slug: h.game_slug, cover_image_url: h.cover_image_url, released: h.released }}
-                                developer={developerMap.get(h.game_id)}
-                                ngplusRating={avgRatings.find(r => String(r.game_id) == h.game_id)?.avg_rating}
-                                userRating={viewerRatings.find(r => String(r.game_id) == h.game_id)?.rating}
+                                key={h.id}
+                                game={{ id: h.id, name: h.name, slug: h.slug, cover_image_url: h.cover_image_url, released: h.released }}
+                                developer={h.developer}
+                                ngplusRating={h.avg_rating}
+                                userRating={h.user_rating}
                             />
                         )}
                     </div>
@@ -227,11 +208,11 @@ export default async function LoadoutPage({ params } : LoadoutPageProps) {
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                         {bottomGames.map(h =>
                             <GameCard
-                                key={h.game_id}
-                                game={{ id: h.game_id, name: h.game_name, slug: h.game_slug, cover_image_url: h.cover_image_url, released: h.released }}
-                                developer={developerMap.get(h.game_id)}
-                                ngplusRating={avgRatings.find(r => String(r.game_id) == h.game_id)?.avg_rating}
-                                userRating={viewerRatings.find(r => String(r.game_id) == h.game_id)?.rating}
+                                key={h.id}
+                                game={{ id: h.id, name: h.name, slug: h.slug, cover_image_url: h.cover_image_url, released: h.released }}
+                                developer={h.developer}
+                                ngplusRating={h.avg_rating}
+                                userRating={h.user_rating}
                             />
                         )}
                     </div>

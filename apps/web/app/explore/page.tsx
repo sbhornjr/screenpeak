@@ -6,7 +6,8 @@ import UserCard from "../components/user/UserCard";
 import { getOptionalUser } from "@/lib/auth";
 import SectionHead from "@/app/components/util/SectionHead";
 import Eyebrow from "@/app/components/util/Eyebrow";
-import { getTrendingGames, getTrendingLists, getExploreRecommendations } from "@/lib/queries/explore";
+import { loadExplore } from "@/lib/loaders/explore";
+import { parseExploreQueryLenient } from "@/lib/screen-query";
 
 type ExplorePageProps = {
     searchParams: Promise<{ range?: string }>
@@ -21,21 +22,13 @@ export default async function Explore({ searchParams }: ExplorePageProps) {
     const { range } = await searchParams;
 
     const viewer = await getOptionalUser()
-
-    const rangeToDays: Record<string, number> = {
-        week: 7,
-        month: 30,
-        year: 365,
-        alltime: 3650
-    }
-
-    const rangeString = range ?? "week"
-    const days = rangeToDays[rangeString] ?? 7
-
-    const trendingGames = await getTrendingGames(viewer?.id, days)
-    const trendingLists = await getTrendingLists(viewer?.id, days)
-
-    const { games: recommendedGames, lists: recommendedLists, users: recommendedUsers } = await getExploreRecommendations(viewer?.id)
+    const { range: rangeString } = parseExploreQueryLenient({ range })
+    const explore = await loadExplore(viewer?.id ?? null, rangeString)
+    const trendingGames = explore.trending_games
+    const trendingLists = explore.trending_lists
+    const recommendedGames = explore.recommendations?.games ?? []
+    const recommendedLists = explore.recommendations?.lists ?? []
+    const recommendedUsers = explore.recommendations?.users ?? []
 
     return (
         <main>
@@ -65,11 +58,11 @@ export default async function Explore({ searchParams }: ExplorePageProps) {
                 <SectionHead>Peak right now</SectionHead>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
                     {trendingGames.map(game => (
-                        <GameCard 
-                            key={game.game_id} 
-                            game={{ id: game.game_id, name: game.game_name, slug: game.game_slug, cover_image_url: game.game_cover_image_url, released: game.game_released }}
-                            developer={game.game_developer} 
-                            ngplusRating={game.avg_rating} 
+                        <GameCard
+                            key={game.id}
+                            game={{ id: game.id, name: game.name, slug: game.slug, cover_image_url: game.cover_image_url, released: game.released }}
+                            developer={game.developer}
+                            ngplusRating={game.avg_rating}
                             userRating={game.user_rating} />
                     ))}
                 </div>
@@ -85,21 +78,20 @@ export default async function Explore({ searchParams }: ExplorePageProps) {
                                 <SectionHead>Recommended Games</SectionHead>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
                                     {recommendedGames.map(game => (
-                                        <div key={game.game_id} className="flex flex-col gap-1">
+                                        <div key={game.id} className="flex flex-col gap-1">
                                             <p className="text-xs text-(--color-muted) text-center">
                                                 <span className="text-(--color-accent) font-semibold">{game.follower_count}</span>
                                                 {game.follower_count === 1 ? ' follower' : ' followers'} completed · {game.avg_follower_rating}/10 avg
                                             </p>
-                                            <GameCard 
-                                                key={game.game_id} 
-                                                game={{ id: game.game_id, name: game.game_name, slug: game.game_slug, cover_image_url: game.game_cover_image_url, released: game.game_released }}
-                                                developer={game.game_developer} 
-                                                ngplusRating={game.platform_avg_rating} 
-                                                userRating={null} 
+                                            <GameCard
+                                                game={{ id: game.id, name: game.name, slug: game.slug, cover_image_url: game.cover_image_url, released: game.released }}
+                                                developer={game.developer}
+                                                ngplusRating={game.avg_rating}
+                                                userRating={null}
                                             />
-                                            {game.user_library_status !== 'none' && (
+                                            {game.library_status !== 'none' && (
                                                 <p className="text-xs text-(--color-muted) text-center">
-                                                {game.user_library_status === 'backlog' ? 'In your backlog' : 'On your wishlist'}
+                                                {game.library_status === 'backlog' ? 'In your backlog' : 'On your wishlist'}
                                                 </p>
                                             )}
                                         </div>
@@ -112,23 +104,23 @@ export default async function Explore({ searchParams }: ExplorePageProps) {
                                 <SectionHead>Recommended Lists</SectionHead>
                                 <div className="flex flex-col gap-4 w-full">
                                     {recommendedLists.map(list => (
-                                        <div key={list.list_id} className="flex flex-col gap-0.5 w-full">
+                                        <div key={list.id} className="flex flex-col gap-0.5 w-full">
                                             <div className="text-xs text-(--color-muted) mb-2 text-left">
                                                 <span className="text-(--color-accent) font-semibold">{list.follower_like_count}</span>
                                                 {list.follower_like_count === 1 ? ' user' : ' users'} you follow liked this
-                                            </div>                                            
-                                            <ListPreview 
-                                                listId={list.list_id} 
-                                                listName={list.list_name} 
-                                                description={list.list_description} 
-                                                username={list.owner_username} 
-                                                listCount={list.game_count} 
-                                                likeCount={list.total_like_count} 
-                                                gameCovers={list.cover_urls?.map(url => ({ coverImageUrl: url, slug: null }))}
+                                            </div>
+                                            <ListPreview
+                                                listId={list.id}
+                                                listName={list.name}
+                                                description={list.description}
+                                                username={list.owner_username}
+                                                listCount={list.game_count}
+                                                likeCount={list.like_count}
+                                                gameCovers={list.covers.map(cover => ({ coverImageUrl: cover.cover_image_url, slug: cover.slug }))}
                                                 isPinnable={false}
                                                 isLikable={true}
                                                 isPinned={false}
-                                                userHasLiked={list.user_has_liked}
+                                                userHasLiked={list.viewer_has_liked}
                                                 activeUserId={viewer?.id}
                                                 lastUpdated={list.last_activity}
                                                 fullLength={true}
@@ -143,18 +135,18 @@ export default async function Explore({ searchParams }: ExplorePageProps) {
                                 <SectionHead>Recommended Users</SectionHead>
                                 <div className="grid grid-col grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
                                     {recommendedUsers.map(user => (
-                                        <div key={user.user_id} className="flex flex-col gap-2 w-full">
+                                        <div key={user.id} className="flex flex-col gap-2 w-full">
                                             <p className="text-sm text-left text-(--color-muted) mt-2">followed by
                                                 <span className="text-(--color-accent) font-semibold">{" " + user.mutual_follower_count}</span> users you follow</p>
-                                            <UserCard 
-                                                username={user.username} 
+                                            <UserCard
+                                                username={user.username}
                                                 avatarUrl={user.avatar_url}
                                                 title={user.selected_title}
                                                 createdAt={user.created_at}
                                                 followerCount={user.follower_count}
                                                 followingCount={user.following_count}
                                                 gameCount={user.game_count ?? 0}
-                                                avgRating={user.avg_rating ?? 0} 
+                                                avgRating={user.avg_rating ?? 0}
                                             />
                                         </div>
                                     ))}
@@ -167,19 +159,19 @@ export default async function Explore({ searchParams }: ExplorePageProps) {
                 <SectionHead>Lists peaking now</SectionHead>
                 <div className="flex flex-col gap-4 w-full">
                     {trendingLists.map(list => (
-                        <ListPreview 
-                            key={list.list_id} 
-                            listId={list.list_id} 
-                            listName={list.list_name} 
-                            gameCovers={list.cover_urls?.map(url => ({ coverImageUrl: url, slug: null }))} 
-                            isPinnable={false} 
-                            isLikable={true} 
-                            description={list.list_description ?? ''} 
-                            lastUpdated={list.last_activity ?? ''} 
-                            username={list.owner_username ?? ''} 
-                            listCount={list.game_count ?? 0} 
-                            likeCount={list.like_count ?? 0} 
-                            userHasLiked={list.user_has_liked ?? false} 
+                        <ListPreview
+                            key={list.id}
+                            listId={list.id}
+                            listName={list.name}
+                            gameCovers={list.covers.map(cover => ({ coverImageUrl: cover.cover_image_url, slug: cover.slug }))}
+                            isPinnable={false}
+                            isLikable={true}
+                            description={list.description}
+                            lastUpdated={list.last_activity}
+                            username={list.owner_username}
+                            listCount={list.game_count}
+                            likeCount={list.like_count}
+                            userHasLiked={list.viewer_has_liked}
                             activeUserId={viewer?.id}
                             fullLength={true}
                         />

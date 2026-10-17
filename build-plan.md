@@ -24,7 +24,7 @@ Recorded 2026-10-16. Where an older sketch below disagrees with this section, th
 
 ### Order
 
-Follow Part 4. Bearer auth, the game loader, `GET /api/v1/games/[slug]` plus reviews, and the native game screen are done. The next slice is the remaining loaders — library, loadout, list detail, and list index — each with its privacy test in the same change.
+Follow Part 4. Bearer auth, the game loader, `GET /api/v1/games/[slug]` plus reviews, the native game screen, and the remaining read loaders are done. The next slice is the write routes (Phase 1 step 4). Search (`game-search.ts`, `GET /api/v1/games/search`) stays step 6. There is still no `GET` of the whole Steam library.
 
 ### API shape
 
@@ -647,11 +647,47 @@ tests. The website is unchanged for users.
 3. **Remaining loaders, one page at a time**, each with its privacy test in
    the same change (`db` bypasses RLS). The gates are library, loadout, list
    detail, and list index. Do not save them for a later audit pass.
+   > **Done.** Each page calls the loader, and `GET /api/v1/...` calls the same
+   > function with `getBearerUser()` only (a website cookie does not become
+   > `viewer`). Signed-out reads return the public payload. `viewer` is null on
+   > the profile, list detail, loadout, games list, feed, and explore. The
+   > library, the list index, and home have no `viewer` field. `GET /api/v1/me`
+   > is `{ user: null }`.
+   > `Cache-Control` is `private, no-store`.
+   >
+   > | Route | Loader |
+   > | --- | --- |
+   > | `GET /api/v1/games` | `loadGamesPage` |
+   > | `GET /api/v1/feed` | `loadFeed` |
+   > | `GET /api/v1/explore` | `loadExplore` |
+   > | `GET /api/v1/home` | `loadHomeLanding` |
+   > | `GET /api/v1/me` | `loadMe` (`{ user: null }` when signed out) |
+   > | `GET /api/v1/me/settings` | `loadSettings` (401 without a bearer; `steam_linked` only) |
+   > | `GET /api/v1/user/[username]` | `loadProfilePage` |
+   > | `GET /api/v1/user/[username]/library` | `loadUserLibrary` |
+   > | `GET /api/v1/user/[username]/lists` | `loadUserLists` |
+   > | `GET /api/v1/user/[username]/lists/[listId]` | `loadListPage` |
+   > | `GET /api/v1/user/[username]/ratings_reviews` | `loadUserReviews` |
+   > | `GET /api/v1/user/[username]/loadout` | `loadLoadoutPage` |
+   >
+   > Privacy: a private library, loadout, or list is the same 404 as a missing
+   > one (`Not found.`). The list index drops private lists unless the tab is
+   > the owner's own. Profile `library_stats` is null when the library is
+   > hidden; `profile_loadout_bio` is null when the loadout is hidden and the
+   > caller is not the owner. Followers and following are counts. Catalogue
+   > cards rename `query_games.avg_ngplus_rating` to `avg_rating`. Covers are
+   > display-ready via `packages/shared/images.ts`. Contracts and
+   > `createApiClient` live in `packages/shared/api` (the phone re-exports the
+   > client). Not in this slice: search, taxonomy search, write routes, and a
+   > Steam-library GET.
 4. Write routes (mirror the Server Actions). Have both the action and the route
    call the same function; validate request bodies with the shared zod schemas.
 5. Put request/response types in `packages/shared/api/`. (The fetch client that
    calls these routes lives in `apps/mobile/src/lib/api/` — Phase 1 step 2b — since the
    website never calls `/api/v1` itself.)
+   > **Read routes from step 3** already have their types in
+   > `@screenpeak/shared/api`, and `createApiClient` lives there too. The phone
+   > client re-exports it. Write-route types still belong with step 4.
 6. Retire `game-search.ts`: reimplement its three functions on `db` in
    `lib/queries/game.ts` (`searchGamesByName`, `searchTaxonomyTable`,
    `getTaxonomyNameBySlug`). Then, same pattern as every other feature:
