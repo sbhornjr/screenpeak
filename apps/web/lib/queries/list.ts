@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { lists, listGames, listLikes, games } from '@/db/schema'
 import { GameCover, ListDetail, ListGameEntry } from '@screenpeak/shared/types'
 import { listFieldsSchema, parseOrError } from '@screenpeak/shared/schemas'
+import { writeErrorText } from '@/lib/write-http'
 
 export async function getUserLists(userId: string | null | undefined, includePrivate: boolean) {
     // A database error must reject. Returning [] makes an outage look like
@@ -55,35 +56,32 @@ export async function getListGames(listId: string): Promise<ListGameEntry[]> {
 }
 
 export async function getListCoverMap(listIds: (string | number)[]): Promise<Map<string, GameCover[]>> {
-    try {
-        const rows = await db
-            .select({
-                list_id: listGames.listId,
-                position: listGames.position,
-                games: { cover_image_url: games.coverImageUrl, slug: games.slug },
+    // A database error must reject. An empty map would look like lists with no covers.
+    const rows = await db
+        .select({
+            list_id: listGames.listId,
+            position: listGames.position,
+            games: { cover_image_url: games.coverImageUrl, slug: games.slug },
+        })
+        .from(listGames)
+        .innerJoin(games, eq(listGames.gameId, games.id))
+        .where(inArray(listGames.listId, listIds.map(String)))
+        .orderBy(listGames.position)
+
+    const coversByList = new Map<string, GameCover[]>()
+
+    for (const entry of rows) {
+        const existing = coversByList.get(entry.list_id) ?? []
+        if (existing.length < 5) {
+            existing.push({
+                coverImageUrl: entry.games?.cover_image_url ?? null,
+                slug: entry.games?.slug ?? null,
             })
-            .from(listGames)
-            .innerJoin(games, eq(listGames.gameId, games.id))
-            .where(inArray(listGames.listId, listIds.map(String)))
-            .orderBy(listGames.position)
-
-        const coversByList = new Map<string, GameCover[]>()
-
-        for (const entry of rows) {
-            const existing = coversByList.get(entry.list_id) ?? []
-            if (existing.length < 5) {
-                existing.push({
-                    coverImageUrl: entry.games?.cover_image_url ?? null,
-                    slug: entry.games?.slug ?? null,
-                })
-                coversByList.set(entry.list_id, existing)
-            }
+            coversByList.set(entry.list_id, existing)
         }
-
-        return coversByList
-    } catch {
-        return new Map()
     }
+
+    return coversByList
 }
 
 export type ListLikeStat = { like_count: number; viewer_has_liked: boolean }
@@ -126,16 +124,14 @@ export async function getListLikes(listIds: (string | number)[]) {
 }
 
 export async function getGameListMembership(gameId: string, listIds: (string | number)[]): Promise<Set<string>> {
-    try {
-        const rows = await db
-            .select({ list_id: listGames.listId })
-            .from(listGames)
-            .where(and(eq(listGames.gameId, gameId), inArray(listGames.listId, listIds.map(String))))
+    if (listIds.length === 0) return new Set()
+    // A database error must reject. An empty set would look like "in no lists".
+    const rows = await db
+        .select({ list_id: listGames.listId })
+        .from(listGames)
+        .where(and(eq(listGames.gameId, gameId), inArray(listGames.listId, listIds.map(String))))
 
-        return new Set(rows.map(g => g.list_id))
-    } catch {
-        return new Set()
-    }
+    return new Set(rows.map(g => g.list_id))
 }
 
 export async function addGameToList(listId: string, gameId: string, userId: string) {
@@ -150,10 +146,10 @@ export async function addGameToList(listId: string, gameId: string, userId: stri
             .orderBy(desc(listGames.position))
             .limit(1)
 
-        await db.insert(listGames).values({ listId, gameId, position: (maxPosRows[0]?.position ?? -1) + 1 })
+        await db.insert(listGames).values({ listId, gameId, position: (maxPosRows[0]?.position ?? -1) + 1 }).onConflictDoNothing()
         return { error: null }
     } catch (error) {
-        return { error: error instanceof Error ? error.message : String(error) }
+        return { error: writeErrorText(error) }
     }
 }
 
@@ -165,7 +161,7 @@ export async function removeGameFromList(listId: string, gameId: string, userId:
         await db.delete(listGames).where(and(eq(listGames.listId, listId), eq(listGames.gameId, gameId)))
         return { error: null }
     } catch (error) {
-        return { error: error instanceof Error ? error.message : String(error) }
+        return { error: writeErrorText(error) }
     }
 }
 
@@ -188,7 +184,35 @@ export async function createList(userId: string, fields: ListFields) {
 
         return { data: rows[0], error: null }
     } catch (error) {
-        return { data: null, error: error instanceof Error ? error.message : String(error) }
+        return { data: null, error: writeErrorText(error) }
+    }
+}
+
+/** Creates a list and puts one game on it. Both writes commit together or not at all. */
+export async function createListWithGame(userId: string, gameId: string, fields: ListFields) {
+    const parsed = parseOrError(listFieldsSchema, fields)
+    if (!parsed.success) return { data: null, error: parsed.error }
+
+    try {
+        const list = await db.transaction(async (tx) => {
+            const rows = await tx
+                .insert(lists)
+                .values({
+                    userId,
+                    name: parsed.data.name,
+                    description: parsed.data.description,
+                    isPublic: parsed.data.isPublic,
+                    isPinned: parsed.data.isPinned,
+                })
+                .returning({ id: lists.id })
+            const created = rows[0]
+            if (!created) throw new Error('Could not create the list.')
+            await tx.insert(listGames).values({ listId: created.id, gameId, position: 0 })
+            return created
+        })
+        return { data: list, error: null }
+    } catch (error) {
+        return { data: null, error: writeErrorText(error) }
     }
 }
 
@@ -197,13 +221,15 @@ export async function updateList(listId: string, fields: ListFields, userId: str
     if (!parsed.success) return { error: parsed.error }
 
     try {
-        await db
+        const rows = await db
             .update(lists)
             .set({ name: parsed.data.name, description: parsed.data.description, isPublic: parsed.data.isPublic, isPinned: parsed.data.isPinned })
             .where(and(eq(lists.id, listId), eq(lists.userId, userId)))
+            .returning({ id: lists.id })
+        if (rows.length === 0) return { error: 'List not found' }
         return { error: null }
     } catch (error) {
-        return { error: error instanceof Error ? error.message : String(error) }
+        return { error: writeErrorText(error) }
     }
 }
 
@@ -228,27 +254,37 @@ export async function syncListGames(listId: string, { toAdd, toRemove }: { toAdd
             if (toRemove.length > 0) {
                 await tx.delete(listGames).where(and(inArray(listGames.gameId, toRemove.map(g => g.id)), eq(listGames.listId, listId)))
             }
-            if (toAdd.length > 0) {
-                await tx.insert(listGames).values(toAdd.map((game, index) => ({
+            const additions = [...new Map(toAdd.map(game => [game.id, game])).values()]
+            if (additions.length > 0) {
+                await tx.insert(listGames).values(additions.map((game, index) => ({
                     listId,
                     gameId: game.id,
                     position: startPosition + index,
-                })))
+                }))).onConflictDoNothing()
             }
         })
 
         return { error: null }
     } catch (error) {
-        return { error: error instanceof Error ? error.message : String(error) }
+        return { error: writeErrorText(error) }
     }
 }
 
 export async function likeList(listId: string, userId: string) {
     try {
-        await db.insert(listLikes).values({ listId, userId })
+        const list = await db
+            .select({ id: lists.id, isPublic: lists.isPublic, userId: lists.userId })
+            .from(lists)
+            .where(eq(lists.id, listId))
+            .limit(1)
+        const row = list[0]
+        // Someone else's private list is the same answer as a missing list, and no like row is written.
+        if (!row || (!row.isPublic && row.userId !== userId)) return { error: 'List not found' }
+        // A retry must stay liked. The primary key makes a second insert a no-op.
+        await db.insert(listLikes).values({ listId, userId }).onConflictDoNothing()
         return { error: null }
     } catch (error) {
-        return { error: error instanceof Error ? error.message : String(error) }
+        return { error: writeErrorText(error) }
     }
 }
 
@@ -257,7 +293,21 @@ export async function unlikeList(listId: string, userId: string) {
         await db.delete(listLikes).where(and(eq(listLikes.listId, listId), eq(listLikes.userId, userId)))
         return { error: null }
     } catch (error) {
-        return { error: error instanceof Error ? error.message : String(error) }
+        return { error: writeErrorText(error) }
+    }
+}
+
+/** Deletes the caller's non-default list. A miss, another owner, or a default list is 'List not found'. */
+export async function deleteList(listId: string, userId: string) {
+    try {
+        const rows = await db
+            .delete(lists)
+            .where(and(eq(lists.id, listId), eq(lists.userId, userId), eq(lists.isDefault, false)))
+            .returning({ id: lists.id })
+        if (rows.length === 0) return { error: 'List not found' }
+        return { error: null }
+    } catch (error) {
+        return { error: writeErrorText(error) }
     }
 }
 
@@ -269,8 +319,9 @@ export async function setListPinned(listId: string | number, pinned: boolean, us
             .where(and(eq(lists.id, String(listId)), eq(lists.userId, userId)))
             .returning({ is_pinned: lists.isPinned })
 
+        if (rows.length === 0) return { isPinned: undefined, error: 'List not found' }
         return { isPinned: rows[0]?.is_pinned, error: null }
     } catch (error) {
-        return { isPinned: undefined, error: error instanceof Error ? error.message : String(error) }
+        return { isPinned: undefined, error: writeErrorText(error) }
     }
 }

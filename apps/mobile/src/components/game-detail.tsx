@@ -2,7 +2,7 @@ import type { GamePageData, GameReviewsPage } from '@screenpeak/shared/api/games
 import type { GameRatingsStats } from '@screenpeak/shared/types'
 import { Image } from 'expo-image'
 import { useState } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 
 import { igdbImageUri } from '@/lib/catalog-image'
 import { colors, face, radius, space, tierColor, tracking, trackingPx } from '@/theme'
@@ -24,6 +24,11 @@ export type GameDetailProps = {
   onSignIn: () => void
   onSignUp: () => void
   onRetryReviews: () => void
+  onRate?: (rating: number, review: string) => Promise<string | null>
+  onSave?: (status: LibraryStatus) => Promise<string | null>
+  onAddToList?: (listId: string) => Promise<string | null>
+  onRemoveFromList?: (listId: string) => Promise<string | null>
+  onCreateList?: (name: string) => Promise<string | null>
 }
 
 function communityScore(stats: GameRatingsStats): number | null {
@@ -46,7 +51,21 @@ function asStatus(value: string | undefined): LibraryStatus | null {
 }
 
 /** The native game page. Signed out, viewer is null and account actions ask you to sign up. */
-export function GameDetail({ data, reviews, reviewsNote, signedIn, onBack, onSignIn, onSignUp, onRetryReviews }: GameDetailProps) {
+export function GameDetail({
+  data,
+  reviews,
+  reviewsNote,
+  signedIn,
+  onBack,
+  onSignIn,
+  onSignUp,
+  onRetryReviews,
+  onRate,
+  onSave,
+  onAddToList,
+  onRemoveFromList,
+  onCreateList,
+}: GameDetailProps) {
   const { game, taxonomy, stats } = data
   const viewer = signedIn ? data.viewer : null
   const community = communityScore(stats)
@@ -57,9 +76,24 @@ export function GameDetail({ data, reviews, reviewsNote, signedIn, onBack, onSig
     return uri ? [uri] : []
   })
   const [prompt, setPrompt] = useState(false)
+  const [panel, setPanel] = useState<'rate' | 'save' | 'list' | null>(null)
+  const [note, setNote] = useState(viewer?.review?.review ?? '')
+  const [listName, setListName] = useState('')
+  const [actionError, setActionError] = useState<string | null>(null)
 
-  function accountAction() {
-    if (!signedIn) setPrompt(true)
+  function accountAction(next: 'rate' | 'save' | 'list') {
+    if (!signedIn) {
+      setPrompt(true)
+      return
+    }
+    setActionError(null)
+    setPanel(panel === next ? null : next)
+  }
+
+  async function run(action: () => Promise<string | null>, keepOpen = false) {
+    const error = await action()
+    setActionError(error)
+    if (!error && !keepOpen) setPanel(null)
   }
 
   const distribution = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1].map(name => ({
@@ -125,16 +159,90 @@ export function GameDetail({ data, reviews, reviewsNote, signedIn, onBack, onSig
 
       <Text style={styles.scoreLabel}>Your turn</Text>
       <View style={styles.actions}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Rate" onPress={accountAction} style={styles.action}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Rate" onPress={() => accountAction('rate')} style={styles.action}>
           <Text style={styles.actionText}>{yours == null ? 'Rate' : `Rated ${yours}`}</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Save game" onPress={accountAction} style={styles.action}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Save game" onPress={() => accountAction('save')} style={styles.action}>
           <Text style={styles.actionText}>{viewer?.libraryEntry ? statusLabel(viewer.libraryEntry.status) : 'Save game'}</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Add to list" onPress={accountAction} style={styles.action}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Add to list" onPress={() => accountAction('list')} style={styles.action}>
           <Text style={styles.actionText}>Add to list</Text>
         </Pressable>
       </View>
+      {actionError ? <Text style={styles.body}>{actionError}</Text> : null}
+      {panel === 'rate' ? (
+        <View style={styles.prompt}>
+          <View style={styles.actions}>
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(score => (
+              <Pressable
+                key={score}
+                accessibilityRole="button"
+                accessibilityLabel={`Score ${score}`}
+                onPress={() => { if (onRate) void run(() => onRate(score, note)) }}
+                style={styles.action}
+              >
+                <Text style={styles.actionText}>{score}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <TextInput
+            accessibilityLabel="Review note"
+            value={note}
+            onChangeText={setNote}
+            style={styles.note}
+          />
+        </View>
+      ) : null}
+      {panel === 'save' ? (
+        <View style={styles.actions}>
+          {LIBRARY_STATUS.map(status => (
+            <Pressable
+              key={status}
+              accessibilityRole="button"
+              accessibilityLabel={`Log as ${status}`}
+              onPress={() => { if (onSave) void run(() => onSave(status)) }}
+              style={styles.action}
+            >
+              <Text style={styles.actionText}>{statusLabel(status)}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+      {panel === 'list' ? (
+        <View style={styles.prompt}>
+          {(viewer?.lists ?? []).map(list => {
+            const listed = viewer?.listIdsGameIsIn.includes(list.id) ?? false
+            return (
+              <Pressable
+                key={list.id}
+                accessibilityRole="button"
+                accessibilityLabel={listed ? `Remove from ${list.name}` : `Add to ${list.name}`}
+                onPress={() => {
+                  if (listed && onRemoveFromList) void run(() => onRemoveFromList(list.id), true)
+                  if (!listed && onAddToList) void run(() => onAddToList(list.id), true)
+                }}
+                style={styles.action}
+              >
+                <Text style={styles.actionText}>{list.name}</Text>
+              </Pressable>
+            )
+          })}
+          <TextInput
+            accessibilityLabel="New list name"
+            value={listName}
+            onChangeText={setListName}
+            style={styles.note}
+          />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Create list"
+            onPress={() => { if (onCreateList && listName.trim()) void run(() => onCreateList(listName.trim()), true) }}
+            style={styles.action}
+          >
+            <Text style={styles.actionText}>Create list</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       {prompt ? (
         <View style={styles.prompt}>
@@ -284,6 +392,16 @@ const styles = StyleSheet.create({
     paddingVertical: space[2],
   },
   actionText: { fontFamily: face.body[500], fontSize: 14, color: colors.text },
+  note: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.base,
+    paddingHorizontal: space[3],
+    paddingVertical: space[2],
+    fontFamily: face.body[400],
+    fontSize: 16,
+    color: colors.text,
+  },
   actionPrimary: {
     backgroundColor: colors.accent,
     borderRadius: radius.base,

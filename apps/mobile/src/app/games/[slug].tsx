@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -19,6 +19,7 @@ export default function GameScreen() {
   const params = useLocalSearchParams<{ slug: string }>()
   const slug = typeof params.slug === 'string' ? params.slug : ''
   const router = useRouter()
+  const queryClient = useQueryClient()
   const { session, ready } = useAuth()
   const viewerId = session?.user.id ?? null
   const configured = apiConfigured()
@@ -33,6 +34,19 @@ export default function GameScreen() {
     queryFn: () => api.games.reviews(slug),
     enabled: ready && configured && slug.length > 0 && game.isSuccess,
   })
+
+  async function afterWrite(run: () => Promise<unknown>): Promise<string | null> {
+    try {
+      await run()
+      await queryClient.invalidateQueries({ queryKey: ['game', slug] })
+      return null
+    } catch (error) {
+      return messageOf(error)
+    }
+  }
+
+  const signedIn = session != null
+  const gameId = game.data?.game.id
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -50,11 +64,22 @@ export default function GameScreen() {
           data={game.data}
           reviews={reviews.data ?? null}
           reviewsNote={reviews.isError ? messageOf(reviews.error) : null}
-          signedIn={session != null}
+          signedIn={signedIn}
           onBack={() => router.back()}
           onSignIn={() => router.push('/sign-in')}
           onSignUp={() => router.push('/sign-up')}
           onRetryReviews={() => { void reviews.refetch() }}
+          onRate={signedIn && gameId ? (rating, review) => afterWrite(() => api.games.putReview(gameId, { rating, review })) : undefined}
+          onSave={signedIn && gameId ? (status) => afterWrite(() => api.me.library.put(gameId, { status })) : undefined}
+          onAddToList={signedIn && gameId ? (listId) => afterWrite(() => api.lists.addGame(listId, gameId)) : undefined}
+          onRemoveFromList={signedIn && gameId ? (listId) => afterWrite(() => api.lists.removeGame(listId, gameId)) : undefined}
+          onCreateList={signedIn && gameId ? (name) => afterWrite(() => api.lists.create({
+            name,
+            description: '',
+            isPublic: game.data?.viewer?.defaultListPrivacy ?? true,
+            isPinned: false,
+            gameId,
+          })) : undefined}
         />
       ) : null}
     </SafeAreaView>

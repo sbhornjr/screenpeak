@@ -1,0 +1,59 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+// Sits beside the private-list case in read-pages.test.ts. That file mocks
+// the list queries, so the privacy check on likeList is asserted here.
+
+const state = vi.hoisted(() => ({
+    rows: [] as { id: string, isPublic: boolean, userId: string }[],
+    inserted: 0,
+}))
+
+vi.mock('@/lib/db', () => ({
+    db: {
+        select: () => ({
+            from: () => ({
+                where: () => ({
+                    limit: async () => state.rows,
+                }),
+            }),
+        }),
+        insert: () => ({
+            values: () => ({
+                onConflictDoNothing: async () => {
+                    state.inserted += 1
+                },
+            }),
+        }),
+    },
+}))
+
+import { likeList } from '@/lib/queries/list'
+
+const OWNER = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+const VIEWER = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+const LIST = '22222222-2222-4222-8222-222222222222'
+
+describe('likeList privacy', () => {
+    beforeEach(() => {
+        state.rows = []
+        state.inserted = 0
+    })
+
+    it('treats someone else\'s private list as missing and writes no like', async () => {
+        state.rows = [{ id: LIST, isPublic: false, userId: OWNER }]
+
+        const result = await likeList(LIST, VIEWER)
+
+        expect(result).toEqual({ error: 'List not found' })
+        expect(state.inserted).toBe(0)
+    })
+
+    it('lets the owner like their own private list', async () => {
+        state.rows = [{ id: LIST, isPublic: false, userId: OWNER }]
+
+        const result = await likeList(LIST, OWNER)
+
+        expect(result).toEqual({ error: null })
+        expect(state.inserted).toBe(1)
+    })
+})

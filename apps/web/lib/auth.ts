@@ -77,6 +77,14 @@ export async function getBearerUser(): Promise<AuthedUser | null> {
     return userFromBearer(token)
 }
 
+/** `/api/v1` writes. 401 `unauthenticated` when no Bearer token was sent.
+ *  Never reads the session cookie. A bad token is 401 `invalid_token`. */
+export async function requireBearerUser(): Promise<AuthedUser> {
+    const user = await getBearerUser()
+    if (!user) throw new UnauthenticatedError()
+    return user
+}
+
 /** The caller, or throws UnauthenticatedError (401) / AuthUnavailableError (503). */
 export async function requireUser(): Promise<AuthedUser> {
     const user = await getOptionalUser()

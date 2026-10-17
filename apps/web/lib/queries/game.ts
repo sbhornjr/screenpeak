@@ -164,28 +164,16 @@ export async function getHeroGame(): Promise<HeroGame | null> {
 }
 
 export async function getAllGenres() {
-    try {
-        return await db.select({ id: genres.id, name: genres.name, slug: genres.slug }).from(genres)
-    } catch {
-        return []
-    }
+    return await db.select({ id: genres.id, name: genres.name, slug: genres.slug }).from(genres)
 }
 
 export async function getAllPlatforms() {
-    try {
-        return await db.select({ id: platforms.id, name: platforms.name, slug: platforms.slug }).from(platforms)
-    } catch {
-        return []
-    }
+    return await db.select({ id: platforms.id, name: platforms.name, slug: platforms.slug }).from(platforms)
 }
 
 export async function getDistinctEsrbRatings(): Promise<string[]> {
-    try {
-        const rows = await db.select({ esrb_rating: games.esrbRating }).from(games)
-        return [...new Set(rows.map(row => row.esrb_rating))].filter((rating): rating is string => rating !== null).sort()
-    } catch {
-        return []
-    }
+    const rows = await db.select({ esrb_rating: games.esrbRating }).from(games)
+    return [...new Set(rows.map(row => row.esrb_rating))].filter((rating): rating is string => rating !== null).sort()
 }
 
 export async function getGamesFromSteamIds(gameIds: number[]) {
