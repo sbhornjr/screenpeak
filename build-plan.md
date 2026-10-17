@@ -42,7 +42,7 @@ Follow Part 4. Bearer auth, the game loader, `GET /api/v1/games/[slug]` plus rev
 
 ### Signed-out home
 
-**Mobile — decided.** There is no sign-in wall (App Store Review Guideline 5.1.1). The screen is not a port of the web splash. A short welcome offers Sign up, Log in, and Browse first. Browse opens the native catalogue, the same job as the web `/games` page (search and filters), not a web view. After that the app is read-only: search, game pages, reviews, lists, and a sample Loadout. The first action that needs an account — rating, logging a game, following, or Steam import — prompts for signup. `GET /api/v1/games/[slug]` and the native game screen work signed out (`viewer: null`). The welcome screen is only planned here. The game-screen slice does not build it.
+**Mobile — decided.** There is no sign-in wall (App Store Review Guideline 5.1.1). The screen is not a port of the web splash. A short welcome offers Sign up, Log in, and Browse first. Browse opens the native catalogue, the same job as the web `/games` page (search and filters), not a web view. After that the app is read-only: search, game pages, reviews, lists, and a sample Loadout. The first action that needs an account — rating, logging a game, following, or Steam import — prompts for signup. `GET /api/v1/games/[slug]` and the native game screen work signed out (`viewer: null`). The welcome screen is the signed-out Feed tab, built in Phase 2 step 1. The game-screen slice did not build it.
 
 **Web — still open.** The signed-out splash stays the open items in `docs/backlog.md` (the first screen, and a Read-out on it before launch). That page waits on owner and Lens input.
 
@@ -644,7 +644,7 @@ tests. The website is unchanged for users.
    > `GET /api/v1/games/[slug]` are display-ready. That slice moved
    > `GameData.id`, `RatingReviewData.game_id`, `SimpleRatingReview.game_id`,
    > and the library actions' `gameId` to uuid strings. `queryGames` throws on
-   > a database error. The welcome screen is still only the decision above.
+   > a database error. The welcome screen landed later, as the signed-out Feed tab in Phase 2 step 1.
 3. **Remaining loaders, one page at a time**, each with its privacy test in
    the same change (`db` bypasses RLS). The gates are library, loadout, list
    detail, and list index. Do not save them for a later audit pass.
@@ -822,25 +822,46 @@ place. This phase does not go back and extract loaders — that stays Phase 1
 step 3, and it can proceed in parallel once the game screen has proved the
 stack.
 
-1. Navigation skeleton (Expo Router), under `apps/mobile/src/app/`:
+1. Navigation skeleton (Expo Router), under `apps/mobile/src/app/`. Four bottom
+   tabs, keeping NativeTabs: **Feed, Explore, Library, Profile**. No left drawer.
+   A side rail may come later for tablet and web only. Games is not a tab.
    ```
    src/app/
-     sign-in.tsx, sign-up.tsx          # direct to Supabase Auth; welcome screen is still planned, not this skeleton
-     (tabs)/_layout.tsx                # tab bar
-     (tabs)/index.tsx                  # Feed (signed-in). Signed-out home is the welcome screen in Decisions.
-     (tabs)/explore.tsx
-     (tabs)/games/index.tsx            # Browse + search — where the welcome screen's Browse button goes
-     (tabs)/profile.tsx                # → your /user/[username]
+     sign-in.tsx, sign-up.tsx          # direct to Supabase Auth
+     (tabs)/_layout.tsx                # NativeTabs: Feed, Explore, Library, Profile
+     (tabs)/index.tsx                  # Feed when signed in. Signed out: welcome (Sign up, Log in, Browse)
+     (tabs)/explore.tsx                # search, then trending / friends' activity / recommendations, then genre and platform
+     (tabs)/library.tsx                # signed-in library. Signed out: signup prompt
+     (tabs)/profile.tsx                # your hub. Signed out: signup prompt
+     games/index.tsx                   # catalogue (GET /api/v1/games). Not a tab.
      games/[slug].tsx                  # done in Phase 1 step 2b
-     user/[username]/index.tsx, library.tsx, lists.tsx, reviews.tsx, loadout.tsx
+     user/[username]/index.tsx         # same hub, that player's public data
+     user/[username]/library.tsx       # their library, only linked when it is visible
+     user/[username]/lists/index.tsx
      user/[username]/lists/[listId].tsx
-     settings.tsx, steamlink.tsx
+     user/[username]/loadout.tsx       # only linked when the loadout is visible
    ```
-   There is no sign-in wall. Signed-out players can open browse, a game, reviews, public lists, and a sample Loadout. Rating, logging, following, and Steam import prompt for signup.
+   Detail screens sit on the root stack above the tabs, so Back returns to the
+   tab that opened them. Welcome's Browse button and Explore's Browse all both
+   open `games/index.tsx`. There is no sign-in wall. Signed-out players can
+   open browse, a game, reviews, public lists, and a public Loadout. Rating,
+   logging, following, and Steam import prompt for signup.
+   The profile hub pins Loadout, Lists, and a library preview (counts, linking
+   to the Library tab for the owner and to `user/[username]/library` for
+   anyone else). A section renders only when the viewer is the owner or that
+   section is public, using the same flags as the website profile nav:
+   `library_public` and `loadout_public`. Lists have no profile-wide privacy
+   flag, so the Lists link always shows, matching the website; private lists
+   stay off `GET /api/v1/user/[username]/lists` unless the viewer is the owner.
+   Hidden sections are not rendered and their routes are not fetched from the hub.
+   > **Done.** The routes above load real `/api/v1` data with plain layouts.
+   > Forgot-password, settings, steamlink, and the ratings page are still
+   > later steps. Feed paging, catalogue filters beyond genre/platform, and
+   > visual polish are Phase 3.
 2. Auth context already stores the session in SecureStore (chunked; the value
-   limit is 2048 bytes) and in `localStorage` on Expo web. Finish forgot-password
-   and the welcome screen when that screen is built. Do not redirect every
-   signed-out open into `(auth)`.
+   limit is 2048 bytes) and in `localStorage` on Expo web. The welcome screen
+   is the signed-out Feed tab from step 1. Finish forgot-password. Do not
+   redirect every signed-out open into `(auth)`.
 3. API client lives in `apps/mobile/src/lib/api/` (bearer header, shared
    contract types — Appendix B.3) with the TanStack Query provider. Done with
    the game screen. Later screens add endpoints to the same client.
@@ -854,11 +875,11 @@ stack.
 Build in order of the core loop — each is shippable to TestFlight on its own:
 
 1. **Game detail** — the read screen (hero, You and Community both /10 via `avg_rating`, taxonomy, reviews) landed in Phase 1 step 2b, including the signed-out signup prompt. Still to build: the rate/review sheet, the library sheet, and the add-to-list sheet, which call the write routes.
-2. **Profile** — header, favorites, featured Loadout, follow/unfollow.
-3. **Library** — virtualized list, filters/facets, status breakdown.
-4. **Lists** — index, detail, create/edit, like, reorder/sync games.
-5. **Feed** — infinite scroll (`useInfiniteQuery` + `FEED_PAGE_SIZE`), pull-to-refresh.
-6. **Explore** and **Games browse** — search, filters. This browse screen is the native `/games` page. The welcome screen's Browse button opens it, not a web view.
+2. **Profile** — the hub (Loadout, Lists, library counts, privacy flags) landed in Phase 2 step 1. Still to build: header polish, favorites, follow/unfollow.
+3. **Library** — the signed-in list landed in Phase 2 step 1. Still to build: virtualized list, filters/facets, status breakdown.
+4. **Lists** — index and detail landed in Phase 2 step 1. Still to build: create/edit, like, reorder/sync games.
+5. **Feed** — the first page landed in Phase 2 step 1. Still to build: infinite scroll (`useInfiniteQuery` + `FEED_PAGE_SIZE`), pull-to-refresh.
+6. **Explore** and the catalogue — search, trending, friends' activity, recommendations, and genre/platform browse landed in Phase 2 step 1. Games is not a tab. The catalogue is the native `/games` page; welcome's Browse button and Explore's Browse all open it, not a web view. Still to build: the rest of the filters.
 7. **Ratings & reviews** page.
 8. **Loadout** — stats charts + generate/clear.
 9. **Settings** — username, bio, title, privacy toggles, avatar

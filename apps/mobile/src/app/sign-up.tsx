@@ -7,6 +7,7 @@ import { parseOrError, usernameSchema } from '@screenpeak/shared/schemas'
 
 import { Eyebrow } from '@/components/eyebrow'
 import { useAuth } from '@/lib/auth'
+import { backOrHome } from '@/lib/go'
 import { colors, face, radius, space } from '@/theme'
 
 export default function SignUpScreen() {
@@ -31,7 +32,7 @@ export default function SignUpScreen() {
     try {
       const message = await signUp(email.trim(), password, usernameCheck.data)
       if (message) setNotice(message)
-      else router.back()
+      else backOrHome()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create the account.')
     } finally {

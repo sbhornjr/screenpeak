@@ -28,6 +28,9 @@ const postgrestPort = 54322
 const peekEmail = 'hornflakes+peek@mail.grokbot.com'
 const peekPassword = 'peekpeek'
 const peekUsername = 'peek'
+const adaEmail = 'hornflakes+ada@mail.grokbot.com'
+const adaUsername = 'ada'
+const expoPort = 8081
 const catalogueTop = 100
 const libraryPath = join(runDir, 'library.json')
 const postgrestVersion = 'v16.4'
@@ -1594,12 +1597,235 @@ async function driveSearch() {
     log(`proved search evidence ${dir}`)
 }
 
+function readPublicEnv() {
+    const text = readEnvFile()
+    if (!text || !text.includes(envMarker)) {
+        throw new Error('apps/web/.env.local is not the verify-screenpeak stack. Run up first.')
+    }
+    const url = text.match(/^NEXT_PUBLIC_SUPABASE_URL=(.+)$/m)?.[1]?.trim()
+    const anon = text.match(/^NEXT_PUBLIC_SUPABASE_ANON_KEY=(.+)$/m)?.[1]?.trim()
+    if (!url || !anon) throw new Error('Local env is missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY.')
+    return { url, anon }
+}
+
+function insertPrivateAda() {
+    psql(databaseUrl, `
+        INSERT INTO auth.users (id, email, raw_user_meta_data)
+        SELECT gen_random_uuid(), '${adaEmail}', '{"username":"${adaUsername}"}'::jsonb
+        WHERE NOT EXISTS (SELECT 1 FROM auth.users WHERE email = '${adaEmail}');
+        UPDATE public.users
+        SET username = '${adaUsername}',
+            display_name = '${adaUsername}',
+            library_public = false,
+            loadout_public = false
+        WHERE id = (SELECT id FROM auth.users WHERE email = '${adaEmail}');
+    `)
+}
+
+function deleteAda() {
+    try {
+        psql(databaseUrl, `DELETE FROM auth.users WHERE email = '${adaEmail}';`)
+    } catch (error) {
+        log(error instanceof Error ? error.message : String(error))
+    }
+}
+
+async function driveMobileNav() {
+    const doctorRun = spawnSync(process.execPath, [fileURLToPath(import.meta.url), 'doctor'], { encoding: 'utf8' })
+    process.stdout.write(doctorRun.stdout || '')
+    if (doctorRun.status !== 0) fail('Doctor failed. Not driving.')
+    if (await portOpen(expoPort)) fail(`Port ${expoPort} is already in use. Not starting Expo.`)
+    const publicEnv = readPublicEnv()
+    const library = readLibrary()
+    const dir = join(evidenceRoot, 'mobile-nav')
+    await mkdir(dir, { recursive: true })
+    insertPrivateAda()
+    const origin = `http://127.0.0.1:${appPort}`
+    const expoOrigin = `http://localhost:${expoPort}`
+    const expoPid = spawnLogged('expo', 'npm', ['run', 'web', '-w', '@screenpeak/mobile', '--', '--host', 'localhost', '--port', String(expoPort)], {
+        CI: '1',
+        BROWSER: 'none',
+        EXPO_NO_TELEMETRY: '1',
+        EXPO_PUBLIC_API_URL: origin,
+        EXPO_PUBLIC_SUPABASE_URL: publicEnv.url,
+        EXPO_PUBLIC_SUPABASE_ANON_KEY: publicEnv.anon,
+    })
+    const problems = []
+    const shots = {}
+    let page = null
+    let chromePid = null
+    let code = 0
+    try {
+        await waitForHttp(expoOrigin, 180_000)
+        chromePid = await launchChrome()
+        page = await connectChrome()
+        const counts = '5 games · 3 completed'
+
+        async function shot(name, needle, timeoutMs = 30_000) {
+            await page.waitForText(needle, timeoutMs)
+            const path = join(dir, name)
+            await page.screenshot(path)
+            shots[name] = path
+            return page.panelText()
+        }
+
+        await page.navigate(expoOrigin)
+        const feedOut = await shot('feed-signed-out.png', 'Sign up, log in, or browse the catalogue.', 180_000)
+        if (!feedOut.includes('Welcome')) problems.push('signed-out feed is missing Welcome')
+        if (await page.controlInView('Loadout') === 'yes') problems.push('signed-out feed shows Loadout')
+
+        await page.clickTab('Explore')
+        const exploreOut = await shot('explore-signed-out.png', 'Sign up to see what people you follow are playing.')
+        if (!exploreOut.includes('Browse all')) problems.push('signed-out explore is missing Browse all')
+        const searchField = await page.evaluate(`document.querySelector('input[aria-label="Search games"]') ? 'yes' : 'no'`)
+        if (searchField !== 'yes') problems.push('signed-out explore is missing the search field')
+
+        await page.clickTab('Library')
+        const libraryOut = await shot('library-signed-out.png', 'Sign up to see your library.')
+        if (library.games.some((name) => libraryOut.includes(name))) problems.push('signed-out library shows a game')
+
+        await page.clickTab('Profile')
+        const ownOut = await shot('own-profile-signed-out.png', 'Sign up to see your loadout and lists.')
+        if (await page.controlInView('Loadout') === 'yes') problems.push('signed-out profile shows Loadout')
+        if (await page.controlInView('Lists') === 'yes') problems.push('signed-out profile shows Lists')
+        if (ownOut.includes('completed')) problems.push('signed-out profile shows a library preview')
+
+        await page.navigate(`${expoOrigin}/user/${peekUsername}`)
+        const publicOut = await shot('user-peek-signed-out.png', counts)
+        if (await page.controlInView('Loadout') !== 'yes') problems.push('public peek profile hides Loadout')
+        if (await page.controlInView('Lists') !== 'yes') problems.push('public peek profile hides Lists')
+        if (!publicOut.includes(peekUsername)) problems.push('public peek profile is missing the username')
+
+        const adaMark = page.eventMark()
+        await page.navigate(`${expoOrigin}/user/${adaUsername}`)
+        const adaOut = await shot('user-ada-signed-out.png', adaUsername)
+        if (!adaOut.includes('Lists')) problems.push('private ada profile hides Lists')
+        if (await page.controlInView('Loadout') === 'yes') problems.push('private ada profile shows Loadout')
+        if (adaOut.includes('completed') || adaOut.includes('games ·')) problems.push('private ada profile shows a library preview')
+        const adaLeaks = page.requestUrlsSince(adaMark).filter((url) => /\/api\/v1\/user\/ada\/(library|loadout|lists)/.test(url))
+        if (adaLeaks.length) problems.push(`private ada hub fetched ${adaLeaks.join(', ')}`)
+
+        await page.navigate(`${expoOrigin}/sign-in`)
+        await page.waitForText('Log in')
+        await page.fillPlaceholder('Email', peekEmail)
+        await page.fillPlaceholder('Password', peekPassword)
+        await page.clickControl('Log in')
+        await page.waitUntil(`(() => {
+            for (let i = 0; i < localStorage.length; i += 1) {
+                const key = localStorage.key(i) || ''
+                if (key.includes('auth-token') && localStorage.getItem(key)) return 'ok'
+            }
+            return 'waiting'
+        })()`)
+        await page.navigate(expoOrigin)
+        const feedNeedles = ['Nothing in your feed yet.', ...library.games, "Couldn't load this screen"]
+        await page.waitForTextEither(feedNeedles, 45_000)
+        const feedInPath = join(dir, 'feed-signed-in.png')
+        await page.screenshot(feedInPath)
+        shots['feed-signed-in.png'] = feedInPath
+        const feedIn = await page.panelText()
+        if (feedIn.includes('Sign up, log in, or browse the catalogue.')) problems.push('signed-in feed still shows the welcome')
+        if (feedIn.includes("Couldn't load this screen")) problems.push('signed-in feed failed to load')
+        const feedOk = feedIn.includes('Nothing in your feed yet.') || library.games.some((name) => feedIn.includes(name))
+        if (!feedOk) problems.push('signed-in feed has neither the empty state nor a library game')
+
+        await page.clickTab('Explore')
+        const exploreIn = await shot('explore-signed-in.png', 'Browse all')
+        if (exploreIn.includes('Sign up to see what people you follow are playing.')) problems.push('signed-in explore still asks to sign up')
+
+        await page.clickTab('Library')
+        const libraryIn = await shot('library-signed-in.png', library.games[0])
+        if (libraryIn.includes('Sign up to see your library.')) problems.push('signed-in library still asks to sign up')
+
+        await page.clickTab('Profile')
+        const ownIn = await shot('own-profile-as-peek.png', counts)
+        if (await page.controlInView('Loadout') !== 'yes') problems.push('own profile hides Loadout')
+        if (await page.controlInView('Lists') !== 'yes') problems.push('own profile hides Lists')
+        if (!ownIn.includes(peekUsername)) problems.push('own profile is missing peek')
+
+        const adaInMark = page.eventMark()
+        await page.navigate(`${expoOrigin}/user/${adaUsername}`)
+        const adaIn = await shot('user-ada-as-peek.png', adaUsername)
+        if (!adaIn.includes('Lists')) problems.push('ada as peek hides Lists')
+        if (await page.controlInView('Loadout') === 'yes') problems.push('ada as peek shows Loadout')
+        if (adaIn.includes('completed') || adaIn.includes('games ·')) problems.push('ada as peek shows a library preview')
+        const adaInLeaks = page.requestUrlsSince(adaInMark).filter((url) => /\/api\/v1\/user\/ada\/(library|loadout|lists)/.test(url))
+        if (adaInLeaks.length) problems.push(`ada as peek fetched ${adaInLeaks.join(', ')}`)
+
+        const token = await page.evaluate(`(() => {
+            for (let i = 0; i < localStorage.length; i += 1) {
+                const key = localStorage.key(i) || ''
+                if (!key.includes('auth-token')) continue
+                try {
+                    const data = JSON.parse(localStorage.getItem(key) || '{}')
+                    return data.access_token || ''
+                } catch { return '' }
+            }
+            return ''
+        })()`)
+        const peekPublic = await fetch(`${origin}/api/v1/user/${peekUsername}`).then(async (response) => ({ status: response.status, body: await response.json() }))
+        const adaPublic = await fetch(`${origin}/api/v1/user/${adaUsername}`).then(async (response) => ({ status: response.status, body: await response.json() }))
+        const adaLibrary = await fetch(`${origin}/api/v1/user/${adaUsername}/library`)
+        const adaLoadout = await fetch(`${origin}/api/v1/user/${adaUsername}/loadout`)
+        const adaAsPeek = token
+            ? await fetch(`${origin}/api/v1/user/${adaUsername}`, { headers: { Authorization: `Bearer ${token}` } }).then(async (response) => ({ status: response.status, body: await response.json() }))
+            : { status: 0, body: null }
+        const peekAsPeek = token
+            ? await fetch(`${origin}/api/v1/user/${peekUsername}`, { headers: { Authorization: `Bearer ${token}` } }).then(async (response) => ({ status: response.status, body: await response.json() }))
+            : { status: 0, body: null }
+        if (!token) problems.push('sign-in did not store an access token')
+        if (peekPublic.body?.library_stats?.total_games !== 5) problems.push('signed-out peek library_stats missing')
+        if (peekPublic.body?.profile?.loadout_public !== true) problems.push('peek loadout_public is not true')
+        if (adaPublic.body?.library_stats !== null) problems.push('signed-out ada library_stats was not null')
+        if (adaPublic.body?.profile?.library_public !== false || adaPublic.body?.profile?.loadout_public !== false) problems.push('ada privacy flags were not false')
+        if (adaLibrary.status !== 404 || adaLoadout.status !== 404) problems.push(`ada library ${adaLibrary.status} loadout ${adaLoadout.status}`)
+        if (adaAsPeek.body?.viewer?.is_owner !== false) problems.push('ada viewer is_owner was not false')
+        if (adaAsPeek.body?.library_stats !== null) problems.push('ada as peek still received library_stats')
+        if (peekAsPeek.body?.viewer?.is_owner !== true) problems.push('peek viewer is_owner was not true')
+        await writeFile(join(dir, 'result.json'), JSON.stringify({
+            feature: 'mobile-nav',
+            expo: expoOrigin,
+            shots,
+            peekSignedOut: { status: peekPublic.status, library_stats: peekPublic.body?.library_stats ?? null, loadout_public: peekPublic.body?.profile?.loadout_public ?? null },
+            adaSignedOut: { status: adaPublic.status, library_stats: adaPublic.body?.library_stats ?? null, library_public: adaPublic.body?.profile?.library_public ?? null, loadout_public: adaPublic.body?.profile?.loadout_public ?? null },
+            adaLibraryStatus: adaLibrary.status,
+            adaLoadoutStatus: adaLoadout.status,
+            adaAsPeek: { status: adaAsPeek.status, is_owner: adaAsPeek.body?.viewer?.is_owner ?? null, library_stats: adaAsPeek.body?.library_stats ?? null },
+            peekAsPeek: { status: peekAsPeek.status, is_owner: peekAsPeek.body?.viewer?.is_owner ?? null },
+            problems,
+        }, null, 2))
+    } catch (error) {
+        try { await page?.screenshot(join(dir, 'failed.png')) } catch { /* the page may already be gone */ }
+        console.error(error instanceof Error ? error.message : String(error))
+        code = 1
+    } finally {
+        page?.close()
+        stopRecorded('chrome')
+        if (chromePid) {
+            try { process.kill(chromePid, 'SIGTERM') } catch { /* already stopped */ }
+        }
+        stopRecorded('expo')
+        if (expoPid) {
+            try { process.kill(-expoPid, 'SIGTERM') } catch { /* already stopped */ }
+            try { process.kill(expoPid, 'SIGTERM') } catch { /* already stopped */ }
+        }
+        deleteAda()
+    }
+    if (code !== 0) process.exit(code)
+    if (problems.length) {
+        console.error(problems.join('\n'))
+        process.exit(1)
+    }
+    log(`proved mobile-nav evidence ${dir}`)
+}
+
 async function drive(feature) {
     if (feature === 'game-page') return driveGamePage()
     if (feature === 'read-endpoints') return driveReadEndpoints()
     if (feature === 'game-writes') return driveGameWrites()
     if (feature === 'search') return driveSearch()
-    if (feature !== 'loadout-readout') fail(`Unknown feature ${feature || ''}. Mapped features: loadout-readout, game-page, read-endpoints, game-writes, search.`)
+    if (feature === 'mobile-nav') return driveMobileNav()
+    if (feature !== 'loadout-readout') fail(`Unknown feature ${feature || ''}. Mapped features: loadout-readout, game-page, read-endpoints, game-writes, search, mobile-nav.`)
     const doctorRun = spawnSync(process.execPath, [fileURLToPath(import.meta.url), 'doctor'], { encoding: 'utf8' })
     process.stdout.write(doctorRun.stdout || '')
     if (doctorRun.status !== 0) fail('Doctor failed. Not driving.')
@@ -1796,6 +2022,47 @@ async function connectChrome() {
         })()`)
         if (outcome !== 'clicked') throw new Error(`Could not click button ${name}`)
     }
+    async function clickTab(name) {
+        const outcome = await evaluate(`(() => {
+            const button = [...document.querySelectorAll('[role="tab"]')].find((item) => item.textContent.trim() === ${JSON.stringify(name)})
+            if (!button) return 'missing'
+            button.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 }))
+            return 'clicked'
+        })()`)
+        if (outcome !== 'clicked') throw new Error(`Could not click tab ${name}`)
+    }
+    async function clickControl(name) {
+        const outcome = await evaluate(`(() => {
+            const nodes = [...document.querySelectorAll('button, [role="button"]')]
+            const node = nodes.find((item) => item.textContent.trim() === ${JSON.stringify(name)})
+            if (!node) return 'missing'
+            node.click()
+            return 'clicked'
+        })()`)
+        if (outcome !== 'clicked') throw new Error(`Could not click ${name}`)
+    }
+    async function panelText() {
+        return evaluate(`(() => {
+            const panel = document.querySelector('[role="tabpanel"][data-state="active"]')
+            const root = panel || document.body
+            return root.innerText || ''
+        })()`)
+    }
+    async function controlInView(name) {
+        return evaluate(`(() => {
+            const root = document.querySelector('[role="tabpanel"][data-state="active"]') || document.body
+            const nodes = [...root.querySelectorAll('button, [role="button"]')]
+            return nodes.some((item) => item.textContent.trim() === ${JSON.stringify(name)}) ? 'yes' : 'no'
+        })()`)
+    }
+    function eventMark() {
+        return events.length
+    }
+    function requestUrlsSince(index) {
+        return events.slice(index)
+            .filter((item) => item.method === 'Network.requestWillBeSent')
+            .map((item) => String(item.params?.request?.url || ''))
+    }
     async function clickDialogButton(name) {
         const outcome = await evaluate(`(() => {
             const dialog = document.querySelector('[role="dialog"]')
@@ -1916,13 +2183,14 @@ async function connectChrome() {
         })()`)
     }
     return {
-        navigate, waitForText, waitForTextEither, waitUntil, clickButton, clickDialogButton, clickLink, clickMenuLink,
-        clickSectionButton, clickPlaceholder, fillPlaceholder, screenshot, bodyText, armLoadoutCapture, loadoutCapture, readoutParagraph, close,
+        navigate, waitForText, waitForTextEither, waitUntil, clickButton, clickTab, clickControl, clickDialogButton, clickLink, clickMenuLink,
+        clickSectionButton, clickPlaceholder, fillPlaceholder, screenshot, bodyText, panelText, controlInView,
+        eventMark, requestUrlsSince, evaluate, armLoadoutCapture, loadoutCapture, readoutParagraph, close,
     }
 }
 
 async function down() {
-    for (const name of ['chrome', 'next', 'gateway', 'postgrest']) stopRecorded(name)
+    for (const name of ['chrome', 'expo', 'next', 'gateway', 'postgrest']) stopRecorded(name)
     await new Promise((resolve) => setTimeout(resolve, 500))
     const state = await readState()
     try {
