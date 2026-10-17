@@ -222,18 +222,28 @@ link formats.
   is 401 without a bearer and never includes a Steam id (`steam_linked` only).
 - **`/api/v1` writes call `requireBearerUser()`.** It is `getBearerUser()` plus a
   401 `unauthenticated` when the Bearer header is absent. It never reads the
-  session cookie. Reads stay on `getBearerUser()` so a missing token is the
-  signed-out payload, not an error. A successful `requireBearerUser()` spends
-  one write-budget token (`consumeWriteRateLimit` in `lib/rate-limit.ts`): 60
-  requests per 60 seconds per user, stored in `api_rate_limits` (migration
-  0009). That includes `GET /api/v1/me/library/[gameId]`. Over the budget is
-  429 `rate_limited` with `Retry-After`. Search routes call
-  `consumeSearchRateLimit` after the query parses: 120 per 60 seconds, keyed
-  by the bearer user id when there is one, otherwise by `x-real-ip` (else the
-  last `x-forwarded-for` hop). A new write route that only calls
-  `getBearerUser()` skips the budget — `test/api/v1-routes-auth.test.ts`
-  requires `requireBearerUser` on POST, PUT, PATCH, and DELETE. A route whose
-  path ends in `search/route.ts` must call `consumeSearchRateLimit`.
+  session cookie and it does not spend the write budget. Reads stay on
+  `getBearerUser()` so a missing token is the signed-out payload, not an error.
+  `GET /api/v1/me/library/[gameId]` calls `requireBearerUser()` and does not
+  spend a write token. POST, PUT, PATCH, and DELETE call
+  `consumeWriteRateLimit` (`lib/rate-limit.ts`) after that: 60 requests per 60
+  seconds per user, stored in `api_rate_limits` (migration 0009). Over the
+  budget is 429 `rate_limited` with `Retry-After` and `retry_after` in the
+  body. Search routes and `app/search-actions.ts` call
+  `consumeSearchRateLimit` after the query parses: 120 per 60 seconds. The
+  bucket is `search:user:<uuid>` when the caller is signed in (bearer on the
+  route, cookie on the action), otherwise `search:ip:<address>`. The address
+  is the first `x-vercel-forwarded-for` hop, then `x-real-ip`, then the last
+  `x-forwarded-for` hop, else `local`. A 401 does not spend the search budget.
+  `test/api/v1-routes-auth.test.ts` requires `requireBearerUser` and
+  `consumeWriteRateLimit` on POST, PUT, PATCH, and DELETE, and fails if a GET
+  calls `consumeWriteRateLimit`. A nested function with the helper's name does
+  not count. The same file fails if a non-test module calls
+  `searchGamesByName`, `searchTaxonomyTable`, or `searchLibraryTaxonomy` from
+  `lib/queries/game.ts` without calling the imported `consumeSearchRateLimit`.
+  Stale buckets (window older than a day) are deleted by
+  `GET /api/cron/rate-limits`, which requires `Authorization: Bearer`
+  `CRON_SECRET`. `apps/web/vercel.json` schedules that daily.
 - Files under `app/api/v1/` cannot import cookie auth. `eslint/v1-bearer-only.mjs`
   (rule `screenpeak/v1-bearer-only`) fails lint on `getOptionalUser`,
   `requireUser`, `cookies` from `next/headers` (including a `.cookies()` call),

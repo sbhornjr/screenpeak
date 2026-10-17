@@ -1,3 +1,4 @@
+import 'server-only'
 import { eq, and, ne, desc, asc, avg, count, inArray, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { ratingsReviews, users, games } from '@/db/schema'

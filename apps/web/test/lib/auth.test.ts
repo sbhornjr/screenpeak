@@ -177,22 +177,14 @@ describe('requireBearerUser — /api/v1 writes', () => {
         expect(consumeWriteRateLimit).not.toHaveBeenCalled()
     })
 
-    it('returns the bearer user, spends a write token, and still does not read cookies', async () => {
+    it('returns the bearer user without spending the write budget, and still does not read cookies', async () => {
         withHeaders({ authorization: 'Bearer good.jwt.token' })
         bearerGetUser.mockResolvedValue(ok(USER))
         cookieGetUser.mockResolvedValue(ok({ id: 'cookie-user', email: 'other@screenpeak.test' }))
 
         await expect(requireBearerUser()).resolves.toEqual({ id: 'user-123', email: 'player@screenpeak.test' })
         expect(cookieGetUser).not.toHaveBeenCalled()
-        expect(consumeWriteRateLimit).toHaveBeenCalledWith('user-123')
-    })
-
-    it('returns 429 when the write budget is spent and does not hide the rate-limit error', async () => {
-        withHeaders({ authorization: 'Bearer good.jwt.token' })
-        bearerGetUser.mockResolvedValue(ok(USER))
-        consumeWriteRateLimit.mockRejectedValue(new ApiError(429, 'rate_limited', 'Too many requests. Try again soon.', { 'Retry-After': '3' }))
-
-        await rejectsWith(requireBearerUser(), 429, 'rate_limited')
+        expect(consumeWriteRateLimit).not.toHaveBeenCalled()
     })
 
     it('rejects an empty bearer token with 401 invalid_token', async () => {

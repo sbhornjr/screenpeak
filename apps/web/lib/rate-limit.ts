@@ -17,14 +17,21 @@ const BUCKET = /^[a-z0-9:._-]{1,180}$/
 const IPV4 = /^(?:\d{1,3}\.){3}\d{1,3}$/
 const IPV6 = /^[0-9a-f:]+$/
 
-export function clientAddress(headerList: { get(name: string): string | null }): string {
-    const real = headerList.get('x-real-ip')?.trim()
-    const forwarded = headerList.get('x-forwarded-for')
-    const last = forwarded?.split(',').map(part => part.trim()).filter(Boolean).at(-1)
-    const token = (real || last || '').split(/[\s;]+/)[0]?.trim().toLowerCase() ?? ''
+function usableAddress(raw: string | null | undefined): string | null {
+    const token = (raw ?? '').split(/[\s;]+/)[0]?.trim().toLowerCase() ?? ''
     if (IPV4.test(token)) return token
     if (token.includes(':') && IPV6.test(token)) return token.slice(0, 64)
-    return 'local'
+    return null
+}
+
+/** Vercel overwrites `x-vercel-forwarded-for`. Then `x-real-ip`. Then the last `x-forwarded-for` hop. */
+export function clientAddress(headerList: { get(name: string): string | null }): string {
+    const vercel = usableAddress(headerList.get('x-vercel-forwarded-for')?.split(',')[0])
+    if (vercel) return vercel
+    const real = usableAddress(headerList.get('x-real-ip')?.split(',')[0])
+    if (real) return real
+    const last = headerList.get('x-forwarded-for')?.split(',').map(part => part.trim()).filter(Boolean).at(-1)
+    return usableAddress(last) ?? 'local'
 }
 
 /** Signed-in search shares one bucket. Signed-out search keys off the client address. */
@@ -68,6 +75,16 @@ export async function consumeApiRateLimit(bucket: string, limit: number, windowS
     const retry = typeof row.retry_after === 'number' ? row.retry_after : Number(row.retry_after)
     const seconds = Number.isFinite(retry) && retry > 0 ? Math.ceil(retry) : 1
     throw new ApiError(429, 'rate_limited', 'Too many requests. Try again soon.', { 'Retry-After': String(seconds) })
+}
+
+/** Drop buckets whose window started more than a day ago. Not called from the request path. */
+export async function deleteStaleRateLimits(): Promise<number> {
+    const rows = await db.execute(sql`
+        delete from api_rate_limits
+        where window_start < clock_timestamp() - interval '1 day'
+        returning bucket
+    `) as unknown as { bucket: string }[]
+    return rows.length
 }
 
 export async function consumeWriteRateLimit(userId: string): Promise<void> {

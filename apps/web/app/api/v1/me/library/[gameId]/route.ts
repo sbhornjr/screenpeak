@@ -3,6 +3,7 @@ import type { LibraryWriteResult } from '@screenpeak/shared/api/writes'
 import { libraryEntryWriteSchema } from '@screenpeak/shared/schemas'
 import { ApiError, withAuth } from '@/lib/api'
 import { requireBearerUser } from '@/lib/auth'
+import { consumeWriteRateLimit } from '@/lib/rate-limit'
 import { deleteLibraryEntryByGame, getLibraryEntry, upsertLibraryEntry } from '@/lib/queries/library'
 import { assertWriteOk, jsonPrivate, noContent, parseBody, readJson, uuidParam, writeErrorText } from '@/lib/write-http'
 
@@ -33,6 +34,7 @@ export const GET = withAuth(async (_req: NextRequest, ctx: RouteContext<'/api/v1
 
 export const PUT = withAuth(async (req: NextRequest, ctx: RouteContext<'/api/v1/me/library/[gameId]'>) => {
     const user = await requireBearerUser()
+    await consumeWriteRateLimit(user.id)
     const { gameId: raw } = await ctx.params
     const gameId = uuidParam(raw, 'gameId')
     const body = parseBody(libraryEntryWriteSchema, await readJson(req))
@@ -55,6 +57,7 @@ export const PUT = withAuth(async (req: NextRequest, ctx: RouteContext<'/api/v1/
 
 export const DELETE = withAuth(async (_req: NextRequest, ctx: RouteContext<'/api/v1/me/library/[gameId]'>) => {
     const user = await requireBearerUser()
+    await consumeWriteRateLimit(user.id)
     const { gameId: raw } = await ctx.params
     const gameId = uuidParam(raw, 'gameId')
     const removed = await deleteLibraryEntryByGame(user.id, gameId)

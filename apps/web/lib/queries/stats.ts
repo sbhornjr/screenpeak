@@ -1,3 +1,4 @@
+import 'server-only'
 import { sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { GenreStatType, DeveloperStatType, StatusStatType, HighlightType } from '@screenpeak/shared/types'

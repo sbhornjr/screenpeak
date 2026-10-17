@@ -1,6 +1,7 @@
+import 'server-only'
 import { sql, and, asc, eq, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { games, gameGenres, gamePlatforms, gameDevelopers, gamePublishers, genres, platforms, developers, publishers, gameExternalIds } from '@/db/schema'
+import { games, gameGenres, gamePlatforms, gameDevelopers, gamePublishers, genres, platforms, developers, publishers, gameExternalIds, libraryEntries } from '@/db/schema'
 import { SEARCH_MAX_PAGE_SIZE, SEARCH_QUERY_MAX_LENGTH, TAXONOMY_SEARCH_ID_CAP, TAXONOMY_SEARCH_TABLES } from '@screenpeak/shared/constants'
 import type { TaxonomySearchTable } from '@screenpeak/shared/api/search'
 import { GameData } from '@screenpeak/shared/types'
@@ -313,6 +314,37 @@ export async function searchTaxonomyTable(
             sql`${source.name} ilike ${pattern} escape ${'\\'}`,
             ids.length > 0 ? inArray(source.id, ids) : undefined,
         ))
+        .orderBy(asc(source.name), asc(source.id))
+        .limit(take)
+}
+
+const libraryJoins = {
+    developers: { link: gameDevelopers, fk: gameDevelopers.developerId, gameId: gameDevelopers.gameId },
+    publishers: { link: gamePublishers, fk: gamePublishers.publisherId, gameId: gamePublishers.gameId },
+} as const
+
+/** Developers or publishers on games in this user's library. No client id list. */
+export async function searchLibraryTaxonomy(
+    userId: string,
+    table: TaxonomySearchTable,
+    query: string,
+    limit = SEARCH_MAX_PAGE_SIZE,
+) {
+    const { q, take } = searchBounds(query, limit)
+    if (!UUID.test(userId)) throw new SearchInputError('Must be a uuid.')
+    const source = taxonomySource(table)
+    const join = libraryJoins[table]
+    const pattern = containsPattern(q)
+    return db
+        .select({ id: source.id, name: source.name, slug: source.slug })
+        .from(source)
+        .innerJoin(join.link, eq(join.fk, source.id))
+        .innerJoin(libraryEntries, eq(libraryEntries.gameId, join.gameId))
+        .where(and(
+            eq(libraryEntries.userId, userId),
+            sql`${source.name} ilike ${pattern} escape ${'\\'}`,
+        ))
+        .groupBy(source.id, source.name, source.slug)
         .orderBy(asc(source.name), asc(source.id))
         .limit(take)
 }

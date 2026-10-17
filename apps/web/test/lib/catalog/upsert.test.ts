@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 const transaction = vi.hoisted(() => vi.fn())
 vi.mock('@/lib/db', () => ({ db: { transaction } }))
-import { upsertCatalogGame, catalogGameSchema, catalogSlug } from '@/lib/catalog/upsert'
+import { upsertCatalogGame, catalogGameSchema, catalogSlug, storedGameSlug } from '@/lib/catalog/upsert'
 import type { CatalogGame } from '@/lib/catalog/types'
 const game: CatalogGame = {
     igdbId: 1, name: 'Example', providerSlug: 'example', gameType: 0,
@@ -28,5 +28,12 @@ describe('catalogue writer boundary', () => {
         expect(catalogSlug('example')).toBe('example')
         expect(catalogSlug('Example Game')).toBe('example-game')
         expect(catalogSlug('遊戲')).toBe('game')
+    })
+    it('never stores the reserved slug search', () => {
+        const id = '11111111-1111-4111-8111-111111111111'
+        expect(storedGameSlug('search', id, false)).toBe(`search-${id}`)
+        expect(storedGameSlug('search', id, false)).not.toBe('search')
+        expect(storedGameSlug('hades', id, false)).toBe('hades')
+        expect(storedGameSlug('hades', id, true)).toBe(`hades-${id}`)
     })
 })

@@ -1,7 +1,6 @@
 import { isAuthApiError, isAuthRetryableFetchError, type AuthError, type User } from '@supabase/supabase-js'
 import { headers } from 'next/headers'
 import { AuthUnavailableError, UnauthenticatedError } from '@/lib/api'
-import { consumeWriteRateLimit } from '@/lib/rate-limit'
 import { createClient } from '@/lib/supabase-server'
 import { createStatelessClient } from '@/lib/supabase-stateless'
 
@@ -78,14 +77,14 @@ export async function getBearerUser(): Promise<AuthedUser | null> {
     return userFromBearer(token)
 }
 
-/** `/api/v1` writes. 401 `unauthenticated` when no Bearer token was sent.
- *  Never reads the session cookie. A bad token is 401 `invalid_token`.
- *  A valid user then spends one write-budget token (lib/rate-limit.ts),
- *  including GET /api/v1/me/library/[gameId], which uses this helper. */
+/** `/api/v1` writes and the caller's own library row. 401 `unauthenticated`
+ *  when no Bearer token was sent. Never reads the session cookie. A bad
+ *  token is 401 `invalid_token`. This does not spend the write budget —
+ *  mutating handlers call `consumeWriteRateLimit` themselves, so
+ *  `GET /api/v1/me/library/[gameId]` can require a bearer without charging. */
 export async function requireBearerUser(): Promise<AuthedUser> {
     const user = await getBearerUser()
     if (!user) throw new UnauthenticatedError()
-    await consumeWriteRateLimit(user.id)
     return user
 }
 

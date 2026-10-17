@@ -74,6 +74,7 @@ describe('GET /api/v1/games/search', () => {
         expect(bad.status).toBe(401)
         expect((await bad.json()).error.code).toBe('invalid_token')
         expect(searchGamesByName).not.toHaveBeenCalled()
+        expect(consumeSearchRateLimit).not.toHaveBeenCalled()
 
         consumeSearchRateLimit.mockRejectedValueOnce(new ApiError(429, 'rate_limited', 'Too many requests. Try again soon.', { 'Retry-After': '8' }))
         const limited = await games.GET(new NextRequest('http://localhost/api/v1/games/search?q=hades'), noCtx)

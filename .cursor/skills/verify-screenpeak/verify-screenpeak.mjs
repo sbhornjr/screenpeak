@@ -311,6 +311,10 @@ function seedFixture() {
         VALUES (910001, 'Fixture Studio', 'fixture-studio')
         ON CONFLICT (igdb_id) DO UPDATE SET name = EXCLUDED.name, slug = EXCLUDED.slug;
 
+        INSERT INTO publishers (igdb_id, name, slug)
+        VALUES (910001, 'Fixture Press', 'fixture-press')
+        ON CONFLICT (igdb_id) DO UPDATE SET name = EXCLUDED.name, slug = EXCLUDED.slug;
+
         DELETE FROM games WHERE slug LIKE 'peak-fixture-%';
 
         INSERT INTO games (igdb_id, name, slug)
@@ -327,6 +331,10 @@ function seedFixture() {
 
         INSERT INTO game_developers (game_id, developer_id)
         SELECT g.id, d.id FROM games g JOIN developers d ON d.slug = 'fixture-studio'
+        WHERE g.slug LIKE 'peak-fixture-%';
+
+        INSERT INTO game_publishers (game_id, publisher_id)
+        SELECT g.id, p.id FROM games g JOIN publishers p ON p.slug = 'fixture-press'
         WHERE g.slug LIKE 'peak-fixture-%';
 
         INSERT INTO library_entries (user_id, game_id, status, source)
@@ -401,15 +409,36 @@ function seedIgdbTop() {
         const genreId = picked.slice(0, separator)
         marker = picked.slice(separator + 1)
         if (!/^[0-9a-f-]{36}$/i.test(genreId)) throw new Error('Genre id from the local catalogue was not a uuid.')
-        gameIds = psql(databaseUrl, `
+        const withCompanies = `
             select g.id::text from games g
             join game_genres gg on gg.game_id = g.id
             where gg.genre_id = '${genreId}'
+              and exists (select 1 from game_developers gd where gd.game_id = g.id)
+              and exists (select 1 from game_publishers gp where gp.game_id = g.id)
+            order by g.name
+            limit 5
+        `
+        gameIds = psql(databaseUrl, withCompanies, ['-tA']).split('\n').filter(Boolean)
+        if (gameIds.length < 5) {
+            gameIds = psql(databaseUrl, `
+                select g.id::text from games g
+                join game_genres gg on gg.game_id = g.id
+                where gg.genre_id = '${genreId}'
+                order by g.name
+                limit 5
+            `, ['-tA']).split('\n').filter(Boolean)
+        }
+    } else {
+        gameIds = psql(databaseUrl, `
+            select g.id::text from games g
+            where exists (select 1 from game_developers gd where gd.game_id = g.id)
+              and exists (select 1 from game_publishers gp where gp.game_id = g.id)
             order by g.name
             limit 5
         `, ['-tA']).split('\n').filter(Boolean)
-    } else {
-        gameIds = psql(databaseUrl, 'select id::text from games order by name limit 5', ['-tA']).split('\n').filter(Boolean)
+        if (gameIds.length < 5) {
+            gameIds = psql(databaseUrl, 'select id::text from games order by name limit 5', ['-tA']).split('\n').filter(Boolean)
+        }
         marker = gameIds[0] ? psql(databaseUrl, `select name from games where id = '${gameIds[0]}'`, ['-tA']) : ''
     }
     const library = givePeekFive(gameIds, marker, 'igdb')
@@ -1384,20 +1413,22 @@ async function driveGameWrites() {
 
 function searchTarget() {
     const line = psql(databaseUrl, `
-        select g.name || chr(31) || d.name || chr(31) || coalesce(g.cover_image_url, '')
+        select g.name || chr(31) || d.name || chr(31) || p.name || chr(31) || coalesce(g.cover_image_url, '')
         from games g
         join ratings_reviews rr on rr.game_id = g.id
         join users u on u.id = rr.user_id
         join game_developers gd on gd.game_id = g.id
         join developers d on d.id = gd.developer_id
+        join game_publishers gp on gp.game_id = g.id
+        join publishers p on p.id = gp.publisher_id
         where u.username = '${peekUsername}'
         order by g.slug
         limit 1
     `, ['-tA'])
-    if (!line) throw new Error('peek has no rated game with a developer to search.')
-    const [name, developer, cover] = line.split('\x1f')
-    if (!name || !developer) throw new Error(`search target was incomplete: ${line}`)
-    return { name, developer, cover: cover || null }
+    if (!line) throw new Error('peek has no rated game with a developer and a publisher to search.')
+    const [name, developer, publisher, cover] = line.split('\x1f')
+    if (!name || !developer || !publisher) throw new Error(`search target was incomplete: ${line}`)
+    return { name, developer, publisher, cover: cover || null }
 }
 
 async function driveSearch() {
@@ -1413,6 +1444,7 @@ async function driveSearch() {
         feature: 'search',
         name: target.name,
         developer: target.developer,
+        publisher: target.publisher,
         storedCover: target.cover,
     }
 
@@ -1468,6 +1500,17 @@ async function driveSearch() {
     if (taxonomy.status !== 200 || !developerHit) problems.push(`developer search status ${taxonomy.status}`)
     else {
         try { assertUuid(developerHit.id, 'developer id') } catch (error) {
+            problems.push(error instanceof Error ? error.message : String(error))
+        }
+    }
+    const publishers = await getJson(`/api/v1/taxonomy/publishers/search?q=${encodeURIComponent(target.publisher)}`)
+    record.publisherStatus = publishers.status
+    const publisherHit = Array.isArray(publishers.body?.results)
+        ? publishers.body.results.find(row => row.name === target.publisher)
+        : null
+    if (publishers.status !== 200 || !publisherHit) problems.push(`publisher search status ${publishers.status}`)
+    else {
+        try { assertUuid(publisherHit.id, 'publisher id') } catch (error) {
             problems.push(error instanceof Error ? error.message : String(error))
         }
     }

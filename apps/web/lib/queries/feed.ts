@@ -1,3 +1,4 @@
+import 'server-only'
 import { sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { FeedItem } from '@screenpeak/shared/types'

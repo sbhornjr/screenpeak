@@ -18,8 +18,8 @@ vi.mock('@/lib/db', () => ({
     }),
 }))
 
-import { getTaxonomyNameBySlug, searchGamesByName, searchTaxonomyTable } from '@/lib/queries/game'
-import { consumeApiRateLimit } from '@/lib/rate-limit'
+import { getTaxonomyNameBySlug, searchGamesByName, searchLibraryTaxonomy, searchTaxonomyTable } from '@/lib/queries/game'
+import { consumeApiRateLimit, deleteStaleRateLimits } from '@/lib/rate-limit'
 
 const url = process.env.TEST_DATABASE_URL
 if (!url) throw new Error('Set TEST_DATABASE_URL to a disposable local database.')
@@ -32,11 +32,14 @@ const databaseName = 'search_' + randomUUID().replaceAll('-', '') + '_test'
 parsed.pathname = '/' + databaseName
 const client = postgres(parsed.toString(), { max: 4, prepare: false, onnotice: () => {} })
 const migration = async (name: string) => readFile('db/migrations/' + name + '.sql', 'utf8')
+const userA = randomUUID()
+const userB = randomUUID()
 
 beforeAll(async () => {
     await admin.unsafe(`DO $$ BEGIN
         IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'anon') THEN CREATE ROLE anon; END IF;
         IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated') THEN CREATE ROLE authenticated; END IF;
+        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'service_role') THEN CREATE ROLE service_role NOINHERIT; END IF;
     END $$`)
     await admin.unsafe(`CREATE DATABASE "${databaseName}"`)
     await client.unsafe(`CREATE SCHEMA auth;
@@ -57,8 +60,6 @@ beforeAll(async () => {
     }
     state.db = drizzle(client) as unknown as DB
 
-    const userA = randomUUID()
-    const userB = randomUUID()
     await client`insert into auth.users (id, email, raw_user_meta_data) values
         (${userA}, 'search-a@example.com', ${JSON.stringify({ username: 'searchA' })}::jsonb),
         (${userB}, 'search-b@example.com', ${JSON.stringify({ username: 'searchB' })}::jsonb)`
@@ -126,4 +127,49 @@ it('does not let the anon role read rate-limit rows', async () => {
         await tx.unsafe('set local role anon')
         await tx.unsafe('select 1 from api_rate_limits')
     })).rejects.toThrow(/permission denied/i)
+})
+
+it('revokes service_role when that role exists', async () => {
+    await client.unsafe('GRANT SELECT ON api_rate_limits TO service_role')
+    const revoke = (await migration('0009_api_rate_limits')).split('--> statement-breakpoint').at(-1)?.trim()
+    if (!revoke) throw new Error('0009 is missing its service_role revoke')
+    await client.unsafe(revoke)
+    await expect(client.begin(async tx => {
+        await tx.unsafe('set local role service_role')
+        await tx.unsafe('select 1 from api_rate_limits')
+    })).rejects.toThrow(/permission denied/i)
+})
+
+it('finds a developer on a 201-game library without sending those ids', async () => {
+    await client.unsafe(`
+        insert into developers (igdb_id, name, slug)
+        select 930000 + n, 'Lib Dev ' || n, 'lib-dev-' || n
+        from generate_series(1, 201) as n;
+        insert into games (igdb_id, name, slug)
+        select 940000 + n, 'Lib Game ' || n, 'lib-game-' || n
+        from generate_series(1, 201) as n;
+        insert into game_developers (game_id, developer_id)
+        select g.id, d.id
+        from games g
+        join developers d on d.slug = 'lib-dev-' || substring(g.slug from 'lib-game-(.*)')
+        where g.slug like 'lib-game-%';
+        insert into library_entries (user_id, game_id, status, source)
+        select '${userA}', g.id, 'playing', 'manual'
+        from games g
+        where g.slug like 'lib-game-%';
+    `)
+    const found = await searchLibraryTaxonomy(userA, 'developers', 'Lib Dev 201')
+    expect(found.map(row => row.name)).toEqual(['Lib Dev 201'])
+
+    const ids = Array.from({ length: 201 }, () => randomUUID())
+    await expect(searchTaxonomyTable('developers', 'Lib', ids)).rejects.toThrow(/200/)
+})
+
+it('deletes rate-limit buckets older than a day and keeps the current window', async () => {
+    await client`insert into api_rate_limits (bucket, window_start, hits) values
+        ('old-bucket', clock_timestamp() - interval '2 days', 3),
+        ('fresh-bucket', clock_timestamp(), 1)`
+    await expect(deleteStaleRateLimits()).resolves.toBe(1)
+    const rows = await client`select bucket from api_rate_limits where bucket in ('old-bucket', 'fresh-bucket') order by bucket`
+    expect(rows.map(row => row.bucket)).toEqual(['fresh-bucket'])
 })

@@ -3,11 +3,13 @@ import type { ListPinResult } from '@screenpeak/shared/api/writes'
 import { listFieldsSchema, listPinSchema } from '@screenpeak/shared/schemas'
 import { withAuth } from '@/lib/api'
 import { requireBearerUser } from '@/lib/auth'
+import { consumeWriteRateLimit } from '@/lib/rate-limit'
 import { deleteList, setListPinned, updateList } from '@/lib/queries/list'
 import { assertWriteOk, jsonPrivate, noContent, parseBody, readJson, uuidParam } from '@/lib/write-http'
 
 export const PATCH = withAuth(async (req: NextRequest, ctx: RouteContext<'/api/v1/lists/[listId]'>) => {
     const user = await requireBearerUser()
+    await consumeWriteRateLimit(user.id)
     const { listId: raw } = await ctx.params
     const listId = uuidParam(raw, 'listId')
     const json = await readJson(req)
@@ -25,6 +27,7 @@ export const PATCH = withAuth(async (req: NextRequest, ctx: RouteContext<'/api/v
 
 export const DELETE = withAuth(async (_req: NextRequest, ctx: RouteContext<'/api/v1/lists/[listId]'>) => {
     const user = await requireBearerUser()
+    await consumeWriteRateLimit(user.id)
     const { listId: raw } = await ctx.params
     const listId = uuidParam(raw, 'listId')
     assertWriteOk((await deleteList(listId, user.id)).error)

@@ -70,9 +70,11 @@ beforeAll(async () => {
     await client.begin(async tx => { await tx.unsafe(await migration('0005_taxonomy_slug_unique')) })
     await client.begin(async tx => { await tx.unsafe(await migration('0006_two_score_rpcs')) })
     await client.begin(async tx => { await tx.unsafe(await migration('0007_igdb_catalog_cleanup')) })
-    for (const statement of (await migration('0008_steam_import_lease')).split('--> statement-breakpoint')) {
-        const text = statement.trim()
-        if (text) await client.unsafe(text)
+    for (const name of ['0008_steam_import_lease', '0009_api_rate_limits']) {
+        for (const statement of (await migration(name)).split('--> statement-breakpoint')) {
+            const text = statement.trim()
+            if (text) await client.unsafe(text)
+        }
     }
     state.db = drizzle(client) as unknown as DB
 

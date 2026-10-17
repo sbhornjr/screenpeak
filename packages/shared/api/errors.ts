@@ -23,5 +23,7 @@ export type ApiErrorBody = {
     error: {
         code: ApiErrorCode
         message: string
+        /** Seconds until the caller may retry. Present on `rate_limited` when Retry-After is a number. */
+        retry_after?: number
     }
 }

@@ -3,6 +3,7 @@ import type { RatingWriteResult } from '@screenpeak/shared/api/writes'
 import { ratingReviewSchema } from '@screenpeak/shared/schemas'
 import { withAuth } from '@/lib/api'
 import { requireBearerUser } from '@/lib/auth'
+import { consumeWriteRateLimit } from '@/lib/rate-limit'
 import { getUserRatingReviewForGame, saveRatingReview } from '@/lib/queries/review'
 import { parseDbTimestamp } from '@/lib/dates'
 import { assertWriteOk, jsonPrivate, parseBody, readJson, uuidParam } from '@/lib/write-http'
@@ -16,6 +17,7 @@ function isoTimestamp(value: string | null | undefined): string | null {
 // /api/v1/games/[slug] already owns that dynamic segment.
 export const PUT = withAuth(async (req: NextRequest, ctx: RouteContext<'/api/v1/games/[slug]/review'>) => {
     const user = await requireBearerUser()
+    await consumeWriteRateLimit(user.id)
     const { slug } = await ctx.params
     const gameId = uuidParam(slug, 'gameId')
     const body = parseBody(ratingReviewSchema, await readJson(req))

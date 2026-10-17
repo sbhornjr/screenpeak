@@ -1,3 +1,4 @@
+import 'server-only'
 import { sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { TrendingGame, TrendingList, RecommendedGame, RecommendedList, RecommendedUser } from '@screenpeak/shared/types'

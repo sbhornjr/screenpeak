@@ -52,6 +52,19 @@ describe('withAuth', () => {
         expect((await res.json()).error.code).toBe('auth_unavailable')
     })
 
+    it('puts retry_after on a rate-limited body and exposes Retry-After to the browser', async () => {
+        const res = await withAuth(async () => {
+            throw new ApiError(429, 'rate_limited', 'Too many requests. Try again soon.', { 'Retry-After': '8' })
+        })(req(), ctx)
+
+        expect(res.status).toBe(429)
+        expect(res.headers.get('retry-after')).toBe('8')
+        expect(res.headers.get('access-control-expose-headers')).toBe('Retry-After')
+        expect(await res.json()).toEqual({
+            error: { code: 'rate_limited', message: 'Too many requests. Try again soon.', retry_after: 8 },
+        })
+    })
+
     it('renders any ApiError a handler throws, e.g. a 404', async () => {
         const res = await withAuth(async () => { throw new ApiError(404, 'not_found', 'No such game') })(req(), ctx)
 

@@ -13,3 +13,13 @@ CREATE TABLE api_rate_limits (
 ALTER TABLE api_rate_limits ENABLE ROW LEVEL SECURITY;
 --> statement-breakpoint
 REVOKE ALL ON api_rate_limits FROM PUBLIC, anon, authenticated;
+--> statement-breakpoint
+-- service_role is the Supabase secret-key role. Drizzle uses the pooler role,
+-- which bypasses RLS, so this table does not need a service_role grant.
+-- The role is absent on local Postgres; skip the revoke there.
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+        REVOKE ALL ON TABLE public.api_rate_limits FROM service_role;
+    END IF;
+END $$;

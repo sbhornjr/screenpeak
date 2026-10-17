@@ -748,7 +748,9 @@ tests. The website is unchanged for users.
    parallelism, switching these three to the GET routes is a small change.
    > **Done.** `game-search.ts` is gone. The three functions are on `db` in
    > `lib/queries/game.ts`. `app/search-actions.ts` serves the website: invalid
-   > input returns `[]` or `''`, and a database error throws.
+   > input returns `[]` or `''`, except an id list over the cap, which throws.
+   > A parsed search spends the search budget. The library dropdown joins
+   > `library_entries` for the signed-in user instead of sending developer ids.
    > `GET /api/v1/games/search` and `GET /api/v1/taxonomy/[table]/search` call
    > the same functions, work signed out, and return 400 for an empty query,
    > a `limit` above 20, or a table other than `developers` or `publishers`.
@@ -762,16 +764,27 @@ tests. The website is unchanged for users.
    > **Done, in Postgres.** Migration `0009_api_rate_limits` adds
    > `api_rate_limits`. One upsert per request, so it works on Vercel's
    > transaction pooler with no Redis and no new paid service.
-   > `requireBearerUser` spends 60 requests per 60 seconds, which covers every
-   > write route, including `GET /api/v1/me/library/[gameId]`. Search spends
-   > 120 per 60 seconds: `search:<user id>` when the bearer is valid, otherwise
-   > `search:ip:<address>` from `x-real-ip`, else the last `x-forwarded-for`
-   > hop, else `local`. A spent budget is 429 `rate_limited` with
-   > `Retry-After`. A 400 does not spend the search budget. The website's
-   > Server Actions and `POST /api/loadout` are outside this budget. A new
-   > write route must call `requireBearerUser`, and a route whose path ends in
-   > `search/route.ts` must call `consumeSearchRateLimit`
-   > (`test/api/v1-routes-auth.test.ts`).
+   > `requireBearerUser` only checks the bearer. Mutating handlers then call
+   > `consumeWriteRateLimit`: 60 requests per 60 seconds.
+   > `GET /api/v1/me/library/[gameId]` does not spend that budget. Search
+   > spends 120 per 60 seconds: `search:user:<uuid>` when the caller is signed
+   > in, otherwise `search:ip:<address>`. The address is
+   > `x-vercel-forwarded-for`, then `x-real-ip`, then the last
+   > `x-forwarded-for` hop, else `local`. The website's search actions spend
+   > the same budget. `POST /api/loadout` does not. A 400 or a 401 does not
+   > spend the search budget. A spent budget is 429 `rate_limited` with
+   > `Retry-After` and `retry_after` on the error body.
+   > `GET /api/cron/rate-limits` deletes buckets older than a day when
+   > `Authorization` is `Bearer $CRON_SECRET` (`apps/web/vercel.json`).
+   > A new write route must call `requireBearerUser` and
+   > `consumeWriteRateLimit`. A GET must not call `consumeWriteRateLimit`. A
+   > route whose path ends in `search/route.ts`, and any non-test caller of
+   > the catalogue search queries, must call the imported
+   > `consumeSearchRateLimit` (`test/api/v1-routes-auth.test.ts`).
+   >
+   > Later, if typeahead gets slow: a `pg_trgm` index on `games.name` and the
+   > taxonomy names, and limiting candidate rows before the rating aggregate.
+   > Not this slice.
 
 ### Phase 2 — Mobile foundation (≈1–2 weeks)
 

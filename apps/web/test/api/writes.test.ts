@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
-import { UnauthenticatedError } from '@/lib/api'
+import { ApiError, UnauthenticatedError } from '@/lib/api'
 
 const requireBearerUser = vi.fn()
 const getUserRatingReviewForGame = vi.fn()
@@ -41,6 +41,8 @@ class SteamImportInputError extends Error {
 }
 
 vi.mock('@/lib/auth', () => ({ requireBearerUser, getBearerUser: vi.fn() }))
+const consumeWriteRateLimit = vi.fn(async () => {})
+vi.mock('@/lib/rate-limit', () => ({ consumeWriteRateLimit }))
 vi.mock('@/lib/queries/review', () => ({ getUserRatingReviewForGame, saveRatingReview }))
 vi.mock('@/lib/queries/library', () => ({ getLibraryEntry, upsertLibraryEntry, deleteLibraryEntryByGame }))
 vi.mock('@/lib/catalog/steam-import', () => ({ importConfirmedSteamLibrary, SteamImportInputError }))
@@ -91,6 +93,7 @@ const jsonInit = (method: string, body: unknown): CallInit => ({
 
 beforeEach(() => {
     requireBearerUser.mockReset().mockResolvedValue(USER)
+    consumeWriteRateLimit.mockReset().mockResolvedValue(undefined)
     for (const fn of [
         getUserRatingReviewForGame, saveRatingReview, getLibraryEntry, upsertLibraryEntry, deleteLibraryEntryByGame,
         importConfirmedSteamLibrary, createList, createListWithGame, updateList, deleteList, setListPinned, likeList, unlikeList,
@@ -110,6 +113,7 @@ describe('write routes reject a missing bearer before any write', () => {
         expect(res.status).toBe(401)
         expect((await res.json()).error.code).toBe('unauthenticated')
         expect(saveRatingReview).not.toHaveBeenCalled()
+        expect(consumeWriteRateLimit).not.toHaveBeenCalled()
     })
 })
 
@@ -186,6 +190,7 @@ describe('library log', () => {
             id: 'le-1', status: 'playing', completed_all_achievements: false, hours_played: 12.5, play_count: 2,
         })
         expect(getLibraryEntry).toHaveBeenCalledWith(USER.id, GAME)
+        expect(consumeWriteRateLimit).not.toHaveBeenCalled()
     })
 
     it('answers 404 when the game is not in the caller\'s save', async () => {
@@ -209,6 +214,22 @@ describe('library log', () => {
 
         expect(res.status).toBe(200)
         expect(upsertLibraryEntry).toHaveBeenCalledWith(USER.id, GAME, { status: 'completed' })
+        expect(consumeWriteRateLimit).toHaveBeenCalledWith(USER.id)
+    })
+
+    it('returns 429 when the write budget is spent and does not write', async () => {
+        consumeWriteRateLimit.mockRejectedValueOnce(new ApiError(429, 'rate_limited', 'Too many requests. Try again soon.', { 'Retry-After': '3' }))
+
+        const res = await call(
+            library.PUT,
+            `http://localhost/api/v1/me/library/${GAME}`,
+            { gameId: GAME },
+            jsonInit('PUT', { status: 'completed' }),
+        )
+
+        expect(res.status).toBe(429)
+        expect((await res.json()).error.code).toBe('rate_limited')
+        expect(upsertLibraryEntry).not.toHaveBeenCalled()
     })
 
     it('rejects an unknown status', async () => {

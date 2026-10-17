@@ -5,16 +5,22 @@ import type { SQL } from 'drizzle-orm'
 const execute = vi.fn()
 vi.mock('@/lib/db', () => ({ db: { execute } }))
 
-const { clientAddress, searchBucket, consumeApiRateLimit, consumeSearchRateLimit } = await import('@/lib/rate-limit')
+const { clientAddress, searchBucket, consumeApiRateLimit, consumeSearchRateLimit, deleteStaleRateLimits } = await import('@/lib/rate-limit')
 const { ApiError } = await import('@/lib/api')
 
 beforeEach(() => { execute.mockReset() })
 
 describe('clientAddress', () => {
-    it('prefers x-real-ip and otherwise uses the last forwarded hop', () => {
-        const headers = new Headers({ 'x-real-ip': '203.0.113.5', 'x-forwarded-for': '1.1.1.1, 198.51.100.9' })
-        expect(clientAddress(headers)).toBe('203.0.113.5')
+    it('prefers x-vercel-forwarded-for, then x-real-ip, then the last forwarded hop', () => {
+        const all = new Headers({
+            'x-vercel-forwarded-for': '203.0.113.9',
+            'x-real-ip': '203.0.113.5',
+            'x-forwarded-for': '1.1.1.1, 198.51.100.9',
+        })
+        expect(clientAddress(all)).toBe('203.0.113.9')
+        expect(clientAddress(new Headers({ 'x-real-ip': '203.0.113.5', 'x-forwarded-for': '1.1.1.1, 198.51.100.9' }))).toBe('203.0.113.5')
         expect(clientAddress(new Headers({ 'x-forwarded-for': '1.1.1.1, 198.51.100.9' }))).toBe('198.51.100.9')
+        expect(clientAddress(new Headers({ 'x-vercel-forwarded-for': 'not an ip', 'x-real-ip': '203.0.113.5' }))).toBe('203.0.113.5')
         expect(clientAddress(new Headers())).toBe('local')
         expect(clientAddress(new Headers({ 'x-real-ip': '203.0.113.5; DROP' }))).toBe('203.0.113.5')
     })
@@ -46,6 +52,16 @@ describe('consumeApiRateLimit', () => {
 
         execute.mockRejectedValueOnce(new Error('database unavailable'))
         await expect(consumeApiRateLimit('write:user-1', 10, 60)).rejects.toThrow('database unavailable')
+    })
+})
+
+describe('deleteStaleRateLimits', () => {
+    it('deletes buckets whose window started more than a day ago', async () => {
+        execute.mockResolvedValueOnce([{ bucket: 'old' }])
+        await expect(deleteStaleRateLimits()).resolves.toBe(1)
+        const rendered = new PgDialect().sqlToQuery(execute.mock.calls[0][0] as SQL)
+        expect(rendered.sql).toContain('delete from api_rate_limits')
+        expect(rendered.sql).toContain("interval '1 day'")
     })
 })
 

@@ -120,6 +120,35 @@ describe('createApiClient', () => {
       headers: { Accept: 'application/json' },
       credentials: 'omit',
     })
+
+    const dev = '22222222-2222-4222-8222-222222222222'
+    await api.taxonomy.search('publishers', 'bandai', { ids: [dev], limit: 5 })
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      3,
+      `http://127.0.0.1:3210/api/v1/taxonomy/publishers/search?q=bandai&limit=5&ids=${dev}`,
+      { headers: { Accept: 'application/json' }, credentials: 'omit' },
+    )
+  })
+
+  it('surfaces retry_after when the search budget is spent', async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: false,
+      status: 429,
+      headers: { get: (name: string) => (name.toLowerCase() === 'retry-after' ? '8' : null) },
+      json: async () => ({ error: { code: 'rate_limited', message: 'Too many requests. Try again soon.', retry_after: 8 } }),
+    }))
+    const api = createApiClient({
+      baseUrl: 'http://127.0.0.1:3210',
+      getToken: async () => null,
+      fetchImpl,
+    })
+
+    await expect(api.games.search('hades')).rejects.toMatchObject({
+      name: 'ApiClientError',
+      status: 429,
+      code: 'rate_limited',
+      retryAfter: 8,
+    })
   })
 
   it('treats 204 as an empty success', async () => {

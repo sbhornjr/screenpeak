@@ -8,10 +8,9 @@ import SearchableDropdown from '../util/SearchableDropdown';
 import { ArrowDownWideNarrow, ArrowUpNarrowWide } from "lucide-react"
 import { defaultOrder } from "@/lib/game-catalog-sort"
 
-export default function LibraryFilters({ current, genres, platforms, developers, publishers, esrb_ratings, username }:
+export default function LibraryFilters({ current, genres, platforms, esrb_ratings, username }:
     { current: {query: string, genre: string, platform: string, developer: string, publisher: string, esrb: string, sort: string, order: string, status: string, is100: string},
         genres: { id: string, name: string, slug: string }[], platforms: { id: string, name: string, slug: string }[],
-        developers: { id: string, name: string, slug: string }[], publishers: { id: string, name: string, slug: string }[],
         esrb_ratings: string[], username: string}) {
 
     const [searchQuery, setSearchQuery] = useState(current.query)
@@ -155,8 +154,8 @@ export default function LibraryFilters({ current, genres, platforms, developers,
                         <option value="">All Platforms</option>
                         {platforms.map(p => <option key={p.id} value={p.slug}>{p.name}</option>)}
                     </FilterSelect>
-                    <SearchableDropdown table={"developers"} value={selectedDeveloper} onChange={slug => setSelectedDeveloper(slug)} placeholder={"All Developers"} limit={developers.map(d => String(d.id))} />
-                    <SearchableDropdown table={"publishers"} value={selectedPublisher} onChange={slug => setSelectedPublisher(slug)} placeholder={"All Publishers"} limit={publishers.map(p => String(p.id))}/>
+                    <SearchableDropdown table={"developers"} value={selectedDeveloper} onChange={slug => setSelectedDeveloper(slug)} placeholder={"All Developers"} scope="library" />
+                    <SearchableDropdown table={"publishers"} value={selectedPublisher} onChange={slug => setSelectedPublisher(slug)} placeholder={"All Publishers"} scope="library" />
                     <FilterSelect value={selectedEsrb} onChange={e => setSelectedEsrb(e.target.value)} width="w-full sm:w-44">
                         <option value="">All ESRB Ratings</option>
                         {esrb_ratings.map(r => <option key={r} value={r}>{r}</option>)}

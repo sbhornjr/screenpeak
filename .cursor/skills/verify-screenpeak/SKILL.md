@@ -62,7 +62,7 @@ node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive game-writes
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive search
 ```
 
-`drive search` does not start signed in. It reads one of `peek`'s rated games and that game's developer from Postgres, fetches the game and taxonomy search routes, and types into the catalogue's developer dropdown and the signed-in favorite-game picker. It does not click Lock.
+`drive search` does not start signed in. It reads one of `peek`'s rated games and that game's developer and publisher from Postgres, fetches the game and taxonomy search routes, and types into the catalogue's developer dropdown and the signed-in favorite-game picker. It does not click Lock.
 
 `drive game-page` does not sign in. It reads one of `peek`'s games from Postgres, fetches `GET /api/v1/games/[slug]` and the reviews route, and opens the website's game page. The native screen is checked with Expo web, not this drive.
 
@@ -113,7 +113,7 @@ A passing game-writes proof shows the game name in `page.png`, 401 without a bea
 - `favorites.png` — Choose Favorite Games, signed in, with the game name in the results
 - `result.json` — the search statuses, including the empty-query 400, the `limit=21` 400, the `genres` 400, the cookie-only 200, and the bad-bearer 401
 
-A passing search proof shows the developer name in `filters.png`, the game name in `favorites.png`, 200 from `GET /api/v1/games/search` with `avg_rating` a number and no `avg_ngplus_rating`, and 200 from `GET /api/v1/taxonomy/developers/search`.
+A passing search proof shows the developer name in `filters.png`, the game name in `favorites.png`, 200 from `GET /api/v1/games/search` with `avg_rating` a number and no `avg_ngplus_rating`, and 200 from `GET /api/v1/taxonomy/developers/search` and `GET /api/v1/taxonomy/publishers/search`.
 
 ## Cleanup
 

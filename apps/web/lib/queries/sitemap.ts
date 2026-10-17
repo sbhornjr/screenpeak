@@ -1,3 +1,4 @@
+import 'server-only'
 import { and, asc, desc, eq, gt, lt, or, sql, type SQL } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { games, lists, users } from '@/db/schema'

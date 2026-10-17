@@ -3,6 +3,7 @@ import type { MeData } from '@screenpeak/shared/api/me'
 import { patchMeSchema } from '@screenpeak/shared/schemas'
 import { withAuth } from '@/lib/api'
 import { getBearerUser, requireBearerUser } from '@/lib/auth'
+import { consumeWriteRateLimit } from '@/lib/rate-limit'
 import { loadMe } from '@/lib/loaders/me'
 import { patchAccount } from '@/lib/queries/user'
 import { assertWriteOk, jsonPrivate, parseBody, readJson } from '@/lib/write-http'
@@ -18,6 +19,7 @@ export const GET = withAuth(async () => {
 
 export const PATCH = withAuth(async (req: NextRequest) => {
     const user = await requireBearerUser()
+    await consumeWriteRateLimit(user.id)
     const body = parseBody(patchMeSchema, await readJson(req))
     assertWriteOk((await patchAccount(user.id, body)).error)
     return jsonPrivate({ ok: true as const })
