@@ -3,18 +3,24 @@ import { RelyingParty } from 'openid'
 const STEAM_PROVIDER = 'https://steamcommunity.com/openid'
 const STEAM_ID_RE = /^https:\/\/steamcommunity\.com\/openid\/id\/(\d+)$/
 
-function createRelyingParty(origin: string) {
+function callbackReturnUrl(origin: string, state?: string | null): string {
+    const base = `${origin}/api/steam/callback`
+    if (!state) return base
+    return `${base}?state=${encodeURIComponent(state)}`
+}
+
+function createRelyingParty(origin: string, state?: string | null) {
     return new RelyingParty(
-        `${origin}/api/steam/callback`, // return_to — where Steam redirects back to
-        origin,                          // realm
-        true,                            // stateless verification — Steam's association mode is unreliable
-        false,                           // strict mode
-        []                                // no extensions
+        callbackReturnUrl(origin, state), // return_to — Steam signs this, including the mobile state
+        origin,                            // realm
+        true,                              // stateless verification — Steam's association mode is unreliable
+        false,                             // strict mode
+        []                                  // no extensions
     )
 }
 
-export function getSteamAuthUrl(origin: string): Promise<string> {
-    const rp = createRelyingParty(origin)
+export function getSteamAuthUrl(origin: string, state?: string): Promise<string> {
+    const rp = createRelyingParty(origin, state)
 
     return new Promise((resolve, reject) => {
         rp.authenticate(STEAM_PROVIDER, false, (error, authUrl) => {
@@ -30,8 +36,8 @@ export function getSteamAuthUrl(origin: string): Promise<string> {
 // Verifies a Steam OpenID callback and returns the authenticated SteamID64.
 // `callbackUrl` must be the full URL Steam redirected back to, including
 // the openid.* query params it appended.
-export function verifySteamCallback(origin: string, callbackUrl: string): Promise<string> {
-    const rp = createRelyingParty(origin)
+export function verifySteamCallback(origin: string, callbackUrl: string, state?: string | null): Promise<string> {
+    const rp = createRelyingParty(origin, state)
 
     return new Promise((resolve, reject) => {
         rp.verifyAssertion(callbackUrl, (error, result) => {

@@ -12,6 +12,8 @@ import type { MeData, SettingsData } from './me'
 import type { ProfilePageData } from './profile'
 import type { UserReviewsPage, UserReviewsQuery } from './user-reviews'
 import type { GameSearchPage, TaxonomySearchPage, TaxonomySearchTable } from './search'
+import type { AppConfig } from './app-config'
+import type { SteamImportBatch, SteamImportBatchRequest, SteamLinkIntent } from './steam'
 import type {
     AvatarSave,
     AvatarUploadRequest,
@@ -177,7 +179,11 @@ export function createApiClient(opts: {
                 send<AvatarUploadResult>('POST', '/api/v1/me/avatar/upload-url', body),
             saveAvatar: (body: AvatarSave) => send<OkResult>('PUT', '/api/v1/me/avatar', body),
             unlinkSteam: () => send<void>('DELETE', '/api/v1/me/steam'),
+            steamLinkIntent: () => send<SteamLinkIntent>('POST', '/api/v1/me/steam/link-intent', {}),
+            steamImportBatch: (body: SteamImportBatchRequest = {}) =>
+                send<SteamImportBatch>('POST', '/api/v1/me/steam/import', body),
         },
+        appConfig: () => get<AppConfig>('/api/v1/app-config'),
         lists: {
             create: (body: ListWrite) => send<ListCreated>('POST', '/api/v1/lists', body),
             update: (listId: string, body: ListWrite | ListPinWrite) =>

@@ -423,6 +423,17 @@ export const apiRateLimits = pgTable('api_rate_limits', {
     check('api_rate_limits_bucket_length', sql`char_length(${table.bucket}) between 1 and 200`),
     check('api_rate_limits_hits_nonnegative', sql`${table.hits} >= 0`),
 ]).enableRLS()
+// 0010. Phone Steam OpenID intents. The raw token is not stored. Browser roles have no grants.
+export const steamLinkIntents = pgTable('steam_link_intents', {
+    id: uuid().primaryKey(),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'string' }).notNull(),
+    consumedAt: timestamp('consumed_at', { withTimezone: true, mode: 'string' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
+}, table => [
+    index('steam_link_intents_user_id_idx').on(table.userId),
+    check('steam_link_intents_expires_after_create', sql`${table.expiresAt} > ${table.createdAt}`),
+]).enableRLS()
 
 export const catalogResetRuns = igdbPrivate.table('catalog_reset_runs', {
     runId: uuid('run_id').primaryKey(),

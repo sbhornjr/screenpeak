@@ -46,5 +46,5 @@ node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive game-writes
 - Restoring is part of the drive. A failed run must still put peek's review text, library status, hours, play count, and 100% flag back, or the next doctor sees a changed fixture even when the counts stay at 5.
 - The drive removes `Verify Write Shelf` with `DELETE /api/v1/lists/[listId]`. `list_games` cascades. SQL cleanup runs only when that DELETE did not return 204.
 - The native Rate / Save / Add to list controls are not a step in this drive. The phone is not launched here.
-- `POST /me/steam/link-intent` is not this drive. Steam linking stays a later step, and this environment has no Steam account.
+- `POST /api/v1/me/steam/link-intent`, `POST /api/v1/me/steam/import`, and the Steam OpenID callback are not this drive. Agents have no Steam account. Those routes are covered by unit tests and the local-Postgres integration test with Steam mocked.
 - A website cookie does not authorize these routes. The drive sends a Cookie-only request and expects 401, then sends the bearer token on the writes.

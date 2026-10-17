@@ -13,12 +13,14 @@ import { describe, expect, it } from 'vitest'
 const apiRoot = join(dirname(fileURLToPath(import.meta.url)), '../../app/api/v1')
 const METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE'])
 const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
-// These two responses have no caller. Their route tests lock that they do not
-// read a session. Every other route must call the bearer helper so a cookie
-// cannot stand in, and so a bad token fails closed.
+// home and ratings_reviews have no caller. app-config is read before sign-in,
+// including with a stale bearer, so it must not touch the session. Every other
+// route must call the bearer helper so a cookie cannot stand in, and so a bad
+// token fails closed.
 const NO_CALLER = new Set([
     'home/route.ts',
     'user/[username]/ratings_reviews/route.ts',
+    'app-config/route.ts',
 ])
 
 function routeFiles(dir: string): string[] {
@@ -158,6 +160,9 @@ describe('/api/v1 route auth', () => {
         expect(files.some(file => file.endsWith('/me/library/[gameId]/route.ts'))).toBe(true)
         expect(files.some(file => file.endsWith('/games/[slug]/route.ts'))).toBe(true)
         expect(files.some(file => file.endsWith('/lists/[listId]/route.ts'))).toBe(true)
+        expect(files.some(file => file.endsWith('/app-config/route.ts'))).toBe(true)
+        expect(files.some(file => file.endsWith('/me/steam/link-intent/route.ts'))).toBe(true)
+        expect(files.some(file => file.endsWith('/me/steam/import/route.ts'))).toBe(true)
     })
 
     it('wraps every handler in withAuth from @/lib/api and calls the bearer helper', () => {

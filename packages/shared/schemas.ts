@@ -126,6 +126,20 @@ export const taxonomySlugSchema = z.string().trim().min(1, 'Enter a slug.').max(
  * cap. This schema matches that: `upsertLibraryEntries` writes the selection
  * in one statement, so clients do not chunk.
  */
+/** POST /api/v1/me/steam/link-intent. No redirect, user id, or other field is accepted. */
+export const steamLinkIntentSchema = z.object({}).strict()
+
+const STEAM_APP_ID_MAX = 2_147_483_647
+
+/** POST /api/v1/me/steam/import. Owned app ids stay on the server. */
+export const steamImportBatchSchema = z.object({
+    retry: z.boolean().optional(),
+    cursor: z.object({
+        phase: z.enum(['pending', 'miss']),
+        afterAppId: z.number().int().min(0).max(STEAM_APP_ID_MAX),
+    }).strict().nullable().optional(),
+}).strict()
+
 export const steamLibraryImportSchema = z.array(z.object({
     gameId: uuidIdSchema,
     playtimeSelected: hoursPlayedSchema,
