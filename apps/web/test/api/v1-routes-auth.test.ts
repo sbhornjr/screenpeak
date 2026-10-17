@@ -162,6 +162,7 @@ describe('/api/v1 route auth', () => {
         expect(files.some(file => file.endsWith('/lists/[listId]/route.ts'))).toBe(true)
         expect(files.some(file => file.endsWith('/app-config/route.ts'))).toBe(true)
         expect(files.some(file => file.endsWith('/me/steam/link-intent/route.ts'))).toBe(true)
+        expect(files.some(file => file.endsWith('/me/steam/link-complete/route.ts'))).toBe(true)
         expect(files.some(file => file.endsWith('/me/steam/import/route.ts'))).toBe(true)
     })
 

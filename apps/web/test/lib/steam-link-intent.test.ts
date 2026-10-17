@@ -48,8 +48,9 @@ describe('steam link intent tokens', () => {
         expect(readSteamLinkIntent(token, now + 300)).toBeNull()
 
         process.env.STEAM_LINK_INTENT_SECRET = 'too-short'
-        expect(() => signSteamLinkIntent(userId, jti, now + 300)).toThrow(SteamLinkIntentConfigError)
+        expect(() => signSteamLinkIntent(userId, jti, now + 300)).toThrow(/at least 32 characters/)
         delete process.env.STEAM_LINK_INTENT_SECRET
+        expect(() => readSteamLinkIntent(token, now)).toThrow(/is not set/)
         expect(() => readSteamLinkIntent(token, now)).toThrow(SteamLinkIntentConfigError)
     })
 

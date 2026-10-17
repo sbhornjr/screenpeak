@@ -126,8 +126,19 @@ export const taxonomySlugSchema = z.string().trim().min(1, 'Enter a slug.').max(
  * cap. This schema matches that: `upsertLibraryEntries` writes the selection
  * in one statement, so clients do not chunk.
  */
-/** POST /api/v1/me/steam/link-intent. No redirect, user id, or other field is accepted. */
-export const steamLinkIntentSchema = z.object({}).strict()
+const pkceChallengeSchema = z.string().regex(/^[A-Za-z0-9_-]{43,128}$/, 'Invalid code challenge')
+const pkceVerifierSchema = z.string().regex(/^[A-Za-z0-9._~-]{43,128}$/, 'Invalid code verifier')
+
+/** POST /api/v1/me/steam/link-intent. The S256 challenge only. No redirect and no user id. */
+export const steamLinkIntentSchema = z.object({
+    codeChallenge: pkceChallengeSchema,
+}).strict()
+
+/** POST /api/v1/me/steam/link-complete. The one-time code plus the PKCE verifier. */
+export const steamLinkCompleteSchema = z.object({
+    code: z.string().regex(/^[A-Za-z0-9_-]{43,128}$/, 'Invalid link code'),
+    verifier: pkceVerifierSchema,
+}).strict()
 
 const STEAM_APP_ID_MAX = 2_147_483_647
 

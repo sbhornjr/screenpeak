@@ -1,4 +1,4 @@
-import { pgTable, pgSchema, unique, pgPolicy, uuid, integer, text, timestamp, date, foreignKey, check, boolean, numeric, smallint, primaryKey, index } from "drizzle-orm/pg-core"
+import { pgTable, pgSchema, unique, pgPolicy, uuid, integer, text, timestamp, date, foreignKey, check, boolean, numeric, smallint, primaryKey, index, uniqueIndex } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 // Reference-only stub for the auth schema Supabase provisions and owns.
@@ -423,16 +423,23 @@ export const apiRateLimits = pgTable('api_rate_limits', {
     check('api_rate_limits_bucket_length', sql`char_length(${table.bucket}) between 1 and 200`),
     check('api_rate_limits_hits_nonnegative', sql`${table.hits} >= 0`),
 ]).enableRLS()
-// 0010. Phone Steam OpenID intents. The raw token is not stored. Browser roles have no grants.
+// 0010. Phone Steam OpenID intents. The raw token and completion code are not stored.
 export const steamLinkIntents = pgTable('steam_link_intents', {
     id: uuid().primaryKey(),
     userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    codeChallenge: text('code_challenge').notNull(),
     expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'string' }).notNull(),
     consumedAt: timestamp('consumed_at', { withTimezone: true, mode: 'string' }),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
+    steamId: text('steam_id'),
+    completionCodeHash: text('completion_code_hash'),
 }, table => [
     index('steam_link_intents_user_id_idx').on(table.userId),
+    uniqueIndex('steam_link_intents_one_live_idx').on(table.userId).where(sql`${table.consumedAt} is null`),
     check('steam_link_intents_expires_after_create', sql`${table.expiresAt} > ${table.createdAt}`),
+    check('steam_link_intents_challenge_shape', sql`${table.codeChallenge} ~ '^[A-Za-z0-9_-]{43,128}$'`),
+    check('steam_link_intents_steam_id_shape', sql`${table.steamId} is null or ${table.steamId} ~ '^[0-9]{17}$'`),
+    check('steam_link_intents_code_hash_shape', sql`${table.completionCodeHash} is null or ${table.completionCodeHash} ~ '^[A-Za-z0-9_-]{43}$'`),
 ]).enableRLS()
 
 export const catalogResetRuns = igdbPrivate.table('catalog_reset_runs', {

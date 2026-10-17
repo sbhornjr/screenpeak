@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import postgres from 'postgres'
@@ -71,8 +71,9 @@ vi.mock('@/lib/igdb/provider', () => ({
 import { GET as callbackGET } from '@/app/api/steam/callback/route'
 import { GET as linkGET } from '@/app/api/steam/link/route'
 import { POST as importPOST } from '@/app/api/v1/me/steam/import/route'
+import { POST as completePOST } from '@/app/api/v1/me/steam/link-complete/route'
 import { POST as intentPOST } from '@/app/api/v1/me/steam/link-intent/route'
-import { consumeSteamLinkIntent, peekSteamLinkIntent, readSteamLinkIntent } from '@/lib/steam-link-intent'
+import { deleteSpentSteamLinkIntents, issueSteamLinkIntent, peekSteamLinkIntent } from '@/lib/steam-link-intent'
 
 const url = process.env.TEST_DATABASE_URL
 if (!url) throw new Error('Set TEST_DATABASE_URL to a disposable local database.')
@@ -136,6 +137,12 @@ function invoke(handler: unknown, request: NextRequest) {
     )
 }
 
+function pkce() {
+    const verifier = randomBytes(32).toString('base64url')
+    const codeChallenge = createHash('sha256').update(verifier).digest('base64url')
+    return { verifier, codeChallenge }
+}
+
 function post(path: string, body: unknown) {
     return new NextRequest('http://127.0.0.1' + path, {
         method: 'POST',
@@ -144,18 +151,21 @@ function post(path: string, body: unknown) {
     })
 }
 
-it('issues one live intent, stores no signature, and will not link a second time or another user', async () => {
-    const first = await invoke(intentPOST, post('/api/v1/me/steam/link-intent', {}))
+it('stages a third-party Steam id and links it only for the matching bearer and verifier', async () => {
+    await client`insert into steam_accounts (user_id, steam_id) values (${OTHER}, '76561198000000055')`
+    const { codeChallenge } = pkce()
+    const first = await invoke(intentPOST, post('/api/v1/me/steam/link-intent', { codeChallenge }))
     expect(first.status).toBe(200)
     const minted = await first.json() as { state: string, expiresAt: string, path: string }
     expect(minted.path.startsWith('/api/steam/link?')).toBe(true)
-    expect(minted.expiresAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
     const signature = minted.state.split('.').at(-1) ?? ''
-    const stored = await client`select id::text, user_id::text, expires_at::text, consumed_at::text from steam_link_intents`
+    const stored = await client`select id::text, user_id::text, code_challenge, steam_id, completion_code_hash, consumed_at::text from steam_link_intents`
     expect(JSON.stringify(stored)).not.toContain(signature)
+    expect(stored[0]?.code_challenge).toBe(codeChallenge)
     expect(await peekSteamLinkIntent(minted.state)).toEqual({ userId: USER })
 
-    const second = await invoke(intentPOST, post('/api/v1/me/steam/link-intent', {}))
+    const replacement = pkce()
+    const second = await invoke(intentPOST, post('/api/v1/me/steam/link-intent', { codeChallenge: replacement.codeChallenge }))
     const latest = await second.json() as { state: string, path: string }
     expect(await peekSteamLinkIntent(minted.state)).toBeNull()
     expect(await peekSteamLinkIntent(latest.state)).toEqual({ userId: USER })
@@ -164,37 +174,86 @@ it('issues one live intent, stores no signature, and will not link a second time
     const opened = await invoke(linkGET, new NextRequest('http://127.0.0.1' + latest.path, { headers: { cookie: 'sb=website' } }))
     expect(opened.status).toBe(307)
     expect(opened.headers.get('location')).toBe('https://steamcommunity.com/openid/login')
+    expect(opened.headers.get('cache-control')).toBe('no-store')
+    expect(opened.headers.get('referrer-policy')).toBe('no-referrer')
     expect(authState.cookieCalls).toBe(0)
-    expect(await peekSteamLinkIntent(latest.state)).toEqual({ userId: USER })
-
-    const params = new URLSearchParams({ state: latest.state, 'openid.mode': 'id_res' })
-    const linked = await invoke(callbackGET, new NextRequest(`http://127.0.0.1/api/steam/callback?${params}`, {
-        headers: { cookie: 'sb=website' },
-    }))
-    expect(linked.headers.get('location')).toBe('screenpeak://steamlink?ok=1')
-    expect(authState.cookieCalls).toBe(0)
-    expect(await client`select user_id::text as user_id, steam_id from steam_accounts`).toEqual([
-        { user_id: USER, steam_id: '76561198000000021' },
-    ])
 
     openid.steamId = '76561198000000099'
-    const replay = await invoke(callbackGET, new NextRequest(`http://127.0.0.1/api/steam/callback?${params}`, {
+    const params = new URLSearchParams({ state: latest.state, 'openid.mode': 'id_res' })
+    const staged = await invoke(callbackGET, new NextRequest(`http://127.0.0.1/api/steam/callback?${params}`, {
         headers: { cookie: 'sb=website' },
     }))
-    expect(replay.headers.get('location')).toBe('screenpeak://steamlink?ok=0')
-    expect(await client`select steam_id from steam_accounts where user_id = ${USER}`).toEqual([{ steam_id: '76561198000000021' }])
-    expect(await client`select count(*)::int as n from steam_accounts where user_id = ${OTHER}`).toEqual([{ n: 0 }])
+    const stagedUrl = new URL(staged.headers.get('location') ?? '')
+    const code = stagedUrl.searchParams.get('code')
+    expect(stagedUrl.protocol).toBe('screenpeak:')
+    expect(code).toBeTruthy()
+    expect(authState.cookieCalls).toBe(0)
+    expect(await client`select user_id::text as user_id, steam_id from steam_accounts order by steam_id`).toEqual([
+        { user_id: USER, steam_id: '76561198000000021' },
+        { user_id: OTHER, steam_id: '76561198000000055' },
+    ])
+    const stagedRow = await client`select steam_id, completion_code_hash, consumed_at from steam_link_intents where user_id = ${USER}`
+    expect(stagedRow).toEqual([{ steam_id: '76561198000000099', completion_code_hash: expect.any(String), consumed_at: null }])
+    expect(stagedRow[0]?.completion_code_hash).not.toBe(code)
 
-    await client`update steam_link_intents set expires_at = created_at + interval '1 millisecond', consumed_at = null where user_id = ${USER}`
-    const parsed = readSteamLinkIntent(latest.state)
-    expect(parsed).not.toBeNull()
-    expect(await peekSteamLinkIntent(latest.state)).toBeNull()
-    expect(await consumeSteamLinkIntent(latest.state, '76561198000000099')).toBeNull()
+    authState.bearer = { id: OTHER, email: 'other@example.com' }
+    const wrongUser = await invoke(completePOST, post('/api/v1/me/steam/link-complete', { code, verifier: replacement.verifier }))
+    expect(wrongUser.status).toBe(400)
+    authState.bearer = { id: USER, email: 'owner@example.com' }
+    const wrongVerifier = await invoke(completePOST, post('/api/v1/me/steam/link-complete', { code, verifier: 'b'.repeat(43) }))
+    expect(wrongVerifier.status).toBe(400)
+    expect(await client`select user_id::text as user_id, steam_id from steam_accounts order by steam_id`).toEqual([
+        { user_id: USER, steam_id: '76561198000000021' },
+        { user_id: OTHER, steam_id: '76561198000000055' },
+    ])
 
+    const completed = await invoke(completePOST, post('/api/v1/me/steam/link-complete', { code, verifier: replacement.verifier }))
+    expect(completed.status).toBe(200)
+    expect(await completed.json()).toEqual({ ok: true })
+    expect(await client`select user_id::text as user_id, steam_id from steam_accounts order by steam_id`).toEqual([
+        { user_id: OTHER, steam_id: '76561198000000055' },
+        { user_id: USER, steam_id: '76561198000000099' },
+    ])
+    const replay = await invoke(completePOST, post('/api/v1/me/steam/link-complete', { code, verifier: replacement.verifier }))
+    expect(replay.status).toBe(400)
+    expect(await client`select steam_id from steam_accounts where user_id = ${USER}`).toEqual([{ steam_id: '76561198000000099' }])
+})
+
+it('ends a parallel issue with one live intent', async () => {
+    await client`delete from steam_link_intents where user_id = ${USER}`
+    const pair = [pkce(), pkce()]
+    const settled = await Promise.all(pair.map(item => issueSteamLinkIntent(USER, item.codeChallenge)))
+    expect(settled).toHaveLength(2)
+    const live = await client`select count(*)::int as n from steam_link_intents where user_id = ${USER} and consumed_at is null`
+    expect(live).toEqual([{ n: 1 }])
+})
+
+it('grants anon and still denies the table when the migration revoke is applied', async () => {
+    await client.unsafe('GRANT SELECT ON steam_link_intents TO anon')
+    const revoke = (await migration('0010_steam_link_intents')).split('--> statement-breakpoint')
+        .map(statement => statement.trim())
+        .find(statement => statement.startsWith('REVOKE ALL ON steam_link_intents FROM PUBLIC, anon, authenticated'))
+    if (!revoke) throw new Error('0010 is missing the anon revoke')
+    await client.unsafe(revoke)
     await expect(client.begin(async tx => {
         await tx.unsafe('set local role anon')
         await tx.unsafe('select 1 from steam_link_intents')
     })).rejects.toThrow(/permission denied/)
+})
+
+it('deletes expired and consumed intents and leaves a live one', async () => {
+    await client`delete from steam_link_intents`
+    const live = randomUUID()
+    const expired = randomUUID()
+    const spent = randomUUID()
+    const challenge = 'a'.repeat(43)
+    await client`insert into steam_link_intents (id, user_id, code_challenge, expires_at, consumed_at) values
+        (${live}, ${USER}, ${challenge}, clock_timestamp() + interval '5 minutes', null),
+        (${expired}, ${OTHER}, ${challenge}, clock_timestamp() + interval '5 minutes', null),
+        (${spent}, ${USER}, ${challenge}, clock_timestamp() + interval '5 minutes', clock_timestamp())`
+    await client`update steam_link_intents set created_at = clock_timestamp() - interval '1 hour', expires_at = clock_timestamp() - interval '1 minute' where id = ${expired}`
+    expect(await deleteSpentSteamLinkIntents()).toBe(2)
+    expect(await client`select id::text as id from steam_link_intents`).toEqual([{ id: live }])
 })
 
 it('walks the import cursor with Steam mocked and takes over a stale lease', async () => {
@@ -215,6 +274,9 @@ it('walks the import cursor with Steam mocked and takes over a stale lease', asy
     }))
 
     const holder = randomUUID()
+    const bucket = 'write:' + USER
+    await client`insert into api_rate_limits (bucket, window_start, hits) values (${bucket}, clock_timestamp(), 59)
+        on conflict (bucket) do update set hits = 59, window_start = clock_timestamp()`
     await client`insert into igdb_private.steam_import_runs (user_id, owner_token, heartbeat_at, started_at)
         values (${USER}, ${holder}, clock_timestamp(), clock_timestamp())`
     const busy = await invoke(importPOST, post('/api/v1/me/steam/import', {}))
@@ -223,6 +285,8 @@ it('walks the import cursor with Steam mocked and takes over a stale lease', asy
         notice: 'Matching is already running for your library.',
         retryAfterMs: 5000,
     })
+    expect(await client`select hits from api_rate_limits where bucket = ${bucket}`).toEqual([{ hits: 59 }])
+    await client`delete from api_rate_limits where bucket = ${bucket}`
     expect(await client`select owner_token::text as owner_token from igdb_private.steam_import_runs where user_id = ${USER}`)
         .toEqual([{ owner_token: holder }])
     expect(vi.mocked(fetch)).not.toHaveBeenCalled()

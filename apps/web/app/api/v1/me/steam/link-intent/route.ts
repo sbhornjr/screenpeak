@@ -10,7 +10,7 @@ import { jsonPrivate, parseBody, readJson } from '@/lib/write-http'
 export const POST = withAuth(async (req: NextRequest) => {
     const user = await requireBearerUser()
     await consumeWriteRateLimit(user.id)
-    parseBody(steamLinkIntentSchema, await readJson(req))
-    const intent = await issueSteamLinkIntent(user.id)
+    const body = parseBody(steamLinkIntentSchema, await readJson(req))
+    const intent = await issueSteamLinkIntent(user.id, body.codeChallenge)
     return jsonPrivate(intent satisfies SteamLinkIntent)
 })

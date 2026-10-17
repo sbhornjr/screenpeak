@@ -159,7 +159,9 @@ describe('createApiClient', () => {
       fetchImpl,
     })
 
-    await api.me.steamLinkIntent()
+    const challenge = 'a'.repeat(43)
+    await api.me.steamLinkIntent({ codeChallenge: challenge })
+    await api.me.steamLinkComplete({ code: 'c'.repeat(43), verifier: 'v'.repeat(43) })
     await api.me.steamImportBatch({ retry: true, cursor: { phase: 'pending', afterAppId: 40 } })
     await api.appConfig()
 
@@ -171,9 +173,19 @@ describe('createApiClient', () => {
         'Content-Type': 'application/json',
       },
       credentials: 'omit',
-      body: '{}',
+      body: JSON.stringify({ codeChallenge: challenge }),
     })
-    expect(fetchImpl).toHaveBeenNthCalledWith(2, 'http://127.0.0.1:3210/api/v1/me/steam/import', {
+    expect(fetchImpl).toHaveBeenNthCalledWith(2, 'http://127.0.0.1:3210/api/v1/me/steam/link-complete', {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        Authorization: 'Bearer access-token',
+        'Content-Type': 'application/json',
+      },
+      credentials: 'omit',
+      body: JSON.stringify({ code: 'c'.repeat(43), verifier: 'v'.repeat(43) }),
+    })
+    expect(fetchImpl).toHaveBeenNthCalledWith(3, 'http://127.0.0.1:3210/api/v1/me/steam/import', {
       method: 'POST',
       headers: {
         Accept: 'application/json',
@@ -183,7 +195,7 @@ describe('createApiClient', () => {
       credentials: 'omit',
       body: JSON.stringify({ retry: true, cursor: { phase: 'pending', afterAppId: 40 } }),
     })
-    expect(fetchImpl).toHaveBeenNthCalledWith(3, 'http://127.0.0.1:3210/api/v1/app-config', {
+    expect(fetchImpl).toHaveBeenNthCalledWith(4, 'http://127.0.0.1:3210/api/v1/app-config', {
       headers: { Accept: 'application/json', Authorization: 'Bearer access-token' },
       credentials: 'omit',
     })

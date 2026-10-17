@@ -3,30 +3,27 @@ import { getOptionalUser } from '@/lib/auth'
 import { logger } from '@/lib/logger'
 import { verifySteamCallback } from '@/lib/steam-openid'
 import { upsertSteamAccount } from '@/lib/queries/steam'
-import { consumeSteamLinkIntent, mobileSteamRedirect, readSteamLinkIntent } from '@/lib/steam-link-intent'
+import { mobileSteamCodeRedirect, mobileSteamRedirect, readSteamLinkIntent, stageSteamLink } from '@/lib/steam-link-intent'
 
-const STEAM_ID_RE = /^\d{17}$/
+const STEAM_ID_RE = /^[0-9]{17}$/
 
-/** Phone return. The user id comes from the spent intent, never from a session cookie. */
+/**
+ * Phone return. Stores the verified Steam id on the intent and hands the phone
+ * a one-time code. The account link waits for POST /api/v1/me/steam/link-complete.
+ */
 export async function mobileSteamCallback(request: NextRequest, state: string): Promise<Response> {
-    if (!readSteamLinkIntent(state)) return mobileSteamRedirect(false)
-    let steamId: string
     try {
-        steamId = await verifySteamCallback(request.nextUrl.origin, request.url, state)
+        if (!readSteamLinkIntent(state)) return mobileSteamRedirect(false)
+        const steamId = await verifySteamCallback(request.url, state)
+        if (!STEAM_ID_RE.test(steamId)) return mobileSteamRedirect(false)
+        const code = await stageSteamLink(state, steamId)
+        if (!code) return mobileSteamRedirect(false)
+        logger.info('api:steam-callback', 'Steam sign-in staged', {})
+        return mobileSteamCodeRedirect(code)
     } catch (error) {
         logger.error('api:steam-callback', 'Steam verification failed', { error: error instanceof Error ? error.message : String(error) })
         return mobileSteamRedirect(false)
     }
-    if (!STEAM_ID_RE.test(steamId)) return mobileSteamRedirect(false)
-    try {
-        const linked = await consumeSteamLinkIntent(state, steamId)
-        if (!linked) return mobileSteamRedirect(false)
-        logger.info('api:steam-callback', 'Steam account linked', { userId: linked.userId })
-    } catch (error) {
-        logger.error('api:steam-callback', 'Failed to save linked Steam account', { error: error instanceof Error ? error.message : String(error) })
-        return mobileSteamRedirect(false)
-    }
-    return mobileSteamRedirect(true)
 }
 
 export async function GET(request: NextRequest) {
@@ -40,7 +37,7 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-        const steamId64 = await verifySteamCallback(request.nextUrl.origin, request.url)
+        const steamId64 = await verifySteamCallback(request.url)
         const { error } = await upsertSteamAccount(user.id, steamId64)
 
         if (error) {

@@ -25,6 +25,7 @@ import {
 import { detachSharedSteamAppIds, omitForeignSteamIds, omitForeignSteamIdsBatch } from './steam-ids'
 import type { CatalogGame } from './types'
 import { writeCatalogGame } from './upsert'
+import { SteamImportFailure, type SteamImportErrorCode } from './steam-import-errors'
 
 /** Bump when the matcher rules change so old negative-cache rows are ignored. */
 export const STEAM_MATCHER_VERSION = 'igdb-steam-v1'
@@ -717,7 +718,7 @@ export async function loadSteamImportPreview(userId: string, owned: OwnedSteamAp
 
 async function steamIdFor(userId: string): Promise<string> {
     const account = await getSteamAccount(userId)
-    if (!account?.steam_id) throw new SteamImportInputError('Link Steam before importing.')
+    if (!account?.steam_id) throw new SteamImportFailure('not_linked')
     return account.steam_id
 }
 
@@ -746,7 +747,10 @@ export async function withSteamImportTurn<T>(userId: string, run: (lease: SteamI
     try {
         held = await acquireSteamImportLease(pg, userId, token)
     } catch (error) {
-        if (steamLeaseMissing(error)) throw new SteamImportInputError('Steam import lease is not installed. Apply 0008_steam_import_lease, then try the remaining matches again.')
+        if (steamLeaseMissing(error)) {
+            logger.error('catalog:steam-import', 'Steam import lease is not installed. Apply 0008_steam_import_lease, then try the remaining matches again.')
+            throw new SteamImportFailure('lease_not_installed')
+        }
         throw error
     }
     if (!held) return { busy: true }
@@ -799,7 +803,7 @@ export async function withSteamImportTurn<T>(userId: string, run: (lease: SteamI
     }
 }
 
-async function runSteamImportBatchUnlocked(userId: string, request: SteamImportRequest, steamId: string, owned: OwnedSteamApp[], lease: SteamImportLease): Promise<SteamImportBatch | { error: string }> {
+async function runSteamImportBatchUnlocked(userId: string, request: SteamImportRequest, steamId: string, owned: OwnedSteamApp[], lease: SteamImportLease): Promise<SteamImportBatch | { error: SteamImportErrorCode }> {
     const now = new Date()
     const store = createDbSteamImportStore(lease)
     const before = await inspectOwned(owned, store, now)
@@ -818,7 +822,7 @@ async function runSteamImportBatchUnlocked(userId: string, request: SteamImportR
         } catch (error) {
             if (error instanceof SteamImportLeaseLost) throw error
             logger.error('catalog:steam-import', 'Steam batch failed', { error: error instanceof Error ? error.message : String(error) })
-            return { error: 'Matching is unavailable. Your matched games are still listed.' }
+            return { error: 'matching_unavailable' }
         }
     }
     const after = await inspectOwned(owned, store, now)
@@ -827,7 +831,7 @@ async function runSteamImportBatchUnlocked(userId: string, request: SteamImportR
     let entries: SteamLinkEntry[]
     try { entries = await loadEntries(userId, owned, after.matches, completed) }
     catch (error) {
-        if (error instanceof LibraryReadError) return { error: error.message }
+        if (error instanceof LibraryReadError) return { error: 'matching_unavailable' }
         throw error
     }
     const continued = steamImportContinuation({
@@ -849,12 +853,16 @@ async function runSteamImportBatchUnlocked(userId: string, request: SteamImportR
     }
 }
 
-export async function runSteamImportBatch(userId: string, request: SteamImportRequest): Promise<SteamImportBatch | { error: string }> {
+export type SteamImportOutcome =
+    | { charged: boolean, batch: SteamImportBatch }
+    | { charged: boolean, error: SteamImportErrorCode }
+
+export async function runSteamImportBatch(userId: string, request: SteamImportRequest): Promise<SteamImportOutcome> {
     try {
         let steamId: string
         try { steamId = await steamIdFor(userId) }
         catch (error) {
-            if (error instanceof SteamImportInputError) return { error: error.message }
+            if (error instanceof SteamImportFailure) return { charged: false, error: error.code }
             throw error
         }
         const turn = await withSteamImportTurn(userId, async lease => {
@@ -863,22 +871,27 @@ export async function runSteamImportBatch(userId: string, request: SteamImportRe
             try { ownedRaw = await getOwnedGames(steamId) }
             catch (error) {
                 logger.warn('catalog:steam-import', 'Owned games lookup failed', { error: error instanceof Error ? error.message : String(error) })
-                return { error: 'Steam is unavailable. Your matched games are still listed.' }
+                return { error: 'steam_unavailable' as const }
             }
             if (lease.signal.aborted) throw new SteamImportLeaseLost()
-            if (!ownedRaw.games) return { error: 'Steam library details are not public.' }
+            if (!ownedRaw.games) return { error: 'not_public' as const }
             const owned = dedupeOwnedApps(ownedRaw.games.map(game => ({
                 appid: game.appid, name: game.name ?? '', playtimeMinutes: game.playtime_forever ?? 0,
             })))
             return runSteamImportBatchUnlocked(userId, request, steamId, owned, lease)
         })
-        if ('busy' in turn || 'lost' in turn) return busyBatch(request.cursor)
-        return turn
+        if ('busy' in turn) return { charged: false, batch: busyBatch(request.cursor) }
+        if ('lost' in turn) return { charged: true, batch: busyBatch(request.cursor) }
+        if ('error' in turn) return { charged: true, error: turn.error }
+        return { charged: true, batch: turn }
     } catch (error) {
-        if (error instanceof SteamImportInputError) return { error: error.message }
-        if (error instanceof LibraryReadError) return { error: error.message }
+        if (error instanceof SteamImportFailure) {
+            const charged = error.code !== 'lease_not_installed' && error.code !== 'not_linked' && error.code !== 'invalid_request'
+            return { charged, error: error.code }
+        }
+        if (error instanceof LibraryReadError) return { charged: true, error: 'matching_unavailable' }
         logger.error('catalog:steam-import', 'Steam import turn failed', { error: error instanceof Error ? error.message : String(error) })
-        return { error: 'Matching is unavailable. Your matched games are still listed.' }
+        return { charged: true, error: 'matching_unavailable' }
     }
 }
 

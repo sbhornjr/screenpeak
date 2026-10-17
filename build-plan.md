@@ -759,22 +759,31 @@ tests. The website is unchanged for users.
    > and `taxonomy.search`. A `'use client'` file must not import
    > `lib/queries/game.ts` (`test/api/client-boundary.test.ts`).
 7. Steam `state` flow + `app-config` endpoint.
-   > **Done.** `POST /api/v1/me/steam/link-intent` (bearer + write budget) returns
-   > `{ state, expiresAt, path }`. `state` is an HMAC (`STEAM_LINK_INTENT_SECRET`,
-   > at least 32 characters) over `v1.userId.jti.exp`, valid for 5 minutes. The
-   > signature is not stored. `steam_link_intents` (migration `0010`) records the
-   > jti so the callback can spend it once; issuing another intent deletes the
-   > caller's unspent rows. `path` is a relative `/api/steam/link?state=…&client=mobile`.
-   > The phone joins it to its own API origin. A caller-supplied redirect is 400.
+   > **Done.** `POST /api/v1/me/steam/link-intent` (bearer + write budget) takes
+   > `{ codeChallenge }` (S256) and returns `{ state, expiresAt, path }`. `state`
+   > is an HMAC (`STEAM_LINK_INTENT_SECRET`, at least 32 characters) over
+   > `v1.userId.jti.exp`, valid for 5 minutes. The signature is not stored.
+   > `steam_link_intents` (migration `0010`) records the jti and the challenge.
+   > One live row per user: the issuer locks `users` and a partial unique index
+   > covers `consumed_at is null`. `path` is a relative
+   > `/api/steam/link?state=…&client=mobile`. A caller-supplied redirect is 400.
    > `GET /api/steam/link` and `GET /api/steam/callback` use that state and do not
-   > read cookies. A missing, forged, expired, or reused state redirects to
-   > `screenpeak://steamlink?ok=0`. Success is `ok=1`. The return URL is fixed.
-   > The website button still omits `state` and uses the session cookie.
-   > `return_to` includes the state, so OpenID verification covers it.
+   > read cookies. Realm and `return_to` are `NEXT_PUBLIC_SITE_URL`. The redirect
+   > to Steam is `no-store` and `no-referrer`, and only if the Location starts
+   > with `https://steamcommunity.com/openid/login`. Verification requires the
+   > `state` on the signed `openid.return_to` to equal the argument (both absent
+   > for the website). The callback stores the Steam id and redirects to
+   > `screenpeak://steamlink?code=<one-time>`. It does not write `steam_accounts`.
+   > A missing secret, or a bad state, redirects to `screenpeak://steamlink?ok=0`.
+   > `POST /api/v1/me/steam/link-complete` commits the link when the bearer user,
+   > the intent user, and the PKCE verifier match. The website button still omits
+   > `state` and uses the session cookie.
    > `POST /api/v1/me/steam/import` calls `runSteamImportBatch` (same lease:
    > heartbeat 5s, takeover 30s). The body is `{ retry, cursor }` only. A held
-   > lease is 200 with `notice` and `retryAfterMs`. Steam or matching down is
-   > 503 `unavailable`. There is no `GET` of the whole library.
+   > lease is 200 with `notice` and `retryAfterMs` and does not spend the write
+   > budget. Failures are a code (`steam-import-errors.ts`), not a matched
+   > sentence. Steam or matching down is 503 `unavailable`. The lease-not-installed
+   > hint stays in the server log. There is no `GET` of the whole library.
    > `GET /api/v1/app-config` returns `{ minSupportedVersion: "1.0.0" }` with no
    > session, so a stale bearer still sees a forced upgrade. Contracts and
    > `createApiClient` methods are in `@screenpeak/shared/api`.
@@ -898,9 +907,13 @@ and check it on a small phone (iPhone SE size) and with the keyboard open.
      (`openssl rand -base64 32`). Without it,
      `POST /api/v1/me/steam/link-intent` is 500 and the phone cannot start
      Steam linking. The website Steam button does not read this secret.
+   - [ ] Apply migration `0010_steam_link_intents` with `migrate:journal`
+     (`npm run migrate:journal -w @screenpeak/web -- --database-env DATABASE_URL --apply-pending`
+     against the database this deploy uses). Phone linking reads
+     `steam_link_intents`. A database that stopped at `0009` has no table for it.
    - [ ] Copy the rest of `apps/web/.env.local` (Phase 5 step 0). Phone Steam
      import adds no other variable. `STEAM_API_KEY` was already required for
-     the website import.
+     the website import. `NEXT_PUBLIC_SITE_URL` is the OpenID realm.
 1. `eas build --profile preview` → TestFlight (iOS) and Internal testing
    (Android). Get 3–5 friends on it for a week.
 2. Store listings: screenshots, description, keywords, privacy policy URL (you
