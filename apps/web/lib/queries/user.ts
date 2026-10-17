@@ -1,3 +1,4 @@
+import 'server-only'
 import { eq, and, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { users, follows } from '@/db/schema'

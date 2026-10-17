@@ -89,8 +89,6 @@ export default async function LibraryPage({ params, searchParams } : LibraryPage
                         esrb: esrbQuery, sort: sortQuery, order: orderQuery, status: statusQuery, is100: is100Query ? 'true' : ''}}
                     genres={genres ?? []}
                     platforms={platforms ?? []}
-                    developers={developers ?? []}
-                    publishers={publishers ?? []}
                     esrb_ratings={esrbRatings ?? []}
                     username={username}
                 />

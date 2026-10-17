@@ -201,6 +201,16 @@ it('cleanup refuses unmapped rows, then refuses obsolete RPC bodies, and never d
     expect(inserted.slug).toBe(`same-name-${inserted.id}`)
     expect(inserted.slug).not.toContain('igdb')
 })
+it('never persists the reserved slug search', async () => {
+    const saved = await upsertCatalogGame(game(90, {
+        providerSlug: 'search', name: 'Search', steamAppIds: [9090], genres: [], developers: [], publishers: [],
+    }))
+    expect(saved.slug).toBe(`search-${saved.id}`)
+    expect(saved.slug).not.toBe('search')
+    const rows = await client`select slug from games where igdb_id = 90`
+    expect(rows.map(row => row.slug)).toEqual([saved.slug])
+    expect(rows.some(row => row.slug === 'search')).toBe(false)
+})
 it('uses an unsuffixed slug and appends the local id when that slug is taken', async () => {
     const first = await upsertCatalogGame(game(50, { providerSlug: 'Unique Title', name: 'Unique Title', steamAppIds: [5050], genres: [], developers: [], publishers: [] }))
     expect(first.slug).toBe('unique-title')

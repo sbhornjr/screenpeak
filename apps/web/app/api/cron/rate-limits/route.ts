@@ -1,0 +1,14 @@
+import { deleteStaleRateLimits } from '@/lib/rate-limit'
+
+// Vercel Cron sends GET with Authorization: Bearer $CRON_SECRET. This is not
+// an /api/v1 route. Unset CRON_SECRET fails closed. The delete stays off the
+// request path that spends a budget.
+export async function GET(req: Request) {
+    const secret = process.env.CRON_SECRET
+    const authorization = req.headers.get('authorization')
+    if (!secret || authorization !== `Bearer ${secret}`) {
+        return Response.json({ error: 'unauthorized' }, { status: 401 })
+    }
+    const deleted = await deleteStaleRateLimits()
+    return Response.json({ deleted })
+}

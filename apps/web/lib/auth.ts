@@ -77,8 +77,11 @@ export async function getBearerUser(): Promise<AuthedUser | null> {
     return userFromBearer(token)
 }
 
-/** `/api/v1` writes. 401 `unauthenticated` when no Bearer token was sent.
- *  Never reads the session cookie. A bad token is 401 `invalid_token`. */
+/** `/api/v1` writes and the caller's own library row. 401 `unauthenticated`
+ *  when no Bearer token was sent. Never reads the session cookie. A bad
+ *  token is 401 `invalid_token`. This does not spend the write budget —
+ *  mutating handlers call `consumeWriteRateLimit` themselves, so
+ *  `GET /api/v1/me/library/[gameId]` can require a bearer without charging. */
 export async function requireBearerUser(): Promise<AuthedUser> {
     const user = await getBearerUser()
     if (!user) throw new UnauthenticatedError()

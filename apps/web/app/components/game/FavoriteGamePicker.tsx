@@ -1,13 +1,12 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { createClient } from "@/lib/supabase-browser"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { Game } from "@screenpeak/shared/types"
 import Modal from "@/app/components/util/Modal"
 import EditTriggerButton from "@/app/components/util/EditTriggerButton"
-import { searchGamesByName } from "@/lib/queries/game-search"
+import { searchGamesByName } from "@/app/search-actions"
 import { displayCoverUrl } from "@/lib/catalog/images"
 import { saveFavoriteGames } from "@/app/user-actions"
 import { plus1 } from "@/lib/plus1"
@@ -27,9 +26,12 @@ export default function FavoriteGamePicker({ currentGames } : { currentGames: Ga
                 return
             }   
 
-            const supabase = createClient()
-            const data = await searchGamesByName(supabase, searchQuery)
-            setResults(data)
+            try {
+                const data = await searchGamesByName(searchQuery)
+                setResults(data)
+            } catch {
+                setResults([])
+            }
         }, 300) // wait 300ms after user stops typing
 
         return () => clearTimeout(timer) // cancel if user types again before 300ms

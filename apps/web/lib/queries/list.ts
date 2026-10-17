@@ -1,3 +1,4 @@
+import 'server-only'
 import { eq, and, inArray, desc, sql } from 'drizzle-orm'
 import { uuidArrayParam } from '@/lib/sql-helpers'
 import { db } from '@/lib/db'

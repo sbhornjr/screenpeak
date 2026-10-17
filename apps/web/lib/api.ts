@@ -48,7 +48,12 @@ export class AuthUnavailableError extends ApiError {
 }
 
 export function apiError(status: number, code: ApiErrorCode, message: string, headers?: Record<string, string>) {
-    return NextResponse.json<ApiErrorBody>({ error: { code, message } }, { status, headers })
+    const retryHeader = headers?.['Retry-After']
+    const retry = retryHeader == null ? Number.NaN : Number(retryHeader)
+    const body: ApiErrorBody = code === 'rate_limited' && Number.isFinite(retry)
+        ? { error: { code, message, retry_after: retry } }
+        : { error: { code, message } }
+    return NextResponse.json<ApiErrorBody>(body, { status, headers })
 }
 
 // Expo web is a browser on another origin (Metro, usually :8081) calling
@@ -60,6 +65,7 @@ const CORS_HEADERS: Record<string, string> = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Authorization, Content-Type, Accept',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+    'Access-Control-Expose-Headers': 'Retry-After',
 }
 
 export function isV1ApiPath(pathname: string): boolean {

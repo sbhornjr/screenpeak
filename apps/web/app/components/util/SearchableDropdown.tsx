@@ -1,14 +1,13 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { createClient } from '@/lib/supabase-browser'
-import { searchTaxonomyTable, getTaxonomyNameBySlug } from '@/lib/queries/game-search'
+import { searchTaxonomyTable, searchLibraryTaxonomy, getTaxonomyNameBySlug } from '@/app/search-actions'
 import { ChevronDown, X } from "lucide-react"
 
 type Option = { id: string, name: string, slug: string }
 
-export default function SearchableDropdown({ table, value, onChange, placeholder = 'Search...', limit } : 
-    { table: 'developers' | 'publishers', value: string, onChange: (slug: string) => void, placeholder?: string, limit?: string[] }) {
+export default function SearchableDropdown({ table, value, onChange, placeholder = 'Search...', scope } :
+    { table: 'developers' | 'publishers', value: string, onChange: (slug: string) => void, placeholder?: string, scope?: 'library' }) {
     const [query, setQuery] = useState('')
     const [results, setResults] = useState<Option[]>([])
     const [open, setOpen] = useState(false)
@@ -33,14 +32,19 @@ export default function SearchableDropdown({ table, value, onChange, placeholder
                 return
             }
             setLoading(true)
-            const supabase = createClient()
-            const data = await searchTaxonomyTable(supabase, table, query, limit)
-
-            setResults(data)
-            setLoading(false)
+            try {
+                const data = scope === 'library'
+                    ? await searchLibraryTaxonomy(table, query)
+                    : await searchTaxonomyTable(table, query)
+                setResults(data)
+            } catch {
+                setResults([])
+            } finally {
+                setLoading(false)
+            }
         }, 300)
         return () => clearTimeout(timer)
-    }, [query, table, limit])
+    }, [query, table, scope])
 
     function handleSelect(option: Option) {
         onChange(option.slug)
@@ -61,9 +65,12 @@ export default function SearchableDropdown({ table, value, onChange, placeholder
                 setSelectedName('')
                 return
             }
-            const supabase = createClient()
-            const name = await getTaxonomyNameBySlug(supabase, table, value)
-            setSelectedName(name)
+            try {
+                const name = await getTaxonomyNameBySlug(table, value)
+                setSelectedName(name)
+            } catch {
+                setSelectedName('')
+            }
         }
         fetchSelectedName()
     }, [value, table])

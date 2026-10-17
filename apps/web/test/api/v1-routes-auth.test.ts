@@ -12,6 +12,7 @@ import { describe, expect, it } from 'vitest'
 
 const apiRoot = join(dirname(fileURLToPath(import.meta.url)), '../../app/api/v1')
 const METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE'])
+const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 // These two responses have no caller. Their route tests lock that they do not
 // read a session. Every other route must call the bearer helper so a cookie
 // cannot stand in, and so a bad token fails closed.
@@ -69,17 +70,41 @@ function locallyDeclared(source: ts.SourceFile, name: string): boolean {
     return false
 }
 
+function isFunctionLike(node: ts.Node): node is ts.FunctionLikeDeclaration {
+    return ts.isFunctionDeclaration(node)
+        || ts.isFunctionExpression(node)
+        || ts.isArrowFunction(node)
+        || ts.isMethodDeclaration(node)
+        || ts.isConstructorDeclaration(node)
+        || ts.isGetAccessorDeclaration(node)
+        || ts.isSetAccessorDeclaration(node)
+}
+
+// A parameter, a `const`/`let`/`var` in this function, or a nested function
+// declaration hoists over the import for the whole function. A declaration
+// inside a further nested function does not.
+function functionBodyShadows(fn: ts.Node, name: string): boolean {
+    const parameters = isFunctionLike(fn) ? fn.parameters : []
+    if (parameters.some(param => ts.isIdentifier(param.name) && param.name.text === name)) return true
+    let shadowed = false
+    const visit = (node: ts.Node) => {
+        if (node !== fn && isFunctionLike(node)) {
+            if (ts.isFunctionDeclaration(node) && node.name?.text === name) shadowed = true
+            return
+        }
+        if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === name) shadowed = true
+        ts.forEachChild(node, visit)
+    }
+    visit(fn)
+    return shadowed
+}
+
 function callsName(fn: ts.Node, name: string): boolean {
+    if (functionBodyShadows(fn, name)) return false
     let found = false
     const visit = (node: ts.Node) => {
-        if (
-            ts.isCallExpression(node)
-            && ts.isIdentifier(node.expression)
-            && node.expression.text === name
-        ) {
-            // A function declared inside the handler that reuses the name is not the import.
-            found = true
-        }
+        if (node !== fn && isFunctionLike(node)) return
+        if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === name) found = true
         ts.forEachChild(node, visit)
     }
     visit(fn)
@@ -159,6 +184,26 @@ describe('/api/v1 route auth', () => {
             }
 
             const callsBearer = handlers.some(handler => handler.fn && bearerNames.some(name => callsName(handler.fn!, name)))
+            const requireBearer = namedImport(source, '@/lib/auth', 'requireBearerUser')
+            const writeLimit = namedImport(source, '@/lib/rate-limit', 'consumeWriteRateLimit')
+            const writeLimitCounts = !!writeLimit && !locallyDeclared(source, writeLimit)
+            for (const handler of handlers) {
+                if (WRITE_METHODS.has(handler.method)) {
+                    if (!requireBearer || locallyDeclared(source, requireBearer) || !handler.fn || !callsName(handler.fn, requireBearer)) {
+                        problems.push(`${label} ${handler.method} must call requireBearerUser from @/lib/auth`)
+                    }
+                    if (!writeLimitCounts || !writeLimit || !handler.fn || !callsName(handler.fn, writeLimit)) {
+                        problems.push(`${label} ${handler.method} must call consumeWriteRateLimit from @/lib/rate-limit`)
+                    }
+                } else if (handler.fn && writeLimitCounts && writeLimit && callsName(handler.fn, writeLimit)) {
+                    problems.push(`${label} ${handler.method} must not spend the write budget`)
+                }
+            }
+            if (label.endsWith('/search/route.ts') || label.endsWith('search/route.ts')) {
+                const limitName = namedImport(source, '@/lib/rate-limit', 'consumeSearchRateLimit')
+                const callsLimit = !!limitName && !locallyDeclared(source, limitName) && handlers.some(handler => handler.fn && callsName(handler.fn, limitName))
+                if (!callsLimit) problems.push(`${label} must call consumeSearchRateLimit from @/lib/rate-limit`)
+            }
             if (NO_CALLER.has(label)) {
                 if (callsBearer || bearerNames.length > 0) problems.push(`${label} reads a session, but this response has no caller`)
                 if (importsCookieAuth(source)) problems.push(`${label} imports cookie auth`)
@@ -167,5 +212,59 @@ describe('/api/v1 route auth', () => {
             }
         }
         expect(problems).toEqual([])
+    })
+})
+
+const SEARCH_QUERY_EXPORTS = ['searchGamesByName', 'searchTaxonomyTable', 'searchLibraryTaxonomy'] as const
+const webRoot = join(dirname(fileURLToPath(import.meta.url)), '../..')
+const SKIP_DIRS = new Set(['node_modules', '.next', 'test', 'coverage', 'dist'])
+
+function appSourceFiles(dir: string): string[] {
+    const found: string[] = []
+    for (const entry of readdirSync(dir)) {
+        if (SKIP_DIRS.has(entry)) continue
+        const path = join(dir, entry)
+        if (statSync(path).isDirectory()) found.push(...appSourceFiles(path))
+        else if (entry.endsWith('.ts') || entry.endsWith('.tsx')) found.push(path)
+    }
+    return found
+}
+
+function searchBudgetProblems(source: ts.SourceFile, label: string): string[] {
+    const searchNames = SEARCH_QUERY_EXPORTS
+        .map(exported => namedImport(source, '@/lib/queries/game', exported))
+        .filter((name): name is string => !!name)
+    if (searchNames.length === 0) return []
+    const limitName = namedImport(source, '@/lib/rate-limit', 'consumeSearchRateLimit')
+    const limitCounts = !!limitName && !locallyDeclared(source, limitName)
+    const problems: string[] = []
+    const visit = (node: ts.Node) => {
+        if (isFunctionLike(node) && searchNames.some(name => callsName(node, name))) {
+            if (!limitCounts || !limitName || !callsName(node, limitName)) {
+                problems.push(`${label} calls ${searchNames.join('/')} without the imported consumeSearchRateLimit`)
+            }
+        }
+        ts.forEachChild(node, visit)
+    }
+    visit(source)
+    return problems
+}
+
+describe('search budget', () => {
+    it('requires the imported consumeSearchRateLimit beside every catalogue search call', () => {
+        const problems: string[] = []
+        for (const file of appSourceFiles(webRoot)) {
+            const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true, file.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS)
+            problems.push(...searchBudgetProblems(source, relative(webRoot, file)))
+        }
+        expect(problems).toEqual([])
+    })
+
+    it('does not treat a nested consumeSearchRateLimit as the import', () => {
+        const file = join(dirname(fileURLToPath(import.meta.url)), 'fixtures/nested-search-limit.ts')
+        const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
+        const problems = searchBudgetProblems(source, 'fixtures/nested-search-limit.ts')
+        expect(problems.length).toBeGreaterThan(0)
+        expect(problems.join('\n')).toMatch(/consumeSearchRateLimit/)
     })
 })

@@ -1,3 +1,4 @@
+import 'server-only'
 import { eq, and, desc, asc, inArray, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { libraryEntries } from '@/db/schema'

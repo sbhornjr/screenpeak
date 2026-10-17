@@ -11,6 +11,7 @@ import type { LoadoutPageData } from './loadout'
 import type { MeData, SettingsData } from './me'
 import type { ProfilePageData } from './profile'
 import type { UserReviewsPage, UserReviewsQuery } from './user-reviews'
+import type { GameSearchPage, TaxonomySearchPage, TaxonomySearchTable } from './search'
 import type {
     AvatarSave,
     AvatarUploadRequest,
@@ -34,12 +35,14 @@ import type {
 export class ApiClientError extends Error {
     readonly status: number
     readonly code: string
+    readonly retryAfter: number | null
 
-    constructor(status: number, code: string, message: string) {
+    constructor(status: number, code: string, message: string, retryAfter: number | null = null) {
         super(message)
         this.name = 'ApiClientError'
         this.status = status
         this.code = code
+        this.retryAfter = retryAfter
     }
 }
 
@@ -49,6 +52,7 @@ type FetchResponse = {
     ok: boolean
     status: number
     json: () => Promise<unknown>
+    headers?: { get(name: string): string | null }
 }
 
 type FetchInit = {
@@ -63,6 +67,15 @@ function defaultFetch(url: string, init: FetchInit): Promise<FetchResponse> {
     const fetchImpl = (globalThis as { fetch?: FetchImpl }).fetch
     if (!fetchImpl) return Promise.reject(new ApiClientError(0, 'internal', 'fetch is not available.'))
     return fetchImpl(url, init)
+}
+
+function retryAfterOf(res: FetchResponse, body: ApiErrorBody | null): number | null {
+    const fromBody = body?.error?.retry_after
+    if (typeof fromBody === 'number' && Number.isFinite(fromBody)) return fromBody
+    const header = res.headers?.get('retry-after') ?? res.headers?.get('Retry-After')
+    if (header == null || header === '') return null
+    const parsed = Number(header)
+    return Number.isFinite(parsed) ? parsed : null
 }
 
 function qs(params: Record<string, string | number | boolean | null | undefined>): string {
@@ -90,7 +103,12 @@ export function createApiClient(opts: {
         const res = await fetchImpl(`${base}${path}`, { headers, credentials: 'omit' })
         if (!res.ok) {
             const body = (await res.json().catch(() => null)) as ApiErrorBody | null
-            throw new ApiClientError(res.status, body?.error?.code ?? 'internal', body?.error?.message ?? 'Something went wrong.')
+            throw new ApiClientError(
+                res.status,
+                body?.error?.code ?? 'internal',
+                body?.error?.message ?? 'Something went wrong.',
+                retryAfterOf(res, body),
+            )
         }
         return res.json() as Promise<T>
     }
@@ -110,7 +128,12 @@ export function createApiClient(opts: {
         const payload = await res.json().catch(() => null)
         if (!res.ok) {
             const err = payload as ApiErrorBody | null
-            throw new ApiClientError(res.status, err?.error?.code ?? 'internal', err?.error?.message ?? 'Something went wrong.')
+            throw new ApiClientError(
+                res.status,
+                err?.error?.code ?? 'internal',
+                err?.error?.message ?? 'Something went wrong.',
+                retryAfterOf(res, err),
+            )
         }
         return payload as T
     }
@@ -124,6 +147,7 @@ export function createApiClient(opts: {
             get: (slug: string) => get<GamePageData>(`/api/v1/games/${encodeURIComponent(slug)}`),
             reviews: (slug: string) => get<GameReviewsPage>(`/api/v1/games/${encodeURIComponent(slug)}/reviews?${REVIEWS_QUERY}`),
             list: (query: Partial<GamesListQuery> = {}) => get<GamesListPage>(`/api/v1/games${qs(query)}`),
+            search: (q: string, limit?: number) => get<GameSearchPage>(`/api/v1/games/search${qs({ q, limit })}`),
             putReview: (gameId: string, body: RatingWrite) =>
                 send<RatingWriteResult>('PUT', `/api/v1/games/${gameIdPath(gameId)}/review`, body),
         },
@@ -167,6 +191,14 @@ export function createApiClient(opts: {
                 send<OkResult>('DELETE', `${listIdPath(listId)}/games/${gameIdPath(gameId)}`),
             syncGames: (listId: string, body: ListGameSync) =>
                 send<OkResult>('POST', `${listIdPath(listId)}/games/sync`, body),
+        },
+        taxonomy: {
+            search: (table: TaxonomySearchTable, q: string, options?: { ids?: string[], limit?: number }) =>
+                get<TaxonomySearchPage>(`/api/v1/taxonomy/${encodeURIComponent(table)}/search${qs({
+                    q,
+                    limit: options?.limit,
+                    ids: options?.ids?.length ? options.ids.join(',') : undefined,
+                })}`),
         },
         users: {
             get: (username: string) => get<ProfilePageData>(user(username)),

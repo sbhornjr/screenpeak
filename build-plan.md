@@ -24,7 +24,7 @@ Recorded 2026-10-16. Where an older sketch below disagrees with this section, th
 
 ### Order
 
-Follow Part 4. Bearer auth, the game loader, `GET /api/v1/games/[slug]` plus reviews, the native game screen, the remaining read loaders, and the write routes (Phase 1 step 4) are done. Search (`game-search.ts`, `GET /api/v1/games/search`) stays step 6. Steam `link-intent` and the import batch stay step 7. There is still no `GET` of the whole Steam library.
+Follow Part 4. Bearer auth, the game loader, `GET /api/v1/games/[slug]` plus reviews, the native game screen, the remaining read loaders, the write routes (Phase 1 step 4), search and taxonomy search (step 6), and Postgres rate limits on `/api/v1` writes and search (step 8) are done. Steam `link-intent` and the import batch stay step 7. There is still no `GET` of the whole Steam library.
 
 ### API shape
 
@@ -253,23 +253,23 @@ Harden the boundary on day one: add `import 'server-only'` as the first line of
 it). Then an accidental client import fails with *"This module cannot be
 imported from a Client Component"* instead of a confusing `Can't resolve 'fs'`.
 
-> **About the `game-search.ts` / `feed-constants.ts` precedent.** Those splits
-> are really two different situations:
+> **About the search / `FEED_PAGE_SIZE` precedent.** Those splits are really
+> two different situations:
 >
-> - **`feed-constants.ts` is a genuine bundling fix.** `FeedList.tsx` needs only
+> - **`FEED_PAGE_SIZE` is a genuine bundling fix.** `FeedList.tsx` needs only
 >   the number `12`, but importing *anything* from `feed.ts` evaluates the whole
->   module, including `import { db } from '@/lib/db'`. This is the exact failure
->   mode `packages/shared` must avoid. (Once `packages/shared` exists,
->   `FEED_PAGE_SIZE` belongs there — the mobile feed needs it too.)
-> - **`game-search.ts` is a leftover, not a necessity.** Its three functions query
->   public tables (`games`, `developers`, `publishers` have `USING (true)` read
->   policies), so when the Drizzle migration happened they were left on the
->   browser Supabase client rather than given an action. Phase 1 moves them onto
->   `db` and gives the web components **Server Actions**, the same pattern as
->   every other client component. Mobile gets `GET /api/v1/games/search` for the
->   same underlying query function. (All three components already debounce by
->   300 ms, so Next.js dispatching Server Actions one at a time doesn't matter
->   in practice — see Phase 1 step 6.)
+>   module, including `import { db } from '@/lib/db'`. The constant lives in
+>   `@screenpeak/shared/constants`. This is the exact failure mode
+>   `packages/shared` must avoid.
+> - **Search is a Server Action.** `searchGamesByName`, `searchTaxonomyTable`,
+>   and `getTaxonomyNameBySlug` live on `db` in `lib/queries/game.ts`. The
+>   website dropdowns call `app/search-actions.ts`. The phone calls
+>   `GET /api/v1/games/search` and `GET /api/v1/taxonomy/[table]/search`, which
+>   use those same functions. A `'use client'` file that imports
+>   `lib/queries/game.ts` pulls `lib/db` into the browser bundle.
+>   `test/api/client-boundary.test.ts` rejects that import. (All three
+>   components debounce by 300 ms, so Next.js dispatching Server Actions one
+>   at a time doesn't matter in practice — see Phase 1 step 6.)
 
 ### 4. Web vs app development — is it mostly UI?
 
@@ -453,6 +453,7 @@ loaders):
 | `GET /feed?offset=` | `getFeed` (replaces the `fetchFeedPage` action for mobile) | `/` (signed-in) |
 | `GET /explore` | `getTrendingGames`, `getTrendingLists`, `getExploreRecommendations`, `getHeroGame` | `/explore`, `/` |
 | `GET /games/search?q=` | `searchGamesByName` | search boxes |
+| `GET /taxonomy/[table]/search?q=` | `searchTaxonomyTable` | developer and publisher dropdowns |
 | `GET /games/[slug]` | `getGameBySlug`, `getGameTaxonomy`, `getGameRatingsStats`, viewer's rating/library entry/list membership | `/games/[slug]` |
 | `GET /games/[slug]/reviews?page=` | `getGameReviewsForPage` | `/games/[slug]` |
 | `GET /games?…filters` | `queryGames` (sort `name` or `ngplus_rating`; throws on a DB error), `getAllGenres`, `getAllPlatforms`, `getDistinctEsrbRatings`. The route renames `avg_ngplus_rating` to `avg_rating`. | `/games` |
@@ -721,7 +722,7 @@ tests. The website is unchanged for users.
    >
    > The signed-in native game screen calls rate, library save, and add-to-list.
    > Not in this slice: `POST /me/steam/link-intent` and `POST /me/steam/import`
-   > (step 7), rate limiting (step 8), and search (step 6).
+   > (step 7). Search landed in step 6. Rate limiting landed in step 8.
 5. Put request/response types in `packages/shared/api/`. (The fetch client that
    calls these routes lives in `apps/mobile/src/lib/api/` — Phase 1 step 2b — since the
    website never calls `/api/v1` itself.)
@@ -745,9 +746,45 @@ tests. The website is unchanged for users.
    dispatch means a slow stale result can never overwrite a newer one (a race
    the current code actually has). If search ever needs HTTP caching or true
    parallelism, switching these three to the GET routes is a small change.
+   > **Done.** `game-search.ts` is gone. The three functions are on `db` in
+   > `lib/queries/game.ts`. `app/search-actions.ts` serves the website: invalid
+   > input returns `[]` or `''`, except an id list over the cap, which throws.
+   > A parsed search spends the search budget. The library dropdown joins
+   > `library_entries` for the signed-in user instead of sending developer ids.
+   > `GET /api/v1/games/search` and `GET /api/v1/taxonomy/[table]/search` call
+   > the same functions, work signed out, and return 400 for an empty query,
+   > a `limit` above 20, or a table other than `developers` or `publishers`.
+   > Hits use a uuid `id`, `avg_rating`, and a display-ready cover. Contracts
+   > are `@screenpeak/shared/api/search`. `createApiClient` has `games.search`
+   > and `taxonomy.search`. A `'use client'` file must not import
+   > `lib/queries/game.ts` (`test/api/client-boundary.test.ts`).
 7. Steam `state` flow + `app-config` endpoint.
 8. Consider rate limiting on write routes (Upstash or Vercel's firewall) — the
    API is now a public, documented surface in a way Server Actions weren't.
+   > **Done, in Postgres.** Migration `0009_api_rate_limits` adds
+   > `api_rate_limits`. One upsert per request, so it works on Vercel's
+   > transaction pooler with no Redis and no new paid service.
+   > `requireBearerUser` only checks the bearer. Mutating handlers then call
+   > `consumeWriteRateLimit`: 60 requests per 60 seconds.
+   > `GET /api/v1/me/library/[gameId]` does not spend that budget. Search
+   > spends 120 per 60 seconds: `search:user:<uuid>` when the caller is signed
+   > in, otherwise `search:ip:<address>`. The address is
+   > `x-vercel-forwarded-for`, then `x-real-ip`, then the last
+   > `x-forwarded-for` hop, else `local`. The website's search actions spend
+   > the same budget. `POST /api/loadout` does not. A 400 or a 401 does not
+   > spend the search budget. A spent budget is 429 `rate_limited` with
+   > `Retry-After` and `retry_after` on the error body.
+   > `GET /api/cron/rate-limits` deletes buckets older than a day when
+   > `Authorization` is `Bearer $CRON_SECRET` (`apps/web/vercel.json`).
+   > A new write route must call `requireBearerUser` and
+   > `consumeWriteRateLimit`. A GET must not call `consumeWriteRateLimit`. A
+   > route whose path ends in `search/route.ts`, and any non-test caller of
+   > the catalogue search queries, must call the imported
+   > `consumeSearchRateLimit` (`test/api/v1-routes-auth.test.ts`).
+   >
+   > Later, if typeahead gets slow: a `pg_trgm` index on `games.name` and the
+   > taxonomy names, and limiting candidate rows before the rating aggregate.
+   > Not this slice.
 
 ### Phase 2 — Mobile foundation (≈1–2 weeks)
 
@@ -879,8 +916,10 @@ Query → native screen) proves out every layer before you repeat the pattern
   touching libraries or private lists needs an app-code gate and a test.
 - **API breaking changes.** Old app versions stay in the wild. Additive changes
   only in `/api/v1`.
-- **Bundle contamination.** `packages/shared` must stay free of server imports
-  (see AGENTS.md on `game-search.ts`).
+- **Bundle contamination.** `packages/shared` must stay free of server imports.
+  A `'use client'` file must not import `lib/queries/game.ts`, `lib/db`,
+  `lib/auth`, or `lib/rate-limit`. Search goes through `app/search-actions.ts`.
+  `test/api/client-boundary.test.ts` scans for that import.
 - **Duplicate React** in the monorepo — the classic "Invalid hook call" error.
   Per-app pins don't survive npm hoisting: pin one exact React (the Expo SDK's)
   in both apps *and* the root `overrides`, and bump it on every SDK upgrade.
@@ -922,7 +961,7 @@ don't blame the move for it later:
 - [x] `/settings`, `/steamlink`, `/policy` ← reads `app/policy/policy.html` via `process.cwd()`
 - [x] `/opengraph-image` and `/games/<slug>/opengraph-image` ← read `assets/fonts` via `process.cwd()`
 - [x] One write of each kind: rate a game, change library status, like a list, follow someone
-- [x] Search in the favorite-game picker (exercises `game-search.ts`)
+- [x] Search in the favorite-game picker (exercises `app/search-actions.ts`)
 - [x] Upload an avatar (R2 presigned PUT)
 
 ### A.2 What moves and what stays
@@ -1249,7 +1288,7 @@ Only code that **both** apps import belongs in `packages/shared`. The website
 never calls `/api/v1`:
 
 - Server Components call **loaders** directly (B.5).
-- Client components call **Server Actions** — including search, which gets
+- Client components call **Server Actions** — including search, which uses
   `app/search-actions.ts` rather than going through the API (Phase 1 step 6).
 
 So the fetch client has exactly one user, and it lives at `apps/mobile/src/lib/api/`. What

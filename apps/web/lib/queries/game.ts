@@ -1,6 +1,9 @@
-import { sql, and, eq, inArray } from 'drizzle-orm'
+import 'server-only'
+import { sql, and, asc, eq, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { games, gameGenres, gamePlatforms, gameDevelopers, gamePublishers, genres, platforms, developers, publishers, gameExternalIds } from '@/db/schema'
+import { games, gameGenres, gamePlatforms, gameDevelopers, gamePublishers, genres, platforms, developers, publishers, gameExternalIds, libraryEntries } from '@/db/schema'
+import { SEARCH_MAX_PAGE_SIZE, SEARCH_QUERY_MAX_LENGTH, TAXONOMY_SEARCH_ID_CAP, TAXONOMY_SEARCH_TABLES } from '@screenpeak/shared/constants'
+import type { TaxonomySearchTable } from '@screenpeak/shared/api/search'
 import { GameData } from '@screenpeak/shared/types'
 import { uuidArrayParam } from '@/lib/sql-helpers'
 import { logger } from '@/lib/logger'
@@ -213,4 +216,143 @@ export async function getGamesFromSteamIds(gameIds: number[]) {
     }
 
     return results
+}
+
+export class SearchInputError extends Error {
+    constructor(message: string) {
+        super(message)
+        this.name = 'SearchInputError'
+    }
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** LIKE pattern that matches the trimmed query as a substring. `%`, `_`, and `\` are literal. */
+export function containsPattern(query: string): string {
+    return `%${query.replace(/[\\%_]/g, char => `\\${char}`)}%`
+}
+
+function searchBounds(query: string, limit: number): { q: string, take: number } {
+    const q = query.trim()
+    if (!q) throw new SearchInputError('Enter a search.')
+    if (q.length > SEARCH_QUERY_MAX_LENGTH) throw new SearchInputError(`Search is limited to ${SEARCH_QUERY_MAX_LENGTH} characters.`)
+    if (!Number.isInteger(limit) || limit < 1 || limit > SEARCH_MAX_PAGE_SIZE) throw new SearchInputError('`limit` is out of range.')
+    return { q, take: limit }
+}
+
+function ratingNumber(value: unknown): number | null {
+    if (value == null || value === '') return null
+    const n = typeof value === 'number' ? value : Number(value)
+    return Number.isFinite(n) ? n : null
+}
+
+export type GameNameHit = {
+    id: string
+    name: string
+    slug: string
+    cover_image_url: string | null
+    released: string | null
+    avg_rating: number | null
+}
+
+// Name contains-query for the typeahead. Throws on a database error.
+// `avg_rating` is the community average out of 10. The stored cover is not
+// rewritten here — the API shapes it into a display URL.
+export async function searchGamesByName(query: string, limit = SEARCH_MAX_PAGE_SIZE): Promise<GameNameHit[]> {
+    const { q, take } = searchBounds(query, limit)
+    const pattern = containsPattern(q)
+    const rows = await db.execute(sql`
+        select
+            g.id,
+            g.name,
+            g.slug,
+            g.cover_image_url,
+            g.released::text as released,
+            round(avg(rr.rating)::numeric, 2) as avg_rating
+        from games g
+        left join ratings_reviews rr on rr.game_id = g.id
+        where g.name ilike ${pattern} escape ${'\\'}
+        group by g.id
+        order by g.name asc, g.id asc
+        limit ${take}
+    `) as unknown as GameNameHit[]
+    return rows.map(row => ({
+        id: String(row.id),
+        name: String(row.name),
+        slug: String(row.slug),
+        cover_image_url: row.cover_image_url ?? null,
+        released: row.released == null ? null : String(row.released),
+        avg_rating: ratingNumber(row.avg_rating),
+    }))
+}
+
+const taxonomyTables = { developers, publishers } as const
+
+function taxonomySource(table: string) {
+    if (!(TAXONOMY_SEARCH_TABLES as readonly string[]).includes(table)) throw new SearchInputError('Unknown taxonomy.')
+    return taxonomyTables[table as TaxonomySearchTable]
+}
+
+// `limitToIds` omitted or empty does not add an id filter (the library
+// dropdown passes an empty list when the player has no developers yet).
+export async function searchTaxonomyTable(
+    table: TaxonomySearchTable,
+    query: string,
+    limitToIds?: string[],
+    limit = SEARCH_MAX_PAGE_SIZE,
+) {
+    const { q, take } = searchBounds(query, limit)
+    const source = taxonomySource(table)
+    const ids = limitToIds ?? []
+    if (ids.length > TAXONOMY_SEARCH_ID_CAP) throw new SearchInputError(`At most ${TAXONOMY_SEARCH_ID_CAP} ids.`)
+    if (ids.some(id => !UUID.test(id))) throw new SearchInputError('Must be a uuid.')
+    const pattern = containsPattern(q)
+    return db
+        .select({ id: source.id, name: source.name, slug: source.slug })
+        .from(source)
+        .where(and(
+            sql`${source.name} ilike ${pattern} escape ${'\\'}`,
+            ids.length > 0 ? inArray(source.id, ids) : undefined,
+        ))
+        .orderBy(asc(source.name), asc(source.id))
+        .limit(take)
+}
+
+const libraryJoins = {
+    developers: { link: gameDevelopers, fk: gameDevelopers.developerId, gameId: gameDevelopers.gameId },
+    publishers: { link: gamePublishers, fk: gamePublishers.publisherId, gameId: gamePublishers.gameId },
+} as const
+
+/** Developers or publishers on games in this user's library. No client id list. */
+export async function searchLibraryTaxonomy(
+    userId: string,
+    table: TaxonomySearchTable,
+    query: string,
+    limit = SEARCH_MAX_PAGE_SIZE,
+) {
+    const { q, take } = searchBounds(query, limit)
+    if (!UUID.test(userId)) throw new SearchInputError('Must be a uuid.')
+    const source = taxonomySource(table)
+    const join = libraryJoins[table]
+    const pattern = containsPattern(q)
+    return db
+        .select({ id: source.id, name: source.name, slug: source.slug })
+        .from(source)
+        .innerJoin(join.link, eq(join.fk, source.id))
+        .innerJoin(libraryEntries, eq(libraryEntries.gameId, join.gameId))
+        .where(and(
+            eq(libraryEntries.userId, userId),
+            sql`${source.name} ilike ${pattern} escape ${'\\'}`,
+        ))
+        .groupBy(source.id, source.name, source.slug)
+        .orderBy(asc(source.name), asc(source.id))
+        .limit(take)
+}
+
+export async function getTaxonomyNameBySlug(table: TaxonomySearchTable, slug: string): Promise<string> {
+    const trimmed = slug.trim()
+    if (!trimmed || trimmed.length > 120) throw new SearchInputError('Enter a slug.')
+    const source = taxonomySource(table)
+    const rows = await db.select({ name: source.name }).from(source).where(eq(source.slug, trimmed)).limit(1)
+    return rows[0]?.name ?? ''
 }
