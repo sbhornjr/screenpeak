@@ -101,6 +101,27 @@ describe('createApiClient', () => {
     })
   })
 
+  it('searches games and taxonomy without a token when signed out', async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse(200, { games: [] }))
+    const api = createApiClient({
+      baseUrl: 'http://127.0.0.1:3210',
+      getToken: async () => null,
+      fetchImpl,
+    })
+
+    await api.games.search('Hades II', 10)
+    await api.taxonomy.search('developers', 'from')
+
+    expect(fetchImpl).toHaveBeenNthCalledWith(1, 'http://127.0.0.1:3210/api/v1/games/search?q=Hades%20II&limit=10', {
+      headers: { Accept: 'application/json' },
+      credentials: 'omit',
+    })
+    expect(fetchImpl).toHaveBeenNthCalledWith(2, 'http://127.0.0.1:3210/api/v1/taxonomy/developers/search?q=from', {
+      headers: { Accept: 'application/json' },
+      credentials: 'omit',
+    })
+  })
+
   it('treats 204 as an empty success', async () => {
     const fetchImpl = vi.fn(async () => ({ ok: true, status: 204, json: async () => { throw new Error('no json') } }))
     const api = createApiClient({

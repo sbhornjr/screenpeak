@@ -173,12 +173,13 @@ lib/
   schemas.ts             shared Zod schemas (forms + query-layer input checks)
   queries/               all DB access, grouped by domain — most files are
                          Drizzle-backed (user, game, library, list, review,
-                         feed, explore, stats, steam); user-auth.ts,
-                         game-search.ts, and feed-constants.ts stay on
-                         supabase-js/plain exports instead, split into their
-                         own files so a client component importing them never
+                         feed, explore, stats, steam). user-auth.ts stays on
+                         supabase-js so a client component importing it never
                          pulls Drizzle's postgres() client into the browser
-                         bundle (see Architecture notes)
+                         bundle. Catalogue search is Drizzle in game.ts and
+                         is reached from client components through
+                         app/search-actions.ts. FEED_PAGE_SIZE lives in
+                         @screenpeak/shared/constants (see Architecture notes)
 
 scripts/
   seed-igdb.ts           IGDB catalogue seed (npm run seed:igdb)
@@ -246,10 +247,12 @@ top-level import graph — including side-effecting imports like Drizzle's
 that imports even one `supabase-js`-only helper from a file that also does
 `import { db } from '@/lib/db'` drags Drizzle's Node-only dependencies
 (`fs`/`net`/`tls`) into the browser bundle, breaking the build with
-`Module not found: Can't resolve 'fs'`. That's why `lib/queries/user-auth.ts`,
-`lib/queries/game-search.ts`, and `lib/queries/feed-constants.ts` exist as
-separate files instead of living inside `user.ts`/`game.ts`/`feed.ts` — see
-`lib/queries/` in the project structure above.
+`Module not found: Can't resolve 'fs'`. That's why `lib/queries/user-auth.ts`
+stays separate from `user.ts`. Catalogue search lives in `lib/queries/game.ts`
+and client components reach it through `app/search-actions.ts` (`'use server'`),
+not by importing `game.ts`. `FEED_PAGE_SIZE` lives in
+`@screenpeak/shared/constants`. See `lib/queries/` in the project structure
+above.
 
 ### Auth & session refresh
 

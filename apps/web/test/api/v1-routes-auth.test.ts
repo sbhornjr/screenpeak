@@ -12,6 +12,7 @@ import { describe, expect, it } from 'vitest'
 
 const apiRoot = join(dirname(fileURLToPath(import.meta.url)), '../../app/api/v1')
 const METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE'])
+const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 // These two responses have no caller. Their route tests lock that they do not
 // read a session. Every other route must call the bearer helper so a cookie
 // cannot stand in, and so a bad token fails closed.
@@ -159,6 +160,18 @@ describe('/api/v1 route auth', () => {
             }
 
             const callsBearer = handlers.some(handler => handler.fn && bearerNames.some(name => callsName(handler.fn!, name)))
+            const requireBearer = namedImport(source, '@/lib/auth', 'requireBearerUser')
+            for (const handler of handlers) {
+                if (!WRITE_METHODS.has(handler.method)) continue
+                if (!requireBearer || !handler.fn || !callsName(handler.fn, requireBearer)) {
+                    problems.push(`${label} ${handler.method} must call requireBearerUser so the write rate limit applies`)
+                }
+            }
+            if (label.endsWith('/search/route.ts') || label.endsWith('search/route.ts')) {
+                const limitName = namedImport(source, '@/lib/rate-limit', 'consumeSearchRateLimit')
+                const callsLimit = !!limitName && handlers.some(handler => handler.fn && callsName(handler.fn, limitName))
+                if (!callsLimit) problems.push(`${label} must call consumeSearchRateLimit from @/lib/rate-limit`)
+            }
             if (NO_CALLER.has(label)) {
                 if (callsBearer || bearerNames.length > 0) problems.push(`${label} reads a session, but this response has no caller`)
                 if (importsCookieAuth(source)) problems.push(`${label} imports cookie auth`)

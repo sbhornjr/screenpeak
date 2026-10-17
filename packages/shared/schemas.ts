@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { SEARCH_MAX_PAGE_SIZE, SEARCH_QUERY_MAX_LENGTH, TAXONOMY_SEARCH_ID_CAP, TAXONOMY_SEARCH_TABLES } from './constants'
 
 // Shared field schemas — the single source of truth for input shape rules,
 // used both by lib/queries/* (server-side-of-the-call defense) and by the
@@ -103,6 +104,22 @@ export const avatarUploadSchema = z.object({
 export const avatarUrlSchema = z.object({
     url: z.url('Enter the uploaded image URL.'),
 })
+
+/** GET /api/v1/games/search and the website game-name search action. */
+export const gameSearchSchema = z.object({
+    q: z.string().trim().min(1, 'Enter a search.').max(SEARCH_QUERY_MAX_LENGTH, `Search is limited to ${SEARCH_QUERY_MAX_LENGTH} characters.`),
+    limit: z.coerce.number().int('`limit` must be a whole number.').min(1, '`limit` must be at least 1.').max(SEARCH_MAX_PAGE_SIZE, `\`limit\` cannot exceed ${SEARCH_MAX_PAGE_SIZE}.`).default(SEARCH_MAX_PAGE_SIZE),
+})
+
+export const taxonomyTableSchema = z.enum(TAXONOMY_SEARCH_TABLES)
+
+/** GET /api/v1/taxonomy/[table]/search. `ids` limits the match to those rows. */
+export const taxonomySearchSchema = gameSearchSchema.extend({
+    table: taxonomyTableSchema,
+    ids: z.array(uuidIdSchema).max(TAXONOMY_SEARCH_ID_CAP, `At most ${TAXONOMY_SEARCH_ID_CAP} ids.`).optional(),
+})
+
+export const taxonomySlugSchema = z.string().trim().min(1, 'Enter a slug.').max(120, 'That slug is too long.')
 
 /**
  * The website action forwards the whole selection in one call and has no row

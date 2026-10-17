@@ -2,6 +2,8 @@ import { z } from 'zod'
 import { GAME_REVIEWS_MAX_PAGE_SIZE, GAME_REVIEWS_PAGE_SIZE } from '@screenpeak/shared/constants'
 import type { ExploreRange } from '@screenpeak/shared/api/explore'
 import type { GamesListQuery } from '@screenpeak/shared/api/games'
+import type { TaxonomySearchTable } from '@screenpeak/shared/api/search'
+import { gameSearchSchema, taxonomySearchSchema } from '@screenpeak/shared/schemas'
 import type { LibraryQuery, LibrarySort, LibraryStatus } from '@screenpeak/shared/api/library'
 import type { ListsTab } from '@screenpeak/shared/api/lists'
 import type { UserReviewsQuery } from '@screenpeak/shared/api/user-reviews'
@@ -213,4 +215,47 @@ export function parseListsTab(params: URLSearchParams): Parsed<{ tab: ListsTab }
 
 export function parseListsTabLenient(params: PageSearch): { tab: ListsTab } {
     return { tab: first(params.tab) === 'liked' ? 'liked' : 'user' }
+}
+
+export type GameSearchParams = { q: string, limit: number }
+
+export type TaxonomySearchParams = {
+    table: TaxonomySearchTable
+    q: string
+    limit: number
+    ids?: string[]
+}
+
+export function parseGameSearchQuery(params: URLSearchParams): Parsed<GameSearchParams> {
+    const result = gameSearchSchema.safeParse({
+        q: params.get('q') ?? '',
+        limit: params.get('limit') ?? undefined,
+    })
+    if (!result.success) return fail(result.error)
+    return { ok: true, query: { q: result.data.q, limit: result.data.limit } }
+}
+
+function taxonomyIds(params: URLSearchParams): string[] | undefined {
+    const raw = params.get('ids')
+    if (raw == null || raw.trim() === '') return undefined
+    return raw.split(',').map(part => part.trim()).filter(Boolean)
+}
+
+export function parseTaxonomySearchQuery(table: string, params: URLSearchParams): Parsed<TaxonomySearchParams> {
+    const result = taxonomySearchSchema.safeParse({
+        table,
+        q: params.get('q') ?? '',
+        limit: params.get('limit') ?? undefined,
+        ids: taxonomyIds(params),
+    })
+    if (!result.success) return fail(result.error)
+    return {
+        ok: true,
+        query: {
+            table: result.data.table,
+            q: result.data.q,
+            limit: result.data.limit,
+            ids: result.data.ids,
+        },
+    }
 }

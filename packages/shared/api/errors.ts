@@ -12,6 +12,8 @@ export type ApiErrorCode =
     | 'auth_unavailable'
     /** 400 — a query parameter or body field is missing or out of range; `message` says which */
     | 'invalid_request'
+    /** 429 — the caller exceeded the write or search budget. Retry-After is seconds. */
+    | 'rate_limited'
     /** 404 */
     | 'not_found'
     /** 500 — unexpected server error (details are in the server logs only) */

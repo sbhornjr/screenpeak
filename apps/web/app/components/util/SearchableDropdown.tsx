@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { createClient } from '@/lib/supabase-browser'
-import { searchTaxonomyTable, getTaxonomyNameBySlug } from '@/lib/queries/game-search'
+import { searchTaxonomyTable, getTaxonomyNameBySlug } from '@/app/search-actions'
 import { ChevronDown, X } from "lucide-react"
 
 type Option = { id: string, name: string, slug: string }
@@ -33,11 +32,14 @@ export default function SearchableDropdown({ table, value, onChange, placeholder
                 return
             }
             setLoading(true)
-            const supabase = createClient()
-            const data = await searchTaxonomyTable(supabase, table, query, limit)
-
-            setResults(data)
-            setLoading(false)
+            try {
+                const data = await searchTaxonomyTable(table, query, limit)
+                setResults(data)
+            } catch {
+                setResults([])
+            } finally {
+                setLoading(false)
+            }
         }, 300)
         return () => clearTimeout(timer)
     }, [query, table, limit])
@@ -61,9 +63,12 @@ export default function SearchableDropdown({ table, value, onChange, placeholder
                 setSelectedName('')
                 return
             }
-            const supabase = createClient()
-            const name = await getTaxonomyNameBySlug(supabase, table, value)
-            setSelectedName(name)
+            try {
+                const name = await getTaxonomyNameBySlug(table, value)
+                setSelectedName(name)
+            } catch {
+                setSelectedName('')
+            }
         }
         fetchSelectedName()
     }, [value, table])

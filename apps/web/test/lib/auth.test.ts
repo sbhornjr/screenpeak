@@ -17,6 +17,8 @@ vi.mock('@/lib/supabase-stateless', () => ({
 vi.mock('@/lib/supabase-server', () => ({
     createClient: async () => ({ auth: { getUser: cookieGetUser } }),
 }))
+const consumeWriteRateLimit = vi.hoisted(() => vi.fn(async () => {}))
+vi.mock('@/lib/rate-limit', () => ({ consumeWriteRateLimit }))
 
 const { requireUser, getOptionalUser, getBearerUser, requireBearerUser } = await import('@/lib/auth')
 const { ApiError, UnauthenticatedError, AuthUnavailableError } = await import('@/lib/api')
@@ -35,6 +37,8 @@ beforeEach(() => {
     requestHeaders = new Headers()      // default: a browser request, no Authorization header
     bearerGetUser.mockReset()
     cookieGetUser.mockReset()
+    consumeWriteRateLimit.mockReset()
+    consumeWriteRateLimit.mockResolvedValue(undefined)
     cookieGetUser.mockResolvedValue(fail(noSession()))   // default: no cookie session
 })
 
@@ -170,15 +174,25 @@ describe('requireBearerUser — /api/v1 writes', () => {
         await rejectsWith(requireBearerUser(), 401, 'unauthenticated')
         expect(cookieGetUser).not.toHaveBeenCalled()
         expect(bearerGetUser).not.toHaveBeenCalled()
+        expect(consumeWriteRateLimit).not.toHaveBeenCalled()
     })
 
-    it('returns the bearer user and still does not read cookies', async () => {
+    it('returns the bearer user, spends a write token, and still does not read cookies', async () => {
         withHeaders({ authorization: 'Bearer good.jwt.token' })
         bearerGetUser.mockResolvedValue(ok(USER))
         cookieGetUser.mockResolvedValue(ok({ id: 'cookie-user', email: 'other@screenpeak.test' }))
 
         await expect(requireBearerUser()).resolves.toEqual({ id: 'user-123', email: 'player@screenpeak.test' })
         expect(cookieGetUser).not.toHaveBeenCalled()
+        expect(consumeWriteRateLimit).toHaveBeenCalledWith('user-123')
+    })
+
+    it('returns 429 when the write budget is spent and does not hide the rate-limit error', async () => {
+        withHeaders({ authorization: 'Bearer good.jwt.token' })
+        bearerGetUser.mockResolvedValue(ok(USER))
+        consumeWriteRateLimit.mockRejectedValue(new ApiError(429, 'rate_limited', 'Too many requests. Try again soon.', { 'Retry-After': '3' }))
+
+        await rejectsWith(requireBearerUser(), 429, 'rate_limited')
     })
 
     it('rejects an empty bearer token with 401 invalid_token', async () => {

@@ -3,10 +3,9 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
-import { createClient } from "@/lib/supabase-browser"
 import { Game } from "@screenpeak/shared/types"
 import Modal from "@/app/components/util/Modal"
-import { searchGamesByName } from "@/lib/queries/game-search"
+import { searchGamesByName } from "@/app/search-actions"
 import { displayCoverUrl } from "@/lib/catalog/images"
 import { syncListGamesAction } from "@/app/list-actions"
 
@@ -25,9 +24,12 @@ export default function AddToListFromListButton({ listId, currentGames } : { lis
                 return
             }   
 
-            const supabase = createClient()
-            const data = await searchGamesByName(supabase, searchQuery)
-            setResults(data)
+            try {
+                const data = await searchGamesByName(searchQuery)
+                setResults(data)
+            } catch {
+                setResults([])
+            }
         }, 300) // wait 300ms after user stops typing
 
         return () => clearTimeout(timer) // cancel if user types again before 300ms

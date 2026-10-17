@@ -414,6 +414,16 @@ export const steamImportRuns = igdbPrivate.table('steam_import_runs', {
 }).enableRLS()
 // 0004 created this table. The reset command is gone; the table stays so
 // schema.ts still matches the applied migration.
+// 0009. Fixed-window /api/v1 counters. Browser roles have no grants.
+export const apiRateLimits = pgTable('api_rate_limits', {
+    bucket: text().primaryKey(),
+    windowStart: timestamp('window_start', { withTimezone: true, mode: 'string' }).notNull(),
+    hits: integer().notNull(),
+}, table => [
+    check('api_rate_limits_bucket_length', sql`char_length(${table.bucket}) between 1 and 200`),
+    check('api_rate_limits_hits_nonnegative', sql`${table.hits} >= 0`),
+]).enableRLS()
+
 export const catalogResetRuns = igdbPrivate.table('catalog_reset_runs', {
     runId: uuid('run_id').primaryKey(),
     manifestChecksum: text('manifest_checksum').notNull(),

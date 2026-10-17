@@ -11,6 +11,7 @@ import type { LoadoutPageData } from './loadout'
 import type { MeData, SettingsData } from './me'
 import type { ProfilePageData } from './profile'
 import type { UserReviewsPage, UserReviewsQuery } from './user-reviews'
+import type { GameSearchPage, TaxonomySearchPage, TaxonomySearchTable } from './search'
 import type {
     AvatarSave,
     AvatarUploadRequest,
@@ -124,6 +125,7 @@ export function createApiClient(opts: {
             get: (slug: string) => get<GamePageData>(`/api/v1/games/${encodeURIComponent(slug)}`),
             reviews: (slug: string) => get<GameReviewsPage>(`/api/v1/games/${encodeURIComponent(slug)}/reviews?${REVIEWS_QUERY}`),
             list: (query: Partial<GamesListQuery> = {}) => get<GamesListPage>(`/api/v1/games${qs(query)}`),
+            search: (q: string, limit?: number) => get<GameSearchPage>(`/api/v1/games/search${qs({ q, limit })}`),
             putReview: (gameId: string, body: RatingWrite) =>
                 send<RatingWriteResult>('PUT', `/api/v1/games/${gameIdPath(gameId)}/review`, body),
         },
@@ -167,6 +169,10 @@ export function createApiClient(opts: {
                 send<OkResult>('DELETE', `${listIdPath(listId)}/games/${gameIdPath(gameId)}`),
             syncGames: (listId: string, body: ListGameSync) =>
                 send<OkResult>('POST', `${listIdPath(listId)}/games/sync`, body),
+        },
+        taxonomy: {
+            search: (table: TaxonomySearchTable, q: string) =>
+                get<TaxonomySearchPage>(`/api/v1/taxonomy/${encodeURIComponent(table)}/search${qs({ q })}`),
         },
         users: {
             get: (username: string) => get<ProfilePageData>(user(username)),

@@ -178,8 +178,9 @@ Do **not** mix them. The server client is async (`await createClient()`). The br
 
 Functions that intentionally stay on `supabase-js` instead of `db` live in their own dedicated files, never mixed into a Drizzle-backed `lib/queries/*` file — importing a single named export pulls in a module's *entire* top-level import graph, so one `supabase-js`-only function sharing a file with `import { db } from '@/lib/db'` drags Drizzle's `postgres()` client (and its `fs`/`net`/`tls` Node built-ins) into any client bundle that imports the file, breaking the build with `Module not found: Can't resolve 'fs'`. That's why these are split out:
 - `lib/queries/user-auth.ts` — genuine Auth calls (`signInWithPassword`, `signOut`, etc.) — avatar uploads moved to `lib/r2.ts` + `app/user-actions.ts`. "Who's signed in?" is *not* here: see "Who's calling" below
-- `lib/queries/game-search.ts` — read-only search functions called directly from `'use client'` components (`searchGamesByName`, `searchTaxonomyTable`, `getTaxonomyNameBySlug`)
 - `FEED_PAGE_SIZE` — a plain constant client callers need, split out of `feed.ts` for the same reason; it now lives in `@screenpeak/shared/constants` (dependency-free by design, like everything in `packages/shared`)
+
+Game and taxonomy typeahead lives on `db` in `lib/queries/game.ts` (`searchGamesByName`, `searchTaxonomyTable`, `getTaxonomyNameBySlug`). Client components call `app/search-actions.ts`. `GET /api/v1/games/search` and `GET /api/v1/taxonomy/[table]/search` call the same functions. Do not import those queries from a `'use client'` file — that pulls `lib/db` into the browser bundle.
 
 Adding a new client-callable helper to `user.ts`, `game.ts`, or `feed.ts` reintroduces this bug — add it to the matching dedicated file instead, or create a new one for a different domain.
 
@@ -222,7 +223,17 @@ link formats.
 - **`/api/v1` writes call `requireBearerUser()`.** It is `getBearerUser()` plus a
   401 `unauthenticated` when the Bearer header is absent. It never reads the
   session cookie. Reads stay on `getBearerUser()` so a missing token is the
-  signed-out payload, not an error.
+  signed-out payload, not an error. A successful `requireBearerUser()` spends
+  one write-budget token (`consumeWriteRateLimit` in `lib/rate-limit.ts`): 60
+  requests per 60 seconds per user, stored in `api_rate_limits` (migration
+  0009). That includes `GET /api/v1/me/library/[gameId]`. Over the budget is
+  429 `rate_limited` with `Retry-After`. Search routes call
+  `consumeSearchRateLimit` after the query parses: 120 per 60 seconds, keyed
+  by the bearer user id when there is one, otherwise by `x-real-ip` (else the
+  last `x-forwarded-for` hop). A new write route that only calls
+  `getBearerUser()` skips the budget — `test/api/v1-routes-auth.test.ts`
+  requires `requireBearerUser` on POST, PUT, PATCH, and DELETE. A route whose
+  path ends in `search/route.ts` must call `consumeSearchRateLimit`.
 - Files under `app/api/v1/` cannot import cookie auth. `eslint/v1-bearer-only.mjs`
   (rule `screenpeak/v1-bearer-only`) fails lint on `getOptionalUser`,
   `requireUser`, `cookies` from `next/headers` (including a `.cookies()` call),
@@ -307,7 +318,10 @@ return the contract type itself is called directly by both the page and the rout
 - **Steam** — Web API for owned games + achievement completion (`lib/steam.ts`), behind
   Steam OpenID 2.0 sign-in (`lib/steam-openid.ts`); powers the `/steamlink` import flow
 - **Cloudflare R2** — user avatars, via a presigned direct-to-R2 upload (`lib/r2.ts`,
-  `createAvatarUploadUrl` in `app/user-actions.ts`). Game cover art is IGDB-hosted, never
+  `createAvatarUploadUrl` in `app/user-actions.ts`). The R2 env is read when an
+  upload URL is signed, not when the module loads: `user-actions.ts` shares a
+  page with other server actions, and a missing bucket must not fail those.
+  Game cover art is IGDB-hosted, never
   uploaded anywhere (remote patterns: `images.igdb.com`, plus the R2 custom domain — derived
   from `R2_PUBLIC_URL` in `next.config.ts`, not hardcoded).
 
