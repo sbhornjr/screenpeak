@@ -106,6 +106,20 @@ npm run seed:igdb -w @screenpeak/web -- --database-env LOCAL_DATABASE_URL --ids 
 
 Details: `docs/igdb.md`.
 
+## Make the right thing the easy thing
+
+Agents copy existing patterns, so fix the pattern: prefer architecture, types,
+invariants, and clear boundaries over comments or rules. Order of preference for
+preventing a class of bug: code or types that make it impossible, then a lint
+rule, test, or CI check, then prose in `AGENTS.md` or a skill. Prose is for
+judgment calls only. Add a line here only when it cannot be enforced in code.
+
+When a review finding is a class of bug (not a one-off), fix the instance and
+add a guard (type, lint rule, or test) so it cannot recur, and mention the
+guard in the PR. Past classes: `/api/v1` routes must use `getBearerUser` (never
+cookies); reads behind `/api/v1` must throw, not return `[]` or `null`; ids are
+uuid strings.
+
 ## Rules for agents
 
 - Talk to IGDB only through `lib/igdb/` and `scripts/seed-igdb.ts`. Talk to Steam only through `lib/steam.ts`, `lib/steam-openid.ts`, and `lib/catalog/steam-import.ts`. Do not call those APIs from a new client.
