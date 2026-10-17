@@ -5,6 +5,8 @@ import {
     usernameSchema, bioSchema,
     selectedTitleSchema, favoriteGameIdsSchema, privacyTypeSchema, parseOrError,
 } from '@screenpeak/shared/schemas'
+import { isOwnAvatarUrl } from '@/lib/avatar-upload'
+import { writeErrorText } from '@/lib/write-http'
 
 export async function getProfileSummaryByUsername(username: string) {
     // A database error must reject. Returning null makes an outage look like an unknown player.
@@ -158,6 +160,9 @@ export async function updateFavoriteGames(userId: string, gameIds: string[]) {
 }
 
 export async function updateAvatarUrl(userId: string, url: string) {
+    // Checked here, not only in the route, so the website action cannot store
+    // a URL next/image will refuse for everyone who sees this player.
+    if (!isOwnAvatarUrl(url, userId)) return 'That image URL is not your avatar.'
     try {
         await db.update(users).set({ avatarUrl: url }).where(eq(users.id, userId))
         return null
@@ -171,6 +176,70 @@ const PRIVACY_COLUMN = {
     'Library': 'libraryPublic',
     'Loadout': 'loadoutPublic',
 } as const
+
+type AccountPatch = {
+    username?: string
+    bio?: string
+    selectedTitle?: string
+    loadoutBio?: string
+    favoriteGames?: string[]
+    privacy?: { type: string; public: boolean }
+}
+
+/** One transaction so a multi-field PATCH cannot leave a half-applied account. */
+export async function patchAccount(userId: string, fields: AccountPatch) {
+    const set: {
+        username?: string
+        userBio?: string
+        selectedTitle?: string
+        profileLoadoutBio?: string
+        favoriteGameIds?: string[]
+        defaultListPublic?: boolean
+        libraryPublic?: boolean
+        loadoutPublic?: boolean
+    } = {}
+
+    if (fields.username !== undefined) {
+        const parsed = parseOrError(usernameSchema, fields.username)
+        if (!parsed.success) return { error: parsed.error }
+        set.username = parsed.data
+    }
+    if (fields.bio !== undefined) {
+        const parsed = parseOrError(bioSchema, fields.bio)
+        if (!parsed.success) return { error: parsed.error }
+        set.userBio = parsed.data
+    }
+    if (fields.selectedTitle !== undefined) {
+        const parsed = parseOrError(selectedTitleSchema, fields.selectedTitle)
+        if (!parsed.success) return { error: parsed.error }
+        set.selectedTitle = parsed.data
+    }
+    if (fields.loadoutBio !== undefined) {
+        const parsed = parseOrError(bioSchema, fields.loadoutBio)
+        if (!parsed.success) return { error: parsed.error }
+        set.profileLoadoutBio = parsed.data
+    }
+    if (fields.favoriteGames !== undefined) {
+        const parsed = parseOrError(favoriteGameIdsSchema, fields.favoriteGames)
+        if (!parsed.success) return { error: parsed.error }
+        set.favoriteGameIds = parsed.data
+    }
+    if (fields.privacy !== undefined) {
+        const parsed = parseOrError(privacyTypeSchema, fields.privacy.type)
+        if (!parsed.success) return { error: parsed.error }
+        set[PRIVACY_COLUMN[parsed.data]] = fields.privacy.public
+    }
+    if (Object.keys(set).length === 0) return { error: 'Nothing to update.' }
+
+    try {
+        await db.transaction(async (tx) => {
+            await tx.update(users).set(set).where(eq(users.id, userId))
+        })
+        return { error: null }
+    } catch (error) {
+        return { error: writeErrorText(error) }
+    }
+}
 
 export async function updatePrivacy(privacy: boolean, type: string, userId: string) {
     const parsed = parseOrError(privacyTypeSchema, type)
@@ -239,30 +308,24 @@ export async function unfollowUser(followerId: string, followingId: string) {
 // check lives here: a private or never-generated Loadout returns null and the
 // section hides itself.
 export async function getFeaturedLoadout(username: string) {
-    try {
-        const rows = await db
-            .select({ username: users.username, avatar_url: users.avatarUrl, loadout_identity: users.loadoutIdentity })
-            .from(users)
-            .where(and(eq(users.username, username), eq(users.loadoutPublic, true)))
-            .limit(1)
+    // A database error must reject. Null is "no public Read-out", not an outage.
+    const rows = await db
+        .select({ username: users.username, avatar_url: users.avatarUrl, loadout_identity: users.loadoutIdentity })
+        .from(users)
+        .where(and(eq(users.username, username), eq(users.loadoutPublic, true)))
+        .limit(1)
 
-        const row = rows[0]
-        return row?.loadout_identity ? { ...row, loadout_identity: row.loadout_identity } : null
-    } catch {
-        return null
-    }
+    const row = rows[0]
+    return row?.loadout_identity ? { ...row, loadout_identity: row.loadout_identity } : null
 }
 
 export async function getCurrentLoadoutIdentity(userId: string) {
-    try {
-        const rows = await db
-            .select({ loadout_identity: users.loadoutIdentity, loadout_identity_at: users.loadoutIdentityAt })
-            .from(users)
-            .where(eq(users.id, userId))
-            .limit(1)
+    // A database error must reject. Null is a player who has not generated a Read-out.
+    const rows = await db
+        .select({ loadout_identity: users.loadoutIdentity, loadout_identity_at: users.loadoutIdentityAt })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1)
 
-        return rows[0] ?? null
-    } catch {
-        return null
-    }
+    return rows[0] ?? null
 }

@@ -12,12 +12,8 @@ export async function getLoadoutGenreStats(userId: string): Promise<GenreStatTyp
 }
 
 export async function getLoadoutDeveloperStats(userId: string): Promise<DeveloperStatType[]> {
-    try {
-        const rows = await db.execute(sql`select * from get_loadout_developer_stats(p_user_id => ${userId})`)
-        return rows as unknown as DeveloperStatType[]
-    } catch {
-        return []
-    }
+    const rows = await db.execute(sql`select * from get_loadout_developer_stats(p_user_id => ${userId})`)
+    return rows as unknown as DeveloperStatType[]
 }
 
 export async function getLoadoutStatusBreakdown(userId: string): Promise<StatusStatType[]> {
@@ -30,10 +26,6 @@ export async function getLoadoutStatusBreakdown(userId: string): Promise<StatusS
 }
 
 export async function getLoadoutRatingHighlights(userId: string): Promise<HighlightType[]> {
-    try {
-        const rows = await db.execute(sql`select * from get_loadout_rating_highlights(p_user_id => ${userId})`)
-        return rows as unknown as HighlightType[]
-    } catch {
-        return []
-    }
+    const rows = await db.execute(sql`select * from get_loadout_rating_highlights(p_user_id => ${userId})`)
+    return rows as unknown as HighlightType[]
 }

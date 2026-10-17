@@ -4,7 +4,13 @@ import { ratingReviewSchema } from '@screenpeak/shared/schemas'
 import { withAuth } from '@/lib/api'
 import { requireBearerUser } from '@/lib/auth'
 import { getUserRatingReviewForGame, saveRatingReview } from '@/lib/queries/review'
+import { parseDbTimestamp } from '@/lib/dates'
 import { assertWriteOk, jsonPrivate, parseBody, readJson, uuidParam } from '@/lib/write-http'
+
+function isoTimestamp(value: string | null | undefined): string | null {
+    if (!value) return null
+    return parseDbTimestamp(value).toISOString()
+}
 
 // The path segment is the game uuid. The folder is named [slug] because GET
 // /api/v1/games/[slug] already owns that dynamic segment.
@@ -23,8 +29,8 @@ export const PUT = withAuth(async (req: NextRequest, ctx: RouteContext<'/api/v1/
         rating: result.data.rating,
         review: result.data.review,
         user_id: result.data.user_id,
-        created_at: result.data.created_at,
-        updated_at: result.data.updated_at,
+        created_at: isoTimestamp(result.data.created_at),
+        updated_at: isoTimestamp(result.data.updated_at),
     }
     return jsonPrivate(data, existing ? 200 : 201)
 })

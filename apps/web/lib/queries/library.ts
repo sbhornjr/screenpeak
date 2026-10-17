@@ -41,14 +41,22 @@ export async function getLibraryEntry(userId: string, gameId: string) {
     return rows[0] ?? null
 }
 
+/** Status is required. The other fields are applied only when the caller sent them. */
 export type LibraryEntryFields = {
+    status: string
+    is100?: boolean
+    hours?: number | null
+    playedCount?: number
+}
+
+type CompleteLibraryEntryFields = {
     status: string
     is100: boolean
     hours: number | null
     playedCount: number
 }
 
-export async function createLibraryEntry(userId: string, gameId: string, fields: LibraryEntryFields) {
+export async function createLibraryEntry(userId: string, gameId: string, fields: CompleteLibraryEntryFields) {
     try {
         const rows = await db
             .insert(libraryEntries)
@@ -69,7 +77,7 @@ export async function createLibraryEntry(userId: string, gameId: string, fields:
     }
 }
 
-export async function updateLibraryEntry(userId: string, gameId: string, fields: LibraryEntryFields) {
+export async function updateLibraryEntry(userId: string, gameId: string, fields: CompleteLibraryEntryFields) {
     try {
         const rows = await db
             .update(libraryEntries)
@@ -89,12 +97,42 @@ export async function updateLibraryEntry(userId: string, gameId: string, fields:
     }
 }
 
-/** The website's Save action and PUT /api/v1/me/library/[gameId] both call this. */
+/**
+ * One INSERT … ON CONFLICT so two first saves cannot both insert.
+ * A new row uses the column defaults for anything the caller left out
+ * (100% false, hours null, play count 1). An existing row changes only
+ * the fields that were present, so a status-only save keeps hours,
+ * play count, and the 100% flag.
+ */
 export async function upsertLibraryEntry(userId: string, gameId: string, fields: LibraryEntryFields) {
-    const existing = await getLibraryEntry(userId, gameId)
-    return existing
-        ? updateLibraryEntry(userId, gameId, fields)
-        : createLibraryEntry(userId, gameId, fields)
+    const hoursPlayed = fields.hours != null ? String(fields.hours) : null
+    try {
+        const rows = await db
+            .insert(libraryEntries)
+            .values({
+                userId,
+                gameId,
+                status: fields.status,
+                completedAllAchievements: fields.is100 ?? false,
+                hoursPlayed: fields.hours !== undefined ? hoursPlayed : null,
+                playCount: fields.playedCount ?? 1,
+            })
+            .onConflictDoUpdate({
+                target: [libraryEntries.userId, libraryEntries.gameId],
+                set: {
+                    status: fields.status,
+                    ...(fields.is100 !== undefined ? { completedAllAchievements: fields.is100 } : {}),
+                    ...(fields.hours !== undefined ? { hoursPlayed } : {}),
+                    ...(fields.playedCount !== undefined ? { playCount: fields.playedCount } : {}),
+                },
+            })
+            .returning(LIBRARY_ENTRY_COLUMNS)
+
+        return rows[0] ?? null
+    } catch (error) {
+        logger.error('queries:library', 'Failed to upsert library entry', { userId, gameId, error: error instanceof Error ? error.message : String(error) })
+        throw error
+    }
 }
 
 /** Deletes the caller's row for this game. Null when they had no row. A database error rejects. */
@@ -213,12 +251,13 @@ export async function getLibraryRowsForGames(userId: string, gameIds: string[]) 
 }
 
 export async function getLibraryFacets(userId: string) {
+    // A failed facet query must reject. An empty list would look like a library with no genres.
     const [genresRows, platformsRows, developersRows, publishersRows, esrbRows] = await Promise.all([
-        db.execute(sql`select * from get_library_genres(p_user_id => ${userId})`).catch(() => []),
-        db.execute(sql`select * from get_library_platforms(p_user_id => ${userId})`).catch(() => []),
-        db.execute(sql`select * from get_library_developers(p_user_id => ${userId})`).catch(() => []),
-        db.execute(sql`select * from get_library_publishers(p_user_id => ${userId})`).catch(() => []),
-        db.execute(sql`select * from get_library_esrb_ratings(p_user_id => ${userId})`).catch(() => []),
+        db.execute(sql`select * from get_library_genres(p_user_id => ${userId})`),
+        db.execute(sql`select * from get_library_platforms(p_user_id => ${userId})`),
+        db.execute(sql`select * from get_library_developers(p_user_id => ${userId})`),
+        db.execute(sql`select * from get_library_publishers(p_user_id => ${userId})`),
+        db.execute(sql`select * from get_library_esrb_ratings(p_user_id => ${userId})`),
     ])
 
     return {
@@ -231,14 +270,11 @@ export async function getLibraryFacets(userId: string) {
 }
 
 export async function getLibraryStatusBreakdown(userId: string) {
-    try {
-        const rows = await db
-            .select({ status: libraryEntries.status })
-            .from(libraryEntries)
-            .where(eq(libraryEntries.userId, userId))
+    // A database error must reject. An empty breakdown would look like a player with no games.
+    const rows = await db
+        .select({ status: libraryEntries.status })
+        .from(libraryEntries)
+        .where(eq(libraryEntries.userId, userId))
 
-        return { entries: rows, totalCount: rows.length }
-    } catch {
-        return { entries: [], totalCount: 0 }
-    }
+    return { entries: rows, totalCount: rows.length }
 }

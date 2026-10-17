@@ -29,9 +29,13 @@ export default function LoadoutActions({ identity }: { identity: string }) {
                 router.refresh()
             } else {
                 const body = await res.json().catch(() => null)
+                const reported = body?.error
+                const errorText = reported && typeof reported === 'object' && 'message' in reported
+                    ? reported.message
+                    : reported
                 logger.error("loadout-identity", "Generation request failed", {
                     status: res.status,
-                    error: body?.error,
+                    error: errorText,
                 })
                 if (res.status === 401) setError("You need to be logged in.")
                 else if (res.status === 429) setError("Just generated one. Wait a minute and try again.")

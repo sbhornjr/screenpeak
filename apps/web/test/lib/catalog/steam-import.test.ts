@@ -4,7 +4,7 @@ import type { CatalogGame } from '@/lib/catalog/types'
 import type { SteamImportStore, SteamMatch } from '@/lib/catalog/steam-import'
 import {
     resolveSteamBatch, buildSteamLinkEntries, steamOwnershipBlock, parseSteamImportRequest,
-    confirmSteamLibraryEntries, cacheUntil, hoursFromSteamMinutes, hoursForSteamLibrary,
+    confirmSteamLibraryEntries, steamEntriesToImport, cacheUntil, hoursFromSteamMinutes, hoursForSteamLibrary,
     mergeConfirmedSteamEntry, selectSteamImportQueue, steamImportContinuation, KNOWN_INELIGIBLE_STEAM_APPS,
     STEAM_LOOKUP_BATCH,
 } from '@/lib/catalog/steam-import'
@@ -458,6 +458,26 @@ describe('library collapse', () => {
         await confirmSteamLibraryEntries('user-a', rows, owned, { store, write, readLibrary })
         expect(write).toHaveBeenCalledWith('user-a', [expect.objectContaining({ playtimeSelected: 5, steamPlaytimeMinutes: 60 })])
         expect(maps.get(11)).toBe('11111111-1111-4111-8111-111111111111')
+    })
+
+    it('does not write a game the player left unchecked', async () => {
+        const gameId = '11111111-1111-4111-8111-111111111111'
+        const other = '33333333-3333-4333-8333-333333333333'
+        const store: SteamImportStore = {
+            mappings: async () => [{ appid: 11, gameId }],
+            freshCache: async () => [],
+            remember: async () => false,
+            saveGame: async () => ({ id: null, attached: [], rejected: [], conflicted: [], elsewhere: [] }),
+        }
+        const write = vi.fn(async (_userId: string, rows: { gameId: string, selected: boolean }[]) => rows)
+        const readLibrary = vi.fn(async () => [])
+        const owned = [{ appid: 11, name: 'Hades', playtimeMinutes: 60 }]
+        const dropped = { ...entry(other, 9), selected: false }
+        expect(steamEntriesToImport([entry(gameId, 5), dropped])).toEqual([entry(gameId, 5)])
+        await confirmSteamLibraryEntries('user-a', [entry(gameId, 5), dropped], owned, { store, write, readLibrary })
+        const written = write.mock.calls[0][1]
+        expect(written.map(row => row.gameId)).toEqual([gameId])
+        expect(written.some(row => row.selected === false)).toBe(false)
     })
 })
 

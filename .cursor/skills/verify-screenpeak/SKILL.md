@@ -65,7 +65,7 @@ node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive game-writes
 
 `drive read-endpoints` does not sign in. It fetches the public read routes, hides `peek`'s library and loadout, inserts one private list, and checks that those stay off the JSON. It restores the public flags and deletes that list before it exits.
 
-`drive game-writes` signs in as `peek` through the local gateway password grant, not the website dialog. It updates one existing rating's text, changes that game's library status, creates a private list containing the game, and checks that the review route is 401 without a bearer. It restores the rating, the status, and deletes the list before it exits. Rating and library counts stay at five.
+`drive game-writes` signs in as `peek` through the local gateway password grant, not the website dialog. It updates one existing rating's text, changes that game's library status without clearing hours, play count, or the 100% flag, creates a private list containing the game, and checks that the review route is 401 without a bearer and 401 with only a cookie. It restores the rating, the status, and those three library columns, and deletes the list with `DELETE /api/v1/lists/[listId]` before it exits. Rating and library counts stay at five.
 
 The drive resets `peek`'s Read-out columns to null, signs in through the dialog, opens Loadout from the account menu and from `/user/peek/loadout`, clicks `Generate your Read-out`, and reads `public.users` back. It exits 0 only when the page shows the generated paragraph and `loadout_identity` in Postgres equals that paragraph. It exits 2 when the click ran but the model call did not produce text. Any other failure exits 1.
 
@@ -102,7 +102,7 @@ A passing read-endpoints proof shows `peek` in `page.png`, 200s for the public r
 - `result.json` — the write statuses, the Postgres review and library status from before the restore, and the counts
 - `postgres.txt` — the during-write review and status, then the restored row
 
-A passing game-writes proof shows the game name in `page.png`, 401 without a bearer, 200 for the review and library updates with the same values in Postgres, 201 for the list with one `list_games` row, 400 for a self-follow, and counts of 5 and 5 after the restore.
+A passing game-writes proof shows the game name in `page.png`, 401 without a bearer, 401 for a cookie with no bearer, 200 for the review and library updates with the same values in Postgres, hours 12.5 and play count 4 and the 100% flag still set after the status-only save, 201 for the list with one `list_games` row, 204 from `DELETE /api/v1/lists/[listId]`, 400 for a self-follow, and counts of 5 and 5 after the restore.
 
 ## Cleanup
 

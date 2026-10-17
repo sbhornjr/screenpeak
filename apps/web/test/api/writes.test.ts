@@ -12,6 +12,7 @@ const importConfirmedSteamLibrary = vi.fn()
 const createList = vi.fn()
 const createListWithGame = vi.fn()
 const updateList = vi.fn()
+const deleteList = vi.fn()
 const setListPinned = vi.fn()
 const likeList = vi.fn()
 const unlikeList = vi.fn()
@@ -21,7 +22,7 @@ const syncListGames = vi.fn()
 const followUser = vi.fn()
 const unfollowUser = vi.fn()
 const userExists = vi.fn()
-const updateUsername = vi.fn()
+const patchAccount = vi.fn()
 const updateBio = vi.fn()
 const updateSelectedTitle = vi.fn()
 const updateLoadoutBio = vi.fn()
@@ -44,11 +45,11 @@ vi.mock('@/lib/queries/review', () => ({ getUserRatingReviewForGame, saveRatingR
 vi.mock('@/lib/queries/library', () => ({ getLibraryEntry, upsertLibraryEntry, deleteLibraryEntryByGame }))
 vi.mock('@/lib/catalog/steam-import', () => ({ importConfirmedSteamLibrary, SteamImportInputError }))
 vi.mock('@/lib/queries/list', () => ({
-    createList, createListWithGame, updateList, setListPinned, likeList, unlikeList,
+    createList, createListWithGame, updateList, deleteList, setListPinned, likeList, unlikeList,
     addGameToList, removeGameFromList, syncListGames,
 }))
 vi.mock('@/lib/queries/user', () => ({
-    followUser, unfollowUser, userExists, updateUsername, updateBio, updateSelectedTitle,
+    followUser, unfollowUser, userExists, patchAccount, updateBio, updateSelectedTitle,
     updateLoadoutBio, updateFavoriteGames, updatePrivacy, updateAvatarUrl, clearLoadoutIdentity,
 }))
 vi.mock('@/lib/queries/steam', () => ({ unlinkSteamAccount }))
@@ -92,8 +93,8 @@ beforeEach(() => {
     requireBearerUser.mockReset().mockResolvedValue(USER)
     for (const fn of [
         getUserRatingReviewForGame, saveRatingReview, getLibraryEntry, upsertLibraryEntry, deleteLibraryEntryByGame,
-        importConfirmedSteamLibrary, createList, createListWithGame, updateList, setListPinned, likeList, unlikeList,
-        addGameToList, removeGameFromList, syncListGames, followUser, unfollowUser, userExists, updateUsername,
+        importConfirmedSteamLibrary, createList, createListWithGame, updateList, deleteList, setListPinned, likeList, unlikeList,
+        addGameToList, removeGameFromList, syncListGames, followUser, unfollowUser, userExists, patchAccount,
         updateBio, updateSelectedTitle, updateLoadoutBio, updateFavoriteGames, updatePrivacy, updateAvatarUrl,
         clearLoadoutIdentity, createPresignedAvatarUploadUrl, unlinkSteamAccount,
     ]) fn.mockReset()
@@ -132,7 +133,10 @@ describe('PUT /api/v1/games/[gameId]/review', () => {
     it('creates a rating for the bearer user and ignores a user id in the body', async () => {
         getUserRatingReviewForGame.mockResolvedValue(null)
         saveRatingReview.mockResolvedValue({
-            data: { rating: 8, review: 'sharp', user_id: USER.id, created_at: 't', updated_at: 't' },
+            data: {
+                rating: 8, review: 'sharp', user_id: USER.id,
+                created_at: '2026-04-01 12:00:00.000+00', updated_at: '2026-04-01 12:00:00.000+00',
+            },
             error: null,
         })
 
@@ -144,7 +148,10 @@ describe('PUT /api/v1/games/[gameId]/review', () => {
         )
 
         expect(res.status).toBe(201)
-        expect(await res.json()).toMatchObject({ rating: 8, review: 'sharp', user_id: USER.id })
+        expect(await res.json()).toMatchObject({
+            rating: 8, review: 'sharp', user_id: USER.id,
+            created_at: '2026-04-01T12:00:00.000Z', updated_at: '2026-04-01T12:00:00.000Z',
+        })
         expect(saveRatingReview).toHaveBeenCalledWith(USER.id, GAME, 8, 'sharp', false)
         expect(res.headers.get('cache-control')).toBe('private, no-store')
     })
@@ -152,7 +159,10 @@ describe('PUT /api/v1/games/[gameId]/review', () => {
     it('updates when the bearer user already rated the game', async () => {
         getUserRatingReviewForGame.mockResolvedValue({ rating: 6 })
         saveRatingReview.mockResolvedValue({
-            data: { rating: 9, review: '', user_id: USER.id, created_at: 't', updated_at: 't2' },
+            data: {
+                rating: 9, review: '', user_id: USER.id,
+                created_at: '2026-04-01 12:00:00.000+00', updated_at: '2026-04-02 12:00:00.000+00',
+            },
             error: null,
         })
 
@@ -198,9 +208,7 @@ describe('library log', () => {
         )
 
         expect(res.status).toBe(200)
-        expect(upsertLibraryEntry).toHaveBeenCalledWith(USER.id, GAME, {
-            status: 'completed', is100: false, hours: null, playedCount: 1,
-        })
+        expect(upsertLibraryEntry).toHaveBeenCalledWith(USER.id, GAME, { status: 'completed' })
     })
 
     it('rejects an unknown status', async () => {
@@ -260,12 +268,31 @@ describe('lists', () => {
         expect(updateList).toHaveBeenCalledWith(LIST, fields, USER.id)
     })
 
+    it('deletes only the caller\'s list', async () => {
+        deleteList.mockResolvedValue({ error: null })
+
+        const res = await call(listItem.DELETE, `http://localhost/api/v1/lists/${LIST}`, { listId: LIST }, { method: 'DELETE' })
+
+        expect(res.status).toBe(204)
+        expect(deleteList).toHaveBeenCalledWith(LIST, USER.id)
+    })
+
+    it('answers 404 when deleting a list the caller does not own', async () => {
+        deleteList.mockResolvedValue({ error: 'List not found' })
+
+        const res = await call(listItem.DELETE, `http://localhost/api/v1/lists/${LIST}`, { listId: LIST }, { method: 'DELETE' })
+
+        expect(res.status).toBe(404)
+        expect((await res.json()).error.code).toBe('not_found')
+    })
+
     it('pins only the caller\'s list', async () => {
         setListPinned.mockResolvedValue({ isPinned: true, error: null })
 
         const res = await call(listItem.PATCH, `http://localhost/api/v1/lists/${LIST}`, { listId: LIST }, jsonInit('PATCH', { isPinned: true }))
 
         expect(res.status).toBe(200)
+        expect(await res.json()).toEqual({ ok: true, isPinned: true })
         expect(setListPinned).toHaveBeenCalledWith(LIST, true, USER.id)
         expect(updateList).not.toHaveBeenCalled()
     })
@@ -348,18 +375,18 @@ describe('follow', () => {
 
 describe('profile, avatar, steam, loadout clear', () => {
     it('patches only the bearer user and rejects an empty body', async () => {
-        updateUsername.mockResolvedValue({ data: { username: 'ada' }, error: null })
+        patchAccount.mockResolvedValue({ error: null })
 
         const res = await call(me.PATCH, 'http://localhost/api/v1/me', {}, jsonInit('PATCH', { username: 'ada', userId: OTHER }))
         const empty = await call(me.PATCH, 'http://localhost/api/v1/me', {}, jsonInit('PATCH', {}))
 
         expect(res.status).toBe(200)
-        expect(updateUsername).toHaveBeenCalledWith(USER.id, 'ada')
+        expect(patchAccount).toHaveBeenCalledWith(USER.id, { username: 'ada' })
         expect(empty.status).toBe(400)
     })
 
     it('turns a taken username into invalid_request without the database text', async () => {
-        updateUsername.mockResolvedValue({ data: null, error: 'duplicate key value violates unique constraint "users_username_key"' })
+        patchAccount.mockResolvedValue({ error: 'duplicate key value violates unique constraint "users_username_key"' })
 
         const res = await call(me.PATCH, 'http://localhost/api/v1/me', {}, jsonInit('PATCH', { username: 'ada' }))
         const body = await res.json()
@@ -388,13 +415,17 @@ describe('profile, avatar, steam, loadout clear', () => {
     })
 
     it('refuses to save an avatar URL that is not the caller\'s object', async () => {
-        const res = await call(avatar.PUT, 'http://localhost/api/v1/me/avatar', {}, jsonInit('PUT', { url: `https://cdn.example/${OTHER}/avatar` }))
+        process.env.R2_PUBLIC_URL = 'https://cdn.example'
+        const evil = await call(avatar.PUT, 'http://localhost/api/v1/me/avatar', {}, jsonInit('PUT', { url: `https://evil.example/${USER.id}/avatar` }))
+        const other = await call(avatar.PUT, 'http://localhost/api/v1/me/avatar', {}, jsonInit('PUT', { url: `https://cdn.example/${OTHER}/avatar` }))
 
-        expect(res.status).toBe(400)
+        expect(evil.status).toBe(400)
+        expect(other.status).toBe(400)
         expect(updateAvatarUrl).not.toHaveBeenCalled()
     })
 
     it('saves the caller\'s avatar URL', async () => {
+        process.env.R2_PUBLIC_URL = 'https://cdn.example'
         updateAvatarUrl.mockResolvedValue(null)
 
         const res = await call(avatar.PUT, 'http://localhost/api/v1/me/avatar', {}, jsonInit('PUT', { url: `https://cdn.example/${USER.id}/avatar?v=2` }))

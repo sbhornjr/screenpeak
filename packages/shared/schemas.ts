@@ -51,12 +51,19 @@ export const uuidIdSchema = z.uuid('Must be a uuid.')
 
 export const libraryStatusSchema = z.enum(['playing', 'completed', 'backlog', 'abandoned'])
 
-/** PUT /api/v1/me/library/[gameId]. Status is required; the rest match the website's defaults. */
+/** numeric(8,1): one decimal place, at most 9999999.9. */
+const hoursPlayedSchema = z.number()
+    .finite('Hours must be a finite number')
+    .min(0, 'Hours cannot be negative')
+    .max(9999999.9, 'Hours cannot exceed 9999999.9')
+    .refine((value) => Math.abs(value * 10 - Math.round(value * 10)) < 1e-6, 'Hours can have at most one decimal place')
+
+/** PUT /api/v1/me/library/[gameId]. Status is required. Omitted fields stay as stored on an existing row. */
 export const libraryEntryWriteSchema = z.object({
     status: libraryStatusSchema,
     completed_all_achievements: z.boolean().optional(),
-    hours_played: z.number().min(0, 'Hours cannot be negative').nullable().optional(),
-    play_count: z.number().int('Play count must be a whole number').min(0, 'Play count cannot be negative').optional(),
+    hours_played: hoursPlayedSchema.nullable().optional(),
+    play_count: z.number().int('Play count must be a whole number').min(0, 'Play count cannot be negative').max(32767, 'Play count cannot exceed 32767').optional(),
 })
 
 /** POST /api/v1/lists. `gameId` creates the list and adds that game in one call. */
@@ -97,9 +104,14 @@ export const avatarUrlSchema = z.object({
     url: z.url('Enter the uploaded image URL.'),
 })
 
+/**
+ * The website action forwards the whole selection in one call and has no row
+ * cap. This schema matches that: `upsertLibraryEntries` writes the selection
+ * in one statement, so clients do not chunk.
+ */
 export const steamLibraryImportSchema = z.array(z.object({
     gameId: uuidIdSchema,
-    playtimeSelected: z.number(),
+    playtimeSelected: hoursPlayedSchema,
     status: libraryStatusSchema,
     selected: z.boolean(),
     coverImageUrl: z.string().nullable(),
@@ -109,7 +121,7 @@ export const steamLibraryImportSchema = z.array(z.object({
     timesPlayed: z.number().int().optional(),
     completedAllAchievements: z.boolean(),
     steamPlaytimeMinutes: z.number().int().nullable().optional(),
-})).max(500)
+}))
 
 // Runs a schema and collapses the result to a single message, so every query
 // function can return the same { data, error } shape regardless of whether

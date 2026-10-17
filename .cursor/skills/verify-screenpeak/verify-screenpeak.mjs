@@ -1089,6 +1089,9 @@ function peekWriteTarget() {
         select g.id::text || '|' || g.slug || '|' || g.name || '|' || rr.rating::text
             || '|' || encode(convert_to(coalesce(rr.review, ''), 'UTF8'), 'base64')
             || '|' || le.status
+            || '|' || coalesce(le.hours_played::text, '')
+            || '|' || coalesce(le.play_count::text, '')
+            || '|' || coalesce(le.completed_all_achievements::text, '')
             || '|' || u.id::text
         from games g
         join ratings_reviews rr on rr.game_id = g.id
@@ -1099,7 +1102,7 @@ function peekWriteTarget() {
         limit 1
     `, ['-tA'])
     if (!line) throw new Error('peek has no rated library game to write.')
-    const [gameId, slug, name, rating, reviewB64, status, userId] = line.split('|')
+    const [gameId, slug, name, rating, reviewB64, status, hours, playCount, completed, userId] = line.split('|')
     const allowed = ['playing', 'completed', 'backlog', 'abandoned']
     if (!allowed.includes(status)) throw new Error(`unexpected library status ${status}`)
     return {
@@ -1109,6 +1112,9 @@ function peekWriteTarget() {
         rating: Number(rating),
         reviewB64,
         status,
+        hours,
+        playCount,
+        completed,
         userId: assertUuid(userId, 'userId'),
     }
 }
@@ -1124,16 +1130,18 @@ function peekCounts() {
 }
 
 function restorePeekWrites(target) {
+    const completed = target.completed === '' ? 'null' : target.completed === 't' || target.completed === 'true' ? 'true' : 'false'
     psql(databaseUrl, `
         update ratings_reviews
         set rating = ${target.rating},
             review = convert_from(decode('${target.reviewB64}', 'base64'), 'UTF8')
         where user_id = '${target.userId}'::uuid and game_id = '${target.gameId}'::uuid;
         update library_entries
-        set status = '${target.status}'
+        set status = '${target.status}',
+            hours_played = ${target.hours === '' ? 'null' : target.hours},
+            play_count = ${target.playCount === '' ? 'null' : target.playCount},
+            completed_all_achievements = ${completed}
         where user_id = '${target.userId}'::uuid and game_id = '${target.gameId}'::uuid;
-        delete from lists
-        where user_id = '${target.userId}'::uuid and name = 'Verify Write Shelf';
     `)
 }
 
@@ -1168,6 +1176,7 @@ async function driveGameWrites() {
     const nextStatus = target.status === 'playing' ? 'backlog' : 'playing'
     const marker = 'verify-screenpeak write'
     let token = ''
+    let createdListId = ''
     try {
         token = await peekAccessToken()
         const auth = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json' }
@@ -1182,6 +1191,22 @@ async function driveGameWrites() {
         record.noTokenCode = deniedBody?.error?.code ?? null
         if (denied.status !== 401 || deniedBody?.error?.code !== 'unauthenticated') {
             problems.push(`missing bearer status ${denied.status} ${deniedBody?.error?.code}`)
+        }
+
+        const cookieOnly = await fetch(`${origin}/api/v1/games/${target.gameId}/review`, {
+            method: 'PUT',
+            headers: {
+                Cookie: 'sb-access-token=website-session',
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+            },
+            body: JSON.stringify({ rating: target.rating, review: marker }),
+        })
+        const cookieBody = await cookieOnly.json().catch(() => null)
+        record.cookieOnlyStatus = cookieOnly.status
+        record.cookieOnlyCode = cookieBody?.error?.code ?? null
+        if (cookieOnly.status !== 401 || cookieBody?.error?.code !== 'unauthenticated') {
+            problems.push(`cookie-only status ${cookieOnly.status} ${cookieBody?.error?.code}`)
         }
 
         const reviewRes = await fetch(`${origin}/api/v1/games/${target.gameId}/review`, {
@@ -1201,6 +1226,11 @@ async function driveGameWrites() {
         record.reviewInPostgres = reviewRow
         if (reviewRow !== marker) problems.push(`postgres review ${reviewRow}`)
 
+        psql(databaseUrl, `
+            update library_entries
+            set hours_played = 12.5, play_count = 4, completed_all_achievements = true
+            where user_id = '${target.userId}'::uuid and game_id = '${target.gameId}'::uuid
+        `)
         const libraryRes = await fetch(`${origin}/api/v1/me/library/${target.gameId}`, {
             method: 'PUT',
             headers: auth,
@@ -1218,6 +1248,16 @@ async function driveGameWrites() {
         `, ['-tA'])
         record.libraryInPostgres = libraryRow
         if (libraryRow !== nextStatus) problems.push(`postgres library ${libraryRow}`)
+        const kept = psql(databaseUrl, `
+            select coalesce(hours_played::text, '') || '|' || coalesce(play_count::text, '') || '|' || coalesce(completed_all_achievements::text, '')
+            from library_entries
+            where user_id = '${target.userId}'::uuid and game_id = '${target.gameId}'::uuid
+        `, ['-tA'])
+        record.libraryDetailsKept = kept
+        const [keptHours, keptPlays, keptComplete] = (kept || '').split('|')
+        if (Number(keptHours) !== 12.5 || keptPlays !== '4' || (keptComplete !== 't' && keptComplete !== 'true')) {
+            problems.push(`status-only save changed library details ${kept}`)
+        }
 
         const listRes = await fetch(`${origin}/api/v1/lists`, {
             method: 'POST',
@@ -1233,6 +1273,7 @@ async function driveGameWrites() {
         const listBody = await listRes.json().catch(() => null)
         record.listStatus = listRes.status
         record.listId = listBody?.id ?? null
+        createdListId = listBody?.id ?? ''
         if (listRes.status !== 201 || !listBody?.id) problems.push(`list status ${listRes.status}`)
         else assertUuid(listBody.id, 'listId')
         if (listBody?.id) {
@@ -1262,7 +1303,25 @@ async function driveGameWrites() {
     } catch (error) {
         problems.push(error instanceof Error ? error.message : String(error))
     } finally {
+        if (createdListId && token) {
+            try {
+                const del = await fetch(`${origin}/api/v1/lists/${createdListId}`, {
+                    method: 'DELETE',
+                    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+                })
+                record.listDeleteStatus = del.status
+                if (del.status !== 204) problems.push(`list delete status ${del.status}`)
+            } catch (error) {
+                problems.push(error instanceof Error ? error.message : String(error))
+            }
+        }
         restorePeekWrites(target)
+        if (record.listDeleteStatus !== 204) {
+            psql(databaseUrl, `
+                delete from lists
+                where user_id = '${target.userId}'::uuid and name = 'Verify Write Shelf';
+            `)
+        }
     }
 
     const after = peekCounts()

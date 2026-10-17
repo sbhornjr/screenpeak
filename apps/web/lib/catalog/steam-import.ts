@@ -895,6 +895,11 @@ function confirmedHours(client: number, stored: SteamLibrarySnapshot | undefined
     return refreshed
 }
 
+/** Drop games the player unchecked. The website action and the import route both call through here. */
+export function steamEntriesToImport(entries: SteamLinkEntry[]): SteamLinkEntry[] {
+    return entries.filter(entry => entry.selected !== false)
+}
+
 /** Recompute Steam minutes and keep an existing library row when the client still shows the automatic values. */
 export function mergeConfirmedSteamEntry(client: SteamLinkEntry, stored: SteamLibrarySnapshot | undefined, minutes: number): SteamLinkEntry {
     const automaticStatus = minutes > 0 ? 'playing' : 'backlog'
@@ -920,7 +925,7 @@ export async function confirmSteamLibraryEntries(
         readLibrary?: (userId: string, gameIds: string[]) => Promise<SteamLibrarySnapshot[]>
     } = {},
 ): Promise<SteamLinkEntry[]> {
-    const deduped = dedupeSteamLinkEntries(entries)
+    const deduped = dedupeSteamLinkEntries(steamEntriesToImport(entries))
     if (!deduped.length) return []
     if (deduped.some(entry => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(entry.gameId))) {
         throw new SteamImportInputError('Choose games from your Steam library and try again.')
@@ -958,5 +963,5 @@ export async function importConfirmedSteamLibrary(userId: string, entries: Steam
     const owned = dedupeOwnedApps(ownedRaw.games.map(game => ({
         appid: game.appid, name: game.name ?? '', playtimeMinutes: game.playtime_forever ?? 0,
     })))
-    await confirmSteamLibraryEntries(userId, entries, owned)
+    await confirmSteamLibraryEntries(userId, steamEntriesToImport(entries), owned)
 }

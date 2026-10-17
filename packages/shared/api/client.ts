@@ -21,6 +21,7 @@ import type {
     ListCreated,
     ListGameSync,
     ListLikeResult,
+    ListPinResult,
     ListPinWrite,
     ListWrite,
     MePatch,
@@ -156,7 +157,8 @@ export function createApiClient(opts: {
         lists: {
             create: (body: ListWrite) => send<ListCreated>('POST', '/api/v1/lists', body),
             update: (listId: string, body: ListWrite | ListPinWrite) =>
-                send<OkResult>('PATCH', listIdPath(listId), body),
+                send<OkResult | ListPinResult>('PATCH', listIdPath(listId), body),
+            delete: (listId: string) => send<void>('DELETE', listIdPath(listId)),
             like: (listId: string) => send<ListLikeResult>('POST', `${listIdPath(listId)}/like`),
             unlike: (listId: string) => send<ListLikeResult>('DELETE', `${listIdPath(listId)}/like`),
             addGame: (listId: string, gameId: string) =>

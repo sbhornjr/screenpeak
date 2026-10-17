@@ -48,6 +48,9 @@ export type ListLikeResult = { liked: boolean }
 
 export type OkResult = { ok: true }
 
+/** PATCH /api/v1/lists/[listId] when the body is only `{ isPinned }`. */
+export type ListPinResult = { ok: true; isPinned: boolean }
+
 export type MePatch = {
     username?: string
     bio?: string
@@ -69,6 +72,11 @@ export type AvatarUploadResult = {
 
 export type AvatarSave = { url: string }
 
+/**
+ * POST and DELETE /api/v1/user/[username]/follow.
+ * The path segment is the target user's uuid. The folder stays `[username]`
+ * because that dynamic segment already exists; a `[userId]` folder would clash with it.
+ */
 export type FollowResult = { following: boolean }
 
 export type SteamLibraryImportEntry = {

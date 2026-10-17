@@ -226,18 +226,25 @@ link formats.
 - Files under `app/api/v1/` cannot import cookie auth. `eslint/v1-bearer-only.mjs`
   (rule `screenpeak/v1-bearer-only`) fails lint on `getOptionalUser`,
   `requireUser`, `cookies` from `next/headers` (including a `.cookies()` call),
-  and `@/lib/supabase-server`. `test/api/v1-routes-auth.test.ts` enumerates
-  every route file and requires `withAuth` plus a `getBearerUser()` or
-  `requireBearerUser()` call. `GET /home` and `GET /user/[username]/ratings_reviews`
-  are the exception: those payloads have no caller, and their tests lock that
-  they do not read a session. A new route is not in that set.
-- **A route's own `@/lib` imports must not swallow a failed read** as `[]`,
-  `null`, `new Set()`, or `new Map()` (`test/api/v1-reads-throw.test.ts`).
-  The check stops at the function the route file imports. It does not walk
-  into loader callees: catalogue helpers such as `getDeveloperNameMap` still
-  return an empty fallback for the website, and a characterization test locks
-  that. An outage inside one of those helpers can still look empty on a read
-  route until those helpers throw too.
+  and `@/lib/supabase-server`. Scope analysis also flags an alias
+  (`import { getOptionalUser as readSession }`, `const readSession = getOptionalUser`),
+  a member call (`auth.getOptionalUser()`), a namespace import of `@/lib/auth`
+  or `next/headers`, and `import('@/lib/auth')`, `import('next/headers')`, or
+  `import('@/lib/supabase-server')`. `test/api/v1-routes-auth.test.ts` parses
+  every route file with the TypeScript compiler. Comments do not count.
+  `withAuth` must be imported from `@/lib/api`, and the handler must call
+  `getBearerUser` or `requireBearerUser` imported from `@/lib/auth`. A local
+  function with those names does not count. `GET /home` and
+  `GET /user/[username]/ratings_reviews` are the exception: those payloads have
+  no caller, and their tests lock that they do not read a session. A new route
+  is not in that set.
+- **A route's `@/lib` imports, and one level of functions those imports call,
+  must not swallow a failed read** as `[]`, `null`, `new Set()`, `new Map()`,
+  `catch { return fallback() }`, `const empty = []; return empty`, or
+  `.catch(() => ({ ...[] }))` (`test/api/v1-reads-throw.test.ts`). The walk
+  includes same-module helpers. `getDeveloperNameMap` and `getHeroGame` are
+  the exception: characterization tests lock their empty fallback, and an
+  outage inside those two can still look empty.
 - **A bad bearer token fails closed** — 401 `invalid_token`, never a fallback to a
   cookie, and it throws even from `getOptionalUser()`. An unreachable Auth
   server is **503 `auth_unavailable`, never 401** (a 401 makes the app sign the user out);
