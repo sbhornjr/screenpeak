@@ -324,7 +324,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: face.display[600],
     fontSize: TITLE,
-    lineHeight: TITLE,
+    lineHeight: typeScale['4xl'].line,
     letterSpacing: trackingPx(tracking.display, TITLE),
     color: colors.text,
   },

@@ -12,6 +12,7 @@ import AddToListButton from "@/app/components/lists/AddToListButton";
 import Avatar from "@/app/components/user/Avatar";
 import ExpandableText from "@/app/components/util/ExpandableText";
 import SectionHead from "@/app/components/util/SectionHead";
+import { tierColor } from "@/lib/rating-tier";
 import Panel from "@/app/components/util/Panel";
 import { GameRatingsStats } from "@screenpeak/shared/types";
 import { getOptionalUser } from "@/lib/auth";
@@ -35,10 +36,6 @@ function relTime(iso: string) {
     if (days < 60) return `${Math.floor(days / 7)}w ago`
     if (days < 365) return `${Math.floor(days / 30)}mo ago`
     return `${Math.floor(days / 365)}y ago`
-}
-
-function tierInk(n: number) {
-    return n >= 8 ? "var(--color-good)" : n >= 6 ? "var(--color-mid)" : "var(--color-bad)"
 }
 
 type LogRow = {
@@ -74,7 +71,7 @@ function Log({ row, own = false }: { row: LogRow, own?: boolean }) {
                     {own ? "You" : row.users?.username}
                 </Link>
                 <span className="font-mono text-[0.5625rem] uppercase tracking-[0.13em] text-(--color-muted)">{relTime(row.created_at)}</span>
-                <span className="ml-auto font-mono text-[0.8125rem] font-bold" style={{ color: tierInk(row.rating) }}>
+                <span className="ml-auto font-mono text-[0.8125rem] font-bold" style={{ color: tierColor(row.rating) }}>
                     {row.rating}<span className="text-(--color-muted) font-normal text-[0.7em]"> / 10</span>
                 </span>
             </div>

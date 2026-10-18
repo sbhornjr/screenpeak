@@ -48,6 +48,8 @@ export const overlays = {
     statusFill: 'rgba(16, 18, 21, 0.8)',
     /** Modal scrim. Web: `bg-black/60`. */
     backdrop: 'rgba(0, 0, 0, 0.6)',
+    /** Seal drop shadow. Web: `0 1px 4px rgba(0, 0, 0, 0.5)`. */
+    sealShadow: '0 1px 4px rgba(0, 0, 0, 0.5)',
 } as const
 
 /**
@@ -147,6 +149,8 @@ export const space = {
     10: 40,
     12: 48,
     16: 64,
+    /** Tailwind `py-24` — the full-page empty state. */
+    24: 96,
 } as const
 
 /** The Seam — the 2px vertical cyan bar before every Eyebrow/SectionHead (DESIGN.md §6). */

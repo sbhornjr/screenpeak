@@ -7,7 +7,7 @@ import { colors, face, seam, space, tracking, trackingPx, typeScale } from '@/th
 /** A phosphor seam, a tracked label, then a rule. */
 export function SectionHead({ children, count }: { children: ReactNode; count?: ReactNode }) {
   return (
-    <View role="heading" style={styles.row}>
+    <View role="heading" accessibilityRole="header" accessibilityLevel={2} style={styles.row}>
       <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.seam} />
       <Text style={styles.label}>{children}</Text>
       {count != null ? <Text style={styles.count}>{`· ${count}`}</Text> : null}
@@ -21,7 +21,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space[2.5],
-    marginTop: space[4],
+    marginTop: space[10],
+    marginBottom: space[5],
   },
   seam: { width: seam.width, height: 15, backgroundColor: seam.color },
   label: {

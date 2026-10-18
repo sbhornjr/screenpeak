@@ -1,12 +1,12 @@
 import { StyleSheet, Text } from 'react-native';
 
-import { face, tierColor, typeScale } from '@/theme';
+import { face, ratingTier, tierColor, typeScale } from '@/theme';
 
 /** A score value in its tier colour. Text rows use this; covers use Seal. */
 export function RatingBadge({ score, scale = 10 }: { score: number; scale?: 10 | 100 }) {
   return (
     <Text
-      accessibilityLabel={`${score} out of ${scale}`}
+      accessibilityLabel={`${score} out of ${scale}, ${ratingTier(score, scale)}`}
       style={[styles.score, { color: tierColor(score, scale) }]}
     >
       {score}

@@ -1933,6 +1933,52 @@ async function driveMobileNav() {
         const libraryIn = await shot('library-signed-in.png', library.games[0])
         if (libraryIn.includes('Sign up to see your library.')) problems.push('signed-in library still asks to sign up')
 
+        const gameName = library.games[0]
+        const opened = await page.evaluate(`(() => {
+            const name = ${JSON.stringify(gameName)}
+            const nodes = [...document.querySelectorAll('a, [role="link"]')]
+            const visible = nodes.filter((item) => item.getClientRects().length > 0)
+            const pool = visible.length ? visible : nodes
+            const node = pool.find((item) => (item.getAttribute('aria-label') || '').trim() === name)
+            if (!node) return 'missing'
+            node.click()
+            return 'clicked'
+        })()`)
+        if (opened !== 'clicked') problems.push(`could not open ${gameName} from the library`)
+        await page.waitForText('Add to list')
+        const rateText = await page.evaluate(`(() => {
+            const button = [...document.querySelectorAll('button')].find((item) => item.getAttribute('aria-label') === 'Rate' && item.getClientRects().length > 0)
+            return button ? button.textContent.trim() : ''
+        })()`)
+        if (!rateText) problems.push('game screen is missing Rate')
+        else await page.clickControl(rateText)
+        await shot('game-rate-sheet.png', 'Review note')
+        const rateSheet = await page.evaluate(`(() => {
+            const dialog = [...document.querySelectorAll('[role="dialog"]')].find((item) => (item.innerText || '').includes('Review note'))
+            return dialog ? dialog.innerText : ''
+        })()`)
+        if (!rateSheet.includes('Close')) problems.push('rate sheet is missing Close')
+        if (!rateSheet.includes('10')) problems.push('rate sheet is missing the score list')
+        await page.clickControl('Close')
+        await page.waitUntil(`document.body.innerText.includes('Review note') ? 'waiting' : 'ok'`)
+
+        await page.clickControl('Add to list')
+        await shot('game-list-sheet.png', 'New list name')
+        const listFocused = await page.evaluate(`(() => {
+            const dialog = [...document.querySelectorAll('[role="dialog"]')].find((item) => (item.innerText || '').includes('New list name'))
+            const input = dialog ? dialog.querySelector('input[placeholder="New list name"]') : null
+            if (!input) return 'missing'
+            input.focus()
+            return document.activeElement === input ? (input.getAttribute('placeholder') || '') : 'unfocused'
+        })()`)
+        if (listFocused !== 'New list name') problems.push(`new list field was not focused (${listFocused})`)
+        const listFocusedPath = join(dir, 'game-list-focused.png')
+        await page.screenshot(listFocusedPath)
+        shots['game-list-focused.png'] = listFocusedPath
+        await page.clickControl('Close')
+        await page.clickControl('Back')
+        await page.waitForText(gameName)
+
         await page.clickTab('Profile')
         const ownIn = await shot('own-profile-as-peek.png', counts)
         if (await page.controlInView('Loadout') !== 'yes') problems.push('own profile hides Loadout')

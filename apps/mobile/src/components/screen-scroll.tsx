@@ -22,7 +22,7 @@ export function ScreenScroll({
       <ScrollView contentContainerStyle={styles.content}>
         <Wordmark />
         {onBack ? <Button label="Back" variant="ghost" onPress={onBack} /> : null}
-        <Text style={styles.title}>{title}</Text>
+        <Text role="heading" accessibilityRole="header" accessibilityLevel={1} style={styles.title}>{title}</Text>
         {children}
       </ScrollView>
     </SafeAreaView>

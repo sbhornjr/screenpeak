@@ -1,12 +1,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 
 import { AuthProvider } from '@/lib/auth';
-import { colorScheme, colors, fontFiles } from '@/theme';
+import { colors, fontFiles } from '@/theme';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -14,7 +14,7 @@ SplashScreen.preventAutoHideAsync();
 // theme built from the tokens rather than a light/dark pair. This colours the
 // navigator's own chrome — screen backgrounds, and stack headers once they exist.
 const navigationTheme = {
-  ...{ dark: DarkTheme, light: DefaultTheme }[colorScheme],
+  ...DarkTheme,
   colors: {
     ...DarkTheme.colors,
     primary: colors.accent,

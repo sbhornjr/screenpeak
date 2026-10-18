@@ -28,7 +28,13 @@ export function Button({
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={disabled ? undefined : onPress}
-      style={[styles.base, styles[variant], disabled && styles.disabled, style]}
+      style={({ focused }) => [
+        styles.base,
+        styles[variant],
+        focused && styles.focused,
+        disabled && styles.disabled,
+        style,
+      ]}
     >
       <Text style={[styles.label, variant === 'primary' ? styles.onAccent : variant === 'ghost' ? styles.ghostLabel : styles.secondaryLabel]}>
         {label}
@@ -56,6 +62,11 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     backgroundColor: 'transparent',
     paddingHorizontal: space[2],
+  },
+  focused: {
+    borderWidth: 2,
+    borderColor: colors.accent,
+    boxShadow: `0 0 0 2px ${colors.bg}, 0 0 0 4px ${colors.accent}`,
   },
   disabled: { opacity: 0.6 },
   label: {

@@ -1,13 +1,13 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { colorScheme, colors } from '@screenpeak/shared/tokens'
 
-const HEX = /#[0-9A-Fa-f]{3,8}\b/g
-
-function hexColors(source: string): string[] {
-  return [...source.matchAll(HEX)].map((match) => match[0])
+const require = createRequire(import.meta.url)
+const { rawColors } = require('../../eslint/raw-color.cjs') as {
+  rawColors: (source: string) => string[]
 }
 
 function screenSources(dir: string): string[] {
@@ -15,7 +15,6 @@ function screenSources(dir: string): string[] {
   for (const name of readdirSync(dir)) {
     const full = path.join(dir, name)
     if (statSync(full).isDirectory()) {
-      if (name === 'theme') continue
       found.push(...screenSources(full))
       continue
     }
@@ -25,20 +24,27 @@ function screenSources(dir: string): string[] {
   return found
 }
 
-describe('raw hex', () => {
-  it('finds a painted hex and the shared accent in the token file', () => {
-    const accent = ['#', '47c6dd'].join('')
-    expect(hexColors(['paint ', accent].join(''))).toEqual([accent])
-    expect(hexColors('plain text')).toEqual([])
+describe('raw colours', () => {
+  it('catches hex, long hex, colour functions, and named colours', () => {
+    expect(rawColors("paint('#abc')")).toEqual(['#abc'])
+    expect(rawColors("paint('#112233445')")).toEqual(['#112233445'])
+    expect(rawColors("paint('rgb(1, 2, 3)')")).toEqual(['rgb(1, 2, 3)'])
+    expect(rawColors("paint('rgba(0, 0, 0, 0.5)')")).toEqual(['rgba(0, 0, 0, 0.5)'])
+    expect(rawColors("paint('hsl(0 0% 0%)')")).toEqual(['hsl(0 0% 0%)'])
+    expect(rawColors("paint('hsla(0, 0%, 0%, 0.4)')")).toEqual(['hsla(0, 0%, 0%, 0.4)'])
+    expect(rawColors("paint('red')")).toEqual(['red'])
+    expect(rawColors("paint('White')")).toEqual(['White'])
+    expect(rawColors("paint('transparent')")).toEqual([])
+    expect(rawColors('plain text')).toEqual([])
     const tokens = readFileSync(path.resolve(import.meta.dirname, '../../../../packages/shared/tokens.ts'), 'utf8')
-    expect(hexColors(tokens)).toContain(accent)
+    expect(rawColors(tokens)).toContain(['#', '47c6dd'].join(''))
   })
 
-  it('keeps hex colours out of the phone screens', () => {
+  it('keeps raw colours out of the phone screens', () => {
     const src = path.resolve(import.meta.dirname, '..')
     const joined = screenSources(src).join('\n')
     expect(joined).toContain('Sign up, log in, or browse the catalogue.')
-    expect(hexColors(joined)).toEqual([])
+    expect(rawColors(joined)).toEqual([])
   })
 
   it('keeps the native shell on the same dark ground as the website tokens', () => {

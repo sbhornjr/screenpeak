@@ -1,6 +1,7 @@
 // The website Modal, presented as a bottom sheet.
-import type { ReactNode } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Keyboard, Pressable, Modal, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, face, overlays, radius, space, typeScale } from '@/theme';
 
@@ -17,12 +18,29 @@ export function Sheet({
   onClose: () => void;
   children: ReactNode;
 }) {
+  const { height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', (event) => {
+      setKeyboardHeight(event.endCoordinates.height);
+    });
+    const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardHeight(0));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.fill}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Dismiss"
+          focusable={false}
+          tabIndex={-1}
           onPress={onClose}
           style={styles.backdrop}
         />
@@ -30,13 +48,21 @@ export function Sheet({
           role="dialog"
           accessibilityLabel={title}
           accessibilityViewIsModal
-          style={styles.sheet}
+          style={[
+            styles.sheet,
+            {
+              maxHeight: Math.round(height * 0.9),
+              paddingBottom: space[4] + keyboardHeight + insets.bottom,
+            },
+          ]}
         >
           <View style={styles.header}>
-            <Text role="heading" style={styles.title}>{title}</Text>
+            <Text role="heading" accessibilityRole="header" accessibilityLevel={2} style={styles.title}>{title}</Text>
             <Button label="Close" variant="ghost" onPress={onClose} />
           </View>
-          <View style={styles.body}>{children}</View>
+          <ScrollView keyboardShouldPersistTaps="handled" style={styles.scroll} contentContainerStyle={styles.body}>
+            {children}
+          </ScrollView>
         </View>
       </View>
     </Modal>
@@ -54,7 +80,6 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     paddingHorizontal: space[4],
     paddingTop: space[4],
-    paddingBottom: space[8],
     gap: space[3],
   },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space[3] },
@@ -65,5 +90,6 @@ const styles = StyleSheet.create({
     lineHeight: typeScale.xl.line,
     color: colors.text,
   },
+  scroll: { flexShrink: 1 },
   body: { gap: space[3] },
 });

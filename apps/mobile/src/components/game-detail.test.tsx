@@ -38,6 +38,8 @@ vi.mock('react-native', () => ({
     value: value ?? '',
     onChange: (event: { target: { value: string } }) => onChangeText?.(event.target.value),
   }),
+  Keyboard: { addListener: () => ({ remove() {} }) },
+  useWindowDimensions: () => ({ width: 400, height: 800, scale: 1, fontScale: 1 }),
   ScrollView: ({ children }: { children?: React.ReactNode }) => React.createElement('div', null, children),
   Modal: ({
     visible,
@@ -51,6 +53,10 @@ vi.mock('react-native', () => ({
 
 vi.mock('expo-image', () => ({
   Image: () => null,
+}))
+
+vi.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
 }))
 
 const DATA: GamePageData = {

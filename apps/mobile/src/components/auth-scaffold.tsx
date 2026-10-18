@@ -14,7 +14,7 @@ export function AuthScaffold({ title, children }: { title: string, children: Rea
       <View style={styles.content}>
         <Wordmark />
         <Button label="Back" variant="ghost" onPress={backOrHome} />
-        <Text style={styles.title}>{title}</Text>
+        <Text role="heading" accessibilityRole="header" accessibilityLevel={1} style={styles.title}>{title}</Text>
         {children}
       </View>
     </SafeAreaView>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { StyleSheet, TextInput, type TextInputProps } from 'react-native';
+import { StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 
 import { colors, face, hitTarget, radius, space, typeScale } from '@/theme';
 
@@ -15,7 +15,7 @@ type TextFieldProps = {
   onSubmitEditing?: TextInputProps['onSubmitEditing'];
 };
 
-/** Website text field: surface fill, 3px corners, accent border while focused, 44pt tall. */
+/** Website text field: a visible label, surface fill, 3px corners, accent border while focused. */
 export function TextField({
   label,
   value,
@@ -29,25 +29,35 @@ export function TextField({
 }: TextFieldProps) {
   const [focused, setFocused] = useState(false);
   return (
-    <TextInput
-      accessibilityLabel={label}
-      value={value}
-      onChangeText={onChangeText}
-      placeholder={placeholder ?? label}
-      placeholderTextColor={colors.muted}
-      secureTextEntry={secureTextEntry}
-      keyboardType={keyboardType}
-      autoCapitalize={autoCapitalize}
-      autoComplete={autoComplete}
-      onSubmitEditing={onSubmitEditing}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
-      style={[styles.input, focused && styles.focused]}
-    />
+    <View style={styles.wrap}>
+      <Text style={styles.label}>{label}</Text>
+      <TextInput
+        accessibilityLabel={label}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder ?? label}
+        placeholderTextColor={colors.muted}
+        secureTextEntry={secureTextEntry}
+        keyboardType={keyboardType}
+        autoCapitalize={autoCapitalize}
+        autoComplete={autoComplete}
+        onSubmitEditing={onSubmitEditing}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        style={[styles.input, focused && styles.focused]}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrap: { gap: space[1] },
+  label: {
+    fontFamily: face.body[400],
+    fontSize: typeScale.sm.size,
+    lineHeight: typeScale.sm.line,
+    color: colors.text,
+  },
   input: {
     minHeight: hitTarget,
     borderWidth: 1,
@@ -57,9 +67,8 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontFamily: face.body[400],
     fontSize: typeScale.base.size,
-    lineHeight: typeScale.base.line,
     paddingHorizontal: space[3],
-    paddingVertical: space[2],
+    paddingVertical: space[3],
   },
   focused: { borderColor: colors.accent },
 });
