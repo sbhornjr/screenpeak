@@ -1,11 +1,11 @@
 ---
 name: verify-screenpeak
-description: "Drive the ScreenPeak web app against a local Postgres and prove the Loadout Read-Out through the signed-in UI. Use before calling ScreenPeak work done, and whenever a change can affect sign-in, the library fixture, or /user/peek/loadout."
+description: "Drive the ScreenPeak web app against a local Postgres and prove the Loadout Read-Out through the signed-in UI. Also drives the phone navigation skeleton on Expo web. Use before calling ScreenPeak work done, and whenever a change can affect sign-in, the library fixture, /user/peek/loadout, or the phone tabs."
 ---
 
 # Verify ScreenPeak
 
-ScreenPeak's primary surface is the Next.js web app. The phone app is a second surface and is not driven here. This skill launches the web app on a disposable local Postgres, signs in as the fixture user through the sign-in dialog, and proves the Loadout Read-Out. Steam import is intentionally absent: agents have no Steam account.
+ScreenPeak's primary surface is the Next.js web app. This skill launches that app on a disposable local Postgres, signs in as the fixture user through the sign-in dialog, and proves the Loadout Read-Out. The phone navigation skeleton is driven on Expo web against the same local API (`drive mobile-nav`). Other phone screens are not driven here. Steam import is intentionally absent: agents have no Steam account.
 
 One instance per machine. `up` refuses when port 3210, 54321, or 54322 is already taken. Do not point this skill at a hosted database.
 
@@ -60,9 +60,12 @@ node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive game-page
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive read-endpoints
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive game-writes
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive search
+node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-nav
 ```
 
 `drive search` does not start signed in. It reads one of `peek`'s rated games and that game's developer and publisher from Postgres, fetches the game and taxonomy search routes, and types into the catalogue's developer dropdown and the signed-in favorite-game picker. It does not click Lock.
+
+`drive mobile-nav` starts Expo web on `localhost:8081` with `EXPO_PUBLIC_API_URL` pointed at the local website and the public Supabase URL and anon key from the env file this skill wrote. It does not write those values into the repo. It screenshots the four tabs signed out and signed in as peek, peek's public profile signed out, and a second local user `ada` whose library and loadout are private, both signed out and as peek. It also opens the catalogue from Browse and comes Back, opens the Library tab from the profile preview, and opens ada's library and loadout, which stay Not found. It deletes `ada` and stops Expo before it exits. Port 8081 must be free.
 
 `drive game-page` does not sign in. It reads one of `peek`'s games from Postgres, fetches `GET /api/v1/games/[slug]` and the reviews route, and opens the website's game page. The native screen is checked with Expo web, not this drive.
 
@@ -115,13 +118,26 @@ A passing game-writes proof shows the game name in `page.png`, 401 without a bea
 
 A passing search proof shows the developer name in `filters.png`, the game name in `favorites.png`, 200 from `GET /api/v1/games/search` with `avg_rating` a number and no `avg_ngplus_rating`, and 200 from `GET /api/v1/taxonomy/developers/search` and `GET /api/v1/taxonomy/publishers/search`.
 
+`drive mobile-nav` writes `/tmp/screenpeak-verify/evidence/mobile-nav/`:
+
+- `feed-signed-out.png`, `explore-signed-out.png`, `library-signed-out.png`, `own-profile-signed-out.png` — the four tabs before sign-in
+- `user-peek-signed-out.png` — peek's public profile, with Loadout, Lists, and the library counts
+- `user-ada-signed-out.png` — ada's private profile, Lists only
+- `feed-signed-in.png`, `explore-signed-in.png`, `library-signed-in.png`, `own-profile-as-peek.png` — the same tabs as peek
+- `user-ada-as-peek.png` — ada's private profile while signed in as peek
+- `library-from-profile.png` and `library-from-peek.png` — the Library tab after the preview is tapped, with the hub no longer on top
+- `user-ada-library.png` and `user-ada-loadout.png` — Not found, with no game titles
+- `result.json` — the profile JSON checks, the library-tab landing, and ada's 404 library and loadout
+
+A passing mobile-nav proof shows ScreenPeak on each screenshot, the welcome and signup prompts while signed out, peek's games on the signed-in library, Loadout and the library counts on peek's own hub and on the signed-out public profile, and neither Loadout nor the library counts on ada. `result.json` has an empty `problems` list, `library_stats` null for ada, and `viewer.is_owner` true for peek.
+
 ## Cleanup
 
 ```bash
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs down
 ```
 
-Kill only the pids in `/tmp/screenpeak-verify/pids`. After `down`, `/tmp/screenpeak-verify/evidence/loadout-readout/`, `/tmp/screenpeak-verify/evidence/game-page/`, `/tmp/screenpeak-verify/evidence/read-endpoints/`, `/tmp/screenpeak-verify/evidence/game-writes/`, and `/tmp/screenpeak-verify/evidence/search/` must still exist. Confirm that before treating the run as finished.
+Kill only the pids in `/tmp/screenpeak-verify/pids`. After `down`, `/tmp/screenpeak-verify/evidence/loadout-readout/`, `/tmp/screenpeak-verify/evidence/game-page/`, `/tmp/screenpeak-verify/evidence/read-endpoints/`, `/tmp/screenpeak-verify/evidence/game-writes/`, `/tmp/screenpeak-verify/evidence/search/`, and `/tmp/screenpeak-verify/evidence/mobile-nav/` must still exist. Confirm that before treating the run as finished.
 
 ## Helpers
 

@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { Eyebrow } from '@/components/eyebrow'
 import { useAuth } from '@/lib/auth'
+import { backOrHome } from '@/lib/go'
 import { colors, face, radius, space } from '@/theme'
 
 export default function SignInScreen() {
@@ -20,7 +21,7 @@ export default function SignInScreen() {
     setPending(true)
     try {
       await signIn(email.trim(), password)
-      router.back()
+      backOrHome()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not log in.')
     } finally {
@@ -32,6 +33,9 @@ export default function SignInScreen() {
     <SafeAreaView style={styles.screen}>
       <View style={styles.content}>
         <Eyebrow>ScreenPeak</Eyebrow>
+        <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={backOrHome}>
+          <Text style={styles.link}>Back</Text>
+        </Pressable>
         <Text style={styles.title}>Log in</Text>
         {configured ? null : <Text style={styles.error}>Sign-in is not configured.</Text>}
         <TextInput

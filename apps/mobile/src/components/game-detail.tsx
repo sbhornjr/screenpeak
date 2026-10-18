@@ -104,8 +104,8 @@ export function GameDetail({
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Games" onPress={onBack} style={styles.back}>
-        <Text style={styles.backText}>Games</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={onBack} style={styles.back}>
+        <Text style={styles.backText}>Back</Text>
       </Pressable>
       <Eyebrow>ScreenPeak</Eyebrow>
       <View style={styles.titleRow}>
