@@ -3,15 +3,19 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, type R
 import { AppState, Platform } from 'react-native'
 import * as Linking from 'expo-linking'
 
+import { sendPasswordReset } from './mobile-client'
 import {
+  claimResetSend,
   completeAuthCallback,
   newPasswordProblem,
   passwordResetRedirectBase,
   passwordResetRedirectTo,
+  releaseResetSend,
   resetOutcome,
-  resetSendDecision,
+  RESET_LINK_HINT,
   type ResetOutcome,
 } from './password-reset'
+import { readRecovery, writeRecovery } from './recovery-session'
 import { signUpAuthBody } from './sign-up'
 import { supabase } from './supabase'
 
@@ -23,8 +27,11 @@ type AuthValue = {
   signUp: (email: string, password: string, username: string) => Promise<string>
   signOut: () => Promise<void>
   requestPasswordReset: (email: string) => Promise<ResetOutcome>
+  resetSentAt: number | null
   openRecoveryLink: (url: string) => Promise<string>
   updatePassword: (password: string, again: string) => Promise<void>
+  finishPasswordChange: () => void
+  abandonRecovery: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthValue | null>(null)
@@ -40,6 +47,7 @@ function passwordResetRedirect(): string {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [ready, setReady] = useState(supabase == null)
+  const [resetSentAt, setResetSentAt] = useState<number | null>(null)
   const lastResetAt = useRef<number | null>(null)
 
   useEffect(() => {
@@ -50,9 +58,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(data.session)
       setReady(true)
     })
-    const { data } = supabase.auth.onAuthStateChange((_event, next) => {
+    const { data } = supabase.auth.onAuthStateChange((event, next) => {
       setSession(next)
       setReady(true)
+      if (event === 'PASSWORD_RECOVERY') writeRecovery(true)
+      if (event === 'SIGNED_OUT') writeRecovery(false)
     })
     return () => {
       live = false
@@ -93,19 +103,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { error } = await supabase.auth.signOut()
       if (error) throw error
     },
+    resetSentAt,
     async requestPasswordReset(email) {
       if (!supabase) throw new Error('Sign-in is not configured.')
-      const decision = resetSendDecision(email, lastResetAt.current, Date.now())
-      if (!decision.send) {
-        if ('confirmation' in decision) return { confirmation: decision.confirmation }
-        return { error: decision.message }
+      const claim = claimResetSend(email, lastResetAt.current, Date.now())
+      lastResetAt.current = claim.lastSentAt
+      if (!claim.decision.send) {
+        if ('confirmation' in claim.decision) return { confirmation: claim.decision.confirmation }
+        return { error: claim.decision.message }
       }
-      const { error } = await supabase.auth.resetPasswordForEmail(decision.email, {
-        redirectTo: passwordResetRedirect(),
-      })
-      const outcome = resetOutcome(error ? { code: error.code, message: error.message } : null)
-      if ('confirmation' in outcome) lastResetAt.current = Date.now()
-      return outcome
+      setResetSentAt(claim.lastSentAt)
+      try {
+        const { error } = await sendPasswordReset(supabase, claim.decision.email, passwordResetRedirect())
+        const outcome = resetOutcome(error ? { code: error.code, message: error.message } : null)
+        const released = releaseResetSend(lastResetAt.current, outcome)
+        lastResetAt.current = released
+        setResetSentAt(released)
+        return outcome
+      } catch (err) {
+        lastResetAt.current = null
+        setResetSentAt(null)
+        throw err
+      }
     },
     async openRecoveryLink(url) {
       const client = supabase
@@ -118,19 +137,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           type: type as EmailOtpType,
           token_hash,
         }),
-        exchangeCodeForSession: (code) => client.auth.exchangeCodeForSession(code),
-        setSession: (tokens) => client.auth.setSession(tokens),
+        exchangeCodeForSession: async (code) => {
+          const { data, error } = await client.auth.exchangeCodeForSession(code)
+          const redirectType = (data as { redirectType?: string | null } | null)?.redirectType
+          return { error, recovery: redirectType === 'recovery' }
+        },
       }, origin)
+      if (result.recovery) writeRecovery(true)
       return result.destination
     },
     async updatePassword(password, again) {
       if (!supabase) throw new Error('Sign-in is not configured.')
+      if (!readRecovery()) throw new Error(RESET_LINK_HINT)
       const problem = newPasswordProblem(password, again)
       if (problem) throw new Error(problem)
       const { error } = await supabase.auth.updateUser({ password })
       if (error) throw error
     },
-  }), [ready, session])
+    finishPasswordChange() {
+      writeRecovery(false)
+    },
+    async abandonRecovery() {
+      if (!readRecovery()) return
+      const client = supabase
+      if (!client) {
+        writeRecovery(false)
+        return
+      }
+      const { error } = await client.auth.signOut()
+      if (error) throw error
+      writeRecovery(false)
+    },
+  }), [ready, session, resetSentAt])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

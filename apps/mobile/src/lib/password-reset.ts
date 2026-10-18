@@ -30,8 +30,52 @@ export type AuthCallback = {
 
 export type AuthCallbackClient = {
   verifyOtp: (args: { type: string, token_hash: string }) => Promise<{ error: { message: string } | null }>
-  exchangeCodeForSession: (code: string) => Promise<{ error: { message: string } | null }>
-  setSession: (args: { access_token: string, refresh_token: string }) => Promise<{ error: { message: string } | null }>
+  exchangeCodeForSession: (code: string) => Promise<{ error: { message: string } | null, recovery?: boolean }>
+}
+
+export type ResetClaim = { decision: ResetSendDecision, lastSentAt: number | null }
+
+/** Stamp the send time before the request so a second call in the same turn does not send. */
+export function claimResetSend(email: string, lastSentAt: number | null, now: number): ResetClaim {
+  const decision = resetSendDecision(email, lastSentAt, now)
+  if (!decision.send) return { decision, lastSentAt }
+  return { decision, lastSentAt: now }
+}
+
+/** A failed send does not consume the window. */
+export function releaseResetSend(lastSentAt: number | null, outcome: ResetOutcome): number | null {
+  if ('error' in outcome) return null
+  return lastSentAt
+}
+
+/** Milliseconds until Send reset link can run again. The button reads this. */
+export function resetCooldownRemaining(sentAt: number | null, now: number): number {
+  if (sentAt == null) return 0
+  return Math.max(0, RESET_REPEAT_MS - (now - sentAt))
+}
+
+export type PasswordView = { form: true } | { form: false, message: string }
+
+/** A normal session is not enough. The form is only for a recovery session. */
+export function updatePasswordView(recovery: boolean, updated: boolean): PasswordView {
+  if (updated) return { form: false, message: 'Password updated. Taking you home…' }
+  if (!recovery) return { form: false, message: RESET_LINK_HINT }
+  return { form: true }
+}
+
+export function recoveryScreenExit(recovery: boolean, updated: boolean): 'sign-out' | 'keep' {
+  if (recovery && !updated) return 'sign-out'
+  return 'keep'
+}
+
+/** Leaving the set-new-password screen before a successful save signs the user out. */
+export async function leavePasswordScreen(
+  state: { recovery: boolean, updated: boolean },
+  signOut: () => Promise<void>,
+): Promise<'sign-out' | 'keep'> {
+  const action = recoveryScreenExit(state.recovery, state.updated)
+  if (action === 'sign-out') await signOut()
+  return action
 }
 
 /** `web` keeps the page origin. `native` is `scheme://` (Expo's two-slash deep link). */
@@ -91,44 +135,38 @@ async function applyAuthCallback(
   callback: AuthCallback,
   auth: AuthCallbackClient,
   origin: string,
-): Promise<{ destination: string }> {
-  const hasCredential = Boolean(callback.code || callback.tokenHash || callback.accessToken)
-  if (callback.errorDescription && !hasCredential) throw new Error(callback.errorDescription)
+): Promise<{ destination: string, recovery: boolean }> {
+  let recovery = callback.type === 'recovery'
   if (callback.tokenHash && callback.type) {
     const { error } = await auth.verifyOtp({ type: callback.type, token_hash: callback.tokenHash })
     if (error) throw new Error(error.message)
   } else if (callback.code) {
-    const { error } = await auth.exchangeCodeForSession(callback.code)
-    if (error) throw new Error(error.message)
-  } else if (callback.accessToken && callback.refreshToken) {
-    const { error } = await auth.setSession({
-      access_token: callback.accessToken,
-      refresh_token: callback.refreshToken,
-    })
-    if (error) throw new Error(error.message)
+    const result = await auth.exchangeCodeForSession(callback.code)
+    if (result.error) throw new Error(result.error.message)
+    recovery = recovery || Boolean(result.recovery)
   } else {
     throw new Error(RESET_LINK_HINT)
   }
-  return { destination: confirmDestination(callback, origin) }
+  return { destination: confirmDestination(callback, origin), recovery }
 }
 
-/** One in-flight exchange per code. A second open (Strict Mode remount) reuses it
- *  instead of burning the single-use recovery code. */
+/** One in-flight exchange per code. A second open while that exchange is still
+ *  running reuses it. The lock is dropped when the exchange finishes. */
 export function createAuthCallbackCompleter() {
-  const locks = new Map<string, Promise<{ destination: string }>>()
+  const locks = new Map<string, Promise<{ destination: string, recovery: boolean }>>()
   return function completeAuthCallback(
     rawUrl: string,
     auth: AuthCallbackClient,
     origin: string,
-  ): Promise<{ destination: string }> {
+  ): Promise<{ destination: string, recovery: boolean }> {
     const callback = parseAuthCallback(rawUrl)
-    const key = callback.code || callback.tokenHash || callback.accessToken || ''
+    const key = callback.code || callback.tokenHash || ''
     if (!key) return applyAuthCallback(callback, auth, origin)
     const existing = locks.get(key)
     if (existing) return existing
     const run = applyAuthCallback(callback, auth, origin)
     locks.set(key, run)
-    run.catch(() => { locks.delete(key) })
+    void run.finally(() => { locks.delete(key) })
     return run
   }
 }

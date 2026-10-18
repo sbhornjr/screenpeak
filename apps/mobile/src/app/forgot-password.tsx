@@ -5,22 +5,23 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Eyebrow } from '@/components/eyebrow'
 import { useAuth } from '@/lib/auth'
 import { backOrHome } from '@/lib/go'
-import { RESET_REPEAT_MS } from '@/lib/password-reset'
+import { resetCooldownRemaining } from '@/lib/password-reset'
 import { colors, face, radius, space } from '@/theme'
 
 export default function ForgotPasswordScreen() {
-  const { requestPasswordReset, configured } = useAuth()
+  const { requestPasswordReset, configured, resetSentAt } = useAuth()
   const [email, setEmail] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [confirmation, setConfirmation] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
-  const [locked, setLocked] = useState(false)
+  const [now, setNow] = useState(() => Date.now())
+  const remaining = resetCooldownRemaining(resetSentAt, now)
 
   useEffect(() => {
-    if (!locked) return
-    const timer = setTimeout(() => setLocked(false), RESET_REPEAT_MS)
+    if (remaining <= 0) return
+    const timer = setTimeout(() => setNow(Date.now()), remaining)
     return () => clearTimeout(timer)
-  }, [locked])
+  }, [remaining])
 
   async function submit() {
     setError(null)
@@ -32,7 +33,7 @@ export default function ForgotPasswordScreen() {
         return
       }
       setConfirmation(result.confirmation)
-      setLocked(true)
+      setNow(Date.now())
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not send a reset link.')
     } finally {
@@ -65,7 +66,7 @@ export default function ForgotPasswordScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Send reset link"
-          disabled={pending || locked || !configured}
+          disabled={pending || remaining > 0 || !configured}
           onPress={() => { void submit() }}
           style={styles.button}
         >

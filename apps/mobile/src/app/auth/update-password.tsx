@@ -1,36 +1,53 @@
 import { useRouter } from 'expo-router'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { Eyebrow } from '@/components/eyebrow'
 import { useAuth } from '@/lib/auth'
 import { backOrHome } from '@/lib/go'
-import { RESET_LINK_HINT } from '@/lib/password-reset'
-import { supabase } from '@/lib/supabase'
+import { leavePasswordScreen, updatePasswordView } from '@/lib/password-reset'
+import { readRecovery, subscribeRecovery } from '@/lib/recovery-session'
 import { colors, face, radius, space } from '@/theme'
 
 export default function UpdatePasswordScreen() {
   const router = useRouter()
-  const { ready, session, configured, updatePassword } = useAuth()
-  const [storedSession, setStoredSession] = useState<boolean | null>(null)
-  const hasSession = Boolean(session) || storedSession === true
-  const checked = !ready ? false : Boolean(session) || !supabase || storedSession !== null
+  const { configured, updatePassword, finishPasswordChange, abandonRecovery } = useAuth()
+  const recovery = useSyncExternalStore(subscribeRecovery, readRecovery, () => false)
+  const updatedRef = useRef(false)
+  const recoveryRef = useRef(false)
   const [password, setPassword] = useState('')
   const [again, setAgain] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
   const [done, setDone] = useState(false)
+  const view = updatePasswordView(recovery, done)
+  const abandonRef = useRef(abandonRecovery)
+  const finishRef = useRef(finishPasswordChange)
+  const generation = useRef(0)
 
   useEffect(() => {
-    if (!ready || session || !supabase) return
-    let live = true
-    supabase.auth.getSession().then(({ data }) => {
-      if (!live) return
-      setStoredSession(Boolean(data.session))
-    })
-    return () => { live = false }
-  }, [ready, session])
+    recoveryRef.current = recovery
+  }, [recovery])
+
+  useEffect(() => {
+    abandonRef.current = abandonRecovery
+    finishRef.current = finishPasswordChange
+  })
+
+  useEffect(() => {
+    const mine = generation.current + 1
+    generation.current = mine
+    return () => {
+      const snapshot = { recovery: recoveryRef.current, updated: updatedRef.current }
+      queueMicrotask(() => {
+        if (generation.current !== mine) return
+        void leavePasswordScreen(snapshot, () => abandonRef.current()).then((action) => {
+          if (action === 'keep' && snapshot.updated) finishRef.current()
+        })
+      })
+    }
+  }, [])
 
   useEffect(() => {
     if (!done) return
@@ -43,6 +60,7 @@ export default function UpdatePasswordScreen() {
     setPending(true)
     try {
       await updatePassword(password, again)
+      updatedRef.current = true
       setDone(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not update the password.')
@@ -60,17 +78,13 @@ export default function UpdatePasswordScreen() {
         </Pressable>
         <Text style={styles.title}>Set a new password</Text>
         {configured ? null : <Text style={styles.error}>Sign-in is not configured.</Text>}
-        {!checked ? <Text style={styles.body}>Checking your link…</Text> : null}
-        {checked && !hasSession ? (
-          <>
-            <Text style={styles.body}>{RESET_LINK_HINT}</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel="Request a new link" onPress={() => router.push('/forgot-password')}>
-              <Text style={styles.link}>Request a new link</Text>
-            </Pressable>
-          </>
+        {!view.form ? <Text style={styles.body}>{view.message}</Text> : null}
+        {!view.form && !done ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Request a new link" onPress={() => router.push('/forgot-password')}>
+            <Text style={styles.link}>Request a new link</Text>
+          </Pressable>
         ) : null}
-        {done ? <Text style={styles.body}>Password updated. Taking you home…</Text> : null}
-        {checked && hasSession && !done ? (
+        {view.form ? (
           <>
             <TextInput
               accessibilityLabel="New password"

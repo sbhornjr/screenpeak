@@ -9,6 +9,7 @@ Log in has a Forgot password? link. That screen asks for an email and shows "If 
 - `recovery-link` opens set-new-password from the local reset link and saves a new password.
 - `sign-in-with-new-password` rejects the old password and signs in with the new one.
 - `no-session` tells you the set-new-password screen only works from the reset link.
+- `normal-session` keeps the form hidden after a normal sign-in.
 
 ## How to get to it (user POV)
 
@@ -34,7 +35,8 @@ Preconditions:
 - **Save a new password.** Fill New password and Confirm new password with `local-new-1` and click Update password. The screen says "Password updated. Taking you home…".
 - **Reject the old password.** The drive clears the recovery session, opens Log in, and signs in with `local-old-1`. The screen says "Invalid login credentials".
 - **Sign in with the new password.** Sign in with `local-new-1`. The feed no longer shows the welcome. It says "Nothing in your feed yet."
-- **Proof.** The drive writes `/tmp/screenpeak-verify/evidence/mobile-forgot-password/`. The png files are the welcome, the blocked set-new-password screen, the request, the confirmation, the set-new-password form, the saved-password sentence, and the signed-in feed. `result.json` records that the gateway's recover response was the same for `resetfan` and for `nobody-reset@example.com`, that the redirect was the Expo web confirm URL, and that `verify_local.passwords` stored `local-new-1`.
+- **Open set-new-password while signed in.** Open `http://localhost:8081/auth/update-password`. The screen says "This page only works from the reset link in your email." The new-password field is not there.
+- **Proof.** The drive writes `/tmp/screenpeak-verify/evidence/mobile-forgot-password/`. The png files are the welcome, the blocked set-new-password screen, the request, the confirmation, the set-new-password form, the saved-password sentence, the signed-in feed, and the same screen after a normal sign-in. `result.json` records that the gateway's recover response was the same for `resetfan` and for `nobody-reset@example.com`, that the redirect was the Expo web confirm URL, that the reset request sent a PKCE challenge, and that `verify_local.passwords` stored `local-new-1`.
 
 ```bash
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-forgot-password
@@ -47,5 +49,7 @@ node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-forgot-
 - `POST /auth/v1/recover` returns `{}` with status 200 for an address that exists and one that does not. The UI must not replace that with a "not found" sentence.
 - Send reset link stays disabled for 30 seconds after the confirmation. The drive does not wait that out.
 - Opening `/auth/update-password` without a recovery session must not show the password fields.
-- The native redirect string is `screenpeak://auth/confirm?next=/auth/update-password`. This drive runs on Expo web, so it does not open the custom scheme. Supabase's redirect allowlist needs `screenpeak://auth/confirm**` and `http://localhost:8081/auth/confirm**` before a hosted project will send the link. A single `*` does not match `next`, because that value contains `/`.
+- The native redirect string is `screenpeak://auth/confirm?next=/auth/update-password`. This drive runs on Expo web, so it does not open the custom scheme. Supabase's redirect allowlist needs `screenpeak://auth/confirm**`, `http://localhost:8081/auth/confirm**`, and `http://127.0.0.1:8081/auth/confirm**` before a hosted project will send the link. A single `*` does not match `next`, because that value contains `/`.
+- A link whose hash carries `access_token` and `refresh_token` does not start a session. Confirm accepts a PKCE code or a `token_hash` only.
+- Leaving set-new-password before Update password succeeds signs the recovery session out. A normal sign-in does not.
 - The drive deletes `resetfan` before it exits. `down` drops the database. Do not point this drive at a hosted database.

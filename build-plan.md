@@ -350,12 +350,14 @@ Cookie routes such as `DELETE /api/delete-account` do not send that header. The
 phone sends `Authorization: Bearer` and fetches with `credentials: 'omit'`.
 
 **Email links.** Signup confirmation still lands on the website's
-`/auth/confirm`. Password reset from the phone uses that same path on the
-app's own URL: `screenpeak://auth/confirm?next=/auth/update-password` in a
-dev or production build, and the Expo web origin of that path (for example
-`http://localhost:8081/auth/confirm?next=/auth/update-password`). Auth rejects
-the link until those URLs are on the redirect allowlist — see Phase 5.
-Later, iOS Universal Links / Android App Links can make
+`/auth/confirm`. The phone client uses Supabase's default implicit flow for
+sign-up, so that link does not depend on a code verifier stored on the phone.
+Password reset from the phone is the one PKCE request. It uses that same path
+on the app's own URL: `screenpeak://auth/confirm?next=/auth/update-password`
+in a dev or production build, and the Expo web origin of that path (for
+example `http://localhost:8081/auth/confirm?next=/auth/update-password`).
+Auth rejects the link until those URLs are on the redirect allowlist — see
+Phase 5. Later, iOS Universal Links / Android App Links can make
 `screenpeak.app/auth/confirm` open the app instead.
 
 ### The one tricky flow: Steam linking
@@ -869,12 +871,16 @@ stack.
    redirect every signed-out open into `(auth)`.
    > **Done.** Log in links to Forgot password?. That screen asks Supabase for
    > a reset email and shows "If that email has an account, a reset link is on
-   > its way." whether or not the address exists. A repeat send inside 30
-   > seconds is ignored. The link returns to `screenpeak://auth/confirm` (and
+   > its way." whether or not the address exists. The send time is recorded
+   > before the request returns, and Send reset link stays disabled until 30
+   > seconds have passed. The link returns to `screenpeak://auth/confirm` (and
    > the Expo web URL of that path) with `next=/auth/update-password`, the same
-   > path the website uses. Confirm exchanges the recovery code for a session
-   > and opens set-new-password. A signed-out open of that screen, with no
-   > recovery session, does not set a password. Signed-out opens of the tabs
+   > path the website uses. Confirm accepts a PKCE code or a `token_hash`, not
+   > access tokens in the URL, and opens set-new-password only for that
+   > recovery session. Leaving that screen before the password is saved signs
+   > the user out. A normal signed-in session cannot set a password there.
+   > Sign-up stays on the default implicit flow so its confirmation link does
+   > not need a verifier stored on the phone. Signed-out opens of the tabs
    > still stay on the tabs. Redirect allowlist entries are in Phase 5.
 3. API client lives in `apps/mobile/src/lib/api/` (bearer header, shared
    contract types — Appendix B.3) with the TanStack Query provider. Done with
@@ -957,10 +963,13 @@ and check it on a small phone (iPhone SE size) and with the keyboard open.
      - `screenpeak://auth/confirm**` — native deep link (`screenpeak` is the
        scheme in `apps/mobile/app.json`).
      - `http://localhost:8081/auth/confirm**` — Expo web on the dev port.
+     - `http://127.0.0.1:8081/auth/confirm**` — Expo web when the host is
+       `127.0.0.1` instead of `localhost`.
      - `https://<expo-web-host>/auth/confirm**` — only if Expo web is hosted.
      Keep the website origin's `/auth/confirm**` listed too. Auth rejects the
      reset email's redirect until the URL is on the list. Signup confirmation
-     still uses the website's `/auth/confirm`, not the app scheme.
+     still uses the website's `/auth/confirm`, not the app scheme. No extra
+     allowlist entry is required for sign-up.
 1. `eas build --profile preview` → TestFlight (iOS) and Internal testing
    (Android). Get 3–5 friends on it for a week.
 2. Store listings: screenshots, description, keywords, privacy policy URL (you

@@ -28,9 +28,27 @@ function parseUrl(input: string, base: string): UrlParts | null {
     }
 }
 
+// After the URL parser runs, `//evil.com` is still a same-origin pathname.
+// Callers that redirect to the returned string treat a leading double slash
+// as another host. The result must start with a single slash, then a
+// non-slash or the end, and it must not contain a backslash or a control
+// character.
+const SAFE_PARSED_PATH = /^\/(?:[^/]|$)/
+
+function parsedPathIsSafe(path: string): boolean {
+    if (!SAFE_PARSED_PATH.test(path) || path.includes('\\')) return false
+    for (let i = 0; i < path.length; i++) {
+        const code = path.charCodeAt(i)
+        if (code <= 0x1f || code === 0x7f) return false
+    }
+    return true
+}
+
 export function safeNextPath(raw: string | null | undefined, origin: string): string {
     if (!raw || !raw.startsWith('/') || raw.startsWith('//') || raw.startsWith('/\\')) return '/'
     const url = parseUrl(raw, origin)
     if (!url || url.origin !== origin) return '/'
-    return `${url.pathname}${url.search}${url.hash}`
+    const path = `${url.pathname}${url.search}${url.hash}`
+    if (!parsedPathIsSafe(path)) return '/'
+    return path
 }
