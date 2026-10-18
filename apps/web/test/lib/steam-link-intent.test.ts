@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { randomUUID } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
+import { tamper } from '../tamper'
+
+const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
 
 const SECRET = 'test-steam-link-intent-secret-32b'
 
@@ -44,7 +47,7 @@ describe('steam link intent tokens', () => {
         const parts = token.split('.')
         parts[1] = other
         expect(readSteamLinkIntent(parts.join('.'), now)).toBeNull()
-        expect(readSteamLinkIntent(`${token.slice(0, -1)}a`, now)).toBeNull()
+        expect(readSteamLinkIntent(tamper(token), now)).toBeNull()
         expect(readSteamLinkIntent(token, now + 300)).toBeNull()
 
         process.env.STEAM_LINK_INTENT_SECRET = 'too-short'
@@ -52,6 +55,37 @@ describe('steam link intent tokens', () => {
         delete process.env.STEAM_LINK_INTENT_SECRET
         expect(() => readSteamLinkIntent(token, now)).toThrow(/is not set/)
         expect(() => readSteamLinkIntent(token, now)).toThrow(SteamLinkIntentConfigError)
+    })
+
+    it('rejects a tampered signature for every base64url final character', async () => {
+        const { signSteamLinkIntent, readSteamLinkIntent } = await load()
+        const now = 1_700_000_000
+        let token = ''
+        let userId = ''
+        let jti = ''
+        for (let attempt = 0; attempt < 200; attempt++) {
+            process.env.STEAM_LINK_INTENT_SECRET = randomBytes(32).toString('hex')
+            userId = randomUUID()
+            jti = randomUUID()
+            token = signSteamLinkIntent(userId, jti, now + 300)
+            const last = token.at(-1) ?? ''
+            if (last.length === 1 && 'YZab'.includes(last)) break
+        }
+        const signature = token.slice(token.lastIndexOf('.') + 1)
+        const digest = Buffer.from(signature, 'base64url')
+        const accepted = { userId, jti, exp: now + 300 }
+        expect(readSteamLinkIntent(token, now)).toEqual(accepted)
+        expect(digest).toHaveLength(32)
+        expect('YZab').toContain(signature.at(-1))
+
+        const aliases = [...ALPHABET].filter(last => Buffer.from(signature.slice(0, -1) + last, 'base64url').equals(digest))
+        expect(aliases).toEqual(['Y', 'Z', 'a', 'b'])
+        for (const last of aliases) {
+            expect(readSteamLinkIntent(token.slice(0, -1) + last, now)).toEqual(accepted)
+        }
+        for (const last of ALPHABET) {
+            expect(readSteamLinkIntent(tamper(token.slice(0, -1) + last), now)).toBeNull()
+        }
     })
 
     it('does not import cookie auth or Next headers', () => {
