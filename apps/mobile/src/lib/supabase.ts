@@ -1,6 +1,7 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { Platform } from 'react-native'
 
+import { createMobileClient } from './mobile-client'
 import { createChunkedStorage, type StringStore } from './secure-session'
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL
@@ -37,12 +38,5 @@ function nativeStorage(): StringStore {
 
 /** Null when the public Supabase env is unset. The game screen still loads signed out. */
 export const supabase: SupabaseClient | null = url && anonKey
-  ? createClient(url, anonKey, {
-      auth: {
-        storage: Platform.OS === 'web' ? webStorage() : nativeStorage(),
-        autoRefreshToken: true,
-        persistSession: true,
-        detectSessionInUrl: false,
-      },
-    })
+  ? createMobileClient(url, anonKey, Platform.OS === 'web' ? webStorage() : nativeStorage())
   : null

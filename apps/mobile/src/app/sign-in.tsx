@@ -64,6 +64,9 @@ export default function SignInScreen() {
         <Pressable accessibilityRole="button" accessibilityLabel="Log in" disabled={pending || !configured} onPress={() => { void submit() }} style={styles.button}>
           <Text style={styles.buttonText}>{pending ? 'Logging in' : 'Log in'}</Text>
         </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Forgot password?" onPress={() => router.push('/forgot-password')}>
+          <Text style={styles.link}>Forgot password?</Text>
+        </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Create an account" onPress={() => router.replace('/sign-up')}>
           <Text style={styles.link}>Create an account</Text>
         </Pressable>
