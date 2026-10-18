@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
+import { tamper } from '../tamper'
 
 const SECRET = 'test-steam-link-intent-secret-32b'
 
@@ -44,7 +45,7 @@ describe('steam link intent tokens', () => {
         const parts = token.split('.')
         parts[1] = other
         expect(readSteamLinkIntent(parts.join('.'), now)).toBeNull()
-        expect(readSteamLinkIntent(`${token.slice(0, -1)}a`, now)).toBeNull()
+        expect(readSteamLinkIntent(tamper(token), now)).toBeNull()
         expect(readSteamLinkIntent(token, now + 300)).toBeNull()
 
         process.env.STEAM_LINK_INTENT_SECRET = 'too-short'
