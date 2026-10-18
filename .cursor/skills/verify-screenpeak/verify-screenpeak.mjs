@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Local ScreenPeak verification harness. See SKILL.md in this directory.
 import { spawn, spawnSync } from 'node:child_process'
-import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import { closeSync, existsSync, openSync, readFileSync, writeFileSync } from 'node:fs'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
@@ -30,9 +30,14 @@ const peekPassword = 'peekpeek'
 const peekUsername = 'peek'
 const adaEmail = 'hornflakes+ada@mail.grokbot.com'
 const adaUsername = 'ada'
+const resetEmail = 'hornflakes+reset@mail.grokbot.com'
+const resetUsername = 'resetfan'
+const resetOldPassword = 'local-old-1'
+const resetNewPassword = 'local-new-1'
 const expoPort = 8081
 const catalogueTop = 100
 const libraryPath = join(runDir, 'library.json')
+const recoveryPath = join(runDir, 'recovery.json')
 const postgrestVersion = 'v16.4'
 const postgrestUrl = `https://github.com/PostgREST/postgrest/releases/download/${postgrestVersion}/postgrest-${postgrestVersion}-linux-static-x86-64.tar.xz`
 
@@ -157,6 +162,27 @@ function lookupPeek(email) {
 function passwordMatches(userId, password) {
     const line = psql(databaseUrl, `select password from verify_local.passwords where user_id = '${userId}'`, ['-tA'])
     return line === password
+}
+
+function lookupUserById(userId) {
+    if (!/^[0-9a-f-]{36}$/i.test(userId)) return null
+    const line = psql(databaseUrl, `select u.id || '|' || u.email || '|' || coalesce(p.username, '') from auth.users u left join public.users p on p.id = u.id where u.id = '${userId}'`, ['-tA'])
+    if (!line) return null
+    const [id, email, username] = line.split('|')
+    return { id, email, username }
+}
+
+function pkceMatches(method, challenge, verifier) {
+    if (!challenge || !verifier) return false
+    if (method === 'plain') return verifier === challenge
+    return createHash('sha256').update(verifier).digest('base64url') === challenge
+}
+
+function recordRecovery(entry) {
+    let list = []
+    try { list = JSON.parse(readFileSync(recoveryPath, 'utf8')) } catch { list = [] }
+    list.push(entry)
+    writeFileSync(recoveryPath, JSON.stringify(list, null, 2))
 }
 
 async function ensurePostgres() {
@@ -569,6 +595,7 @@ async function waitForHttp(url, timeoutMs) {
 
 function startGateway(secret) {
     const refreshTokens = new Map()
+    const recoveryCodes = new Map()
     const server = createServer(async (req, res) => {
         const originHeaders = {
             'Access-Control-Allow-Origin': '*',
@@ -601,33 +628,78 @@ function startGateway(secret) {
                 }
                 if (grant === 'refresh_token') {
                     const userId = refreshTokens.get(body.refresh_token)
-                    if (!userId) {
+                    const row = userId && lookupUserById(userId)
+                    if (!row) {
                         sendJson(res, 400, { error: 'invalid_grant', error_description: 'Invalid refresh token', msg: 'Invalid refresh token' }, originHeaders)
-                        return
-                    }
-                    const row = lookupPeek(peekEmail)
-                    if (!row || row.id !== userId) {
-                        sendJson(res, 400, { error: 'invalid_grant', msg: 'Invalid refresh token' }, originHeaders)
                         return
                     }
                     refreshTokens.delete(body.refresh_token)
                     sendJson(res, 200, sessionFor(row, secret, refreshTokens), originHeaders)
                     return
                 }
+                if (grant === 'pkce') {
+                    const saved = recoveryCodes.get(String(body.auth_code || ''))
+                    const verifier = String(body.code_verifier || '')
+                    if (!saved || !pkceMatches(saved.method, saved.challenge, verifier)) {
+                        sendJson(res, 400, { error: 'invalid_grant', error_description: 'Invalid code', msg: 'Invalid code' }, originHeaders)
+                        return
+                    }
+                    recoveryCodes.delete(String(body.auth_code || ''))
+                    const row = lookupUserById(saved.userId)
+                    if (!row) {
+                        sendJson(res, 400, { error: 'invalid_grant', msg: 'Invalid code' }, originHeaders)
+                        return
+                    }
+                    sendJson(res, 200, sessionFor(row, secret, refreshTokens), originHeaders)
+                    return
+                }
                 sendJson(res, 400, { error: 'unsupported_grant_type', msg: `Unsupported grant ${grant}` }, originHeaders)
+                return
+            }
+            if (url.pathname === '/auth/v1/recover' && req.method === 'POST') {
+                const body = await readBody(req)
+                const email = String(body.email || '').trim()
+                const redirectTo = url.searchParams.get('redirect_to') || ''
+                const row = email ? lookupPeek(email) : null
+                const code = row ? randomBytes(24).toString('hex') : null
+                if (row && code) {
+                    recoveryCodes.set(code, {
+                        userId: row.id,
+                        challenge: body.code_challenge || null,
+                        method: body.code_challenge_method || 's256',
+                    })
+                }
+                recordRecovery({ email, code, redirectTo, at: new Date().toISOString() })
+                sendJson(res, 200, {}, originHeaders)
                 return
             }
             if (url.pathname === '/auth/v1/user' && req.method === 'GET') {
                 const token = bearer(req)
                 const payload = token && verifyJwt(token, secret)
-                if (!payload?.sub) {
+                const row = payload?.sub && lookupUserById(payload.sub)
+                if (!row) {
                     sendJson(res, 401, { error: 'invalid_token', msg: 'Invalid token' }, originHeaders)
                     return
                 }
-                const row = lookupPeek(peekEmail)
-                if (!row || row.id !== payload.sub) {
+                sendJson(res, 200, userRecord(row), originHeaders)
+                return
+            }
+            if (url.pathname === '/auth/v1/user' && req.method === 'PUT') {
+                const token = bearer(req)
+                const payload = token && verifyJwt(token, secret)
+                const row = payload?.sub && lookupUserById(payload.sub)
+                if (!row) {
                     sendJson(res, 401, { error: 'invalid_token', msg: 'Invalid token' }, originHeaders)
                     return
+                }
+                const body = await readBody(req)
+                if (typeof body.password === 'string' && body.password) {
+                    const password = body.password.replaceAll("'", "''")
+                    psql(databaseUrl, `
+                        INSERT INTO verify_local.passwords (user_id, password)
+                        VALUES ('${row.id}', '${password}')
+                        ON CONFLICT (user_id) DO UPDATE SET password = EXCLUDED.password;
+                    `)
                 }
                 sendJson(res, 200, userRecord(row), originHeaders)
                 return
@@ -1630,6 +1702,40 @@ function deleteAda() {
     }
 }
 
+function insertResetUser() {
+    psql(databaseUrl, `
+        INSERT INTO auth.users (id, email, raw_user_meta_data)
+        SELECT gen_random_uuid(), '${resetEmail}', '{"username":"${resetUsername}"}'::jsonb
+        WHERE NOT EXISTS (SELECT 1 FROM auth.users WHERE email = '${resetEmail}');
+        INSERT INTO verify_local.passwords (user_id, password)
+        SELECT id, '${resetOldPassword}' FROM auth.users WHERE email = '${resetEmail}'
+        ON CONFLICT (user_id) DO UPDATE SET password = EXCLUDED.password;
+        UPDATE public.users
+        SET username = '${resetUsername}', display_name = '${resetUsername}'
+        WHERE id = (SELECT id FROM auth.users WHERE email = '${resetEmail}');
+    `)
+}
+
+function deleteResetUser() {
+    try {
+        psql(databaseUrl, `DELETE FROM auth.users WHERE email = '${resetEmail}';`)
+    } catch (error) {
+        log(error instanceof Error ? error.message : String(error))
+    }
+}
+
+function clearRecoveryFile() {
+    writeFileSync(recoveryPath, '[]\n')
+}
+
+function readRecovery() {
+    try {
+        return JSON.parse(readFileSync(recoveryPath, 'utf8'))
+    } catch {
+        return []
+    }
+}
+
 async function driveMobileNav() {
     const doctorRun = spawnSync(process.execPath, [fileURLToPath(import.meta.url), 'doctor'], { encoding: 'utf8' })
     process.stdout.write(doctorRun.stdout || '')
@@ -1882,13 +1988,197 @@ async function driveMobileNav() {
     log(`proved mobile-nav evidence ${dir}`)
 }
 
+async function postRecover(email) {
+    const response = await fetch(`http://127.0.0.1:${gatewayPort}/auth/v1/recover`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+    })
+    const body = await response.text()
+    return { status: response.status, body }
+}
+
+async function driveForgotPassword() {
+    const doctorRun = spawnSync(process.execPath, [fileURLToPath(import.meta.url), 'doctor'], { encoding: 'utf8' })
+    process.stdout.write(doctorRun.stdout || '')
+    if (doctorRun.status !== 0) fail('Doctor failed. Not driving.')
+    if (await portOpen(expoPort)) fail(`Port ${expoPort} is already in use. Not starting Expo.`)
+    const publicEnv = readPublicEnv()
+    const dir = join(evidenceRoot, 'mobile-forgot-password')
+    await mkdir(dir, { recursive: true })
+    insertResetUser()
+    clearRecoveryFile()
+    const knownRecover = await postRecover(resetEmail)
+    const unknownRecover = await postRecover('nobody-reset@example.com')
+    clearRecoveryFile()
+    const origin = `http://127.0.0.1:${appPort}`
+    const expoOrigin = `http://localhost:${expoPort}`
+    const expoPid = spawnLogged('expo', 'npm', ['run', 'web', '-w', '@screenpeak/mobile', '--', '--host', 'localhost', '--port', String(expoPort)], {
+        CI: '1',
+        BROWSER: 'none',
+        EXPO_NO_TELEMETRY: '1',
+        EXPO_PUBLIC_API_URL: origin,
+        EXPO_PUBLIC_SUPABASE_URL: publicEnv.url,
+        EXPO_PUBLIC_SUPABASE_ANON_KEY: publicEnv.anon,
+    })
+    const problems = []
+    const shots = {}
+    const confirmation = 'If that email has an account, a reset link is on its way.'
+    let page = null
+    let chromePid = null
+    let code = 0
+    let storedPasswordMatches = false
+    let oldPasswordRejected = false
+    let repeatDisabled = false
+    try {
+        await waitForHttp(expoOrigin, 180_000)
+        chromePid = await launchChrome()
+        page = await connectChrome()
+
+        async function shot(name, needle, timeoutMs = 30_000) {
+            await page.waitForText(needle, timeoutMs)
+            const path = join(dir, name)
+            await page.screenshot(path)
+            shots[name] = path
+            return page.bodyText()
+        }
+
+        await page.navigate(expoOrigin)
+        const welcome = await shot('signed-out-home.png', 'Sign up, log in, or browse the catalogue.', 180_000)
+        if (!welcome.includes('Welcome')) problems.push('signed-out home is missing Welcome')
+
+        await page.navigate(`${expoOrigin}/auth/update-password`)
+        const blocked = await shot('update-without-link.png', 'This page only works from the reset link in your email.')
+        if (!blocked.includes('Request a new link')) problems.push('set-new-password without a session hides Request a new link')
+        if (!blocked.includes('Back')) problems.push('set-new-password is missing Back')
+
+        await page.navigate(`${expoOrigin}/sign-in`)
+        await page.waitForText('Forgot password?')
+        await page.clickControl('Forgot password?')
+        await page.waitForText('Reset password')
+        await page.clickControl('Back')
+        await page.waitForText('Forgot password?')
+        await page.clickControl('Forgot password?')
+        const request = await shot('request.png', 'Send reset link')
+        if (!request.includes('Reset password')) problems.push('request screen is missing Reset password')
+        if (!request.includes('Back')) problems.push('request screen is missing Back')
+
+        await page.fillPlaceholder('Email', resetEmail)
+        await page.clickControl('Send reset link')
+        const confirmed = await shot('confirmation.png', confirmation)
+        if (confirmed.includes('not found') || confirmed.includes('does not exist')) problems.push('confirmation names whether the account exists')
+        repeatDisabled = await page.evaluate(`(() => {
+            const buttons = [...document.querySelectorAll('button')].filter((item) => item.getClientRects().length > 0)
+            const button = buttons.find((item) => item.textContent.trim() === 'Send reset link')
+            return button && button.disabled ? 'yes' : 'no'
+        })()`) === 'yes'
+        if (!repeatDisabled) problems.push('Send reset link stayed enabled after the confirmation')
+        await page.clickControl('Send reset link')
+        const recovery = readRecovery().filter((entry) => entry.email === resetEmail && entry.code)
+        if (recovery.length !== 1) problems.push(`expected one reset code, found ${recovery.length}`)
+        const entry = recovery[0]
+        if (!entry?.redirectTo?.startsWith(`${expoOrigin}/auth/confirm?next=/auth/update-password`)) {
+            problems.push(`redirect was ${entry?.redirectTo || 'missing'}`)
+        }
+        if (!entry?.code) throw new Error('The local gateway did not record a reset code.')
+        const link = new URL(entry.redirectTo)
+        link.searchParams.set('code', entry.code)
+
+        await page.navigate(link.toString())
+        const form = await shot('update-password.png', 'Set a new password', 45_000)
+        const newPasswordField = await page.evaluate(`(() => {
+            const inputs = [...document.querySelectorAll('input[placeholder="New password"]')].filter((item) => item.getClientRects().length > 0)
+            return inputs.length ? 'yes' : 'no'
+        })()`)
+        if (newPasswordField !== 'yes') problems.push('set-new-password is missing the new password field')
+        if (form.includes('This page only works from the reset link')) problems.push('the reset link did not start a recovery session')
+        await page.fillPlaceholder('New password', resetNewPassword)
+        await page.fillPlaceholder('Confirm new password', resetNewPassword)
+        await page.clickControl('Update password')
+        await shot('updated.png', 'Password updated. Taking you home…')
+
+        await page.evaluate(`localStorage.clear(); 'ok'`)
+        await page.navigate(`${expoOrigin}/sign-in`)
+        await page.waitForText('Log in')
+        await page.fillPlaceholder('Email', resetEmail)
+        await page.fillPlaceholder('Password', resetOldPassword)
+        await page.clickControl('Log in')
+        await page.waitForText('Invalid login credentials')
+        oldPasswordRejected = true
+        await page.fillPlaceholder('Password', resetNewPassword)
+        await page.clickControl('Log in')
+        await page.waitUntil(`(() => {
+            for (let i = 0; i < localStorage.length; i += 1) {
+                const key = localStorage.key(i) || ''
+                if (key.includes('auth-token') && localStorage.getItem(key)) return 'ok'
+            }
+            return 'waiting'
+        })()`)
+        await page.navigate(expoOrigin)
+        await page.waitForText('Nothing in your feed yet.', 45_000)
+        const signedIn = await shot('signed-in.png', 'Nothing in your feed yet.')
+        if (signedIn.includes('Sign up, log in, or browse the catalogue.')) problems.push('signing in with the new password still shows the welcome')
+
+        const stored = psql(databaseUrl, `select password from verify_local.passwords where user_id = (select id from auth.users where email = '${resetEmail}')`, ['-tA'])
+        storedPasswordMatches = stored === resetNewPassword
+        if (!storedPasswordMatches) problems.push('verify_local.passwords does not have the new password')
+        if (knownRecover.status !== 200 || knownRecover.body !== unknownRecover.body) {
+            problems.push('recover responses differ for an existing and a missing email')
+        }
+        await writeFile(join(dir, 'result.json'), JSON.stringify({
+            feature: 'mobile-forgot-password',
+            expo: expoOrigin,
+            shots,
+            confirmation,
+            recoverStatus: { known: knownRecover.status, unknown: unknownRecover.status },
+            recoverBodiesMatch: knownRecover.status === 200 && knownRecover.body === unknownRecover.body,
+            redirectTo: entry.redirectTo,
+            repeatDisabled,
+            oldPasswordRejected,
+            storedPasswordMatches,
+            problems,
+        }, null, 2))
+    } catch (error) {
+        try { await page?.screenshot(join(dir, 'failed.png')) } catch { /* the page may already be gone */ }
+        console.error(error instanceof Error ? error.message : String(error))
+        code = 1
+        try {
+            await writeFile(join(dir, 'result.json'), JSON.stringify({
+                feature: 'mobile-forgot-password',
+                shots,
+                problems,
+                error: error instanceof Error ? error.message : String(error),
+            }, null, 2))
+        } catch { /* evidence dir may be missing */ }
+    } finally {
+        page?.close()
+        stopRecorded('chrome')
+        if (chromePid) {
+            try { process.kill(chromePid, 'SIGTERM') } catch { /* already stopped */ }
+        }
+        stopRecorded('expo')
+        if (expoPid) {
+            try { process.kill(-expoPid, 'SIGTERM') } catch { /* already stopped */ }
+            try { process.kill(expoPid, 'SIGTERM') } catch { /* already stopped */ }
+        }
+        deleteResetUser()
+    }
+    if (code !== 0) process.exit(code)
+    if (problems.length) {
+        console.error(problems.join('\n'))
+        process.exit(1)
+    }
+    log(`proved mobile-forgot-password evidence ${dir}`)
+}
+
 async function drive(feature) {
     if (feature === 'game-page') return driveGamePage()
     if (feature === 'read-endpoints') return driveReadEndpoints()
     if (feature === 'game-writes') return driveGameWrites()
     if (feature === 'search') return driveSearch()
     if (feature === 'mobile-nav') return driveMobileNav()
-    if (feature !== 'loadout-readout') fail(`Unknown feature ${feature || ''}. Mapped features: loadout-readout, game-page, read-endpoints, game-writes, search, mobile-nav.`)
+    if (feature === 'mobile-forgot-password') return driveForgotPassword()
+    if (feature !== 'loadout-readout') fail(`Unknown feature ${feature || ''}. Mapped features: loadout-readout, game-page, read-endpoints, game-writes, search, mobile-nav, mobile-forgot-password.`)
     const doctorRun = spawnSync(process.execPath, [fileURLToPath(import.meta.url), 'doctor'], { encoding: 'utf8' })
     process.stdout.write(doctorRun.stdout || '')
     if (doctorRun.status !== 0) fail('Doctor failed. Not driving.')
@@ -2078,7 +2368,9 @@ async function connectChrome() {
     async function clickButton(name) {
         const outcome = await evaluate(`(() => {
             const buttons = [...document.querySelectorAll('button')]
-            const button = buttons.find((item) => item.textContent.trim() === ${JSON.stringify(name)})
+            const visible = buttons.filter((item) => item.getClientRects().length > 0)
+            const pool = visible.length ? visible : buttons
+            const button = pool.find((item) => item.textContent.trim() === ${JSON.stringify(name)})
             if (!button) return 'missing'
             button.click()
             return 'clicked'
@@ -2097,7 +2389,9 @@ async function connectChrome() {
     async function clickControl(name) {
         const outcome = await evaluate(`(() => {
             const nodes = [...document.querySelectorAll('button, [role="button"]')]
-            const node = nodes.find((item) => item.textContent.trim() === ${JSON.stringify(name)})
+            const visible = nodes.filter((item) => item.getClientRects().length > 0)
+            const pool = visible.length ? visible : nodes
+            const node = pool.find((item) => item.textContent.trim() === ${JSON.stringify(name)})
             if (!node) return 'missing'
             node.click()
             return 'clicked'
@@ -2197,7 +2491,10 @@ async function connectChrome() {
     async function fillPlaceholder(placeholder, value) {
         const outcome = await evaluate(`(() => {
             const dialog = document.querySelector('[role="dialog"]')
-            const input = (dialog || document).querySelector(${JSON.stringify(`input[placeholder="${placeholder}"]`)})
+            const root = dialog || document
+            const inputs = [...root.querySelectorAll(${JSON.stringify(`input[placeholder="${placeholder}"]`)})]
+            const visible = inputs.filter((item) => item.getClientRects().length > 0)
+            const input = (visible.length ? visible : inputs)[0]
             if (!input) return 'missing'
             const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set
             setter.call(input, ${JSON.stringify(value)})

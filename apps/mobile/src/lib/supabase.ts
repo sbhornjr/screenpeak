@@ -43,6 +43,9 @@ export const supabase: SupabaseClient | null = url && anonKey
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: false,
+        // Same PKCE flow as the website's browser client. The recovery code
+        // comes back on the query string, which a screenpeak:// link keeps.
+        flowType: 'pkce',
       },
     })
   : null

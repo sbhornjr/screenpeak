@@ -47,3 +47,4 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 - [Game writes](./game-writes.md) covers peek's bearer token updating a rating, a library status, and a list, then restoring the fixture.
 - [Search](./search.md) covers signed-out game and developer search, the catalogue developer dropdown, and the favorite-game picker.
 - [Mobile navigation](./mobile-nav.md) covers the phone tabs on Expo web, signed out and as peek, including a public profile and a private profile.
+- [Mobile forgot password](./mobile-forgot-password.md) covers the phone reset request, the neutral confirmation, the local reset link, and signing in with the new password.

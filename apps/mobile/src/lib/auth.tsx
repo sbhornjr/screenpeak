@@ -1,7 +1,17 @@
-import type { Session } from '@supabase/supabase-js'
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import type { EmailOtpType, Session } from '@supabase/supabase-js'
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { AppState, Platform } from 'react-native'
+import * as Linking from 'expo-linking'
 
+import {
+  completeAuthCallback,
+  newPasswordProblem,
+  passwordResetRedirectBase,
+  passwordResetRedirectTo,
+  resetOutcome,
+  resetSendDecision,
+  type ResetOutcome,
+} from './password-reset'
 import { signUpAuthBody } from './sign-up'
 import { supabase } from './supabase'
 
@@ -12,13 +22,25 @@ type AuthValue = {
   signIn: (email: string, password: string) => Promise<void>
   signUp: (email: string, password: string, username: string) => Promise<string>
   signOut: () => Promise<void>
+  requestPasswordReset: (email: string) => Promise<ResetOutcome>
+  openRecoveryLink: (url: string) => Promise<string>
+  updatePassword: (password: string, again: string) => Promise<void>
 }
 
 const AuthContext = createContext<AuthValue | null>(null)
 
+function passwordResetRedirect(): string {
+  if (Platform.OS === 'web') {
+    const origin = typeof window === 'undefined' ? 'http://localhost:8081' : window.location.origin
+    return passwordResetRedirectTo(passwordResetRedirectBase('web', origin, 'screenpeak'))
+  }
+  return passwordResetRedirectTo(passwordResetRedirectBase('native', '', Linking.resolveScheme({})))
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [ready, setReady] = useState(supabase == null)
+  const lastResetAt = useRef<number | null>(null)
 
   useEffect(() => {
     if (!supabase) return
@@ -69,6 +91,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async signOut() {
       if (!supabase) return
       const { error } = await supabase.auth.signOut()
+      if (error) throw error
+    },
+    async requestPasswordReset(email) {
+      if (!supabase) throw new Error('Sign-in is not configured.')
+      const decision = resetSendDecision(email, lastResetAt.current, Date.now())
+      if (!decision.send) {
+        if ('confirmation' in decision) return { confirmation: decision.confirmation }
+        return { error: decision.message }
+      }
+      const { error } = await supabase.auth.resetPasswordForEmail(decision.email, {
+        redirectTo: passwordResetRedirect(),
+      })
+      const outcome = resetOutcome(error ? { code: error.code, message: error.message } : null)
+      if ('confirmation' in outcome) lastResetAt.current = Date.now()
+      return outcome
+    },
+    async openRecoveryLink(url) {
+      const client = supabase
+      if (!client) throw new Error('Sign-in is not configured.')
+      const origin = Platform.OS === 'web' && typeof window !== 'undefined'
+        ? window.location.origin
+        : 'https://screenpeak.app'
+      const result = await completeAuthCallback(url, {
+        verifyOtp: ({ type, token_hash }) => client.auth.verifyOtp({
+          type: type as EmailOtpType,
+          token_hash,
+        }),
+        exchangeCodeForSession: (code) => client.auth.exchangeCodeForSession(code),
+        setSession: (tokens) => client.auth.setSession(tokens),
+      }, origin)
+      return result.destination
+    },
+    async updatePassword(password, again) {
+      if (!supabase) throw new Error('Sign-in is not configured.')
+      const problem = newPasswordProblem(password, again)
+      if (problem) throw new Error(problem)
+      const { error } = await supabase.auth.updateUser({ password })
       if (error) throw error
     },
   }), [ready, session])

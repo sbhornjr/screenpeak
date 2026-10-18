@@ -349,8 +349,13 @@ Native fetch ignores CORS. Expo web does not: `withAuth` adds
 Cookie routes such as `DELETE /api/delete-account` do not send that header. The
 phone sends `Authorization: Bearer` and fetches with `credentials: 'omit'`.
 
-**Email links** (confirm signup, password reset) keep landing on the website's
-`/auth/confirm` for v1. Later, iOS Universal Links / Android App Links can make
+**Email links.** Signup confirmation still lands on the website's
+`/auth/confirm`. Password reset from the phone uses that same path on the
+app's own URL: `screenpeak://auth/confirm?next=/auth/update-password` in a
+dev or production build, and the Expo web origin of that path (for example
+`http://localhost:8081/auth/confirm?next=/auth/update-password`). Auth rejects
+the link until those URLs are on the redirect allowlist — see Phase 5.
+Later, iOS Universal Links / Android App Links can make
 `screenpeak.app/auth/confirm` open the app instead.
 
 ### The one tricky flow: Steam linking
@@ -862,6 +867,15 @@ stack.
    limit is 2048 bytes) and in `localStorage` on Expo web. The welcome screen
    is the signed-out Feed tab from step 1. Finish forgot-password. Do not
    redirect every signed-out open into `(auth)`.
+   > **Done.** Log in links to Forgot password?. That screen asks Supabase for
+   > a reset email and shows "If that email has an account, a reset link is on
+   > its way." whether or not the address exists. A repeat send inside 30
+   > seconds is ignored. The link returns to `screenpeak://auth/confirm` (and
+   > the Expo web URL of that path) with `next=/auth/update-password`, the same
+   > path the website uses. Confirm exchanges the recovery code for a session
+   > and opens set-new-password. A signed-out open of that screen, with no
+   > recovery session, does not set a password. Signed-out opens of the tabs
+   > still stay on the tabs. Redirect allowlist entries are in Phase 5.
 3. API client lives in `apps/mobile/src/lib/api/` (bearer header, shared
    contract types — Appendix B.3) with the TanStack Query provider. Done with
    the game screen. Later screens add endpoints to the same client.
@@ -935,6 +949,18 @@ and check it on a small phone (iPhone SE size) and with the keyboard open.
    - [ ] Copy the rest of `apps/web/.env.local` (Phase 5 step 0). Phone Steam
      import adds no other variable. `STEAM_API_KEY` was already required for
      the website import. `NEXT_PUBLIC_SITE_URL` is the OpenID realm.
+   - [ ] Add the phone password-reset URLs to the Supabase Auth redirect
+     allowlist (Authentication → URL Configuration). The app sends the same
+     path the website uses: `/auth/confirm?next=/auth/update-password`.
+     A `*` wildcard does not match that `next` value, because `next` contains
+     `/`. Add these entries:
+     - `screenpeak://auth/confirm**` — native deep link (`screenpeak` is the
+       scheme in `apps/mobile/app.json`).
+     - `http://localhost:8081/auth/confirm**` — Expo web on the dev port.
+     - `https://<expo-web-host>/auth/confirm**` — only if Expo web is hosted.
+     Keep the website origin's `/auth/confirm**` listed too. Auth rejects the
+     reset email's redirect until the URL is on the list. Signup confirmation
+     still uses the website's `/auth/confirm`, not the app scheme.
 1. `eas build --profile preview` → TestFlight (iOS) and Internal testing
    (Android). Get 3–5 friends on it for a week.
 2. Store listings: screenshots, description, keywords, privacy policy URL (you

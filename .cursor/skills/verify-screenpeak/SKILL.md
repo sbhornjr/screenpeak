@@ -61,11 +61,14 @@ node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive read-endpoints
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive game-writes
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive search
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-nav
+node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-forgot-password
 ```
 
 `drive search` does not start signed in. It reads one of `peek`'s rated games and that game's developer and publisher from Postgres, fetches the game and taxonomy search routes, and types into the catalogue's developer dropdown and the signed-in favorite-game picker. It does not click Lock.
 
 `drive mobile-nav` starts Expo web on `localhost:8081` with `EXPO_PUBLIC_API_URL` pointed at the local website and the public Supabase URL and anon key from the env file this skill wrote. It does not write those values into the repo. It screenshots the four tabs signed out and signed in as peek, peek's public profile signed out, and a second local user `ada` whose library and loadout are private, both signed out and as peek. It also opens the catalogue from Browse and comes Back, opens the Library tab from the profile preview, and opens ada's library and loadout, which stay Not found. It deletes `ada` and stops Expo before it exits. Port 8081 must be free.
+
+`drive mobile-forgot-password` starts the same Expo web server. It does not change peek's password. It inserts a local user `resetfan`, requests a reset from the Log in screen, opens the local recovery link the gateway recorded (there is no email server), sets a new password, then signs in with that password. It deletes `resetfan` and stops Expo before it exits. Port 8081 must be free. Do not run it at the same time as `drive mobile-nav`.
 
 `drive game-page` does not sign in. It reads one of `peek`'s games from Postgres, fetches `GET /api/v1/games/[slug]` and the reviews route, and opens the website's game page. The native screen is checked with Expo web, not this drive.
 
@@ -131,13 +134,26 @@ A passing search proof shows the developer name in `filters.png`, the game name 
 
 A passing mobile-nav proof shows ScreenPeak on each screenshot, the welcome and signup prompts while signed out, peek's games on the signed-in library, Loadout and the library counts on peek's own hub and on the signed-out public profile, and neither Loadout nor the library counts on ada. `result.json` has an empty `problems` list, `library_stats` null for ada, and `viewer.is_owner` true for peek.
 
+`drive mobile-forgot-password` writes `/tmp/screenpeak-verify/evidence/mobile-forgot-password/`:
+
+- `signed-out-home.png` — the welcome, signed out
+- `update-without-link.png` — set-new-password opened with no recovery session
+- `request.png` — the reset form
+- `confirmation.png` — the neutral confirmation
+- `update-password.png` — set-new-password after the local reset link
+- `updated.png` — the password was saved
+- `signed-in.png` — the feed after signing in with the new password
+- `result.json` — the recover responses, the redirect URL, and the password check
+
+A passing forgot-password proof shows ScreenPeak on each screenshot, the same confirmation sentence, Send reset link disabled after that sentence, the set-new-password form after the local link, and the feed without the welcome after the new password. `result.json` has an empty `problems` list, `recoverBodiesMatch` true, `repeatDisabled` true, `oldPasswordRejected` true, and `storedPasswordMatches` true. peek's password is still `peekpeek`.
+
 ## Cleanup
 
 ```bash
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs down
 ```
 
-Kill only the pids in `/tmp/screenpeak-verify/pids`. After `down`, `/tmp/screenpeak-verify/evidence/loadout-readout/`, `/tmp/screenpeak-verify/evidence/game-page/`, `/tmp/screenpeak-verify/evidence/read-endpoints/`, `/tmp/screenpeak-verify/evidence/game-writes/`, `/tmp/screenpeak-verify/evidence/search/`, and `/tmp/screenpeak-verify/evidence/mobile-nav/` must still exist. Confirm that before treating the run as finished.
+Kill only the pids in `/tmp/screenpeak-verify/pids`. After `down`, `/tmp/screenpeak-verify/evidence/loadout-readout/`, `/tmp/screenpeak-verify/evidence/game-page/`, `/tmp/screenpeak-verify/evidence/read-endpoints/`, `/tmp/screenpeak-verify/evidence/game-writes/`, `/tmp/screenpeak-verify/evidence/search/`, `/tmp/screenpeak-verify/evidence/mobile-nav/`, and `/tmp/screenpeak-verify/evidence/mobile-forgot-password/` must still exist. Confirm that before treating the run as finished.
 
 ## Helpers
 
