@@ -1,5 +1,3 @@
-import { Text } from 'react-native'
-
 import { api, apiConfigured } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { go } from '@/lib/go'
@@ -7,7 +5,8 @@ import { useRemote } from '@/lib/use-remote'
 
 import { ProfileHubScreen } from '@/components/profile-hub-screen'
 import { ScreenMessage } from '@/components/screen-state'
-import { ScreenScroll, screenStyles, SignupButtons } from '@/components/screen-scroll'
+import { EmptyState } from '@/components/empty-state'
+import { ScreenScroll, SignupButtons } from '@/components/screen-scroll'
 
 export default function ProfileRoute() {
   const { ready, session } = useAuth()
@@ -17,7 +16,7 @@ export default function ProfileRoute() {
   if (!session) {
     return (
       <ScreenScroll title="Profile">
-        <Text style={screenStyles.muted}>Sign up to see your loadout and lists.</Text>
+        <EmptyState dense title="Sign up to see your loadout and lists." />
         <SignupButtons onOpen={go} />
       </ScreenScroll>
     )

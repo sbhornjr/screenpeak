@@ -1,14 +1,11 @@
 import * as Linking from 'expo-linking'
 import { router, type Href } from 'expo-router'
 import { useEffect, useState } from 'react'
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { Platform, Text } from 'react-native'
 
-import { Eyebrow } from '@/components/eyebrow'
+import { AuthScaffold, authText } from '@/components/auth-scaffold'
 import { useAuth } from '@/lib/auth'
-import { backOrHome } from '@/lib/go'
 import { RESET_LINK_HINT } from '@/lib/password-reset'
-import { colors, face, space } from '@/theme'
 
 export default function ConfirmResetScreen() {
   const linked = Linking.useLinkingURL()
@@ -29,25 +26,9 @@ export default function ConfirmResetScreen() {
   }, [configured, href, openRecoveryLink])
 
   return (
-    <SafeAreaView style={styles.screen}>
-      <View style={styles.content}>
-        <Eyebrow>ScreenPeak</Eyebrow>
-        <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={backOrHome}>
-          <Text style={styles.link}>Back</Text>
-        </Pressable>
-        <Text style={styles.title}>Reset link</Text>
-        {configured ? null : <Text style={styles.error}>Sign-in is not configured.</Text>}
-        {error ? <Text style={styles.body}>{error}</Text> : <Text style={styles.body}>Checking your link…</Text>}
-      </View>
-    </SafeAreaView>
+    <AuthScaffold title="Reset link">
+      {configured ? null : <Text style={authText.error}>Sign-in is not configured.</Text>}
+      {error ? <Text style={authText.notice}>{error}</Text> : <Text style={authText.notice}>Checking your link…</Text>}
+    </AuthScaffold>
   )
 }
-
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
-  content: { paddingHorizontal: space[6], paddingTop: space[8], gap: space[3] },
-  title: { fontFamily: face.display[600], fontSize: 32, color: colors.text },
-  body: { fontFamily: face.body[400], fontSize: 16, lineHeight: 22, color: colors.text },
-  error: { fontFamily: face.body[400], fontSize: 14, color: colors.bad },
-  link: { fontFamily: face.body[500], fontSize: 14, color: colors.accent },
-})

@@ -14,6 +14,7 @@ export type ProfileHubModel = {
   bio: string | null
   followerCount: number
   followingCount: number
+  avatarUrl: string | null
   loadoutHref: string | null
   listsHref: string
   library: { href: string, totalGames: number | null, completed: number | null } | null
@@ -33,6 +34,7 @@ export function profileHubModel(data: ProfilePageData): ProfileHubModel {
   return {
     username,
     bio: data.profile.user_bio,
+    avatarUrl: data.profile.avatar_url,
     followerCount: data.profile.follower_count,
     followingCount: data.profile.following_count,
     loadoutHref: showLoadout ? loadoutHref(username) : null,

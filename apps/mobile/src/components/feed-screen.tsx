@@ -1,9 +1,10 @@
 import type { FeedItem } from '@screenpeak/shared/types'
-import { Pressable, Text } from 'react-native'
+import { Text } from 'react-native'
 
 import { gameHref, listHref, profileHref } from '@/lib/routes'
 
-import { ScreenScroll, screenStyles } from './screen-scroll'
+import { EmptyState } from './empty-state'
+import { PanelRow, ScreenScroll, screenStyles } from './screen-scroll'
 import { WelcomeScreen } from './welcome-screen'
 
 export function feedActivityText(item: FeedItem): string {
@@ -46,19 +47,18 @@ export function FeedScreen({
   if (!signedIn) return <WelcomeScreen onOpen={onOpen} />
   return (
     <ScreenScroll title="Feed">
-      {items.length === 0 ? <Text style={screenStyles.muted}>Nothing in your feed yet.</Text> : null}
+      {items.length === 0 ? <EmptyState dense title="Nothing in your feed yet." /> : null}
       {items.map((item, index) => {
         const label = feedActivityText(item)
         return (
-          <Pressable
+          <PanelRow
             key={`${item.activity_type}-${item.actor_id}-${item.created_at}-${index}`}
             accessibilityRole="link"
             accessibilityLabel={label}
             onPress={() => onOpen(feedHref(item))}
-            style={screenStyles.rowButton}
           >
-            <Text style={screenStyles.rowText}>{label}</Text>
-          </Pressable>
+            <Text style={screenStyles.body}>{label}</Text>
+          </PanelRow>
         )
       })}
     </ScreenScroll>

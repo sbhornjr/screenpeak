@@ -2,12 +2,15 @@ import type { ExplorePageData, ExploreRange } from '@screenpeak/shared/api/explo
 import type { Taxon } from '@screenpeak/shared/api/games'
 import type { GameSearchHit } from '@screenpeak/shared/api/search'
 import { useState } from 'react'
-import { Pressable, Text, TextInput } from 'react-native'
+import { Text } from 'react-native'
 
 import { catalogueHref, gameHref, listHref, profileHref } from '@/lib/routes'
-import { colors } from '@/theme'
 
-import { ScreenScroll, screenStyles, SectionLabel, SignupButtons } from './screen-scroll'
+import { Button } from './button'
+import { EmptyState } from './empty-state'
+import { SectionHead } from './section-head'
+import { ScreenScroll, screenStyles, PanelRow, SignupButtons } from './screen-scroll'
+import { TextField } from './text-field'
 
 const RANGES: { id: ExploreRange, label: string }[] = [
   { id: 'week', label: 'This week' },
@@ -53,79 +56,66 @@ export function ExploreScreen({
 
   return (
     <ScreenScroll title="Explore">
-      <TextInput
-        accessibilityLabel="Search games"
+      <TextField
+        label="Search games"
         placeholder="Search games"
         value={query}
         onChangeText={setQuery}
         onSubmitEditing={submit}
-        placeholderTextColor={colors.muted}
-        style={screenStyles.input}
       />
-      <Pressable accessibilityRole="button" accessibilityLabel="Search" onPress={submit} style={screenStyles.rowButton}>
-        <Text style={screenStyles.rowText}>Search</Text>
-      </Pressable>
+      <Button label="Search" onPress={submit} />
       {hint ? <Text style={screenStyles.muted}>{hint}</Text> : null}
       {searching ? <Text style={screenStyles.muted}>Searching</Text> : null}
       {searchError ? <Text style={screenStyles.muted}>{searchError}</Text> : null}
       {results ? (
-        results.length === 0 ? <Text style={screenStyles.muted}>No games match.</Text> : results.map(game => (
-          <Pressable
-            key={game.id}
-            accessibilityRole="link"
-            accessibilityLabel={game.name}
-            onPress={() => onOpen(gameHref(game.slug))}
-            style={screenStyles.rowButton}
-          >
-            <Text style={screenStyles.rowText}>{game.name}</Text>
-          </Pressable>
+        results.length === 0 ? <EmptyState dense title="No games match." /> : results.map(game => (
+          <PanelRow key={game.id} accessibilityRole="link" accessibilityLabel={game.name} onPress={() => onOpen(gameHref(game.slug))}>
+            <Text style={screenStyles.body}>{game.name}</Text>
+          </PanelRow>
         ))
       ) : null}
 
       <Text style={screenStyles.muted}>Range: {rangeLabel}</Text>
       {RANGES.map(range => (
-        <Pressable key={range.id} accessibilityRole="button" accessibilityLabel={range.label} onPress={() => onRange(range.id)} style={screenStyles.rowButton}>
-          <Text style={screenStyles.rowText}>{range.label}</Text>
-        </Pressable>
+        <Button key={range.id} label={range.label} variant="secondary" onPress={() => onRange(range.id)} />
       ))}
 
-      <SectionLabel>Trending</SectionLabel>
+      <SectionHead>Trending</SectionHead>
       {data.trending_games.length === 0 && data.trending_lists.length === 0 ? (
-        <Text style={screenStyles.muted}>Nothing trending right now.</Text>
+        <EmptyState dense title="Nothing trending right now." />
       ) : null}
       {data.trending_games.map(game => (
-        <Pressable key={game.id} accessibilityRole="link" accessibilityLabel={game.name} onPress={() => onOpen(gameHref(game.slug))} style={screenStyles.rowButton}>
-          <Text style={screenStyles.rowText}>{game.name}</Text>
-        </Pressable>
+        <PanelRow key={game.id} accessibilityRole="link" accessibilityLabel={game.name} onPress={() => onOpen(gameHref(game.slug))}>
+          <Text style={screenStyles.body}>{game.name}</Text>
+        </PanelRow>
       ))}
       {data.trending_lists.map(list => (
-        <Pressable key={list.id} accessibilityRole="link" accessibilityLabel={list.name} onPress={() => onOpen(listHref(list.owner_username, list.id))} style={screenStyles.rowButton}>
-          <Text style={screenStyles.rowText}>{list.name}</Text>
-        </Pressable>
+        <PanelRow key={list.id} accessibilityRole="link" accessibilityLabel={list.name} onPress={() => onOpen(listHref(list.owner_username, list.id))}>
+          <Text style={screenStyles.body}>{list.name}</Text>
+        </PanelRow>
       ))}
 
-      <SectionLabel>Friends&apos; activity</SectionLabel>
+      <SectionHead>Friends&apos; activity</SectionHead>
       {data.recommendations == null ? (
         <>
           <Text style={screenStyles.muted}>Sign up to see what people you follow are playing.</Text>
           <SignupButtons onOpen={onOpen} />
         </>
       ) : data.recommendations.games.length === 0 ? (
-        <Text style={screenStyles.muted}>No games from people you follow yet.</Text>
+        <EmptyState dense title="No games from people you follow yet." />
       ) : data.recommendations.games.map(game => (
-        <Pressable
+        <PanelRow
           key={game.id}
           accessibilityRole="link"
           accessibilityLabel={`${game.name}, ${game.follower_count ?? 0} followers completed`}
           onPress={() => onOpen(gameHref(game.slug))}
-          style={screenStyles.rowButton}
         >
-          <Text style={screenStyles.rowText}>{game.name}</Text>
+          <Text style={screenStyles.body}>{game.name}</Text>
           <Text style={screenStyles.detail}>{game.follower_count ?? 0} followers completed</Text>
-        </Pressable>
+        </PanelRow>
       ))}
 
-      <SectionLabel>Recommendations</SectionLabel>
+      <SectionHead>Recommendations</SectionHead>
       {data.recommendations == null ? (
         <>
           <Text style={screenStyles.muted}>Sign up to get recommendations.</Text>
@@ -134,36 +124,30 @@ export function ExploreScreen({
       ) : (
         <>
           {data.recommendations.lists.length === 0 && data.recommendations.users.length === 0 ? (
-            <Text style={screenStyles.muted}>No recommendations yet.</Text>
+            <EmptyState dense title="No recommendations yet." />
           ) : null}
           {data.recommendations.lists.map(list => (
-            <Pressable key={list.id} accessibilityRole="link" accessibilityLabel={list.name} onPress={() => onOpen(listHref(list.owner_username, list.id))} style={screenStyles.rowButton}>
-              <Text style={screenStyles.rowText}>{list.name}</Text>
-            </Pressable>
+            <PanelRow key={list.id} accessibilityRole="link" accessibilityLabel={list.name} onPress={() => onOpen(listHref(list.owner_username, list.id))}>
+              <Text style={screenStyles.body}>{list.name}</Text>
+            </PanelRow>
           ))}
           {data.recommendations.users.map(user => (
-            <Pressable key={user.id} accessibilityRole="link" accessibilityLabel={user.username} onPress={() => onOpen(profileHref(user.username))} style={screenStyles.rowButton}>
-              <Text style={screenStyles.rowText}>{user.username}</Text>
-            </Pressable>
+            <PanelRow key={user.id} accessibilityRole="link" accessibilityLabel={user.username} onPress={() => onOpen(profileHref(user.username))}>
+              <Text style={screenStyles.body}>{user.username}</Text>
+            </PanelRow>
           ))}
         </>
       )}
 
-      <SectionLabel>Browse by genre</SectionLabel>
+      <SectionHead>Browse by genre</SectionHead>
       {genres.map(genre => (
-        <Pressable key={genre.id} accessibilityRole="button" accessibilityLabel={`Browse ${genre.name}`} onPress={() => onOpen(catalogueHref({ genre: genre.slug }))} style={screenStyles.rowButton}>
-          <Text style={screenStyles.rowText}>{genre.name}</Text>
-        </Pressable>
+        <Button key={genre.id} label={genre.name} accessibilityLabel={`Browse ${genre.name}`} variant="secondary" onPress={() => onOpen(catalogueHref({ genre: genre.slug }))} />
       ))}
-      <SectionLabel>Browse by platform</SectionLabel>
+      <SectionHead>Browse by platform</SectionHead>
       {platforms.map(platform => (
-        <Pressable key={platform.id} accessibilityRole="button" accessibilityLabel={`Browse ${platform.name}`} onPress={() => onOpen(catalogueHref({ platform: platform.slug }))} style={screenStyles.rowButton}>
-          <Text style={screenStyles.rowText}>{platform.name}</Text>
-        </Pressable>
+        <Button key={platform.id} label={platform.name} accessibilityLabel={`Browse ${platform.name}`} variant="secondary" onPress={() => onOpen(catalogueHref({ platform: platform.slug }))} />
       ))}
-      <Pressable accessibilityRole="button" accessibilityLabel="Browse all" onPress={() => onOpen(catalogueHref())} style={screenStyles.rowButton}>
-        <Text style={screenStyles.rowText}>Browse all</Text>
-      </Pressable>
+      <Button label="Browse all" variant="secondary" onPress={() => onOpen(catalogueHref())} />
     </ScreenScroll>
   )
 }

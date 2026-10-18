@@ -2,9 +2,7 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { colors, face, seam, space, tracking, trackingPx } from '@/theme';
-
-const SIZE = 11; // web: text-[0.6875rem]
+import { colors, face, seam, space, tracking, trackingPx, typeScale } from '@/theme';
 
 /** Tracked-uppercase mono label above a page title, marked with the seam. */
 export function Eyebrow({ children }: { children: ReactNode }) {
@@ -21,8 +19,8 @@ const styles = StyleSheet.create({
   seam: { width: seam.width, height: 13, backgroundColor: seam.color }, // web: h-[0.8rem]
   label: {
     fontFamily: face.mono[400],
-    fontSize: SIZE,
-    letterSpacing: trackingPx(tracking.label, SIZE),
+    fontSize: typeScale.eyebrow.size,
+    letterSpacing: trackingPx(tracking.label, typeScale.eyebrow.size),
     textTransform: 'uppercase',
     color: colors.muted,
   },

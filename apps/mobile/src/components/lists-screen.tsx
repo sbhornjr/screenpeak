@@ -1,9 +1,10 @@
 import type { ListCard } from '@screenpeak/shared/api/lists'
-import { Pressable, Text } from 'react-native'
+import { Text } from 'react-native'
 
 import { listHref } from '@/lib/routes'
 
-import { ScreenScroll, screenStyles } from './screen-scroll'
+import { EmptyState } from './empty-state'
+import { ScreenScroll, screenStyles, PanelRow } from './screen-scroll'
 
 export function ListsScreen({
   username,
@@ -18,12 +19,12 @@ export function ListsScreen({
 }) {
   return (
     <ScreenScroll title="Lists" onBack={onBack}>
-      {lists.length === 0 ? <Text style={screenStyles.muted}>No lists yet.</Text> : null}
+      {lists.length === 0 ? <EmptyState dense title="No lists yet." /> : null}
       {lists.map(list => (
-        <Pressable key={list.id} accessibilityRole="link" accessibilityLabel={list.name} onPress={() => onOpen(listHref(username, list.id))} style={screenStyles.rowButton}>
-          <Text style={screenStyles.rowText}>{list.name}</Text>
+        <PanelRow key={list.id} accessibilityRole="link" accessibilityLabel={list.name} onPress={() => onOpen(listHref(username, list.id))}>
+          <Text style={screenStyles.body}>{list.name}</Text>
           <Text style={screenStyles.detail}>{list.game_count} games</Text>
-        </Pressable>
+        </PanelRow>
       ))}
     </ScreenScroll>
   )

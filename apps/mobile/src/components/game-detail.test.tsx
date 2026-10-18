@@ -39,6 +39,13 @@ vi.mock('react-native', () => ({
     onChange: (event: { target: { value: string } }) => onChangeText?.(event.target.value),
   }),
   ScrollView: ({ children }: { children?: React.ReactNode }) => React.createElement('div', null, children),
+  Modal: ({
+    visible,
+    children,
+  }: {
+    visible?: boolean
+    children?: React.ReactNode
+  }) => (visible ? React.createElement('div', null, children) : null),
   StyleSheet: { create: (styles: unknown) => styles, absoluteFill: {} },
 }))
 

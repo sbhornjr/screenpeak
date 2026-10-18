@@ -64,7 +64,20 @@ vi.mock('react-native', () => ({
     },
     children,
   ),
-  View: ({ children }: { children?: React.ReactNode }) => React.createElement('div', null, children),
+  View: ({
+    children,
+    accessibilityLabel,
+    accessibilityRole,
+    role,
+  }: {
+    children?: React.ReactNode
+    accessibilityLabel?: string
+    accessibilityRole?: string
+    role?: string
+  }) => React.createElement('div', {
+    'aria-label': accessibilityLabel,
+    role: role ?? accessibilityRole,
+  }, children),
   Text: ({ children }: { children?: React.ReactNode }) => React.createElement('span', null, children),
   TextInput: ({
     accessibilityLabel,
@@ -88,6 +101,10 @@ vi.mock('react-native', () => ({
 
 vi.mock('react-native-safe-area-context', () => ({
   SafeAreaView: ({ children }: { children?: React.ReactNode }) => React.createElement('div', null, children),
+}))
+
+vi.mock('expo-image', () => ({
+  Image: () => null,
 }))
 
 afterEach(() => {
@@ -237,7 +254,7 @@ describe('welcome', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Log in' }))
     fireEvent.click(screen.getByRole('button', { name: 'Browse' }))
     expect(onOpen.mock.calls).toEqual([['/sign-up'], ['/sign-in'], ['/games']])
-    expect(screen.getByText('ScreenPeak').textContent).toBe('ScreenPeak')
+    expect(screen.getByLabelText('ScreenPeak').textContent).toBe('ScreenPeak')
   })
 })
 
