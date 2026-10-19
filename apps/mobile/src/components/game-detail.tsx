@@ -1,9 +1,10 @@
 import type { GamePageData, GameReviewsPage } from '@screenpeak/shared/api/games'
 import type { LibraryWrite, ListWrite } from '@screenpeak/shared/api/writes'
 import type { GameRatingsStats } from '@screenpeak/shared/types'
-import { LIBRARY_SECTION_TITLE, libraryEmptyLine, libraryStatLines } from '@screenpeak/shared/library-copy'
+import { LIBRARY_SECTION_TITLE, libraryEmptyLine, libraryScoreText, libraryStats, type LibraryStat } from '@screenpeak/shared/library-copy'
 import { createListSchema, ratingReviewSchema } from '@screenpeak/shared/schemas'
 import { Image } from 'expo-image'
+import { Clock, Repeat, Trophy } from 'lucide-react-native'
 import { useRef, useState } from 'react'
 import { Linking, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 
@@ -34,6 +35,12 @@ import { TextField } from './text-field'
 import { Wordmark } from './wordmark'
 
 const SCORES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+const LIBRARY_STAT_ICON = { hours: Clock, plays: Repeat, complete: Trophy }
+
+function LibraryStatIcon({ stat }: { stat: LibraryStat }) {
+  const Icon = LIBRARY_STAT_ICON[stat.key]
+  return <Icon size={16} color={colors.muted} accessibilityLabel={stat.label} />
+}
 const DEFAULT_QUERY: ReviewListQuery = { page: 1, sort: 'date', order: 'desc' }
 
 export type GameDetailProps = {
@@ -333,7 +340,7 @@ export function GameDetail({
       </View>
 
       <View style={styles.hero}>
-        <View style={[styles.cover, compact && styles.coverCompact]}>
+        <View style={styles.cover}>
           {cover ? (
             <Image source={cover} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityLabel={`${game.name} cover`} />
           ) : (
@@ -341,14 +348,14 @@ export function GameDetail({
           )}
         </View>
         <View style={styles.heroFacts}>
-          <Text style={styles.metaLabel}>Released</Text>
-          <Text style={styles.heroValue}>{year ?? '—'}</Text>
-          <Text style={styles.metaLabel}>Community</Text>
-          <Text style={styles.heroValue}>{community == null ? '—' : community}</Text>
-          <Text style={styles.metaLabel}>Platforms</Text>
-          <Text style={styles.heroValue}>
-            {taxonomy.platforms.length === 0 ? '—' : taxonomy.platforms.map(row => row.name).join(', ')}
-          </Text>
+          <View style={styles.heroFact}>
+            <Text style={styles.metaLabel}>Released</Text>
+            <Text style={styles.heroValue}>{year ?? '—'}</Text>
+          </View>
+          <View style={styles.heroFact}>
+            <Text style={styles.metaLabel}>Community</Text>
+            <Text style={styles.heroValue}>{community == null ? '—' : community}</Text>
+          </View>
         </View>
       </View>
 
@@ -356,11 +363,31 @@ export function GameDetail({
         <Text style={styles.metaLabel}>{LIBRARY_SECTION_TITLE}</Text>
         {inFile ? (
           <View style={styles.stack}>
-            {viewer?.libraryEntry ? <Text style={styles.body}>Status {statusLabel(viewer.libraryEntry.status)}</Text> : null}
-            {viewer?.libraryEntry
-              ? libraryStatLines(viewer.libraryEntry).map(line => <Text key={line} style={styles.body}>{line}</Text>)
-              : null}
-            {yours != null ? <Text style={styles.body}>Your score {yours} / 10</Text> : null}
+            <View style={styles.libraryTop}>
+              {viewer?.libraryEntry ? (
+                <View style={styles.chip}>
+                  <Text style={styles.chipText}>{statusLabel(viewer.libraryEntry.status)}</Text>
+                </View>
+              ) : null}
+              {yours != null ? (
+                <Text
+                  accessibilityLabel={`Your score ${yours} out of 10`}
+                  style={[styles.libraryScore, { color: tierColor(yours) }]}
+                >
+                  {libraryScoreText(yours)}
+                </Text>
+              ) : null}
+            </View>
+            {viewer?.libraryEntry ? (
+              <View style={styles.statRow}>
+                {libraryStats(viewer.libraryEntry).map(stat => (
+                  <View key={stat.key} style={styles.statItem}>
+                    <LibraryStatIcon stat={stat} />
+                    <Text accessibilityElementsHidden importantForAccessibility="no" style={styles.statValue}>{stat.value}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
             {viewer?.review?.updated_at ? <Text style={styles.meta}>Scored {relTime(viewer.review.updated_at)}</Text> : null}
             {!viewer?.libraryEntry && yours == null ? <Text style={styles.body}>Saved, not scored yet</Text> : null}
           </View>
@@ -574,7 +601,7 @@ export function GameDetail({
             })}
             {actionError ? <Text accessibilityLiveRegion="polite" style={styles.error}>{actionError}</Text> : null}
             {canRetry ? <Button label="Retry" variant="secondary" onPress={retry} /> : null}
-            <Button label="New list" variant="secondary" onPress={() => { setActionError(null); setCanRetry(false); setMakingList(true) }} />
+            <Button label="New list" variant="primary" onPress={() => { setActionError(null); setCanRetry(false); setMakingList(true) }} />
           </>
         )}
       </Sheet>
@@ -838,17 +865,18 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2], alignItems: 'center' },
-  hero: { flexDirection: 'row', alignItems: 'flex-start', gap: space[4] },
-  heroFacts: { flex: 1, gap: space[1] },
+  hero: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
+  heroFacts: { gap: space[3], justifyContent: 'center' },
+  heroFact: { gap: space[1] },
   heroValue: {
     fontFamily: face.display[600],
     fontSize: typeScale.lg.size,
     lineHeight: typeScale.lg.line,
     color: colors.text,
-    marginBottom: space[2],
   },
   cover: {
-    width: 132,
+    width: 180,
+    flexShrink: 0,
     aspectRatio: 3 / 4,
     borderRadius: radius.base,
     borderWidth: 1,
@@ -858,7 +886,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  coverCompact: { width: 112 },
   noCover: {
     fontFamily: face.mono[400],
     fontSize: typeScale.eyebrow.size,
@@ -866,7 +893,32 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     color: colors.muted,
   },
-  savePanel: { padding: space[4], gap: space[2] },
+  savePanel: { padding: space[4], gap: space[3] },
+  libraryTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space[3] },
+  chip: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceLight,
+    borderRadius: radius.full,
+    paddingHorizontal: space[3],
+    paddingVertical: space[1],
+  },
+  chipText: {
+    fontFamily: face.mono[400],
+    fontSize: typeScale.xs.size,
+    letterSpacing: trackingPx(tracking.wide, typeScale.xs.size),
+    textTransform: 'uppercase',
+    color: colors.text,
+  },
+  libraryScore: {
+    marginLeft: 'auto',
+    fontFamily: face.display[600],
+    fontSize: typeScale['2xl'].size,
+    lineHeight: typeScale['2xl'].line,
+  },
+  statRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[4] },
+  statItem: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
+  statValue: { fontFamily: face.mono[400], fontSize: typeScale.sm.size, color: colors.text },
   stack: { gap: space[2] },
   scorePanel: { padding: space[4], gap: space[2] },
   scores: { flexDirection: 'row', gap: space[6] },
@@ -962,7 +1014,7 @@ const styles = StyleSheet.create({
   reviewUser: { fontFamily: face.mono[600], fontSize: typeScale.sm.size, lineHeight: typeScale.sm.line },
   reviewName: { fontFamily: face.body[600], fontSize: typeScale.sm.size, color: colors.text },
   boneTitle: { height: 36, width: '70%', backgroundColor: colors.surfaceLight, borderRadius: radius.base },
-  boneCover: { width: 132, height: 176, backgroundColor: colors.surfaceLight, borderRadius: radius.base },
+  boneCover: { width: 180, height: 240, backgroundColor: colors.surfaceLight, borderRadius: radius.base },
   boneScore: { height: 88, backgroundColor: colors.surfaceLight, borderRadius: radius.base },
 })
 

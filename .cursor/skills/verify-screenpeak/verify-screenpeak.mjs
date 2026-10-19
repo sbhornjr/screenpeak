@@ -1093,10 +1093,11 @@ async function driveGamePage() {
         if (!folded.includes('sign in to add this game to your library.')) problems.push('signed-out page is missing the library sign-in line')
         if (folded.includes('your save')) problems.push('signed-out page still says Your save')
         const statsLine = psql(databaseUrl, `
-            select coalesce(le.hours_played::text, '') || '|' || coalesce(le.play_count::text, '') || '|' || coalesce(le.completed_all_achievements::text, '')
+            select coalesce(rr.rating::text, '') || '|' || coalesce(le.status, '') || '|' || coalesce(le.hours_played::text, '') || '|' || coalesce(le.play_count::text, '') || '|' || coalesce(le.completed_all_achievements::text, '')
             from library_entries le
             join games g on g.id = le.game_id
             join users u on u.id = le.user_id
+            left join ratings_reviews rr on rr.user_id = u.id and rr.game_id = g.id
             where u.username = '${peekUsername}' and g.slug = '${game.slug}'
         `, ['-tA'])
         await page.clickButton('Sign In')
@@ -1106,20 +1107,28 @@ async function driveGamePage() {
         await page.clickDialogButton('Sign In')
         await page.waitForText(peekUsername)
         await page.navigate(`http://127.0.0.1:${appPort}/games/${encodeURIComponent(game.slug)}`)
-        await page.waitForText('Hours played')
-        await page.screenshot(join(dir, 'library.png'))
-        const signedInText = await page.bodyText()
         if (!statsLine) {
             problems.push('peek has no library row for this game')
         } else {
-            const [hours, plays, done] = statsLine.split('|')
+            const [rating, status, hours, plays, done] = statsLine.split('|')
             const hoursText = hours === '' ? '—' : String(Number(hours))
-            const flag = done === 't' || done === 'true' ? '100% achievements completed' : '100% achievements not completed'
-            for (const line of [`Hours played ${hoursText}`, `Times played ${plays}`, flag]) {
-                if (!signedInText.includes(line)) problems.push(`signed-in page missing ${line}`)
-            }
+            const statusLabel = status ? status.charAt(0).toUpperCase() + status.slice(1) : ''
+            const needle = rating ? `${rating}/10` : statusLabel
+            await page.waitForText(needle)
+            await page.screenshot(join(dir, 'library.png'))
+            const signedInText = await page.bodyText()
+            const labels = await page.ariaLabels()
+            if (!labels.includes(`Hours played ${hoursText}`)) problems.push(`signed-in page missing hours label ${hoursText}`)
+            if (!labels.includes(`Times played ${plays}`)) problems.push(`signed-in page missing times played ${plays}`)
+            const complete = done === 't' || done === 'true'
+            if (complete && !labels.includes('100% achievements completed')) problems.push('signed-in page is missing the 100% trophy')
+            if (!complete && labels.includes('100% achievements completed')) problems.push('100% trophy showed while the flag is off')
+            if (rating && !signedInText.includes(`${rating}/10`)) problems.push(`signed-in page missing ${rating}/10`)
+            if (statusLabel && !signedInText.toLowerCase().includes(statusLabel.toLowerCase())) problems.push(`signed-in page missing status ${statusLabel}`)
+            if (/\bStatus\b/.test(signedInText) || signedInText.includes('Your score')) problems.push('library card still uses Status or Your score labels')
+            if (signedInText.includes('Sign in to add this game to your library.')) problems.push('signed-in page still asks to sign in to add the game')
         }
-        if (signedInText.includes('Sign in to add this game to your library.')) problems.push('signed-in page still asks to sign in to add the game')
+        if (!statsLine) await page.screenshot(join(dir, 'library.png'))
     } finally {
         page?.close()
         stopRecorded('chrome')
@@ -2644,11 +2653,13 @@ async function driveMobileGame() {
         `)
         await page.navigate(`${expoOrigin}/games/${encodeURIComponent(target.slug)}`)
         const signedIn = await shot('se-signed-in.png', target.name)
-        if (!signedIn.includes('Your score')) problems.push('signed-in game page is missing your score')
-        if (!signedIn.includes('Hours played 12.5')) problems.push('signed-in game page is missing hours')
-        if (!signedIn.includes('Times played 4')) problems.push('signed-in game page is missing times played')
-        if (!signedIn.includes('100% achievements completed')) problems.push('signed-in game page is missing the 100% flag')
-        await shot('library-stats.png', 'Hours played 12.5')
+        const signedInLabels = await page.ariaLabels()
+        if (!signedIn.includes(`${target.rating}/10`)) problems.push('signed-in game page is missing your score')
+        if (!signedInLabels.includes('Hours played 12.5')) problems.push('signed-in game page is missing hours')
+        if (!signedInLabels.includes('Times played 4')) problems.push('signed-in game page is missing times played')
+        if (!signedInLabels.includes('100% achievements completed')) problems.push('signed-in game page is missing the 100% flag')
+        if (!signedIn.includes('12.5')) problems.push('signed-in game page is missing the hours value')
+        await shot('library-stats.png', '12.5')
         if (signedIn.includes('Sign up to rate, log, or list this game.')) problems.push('signed-in game page opened the signup prompt')
 
         async function waitForRateSheetClosed() {
@@ -2703,7 +2714,7 @@ async function driveMobileGame() {
         shots['review-deleted.png'] = deletedPath
         if (deletedText.includes(editedReview) || deletedText.includes(firstReview)) problems.push('deleted review text is still on the page')
         if (!deletedText.includes('Write a review')) problems.push('deleted review did not offer Write a review')
-        if (!deletedText.includes(`Your score ${nextRating}`)) problems.push('deleting the review cleared the score')
+        if (!deletedText.includes(`${nextRating}/10`)) problems.push('deleting the review cleared the score')
         const deletedRow = psql(databaseUrl, `
             select rating::text || '|' || coalesce(review, '')
             from ratings_reviews
@@ -2718,7 +2729,10 @@ async function driveMobileGame() {
         await page.clickLabel(`Log as ${nextStatus}`)
         await page.clickControl('Update library entry')
         await page.waitUntil(`document.body.innerText.includes('Show library details') ? 'waiting' : 'ok'`)
-        await page.waitForText(`Status ${nextStatusLabel}`)
+        await page.waitUntil(`(() => {
+            const button = [...document.querySelectorAll('button')].find((item) => item.getAttribute('aria-label') === 'Save game')
+            return button && button.textContent.trim() === ${JSON.stringify(nextStatusLabel)} ? 'ok' : 'waiting'
+        })()`)
         const libraryCalls = page.requestsSince(libraryMark)
             .filter((item) => item.method === 'PUT' && item.url.includes(`/api/v1/me/library/${target.gameId}`))
         record.libraryBodies = libraryCalls.map((item) => item.body)
@@ -2738,10 +2752,12 @@ async function driveMobileGame() {
         if (keptStatus !== nextStatus || Number(keptHours) !== 12.5 || keptPlays !== '4' || (keptComplete !== 't' && keptComplete !== 'true')) {
             problems.push(`status-only save changed library details ${kept}`)
         }
-        const savedLibrary = await shot('library-saved.png', `Status ${nextStatusLabel}`)
-        if (!savedLibrary.includes('Hours played 12.5') || !savedLibrary.includes('Times played 4') || !savedLibrary.includes('100% achievements completed')) {
+        const savedLibrary = await shot('library-saved.png', nextStatusLabel)
+        const savedLabels = await page.ariaLabels()
+        if (!savedLabels.includes('Hours played 12.5') || !savedLabels.includes('Times played 4') || !savedLabels.includes('100% achievements completed')) {
             problems.push('status-only save hid the library stats')
         }
+        if (!savedLibrary.includes('12.5')) problems.push('status-only save hid the hours value')
 
         if (!wishlistName) {
             problems.push('peek has no list to add the game to')
@@ -3351,6 +3367,9 @@ async function connectChrome() {
         stopLoadoutCapture()
         ws.close()
     }
+    async function ariaLabels() {
+        return evaluate(`(() => [...document.querySelectorAll('[aria-label]')].map((node) => node.getAttribute('aria-label') || '').join('\\n'))()`)
+    }
     async function readoutParagraph() {
         return evaluate(`(() => {
             const node = document.querySelector('p.italic')
@@ -3360,7 +3379,7 @@ async function connectChrome() {
     return {
         navigate, waitForText, waitForTextEither, waitUntil, clickButton, clickTab, clickControl, clickDialogButton, clickLink, clickMenuLink,
         clickSectionButton, clickPlaceholder, fillPlaceholder, clickLabel, fillLabel, setViewport, screenshot, bodyText, panelText, controlInView,
-        eventMark, requestUrlsSince, requestsSince, evaluate, armLoadoutCapture, loadoutCapture, readoutParagraph, close,
+        eventMark, requestUrlsSince, requestsSince, evaluate, ariaLabels, armLoadoutCapture, loadoutCapture, readoutParagraph, close,
     }
 }
 

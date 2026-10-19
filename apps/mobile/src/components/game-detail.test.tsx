@@ -112,6 +112,13 @@ vi.mock('react-native', () => ({
   StyleSheet: { create: (styles: unknown) => styles, absoluteFill: {} },
 }))
 
+vi.mock('lucide-react-native', () => {
+  function Icon({ accessibilityLabel }: { accessibilityLabel?: string }) {
+    return React.createElement('span', { role: 'img', 'aria-label': accessibilityLabel })
+  }
+  return { Clock: Icon, Repeat: Icon, Trophy: Icon }
+})
+
 vi.mock('expo-image', () => ({
   Image: () => null,
 }))
@@ -187,6 +194,7 @@ describe('GameDetail', () => {
       .toBe('Sign in to add this game to your library.')
     expect(screen.getByText('Released').textContent).toBe('Released')
     expect(screen.getByText('2020').textContent).toBe('2020')
+    expect(screen.getAllByText('PC').map(node => node.textContent)).toEqual(['PC'])
     expect(screen.getAllByText('9.2').some(node => node.textContent === '9.2')).toBe(true)
     expect(screen.getAllByText('Community').length).toBeGreaterThan(0)
     expect(screen.getByText('Sign in to add your rating').textContent).toBe('Sign in to add your rating')
@@ -228,7 +236,7 @@ describe('GameDetail', () => {
     )
 
     expect(screen.queryByText('You · 8 / 10')).toBeNull()
-    expect(screen.queryByText('Hours played 12')).toBeNull()
+    expect(screen.queryByLabelText('Hours played 12')).toBeNull()
     expect(screen.getByText('Sign in to add this game to your library.').textContent)
       .toBe('Sign in to add this game to your library.')
     expect(screen.getByRole('button', { name: 'Save game' }).textContent).toBe('Save game')
@@ -301,9 +309,15 @@ describe('GameDetail', () => {
       />,
     )
 
-    expect(screen.getByText('Hours played 12').textContent).toBe('Hours played 12')
-    expect(screen.getByText('Times played 1').textContent).toBe('Times played 1')
-    expect(screen.getByText('100% achievements not completed').textContent).toBe('100% achievements not completed')
+    expect(screen.getByLabelText('Hours played 12').getAttribute('role')).toBe('img')
+    expect(screen.getByText('12').textContent).toBe('12')
+    expect(screen.getByLabelText('Times played 1').getAttribute('role')).toBe('img')
+    expect(screen.queryByLabelText('100% achievements completed')).toBeNull()
+    expect(screen.getByText('8/10').textContent).toBe('8/10')
+    expect(screen.getAllByText('Playing').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Status Playing')).toBeNull()
+    expect(screen.queryByText('Your score 8 / 10')).toBeNull()
+    expect(screen.getByText(/^Scored /).textContent).toMatch(/^Scored /)
     fireEvent.click(screen.getByRole('button', { name: 'Edit your review' }))
     expect(screen.getByRole('textbox', { name: 'Review note' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
@@ -311,7 +325,7 @@ describe('GameDetail', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save game' }))
     expect(screen.queryByText('Sign up to rate, log, or list this game.')).toBeNull()
     expect(screen.getByText('“Sharp.”').textContent).toBe('“Sharp.”')
-    expect(screen.getByLabelText('Your score 8 out of 10').textContent).toBe('8')
+    expect(screen.getAllByLabelText('Your score 8 out of 10').map(node => node.textContent)).toEqual(expect.arrayContaining(['8', '8/10']))
     expect(screen.getByRole('button', { name: 'Save game' }).textContent).toBe('Playing')
   })
 
@@ -594,11 +608,14 @@ describe('GameDetail', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Add to list' }))
     expect(screen.queryByRole('textbox', { name: 'New list name' })).toBeNull()
+    const newer = screen.getByRole('button', { name: 'New list' })
+    const accent = document.createElement('span')
+    accent.style.backgroundColor = colors.accent
+    accent.style.color = colors.accent
+    expect(newer.style.backgroundColor).toBe(accent.style.backgroundColor)
     const listed = screen.getByRole('button', { name: 'Remove from Backlog' })
     expect(listed.textContent).toBe('Backlog · On this list')
     expect(listed.getAttribute('aria-selected')).toBe('true')
-    const accent = document.createElement('span')
-    accent.style.color = colors.accent
     expect(listed.style.borderColor).toBe(accent.style.color)
   })
 

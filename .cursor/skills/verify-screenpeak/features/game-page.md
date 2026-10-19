@@ -25,7 +25,7 @@ Preconditions:
 - **Read the API.** The drive fetches `GET /api/v1/games/<slug>` with no session. The status is 200. `game.name` and `game.slug` match the row in Postgres. `viewer` is null. `stats.avg_rating` is a number. The body has no `steam_appid`, no `metacritic`, and no `avg_ngplus_rating`. When the stored cover is an IGDB URL, `game.cover_image_url` uses `t_cover_big_2x` on `images.igdb.com`. When the stored cover is null, `game.cover_image_url` is null.
 - **Read the reviews.** The drive fetches `GET /api/v1/games/<slug>/reviews` with no session. The status is 200 and `reviews` is an array.
 - **Open the page.** Open `http://127.0.0.1:3210/games/<slug>`. The page shows the game's name, "In your library", and "Sign in to add this game to your library."
-- **Sign in and read the library stats.** Click Sign In, sign in as peek, and open the same game again. The page shows hours played, times played, and the 100% flag from peek's library row.
+- **Sign in and read the library stats.** Click Sign In, sign in as peek, and open the same game again. The library card shows the status, the score as N/10, and icon labels for hours played and times played. The 100% trophy is present only when that flag is set.
 - **Proof.** The drive writes `/tmp/screenpeak-verify/evidence/game-page/page.png`, `library.png`, and `result.json`. `page.png` shows the game name on the website while signed out. `library.png` shows the library section after sign-in. `result.json` records the slug, the API status, `viewer`, and `avg_rating`.
 
 ```bash
