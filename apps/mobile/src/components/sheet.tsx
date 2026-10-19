@@ -1,6 +1,6 @@
 // The website Modal, presented as a bottom sheet.
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { findNodeHandle, Keyboard, Pressable, Modal, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { useEffect, useRef, type ReactNode } from 'react';
+import { findNodeHandle, Keyboard, Platform, Pressable, Modal, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, face, overlays, radius, space, typeScale } from '@/theme';
@@ -47,23 +47,19 @@ export function Sheet({
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const native = Platform.OS === 'ios' || Platform.OS === 'android';
 
   useEffect(() => {
-    const show = Keyboard.addListener('keyboardDidShow', (event) => {
-      setKeyboardHeight(event.endCoordinates.height);
+    const show = Keyboard.addListener('keyboardDidShow', () => {
+      requestAnimationFrame(() => revealFocusedField(scrollRef.current));
     });
-    const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardHeight(0));
-    return () => {
-      show.remove();
-      hide.remove();
-    };
+    return () => show.remove();
   }, []);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => revealFocusedField(scrollRef.current));
     return () => cancelAnimationFrame(frame);
-  }, [height, keyboardHeight]);
+  }, [height]);
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -84,7 +80,7 @@ export function Sheet({
             styles.sheet,
             {
               maxHeight: Math.round(height * 0.9),
-              paddingBottom: space[4] + keyboardHeight + insets.bottom,
+              paddingBottom: space[4] + insets.bottom,
             },
           ]}
         >
@@ -95,7 +91,7 @@ export function Sheet({
           <ScrollView
             ref={scrollRef}
             keyboardShouldPersistTaps="handled"
-            automaticallyAdjustKeyboardInsets
+            automaticallyAdjustKeyboardInsets={native}
             style={styles.scroll}
             contentContainerStyle={styles.body}
           >

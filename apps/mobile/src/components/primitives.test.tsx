@@ -20,6 +20,8 @@ const keyboard = vi.hoisted(() => ({
   listeners: new Map<string, (event: { endCoordinates: { height: number } }) => void>(),
 }))
 
+const platform = vi.hoisted(() => ({ os: 'ios' }))
+
 function flattenStyle(style: unknown): Record<string, unknown> {
   if (!style) return {}
   if (Array.isArray(style)) return Object.assign({}, ...style.map(flattenStyle))
@@ -43,6 +45,12 @@ function exposedName(role: string | undefined, accessibilityRole: string | undef
 }
 
 vi.mock('react-native', () => ({
+  Platform: {
+    get OS() {
+      return platform.os
+    },
+    select: (spec: Record<string, unknown>) => spec[platform.os] ?? spec.default,
+  },
   Keyboard: {
     addListener: (event: string, callback: (value: { endCoordinates: { height: number } }) => void) => {
       keyboard.listeners.set(event, callback)
@@ -166,10 +174,19 @@ vi.mock('react-native', () => ({
   ScrollView: ({
     children,
     keyboardShouldPersistTaps,
+    automaticallyAdjustKeyboardInsets,
   }: {
     children?: React.ReactNode
     keyboardShouldPersistTaps?: string
-  }) => React.createElement('div', { 'data-persist-taps': keyboardShouldPersistTaps ?? '' }, children),
+    automaticallyAdjustKeyboardInsets?: boolean
+  }) => React.createElement(
+    'div',
+    {
+      'data-persist-taps': keyboardShouldPersistTaps ?? '',
+      'data-keyboard-insets': automaticallyAdjustKeyboardInsets ? 'true' : 'false',
+    },
+    children,
+  ),
   Modal: ({
     visible,
     onRequestClose,
@@ -218,6 +235,7 @@ vi.mock('expo-image', () => ({
 afterEach(() => {
   cleanup()
   keyboard.listeners.clear()
+  platform.os = 'ios'
 })
 
 function painted(node: Element): Record<string, unknown> {
@@ -358,13 +376,26 @@ describe('Sheet', () => {
     expect(scroll?.textContent).toContain('Row 39')
     expect(scroll?.contains(heading)).toBe(false)
     expect(scroll?.contains(close)).toBe(false)
+    expect(scroll?.getAttribute('data-keyboard-insets')).toBe('true')
     expect(painted(dialog).maxHeight).toBe(720)
     expect(painted(dialog).paddingBottom).toBe(space[4] + 34)
 
     act(() => {
       keyboard.listeners.get('keyboardDidShow')?.({ endCoordinates: { height: 300 } })
     })
-    expect(painted(screen.getByRole('dialog', { name: 'Add to list' })).paddingBottom).toBe(space[4] + 300 + 34)
+    expect(painted(screen.getByRole('dialog', { name: 'Add to list' })).paddingBottom).toBe(space[4] + 34)
+  })
+
+  it('leaves keyboard insets to the browser when the window itself shrinks', () => {
+    platform.os = 'web'
+    render(
+      <Sheet visible title="Rate" onClose={() => undefined}>
+        <Text>Note</Text>
+      </Sheet>,
+    )
+    const scroll = document.querySelector('[data-persist-taps="handled"]')
+    expect(scroll?.getAttribute('data-keyboard-insets')).toBe('false')
+    expect(painted(screen.getByRole('dialog', { name: 'Rate' })).paddingBottom).toBe(space[4] + 34)
   })
 
   it('closes from the scrim and from the system back', () => {

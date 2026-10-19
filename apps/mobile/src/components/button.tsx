@@ -11,6 +11,7 @@ export function Button({
   disabled = false,
   variant = 'primary',
   accessibilityLabel,
+  selected = false,
   style,
 }: {
   label: string;
@@ -18,6 +19,7 @@ export function Button({
   disabled?: boolean;
   variant?: ButtonVariant;
   accessibilityLabel?: string;
+  selected?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
   const name = accessibilityLabel ?? label;
@@ -25,7 +27,7 @@ export function Button({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={name}
-      accessibilityState={{ disabled }}
+      accessibilityState={{ disabled, selected }}
       disabled={disabled}
       onPress={disabled ? undefined : onPress}
       style={({ focused }) => [
@@ -33,6 +35,7 @@ export function Button({
         styles[variant],
         focused && styles.focused,
         disabled && styles.disabled,
+        selected && styles.selected,
         style,
       ]}
     >
@@ -69,6 +72,7 @@ const styles = StyleSheet.create({
     boxShadow: `0 0 0 2px ${colors.bg}, 0 0 0 4px ${colors.accent}`,
   },
   disabled: { opacity: 0.6 },
+  selected: { borderWidth: 1, borderColor: colors.accent },
   label: {
     fontFamily: face.display[600],
     fontSize: typeScale.sm.size,

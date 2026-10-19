@@ -2663,7 +2663,10 @@ async function driveMobileGame() {
             await page.waitForText('New list name')
             await page.clickLabel(`Add to ${wishlistName}`)
             await page.waitUntil(`(() => {
-                const node = [...document.querySelectorAll('button, [role="button"]')].find((item) => (item.getAttribute('aria-label') || '') === ${JSON.stringify(`Remove from ${wishlistName}`)})
+                const node = [...document.querySelectorAll('button, [role="button"]')].find((item) => {
+                    const text = item.textContent || ''
+                    return text.includes(${JSON.stringify(wishlistName)}) && text.includes('On this list')
+                })
                 return node ? 'ok' : 'waiting'
             })()`)
             let membership = '0'

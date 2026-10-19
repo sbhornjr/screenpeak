@@ -4,27 +4,67 @@ import React from 'react'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { colors } from '@/theme'
+
 import { GameDetail } from './game-detail'
+
+function flatStyle(style: unknown): Record<string, string | number> {
+  if (typeof style === 'function') return flatStyle((style as (state: { pressed: boolean, focused: boolean }) => unknown)({ pressed: false, focused: false }))
+  if (Array.isArray(style)) return Object.assign({}, ...style.filter(Boolean).map(flatStyle))
+  if (style && typeof style === 'object') return style as Record<string, string | number>
+  return {}
+}
 
 vi.mock('react-native', () => ({
   Linking: { openURL: vi.fn(() => Promise.resolve()) },
+  Platform: { OS: 'web' },
+  findNodeHandle: () => null,
   Pressable: ({
     onPress,
     children,
     accessibilityLabel,
     accessibilityRole,
+    accessibilityState,
+    style,
   }: {
     onPress?: () => void
     children: React.ReactNode | ((state: { pressed: boolean }) => React.ReactNode)
     accessibilityLabel?: string
     accessibilityRole?: string
+    accessibilityState?: { selected?: boolean, checked?: boolean, disabled?: boolean }
+    style?: unknown
   }) => React.createElement(
     'button',
-    { type: 'button', onClick: onPress, 'aria-label': accessibilityLabel, role: accessibilityRole },
+    {
+      type: 'button',
+      onClick: onPress,
+      'aria-label': accessibilityLabel,
+      role: accessibilityRole === 'switch' ? 'switch' : (accessibilityRole ?? 'button'),
+      'aria-selected': accessibilityState?.selected ? 'true' : 'false',
+      'aria-checked': accessibilityState && 'checked' in accessibilityState ? String(accessibilityState.checked) : undefined,
+      style: flatStyle(style),
+    },
     typeof children === 'function' ? children({ pressed: false }) : children,
   ),
   View: ({ children }: { children?: React.ReactNode }) => React.createElement('div', null, children),
-  Text: ({ children }: { children?: React.ReactNode }) => React.createElement('span', null, children),
+  Text: ({
+    children,
+    accessibilityLabel,
+    accessibilityLiveRegion,
+    accessibilityRole,
+    accessibilityLevel,
+  }: {
+    children?: React.ReactNode
+    accessibilityLabel?: string
+    accessibilityLiveRegion?: 'polite' | 'none' | 'assertive'
+    accessibilityRole?: string
+    accessibilityLevel?: number
+  }) => React.createElement('span', {
+    'aria-label': accessibilityLabel,
+    'aria-live': accessibilityLiveRegion,
+    role: accessibilityRole === 'header' ? 'heading' : undefined,
+    'aria-level': accessibilityLevel,
+  }, children),
   TextInput: ({
     accessibilityLabel,
     value,
@@ -229,7 +269,8 @@ describe('GameDetail', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Save game' }))
     expect(screen.queryByText('Sign up to rate, log, or list this game.')).toBeNull()
-    expect(screen.getByText('You · 8 / 10').textContent).toBe('You · 8 / 10')
+    expect(screen.getByText('“Sharp.”').textContent).toBe('“Sharp.”')
+    expect(screen.getByLabelText('Your score 8 out of 10').textContent).toBe('8')
     expect(screen.getByRole('button', { name: 'Save game' }).textContent).toBe('Playing')
   })
 
@@ -290,7 +331,7 @@ describe('GameDetail', () => {
 
     fireEvent.change(screen.getByRole('textbox', { name: 'New list name' }), { target: { value: 'Favorites' } })
     fireEvent.change(screen.getByRole('textbox', { name: 'List description' }), { target: { value: 'Best' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Public list' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Public list' }))
     fireEvent.click(screen.getByRole('button', { name: 'Create list' }))
     await waitFor(() => expect(onCreateList).toHaveBeenCalledWith({
       name: 'Favorites',
@@ -355,7 +396,8 @@ describe('GameDetail', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Score 9' }))
     fireEvent.change(screen.getByRole('textbox', { name: 'Review note' }), { target: { value: 'again' } })
     fireEvent.click(screen.getByRole('button', { name: 'Submit rating' }))
-    expect(await screen.findByText('Too many requests. Try again in 8 seconds.')).toBeTruthy()
+    const message = await screen.findByText('Too many requests. Try again in 8 seconds.')
+    expect(message.getAttribute('aria-live')).toBe('polite')
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
     await waitFor(() => expect(onRate).toHaveBeenCalledTimes(2))
     expect(onRate).toHaveBeenNthCalledWith(2, 9, 'again')
@@ -436,6 +478,9 @@ describe('GameDetail', () => {
       />,
     )
 
+    expect(screen.getByRole('button', { name: 'Sort reviews by date' }).getAttribute('aria-selected')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Sort reviews by rating' }).getAttribute('aria-selected')).toBe('false')
+    expect(screen.getByRole('button', { name: 'Sort descending' }).textContent).toBe('Sort descending')
     fireEvent.click(screen.getByRole('button', { name: 'Next page' }))
     expect(onReviewsQuery).toHaveBeenCalledWith({ page: 2, sort: 'date', order: 'desc' })
     fireEvent.click(screen.getByRole('button', { name: 'Sort reviews by rating' }))
@@ -466,5 +511,55 @@ describe('GameDetail', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
     expect(onRefresh).toHaveBeenCalledTimes(1)
     expect(onSignUp).not.toHaveBeenCalled()
+  })
+
+  it('shows a listed list with a visible label, a selected state, and an accent border', () => {
+    render(
+      <GameDetail
+        data={{ ...SIGNED_IN, viewer: { ...SIGNED_IN.viewer, listIdsGameIsIn: ['list-1'] } }}
+        reviews={REVIEWS}
+        reviewsNote={null}
+        signedIn
+        onBack={() => undefined}
+        onSignIn={() => undefined}
+        onSignUp={() => undefined}
+        onRetryReviews={() => undefined}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add to list' }))
+    const listed = screen.getByRole('button', { name: 'Remove from Backlog' })
+    expect(listed.textContent).toBe('Backlog · On this list')
+    expect(listed.getAttribute('aria-selected')).toBe('true')
+    const accent = document.createElement('span')
+    accent.style.color = colors.accent
+    expect(listed.style.borderColor).toBe(accent.style.color)
+  })
+
+  it('ignores a second press while a rating save is still pending', async () => {
+    let release: (value: null) => void = () => undefined
+    const onRate = vi.fn(() => new Promise<null>((resolve) => { release = resolve }))
+    render(
+      <GameDetail
+        data={SIGNED_IN}
+        reviews={REVIEWS}
+        reviewsNote={null}
+        signedIn
+        onBack={() => undefined}
+        onSignIn={() => undefined}
+        onSignUp={() => undefined}
+        onRetryReviews={() => undefined}
+        onRate={onRate}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rate' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Score 9' }))
+    const submit = screen.getByRole('button', { name: 'Submit rating' })
+    submit.click()
+    submit.click()
+    expect(onRate).toHaveBeenCalledTimes(1)
+    release(null)
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Submit rating' })).toBeNull())
   })
 })

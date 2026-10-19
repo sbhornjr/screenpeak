@@ -1,6 +1,6 @@
 import type { GamePageData } from '@screenpeak/shared/api/games'
 import type { LibraryWrite } from '@screenpeak/shared/api/writes'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useState } from 'react'
 import { StyleSheet } from 'react-native'
@@ -38,6 +38,7 @@ export default function GameScreen() {
     queryKey: ['game', slug, 'reviews', viewerId, reviewsQuery.page, reviewsQuery.sort, reviewsQuery.order],
     queryFn: () => api.games.reviews(slug, reviewsQuery),
     enabled: ready && configured && slug.length > 0 && game.isSuccess,
+    placeholderData: keepPreviousData,
   })
 
   const gameKey = ['game', slug, viewerId] as const
@@ -48,13 +49,20 @@ export default function GameScreen() {
   ): Promise<string | null> {
     await queryClient.cancelQueries({ queryKey: gameKey })
     const previous = queryClient.getQueryData<GamePageData>(gameKey)
-    if (optimistic && previous) queryClient.setQueryData(gameKey, optimistic(previous))
+    const next = optimistic && previous ? optimistic(previous) : undefined
+    const owned = next ? queryClient.setQueryData(gameKey, next) : previous
     try {
       await run()
-      await queryClient.invalidateQueries({ queryKey: ['game', slug] })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['game', slug] }),
+        queryClient.invalidateQueries({ queryKey: ['library'] }),
+        queryClient.invalidateQueries({ queryKey: ['lists'] }),
+        queryClient.invalidateQueries({ queryKey: ['profile'] }),
+      ])
       return null
     } catch (error) {
-      if (previous) queryClient.setQueryData(gameKey, previous)
+      const current = queryClient.getQueryData<GamePageData>(gameKey)
+      if (previous && current === owned) queryClient.setQueryData(gameKey, previous)
       return actionFailure(error)
     }
   }
@@ -88,6 +96,7 @@ export default function GameScreen() {
           data={game.data}
           reviews={reviews.data ?? null}
           reviewsNote={reviews.isError ? actionFailure(reviews.error) : null}
+          reviewsLoading={reviews.isFetching}
           reviewsQuery={reviewsQuery}
           signedIn={signedIn}
           refreshing={refreshing}
