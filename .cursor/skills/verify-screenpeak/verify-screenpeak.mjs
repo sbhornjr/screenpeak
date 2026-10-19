@@ -1087,7 +1087,39 @@ async function driveGamePage() {
         await page.waitForText(game.name)
         await page.screenshot(join(dir, 'page.png'))
         const bodyText = await page.bodyText()
+        const folded = bodyText.toLowerCase()
         if (!bodyText.includes(game.name)) problems.push('the page text does not include the game name')
+        if (!folded.includes('in your library')) problems.push('signed-out page is missing In your library')
+        if (!folded.includes('sign in to add this game to your library.')) problems.push('signed-out page is missing the library sign-in line')
+        if (folded.includes('your save')) problems.push('signed-out page still says Your save')
+        const statsLine = psql(databaseUrl, `
+            select coalesce(le.hours_played::text, '') || '|' || coalesce(le.play_count::text, '') || '|' || coalesce(le.completed_all_achievements::text, '')
+            from library_entries le
+            join games g on g.id = le.game_id
+            join users u on u.id = le.user_id
+            where u.username = '${peekUsername}' and g.slug = '${game.slug}'
+        `, ['-tA'])
+        await page.clickButton('Sign In')
+        await page.waitForText('Password')
+        await page.fillPlaceholder('Email', peekEmail)
+        await page.fillPlaceholder('Password', peekPassword)
+        await page.clickDialogButton('Sign In')
+        await page.waitForText(peekUsername)
+        await page.navigate(`http://127.0.0.1:${appPort}/games/${encodeURIComponent(game.slug)}`)
+        await page.waitForText('Hours played')
+        await page.screenshot(join(dir, 'library.png'))
+        const signedInText = await page.bodyText()
+        if (!statsLine) {
+            problems.push('peek has no library row for this game')
+        } else {
+            const [hours, plays, done] = statsLine.split('|')
+            const hoursText = hours === '' ? '—' : String(Number(hours))
+            const flag = done === 't' || done === 'true' ? '100% achievements completed' : '100% achievements not completed'
+            for (const line of [`Hours played ${hoursText}`, `Times played ${plays}`, flag]) {
+                if (!signedInText.includes(line)) problems.push(`signed-in page missing ${line}`)
+            }
+        }
+        if (signedInText.includes('Sign in to add this game to your library.')) problems.push('signed-in page still asks to sign in to add the game')
     } finally {
         page?.close()
         stopRecorded('chrome')
@@ -1963,7 +1995,11 @@ async function driveMobileNav() {
         await page.waitUntil(`document.body.innerText.includes('Review note') ? 'waiting' : 'ok'`)
 
         await page.clickControl('Add to list')
-        await shot('game-list-sheet.png', 'New list name')
+        await shot('game-list-sheet.png', 'New list')
+        const listStep = await page.bodyText()
+        if (listStep.includes('New list name')) problems.push('create fields showed before New list')
+        await page.clickControl('New list')
+        await page.waitForText('New list name')
         const listFocused = await page.evaluate(`(() => {
             const dialog = [...document.querySelectorAll('[role="dialog"]')].find((item) => (item.innerText || '').includes('New list name'))
             const input = dialog ? dialog.querySelector('input[placeholder="New list name"]') : null
@@ -2486,6 +2522,12 @@ async function driveMobileGame() {
         limit 1
     `, ['-tA'])
     const [wishlistId, wishlistName] = (wishlist || '').split('|')
+    const priorShots = JSON.parse(psql(databaseUrl, `
+        select coalesce(array_to_json(screenshots)::text, '[]')
+        from games where id = '${target.gameId}'::uuid
+    `, ['-tA']) || '[]')
+    const verifyShot = 'https://images.igdb.com/igdb/image/upload/t_screenshot_huge/scverify.jpg'
+    const seededShot = !priorShots.some((url) => typeof url === 'string' && url.includes('/t_screenshot'))
     psql(databaseUrl, `
         delete from lists where user_id = '${target.userId}'::uuid and name = '${listName}';
         ${wishlistId ? `delete from list_games where list_id = '${wishlistId}'::uuid and game_id = '${target.gameId}'::uuid;` : ''}
@@ -2512,6 +2554,13 @@ async function driveMobileGame() {
     let chromePid = null
     let createdListId = ''
     try {
+        if (seededShot) {
+            psql(databaseUrl, `
+                update games
+                set screenshots = array_append(coalesce(screenshots, '{}'), '${verifyShot}')
+                where id = '${target.gameId}'::uuid
+            `)
+        }
         await waitForHttp(expoOrigin, 180_000)
         chromePid = await launchChrome()
         page = await connectChrome()
@@ -2540,7 +2589,30 @@ async function driveMobileGame() {
         await page.navigate(`${expoOrigin}/games/${encodeURIComponent(target.slug)}`)
         const signedOut = await shot('se-signed-out.png', target.name, 180_000)
         if (!signedOut.includes(target.name)) problems.push('signed-out game page is missing the name')
+        const signedOutFolded = signedOut.toLowerCase()
+        if (!signedOutFolded.includes('in your library')) problems.push('signed-out game page is missing In your library')
+        if (!signedOutFolded.includes('sign in to add this game to your library.')) problems.push('signed-out game page is missing the library sign-in line')
+        if (!signedOut.includes('Write a review')) problems.push('signed-out game page is missing Write a review')
+        await shot('write-review.png', 'Write a review')
+        if (signedOutFolded.includes('your save') || signedOut.includes('Open full size')) problems.push('signed-out game page still uses the old library or gallery wording')
         if (signedOut.includes('Sign up to rate, log, or list this game.')) problems.push('signup prompt is open before an action')
+        await page.setViewport(320, 568)
+        const narrow = await shot('cover-se.png', 'RELEASED')
+        if (!narrow.toLowerCase().includes('released') || !narrow.includes(target.name)) problems.push('SE cover row is missing the release year')
+        await page.setViewport(375, 667)
+        const openedShot = await page.evaluate(`(() => {
+            const node = [...document.querySelectorAll('button, [role="button"]')].find((item) => (item.getAttribute('aria-label') || '').startsWith('Screenshot '))
+            if (!node) return 'missing'
+            node.click()
+            return node.getAttribute('aria-label') || 'clicked'
+        })()`)
+        if (openedShot === 'missing') problems.push('gallery screenshot control is missing')
+        else {
+            const viewer = await shot('screenshot-viewer.png', 'Close screenshot')
+            if (viewer.includes('Open full size')) problems.push('gallery still offers Open full size')
+            await page.clickLabel('Close screenshot')
+            await page.waitUntil(`document.body.innerText.includes('Close screenshot') ? 'waiting' : 'ok'`)
+        }
         await page.clickLabel('Rate')
         const prompt = await shot('signup.png', 'Sign up to rate, log, or list this game.')
         if (!prompt.includes('Sign up')) problems.push('signup prompt is missing Sign up')
@@ -2573,6 +2645,10 @@ async function driveMobileGame() {
         await page.navigate(`${expoOrigin}/games/${encodeURIComponent(target.slug)}`)
         const signedIn = await shot('se-signed-in.png', target.name)
         if (!signedIn.includes('Your score')) problems.push('signed-in game page is missing your score')
+        if (!signedIn.includes('Hours played 12.5')) problems.push('signed-in game page is missing hours')
+        if (!signedIn.includes('Times played 4')) problems.push('signed-in game page is missing times played')
+        if (!signedIn.includes('100% achievements completed')) problems.push('signed-in game page is missing the 100% flag')
+        await shot('library-stats.png', 'Hours played 12.5')
         if (signedIn.includes('Sign up to rate, log, or list this game.')) problems.push('signed-in game page opened the signup prompt')
 
         async function waitForRateSheetClosed() {
@@ -2590,6 +2666,8 @@ async function driveMobileGame() {
         await waitForRateSheetClosed()
         const rated = await shot('review-saved.png', firstReview)
         if (!rated.includes(String(nextRating))) problems.push('saved review did not show the new score')
+        if (!rated.includes('Edit your review')) problems.push('saved review did not offer Edit your review')
+        await shot('edit-review.png', 'Edit your review')
         const reviewRow = psql(databaseUrl, `
             select rating::text || '|' || coalesce(review, '')
             from ratings_reviews
@@ -2624,6 +2702,7 @@ async function driveMobileGame() {
         await page.screenshot(deletedPath)
         shots['review-deleted.png'] = deletedPath
         if (deletedText.includes(editedReview) || deletedText.includes(firstReview)) problems.push('deleted review text is still on the page')
+        if (!deletedText.includes('Write a review')) problems.push('deleted review did not offer Write a review')
         if (!deletedText.includes(`Your score ${nextRating}`)) problems.push('deleting the review cleared the score')
         const deletedRow = psql(databaseUrl, `
             select rating::text || '|' || coalesce(review, '')
@@ -2659,13 +2738,21 @@ async function driveMobileGame() {
         if (keptStatus !== nextStatus || Number(keptHours) !== 12.5 || keptPlays !== '4' || (keptComplete !== 't' && keptComplete !== 'true')) {
             problems.push(`status-only save changed library details ${kept}`)
         }
-        await shot('library-saved.png', `Status ${nextStatusLabel}`)
+        const savedLibrary = await shot('library-saved.png', `Status ${nextStatusLabel}`)
+        if (!savedLibrary.includes('Hours played 12.5') || !savedLibrary.includes('Times played 4') || !savedLibrary.includes('100% achievements completed')) {
+            problems.push('status-only save hid the library stats')
+        }
 
         if (!wishlistName) {
             problems.push('peek has no list to add the game to')
         } else {
             await page.clickControl('Add to list')
-            await page.waitForText('New list name')
+            await page.waitForText(wishlistName)
+            const listStep = await page.bodyText()
+            if (listStep.includes('New list name')) problems.push('create fields showed before New list')
+            const listSheetPath = join(dir, 'list-sheet.png')
+            await page.screenshot(listSheetPath)
+            shots['list-sheet.png'] = listSheetPath
             await page.clickLabel(`Add to ${wishlistName}`)
             await page.waitUntil(`(() => {
                 const node = [...document.querySelectorAll('button, [role="button"]')].find((item) => {
@@ -2686,6 +2773,11 @@ async function driveMobileGame() {
             }
             record.wishlistCount = Number(membership)
             if (membership !== '1') problems.push(`wishlist membership ${membership}`)
+            await page.clickControl('New list')
+            await page.waitForText('New list name')
+            const newListPath = join(dir, 'new-list.png')
+            await page.screenshot(newListPath)
+            shots['new-list.png'] = newListPath
             await page.fillLabel('New list name', listName)
             await page.fillLabel('List description', 'From the phone')
             await page.waitUntil(`(() => {
@@ -2786,6 +2878,16 @@ async function driveMobileGame() {
             delete from lists where user_id = '${target.userId}'::uuid and name = '${listName}';
             ${wishlistId ? `delete from list_games where list_id = '${wishlistId}'::uuid and game_id = '${target.gameId}'::uuid;` : ''}
         `)
+        if (seededShot) {
+            const restoredShots = priorShots.length
+                ? `ARRAY[${priorShots.map((url) => `'${String(url).replace(/'/g, "''")}'`).join(', ')}]::text[]`
+                : `'{}'::text[]`
+            try {
+                psql(databaseUrl, `update games set screenshots = ${restoredShots} where id = '${target.gameId}'::uuid`)
+            } catch (error) {
+                problems.push(error instanceof Error ? error.message : String(error))
+            }
+        }
         restorePeekWrites(target)
         page?.close()
         stopRecorded('chrome')

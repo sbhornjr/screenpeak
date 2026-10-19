@@ -2,6 +2,7 @@
 import type { GamePageData, GameReviewsPage } from '@screenpeak/shared/api/games'
 import React from 'react'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { Linking } from 'react-native'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { colors } from '@/theme'
@@ -181,8 +182,13 @@ describe('GameDetail', () => {
     )
 
     expect(screen.getAllByText('Hades').length).toBeGreaterThan(0)
+    expect(screen.getByText('In your library').textContent).toBe('In your library')
+    expect(screen.getByText('Sign in to add this game to your library.').textContent)
+      .toBe('Sign in to add this game to your library.')
+    expect(screen.getByText('Released').textContent).toBe('Released')
+    expect(screen.getByText('2020').textContent).toBe('2020')
     expect(screen.getAllByText('9.2').some(node => node.textContent === '9.2')).toBe(true)
-    expect(screen.getByText('Community').textContent).toBe('Community')
+    expect(screen.getAllByText('Community').length).toBeGreaterThan(0)
     expect(screen.getByText('Sign in to add your rating').textContent).toBe('Sign in to add your rating')
     expect(screen.getByText('“One more run.”').textContent).toBe('“One more run.”')
     expect(screen.getByText('zagreus').textContent).toBe('zagreus')
@@ -222,7 +228,11 @@ describe('GameDetail', () => {
     )
 
     expect(screen.queryByText('You · 8 / 10')).toBeNull()
+    expect(screen.queryByText('Hours played 12')).toBeNull()
+    expect(screen.getByText('Sign in to add this game to your library.').textContent)
+      .toBe('Sign in to add this game to your library.')
     expect(screen.getByRole('button', { name: 'Save game' }).textContent).toBe('Save game')
+    expect(screen.getByRole('button', { name: 'Write a review' }).textContent).toBe('Write a review')
   })
 
   it('closes the signup sheet before Sign up or Log in runs', () => {
@@ -244,6 +254,10 @@ describe('GameDetail', () => {
         onRetryReviews={() => undefined}
       />,
     )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Write a review' }))
+    expect(screen.getByText('Sign up to rate, log, or list this game.').textContent).toBe('Sign up to rate, log, or list this game.')
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
     fireEvent.click(screen.getByRole('button', { name: 'Save game' }))
     expect(screen.getByText('Sign up to rate, log, or list this game.').textContent).toBe('Sign up to rate, log, or list this game.')
@@ -286,6 +300,13 @@ describe('GameDetail', () => {
         onRetryReviews={() => undefined}
       />,
     )
+
+    expect(screen.getByText('Hours played 12').textContent).toBe('Hours played 12')
+    expect(screen.getByText('Times played 1').textContent).toBe('Times played 1')
+    expect(screen.getByText('100% achievements not completed').textContent).toBe('100% achievements not completed')
+    fireEvent.click(screen.getByRole('button', { name: 'Edit your review' }))
+    expect(screen.getByRole('textbox', { name: 'Review note' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
     fireEvent.click(screen.getByRole('button', { name: 'Save game' }))
     expect(screen.queryByText('Sign up to rate, log, or list this game.')).toBeNull()
@@ -346,9 +367,11 @@ describe('GameDetail', () => {
     await waitFor(() => expect(onSave).toHaveBeenCalledWith({ status: 'completed' }))
 
     fireEvent.click(screen.getByRole('button', { name: 'Add to list' }))
+    expect(screen.queryByRole('textbox', { name: 'New list name' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Add to Backlog' }))
     await waitFor(() => expect(onAddToList).toHaveBeenCalledWith('list-1'))
 
+    fireEvent.click(screen.getByRole('button', { name: 'New list' }))
     fireEvent.change(screen.getByRole('textbox', { name: 'New list name' }), { target: { value: 'Favorites' } })
     fireEvent.change(screen.getByRole('textbox', { name: 'List description' }), { target: { value: 'Best' } })
     fireEvent.click(screen.getByRole('switch', { name: 'Public list' }))
@@ -507,6 +530,28 @@ describe('GameDetail', () => {
     expect(onReviewsQuery).toHaveBeenCalledWith({ page: 1, sort: 'rating', order: 'desc' })
   })
 
+  it('opens a screenshot in the app and does not leave for a browser', () => {
+    render(
+      <GameDetail
+        data={DATA}
+        reviews={REVIEWS}
+        reviewsNote={null}
+        signedIn={false}
+        onBack={() => undefined}
+        onSignIn={() => undefined}
+        onSignUp={() => undefined}
+        onRetryReviews={() => undefined}
+      />,
+    )
+
+    expect(screen.queryByRole('link', { name: 'Open screenshot full size' })).toBeNull()
+    expect(screen.queryByText('Open full size')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Screenshot 1 of 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close screenshot' }))
+    expect(screen.queryByRole('button', { name: 'Close screenshot' })).toBeNull()
+    expect(Linking.openURL).not.toHaveBeenCalled()
+  })
+
   it('asks a signed-out player to sign up from Rate and refreshes when pulled', () => {
     const onSignUp = vi.fn()
     const onRefresh = vi.fn()
@@ -548,6 +593,7 @@ describe('GameDetail', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Add to list' }))
+    expect(screen.queryByRole('textbox', { name: 'New list name' })).toBeNull()
     const listed = screen.getByRole('button', { name: 'Remove from Backlog' })
     expect(listed.textContent).toBe('Backlog · On this list')
     expect(listed.getAttribute('aria-selected')).toBe('true')

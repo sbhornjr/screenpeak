@@ -26,6 +26,17 @@ function unguardedSheetNavigation(source: string): string[] {
   return problems
 }
 
+describe('sheet focus scroll', () => {
+  it('does not call measureLayout with a numeric node handle', () => {
+    const root = join(import.meta.dirname)
+    const sources = filesUnder(root).filter(path =>
+      /\.tsx?$/.test(path) && !path.endsWith('.test.ts') && !path.endsWith('.test.tsx'),
+    )
+    const problems = sources.filter(path => readFileSync(path, 'utf8').includes('.measureLayout('))
+    expect(problems).toEqual([])
+  })
+})
+
 describe('sheet navigation', () => {
   it('dismisses the sheet before any navigation started from one', () => {
     const root = join(import.meta.dirname)

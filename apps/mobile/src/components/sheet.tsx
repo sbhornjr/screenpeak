@@ -1,6 +1,6 @@
 // The website Modal, presented as a bottom sheet.
 import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
-import { findNodeHandle, Keyboard, Platform, Pressable, Modal, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { Keyboard, Platform, Pressable, Modal, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, face, overlays, radius, space, typeScale } from '@/theme';
@@ -9,11 +9,6 @@ import { Button } from './button';
 
 type FocusedField = {
   scrollIntoView?: (options: { block?: 'center' | 'nearest' }) => void;
-  measureLayout?: (
-    relative: number,
-    onSuccess: (x: number, y: number, width: number, height: number) => void,
-    onFail: () => void,
-  ) => void;
 };
 
 type SheetDismiss = (then?: () => void) => void;
@@ -27,7 +22,11 @@ export function useSheetDismiss(): SheetDismiss {
   return dismiss;
 }
 
-/** Keep the field being typed in view when the keyboard opens or the window gets shorter. */
+/**
+ * Keep the field being typed in view when the keyboard opens or the window gets shorter.
+ * Native measurement goes through the scroll view's inner host. Passing findNodeHandle's
+ * number into measureLayout warns: "ref.measureLayout must be called with a ref to a native component".
+ */
 function revealFocusedField(scroll: ScrollView | null) {
   const input = TextInput.State?.currentlyFocusedInput?.() as FocusedField | null;
   if (!input || !scroll) return;
@@ -35,13 +34,7 @@ function revealFocusedField(scroll: ScrollView | null) {
     input.scrollIntoView({ block: 'center' });
     return;
   }
-  const relative = findNodeHandle(scroll);
-  if (relative == null || typeof input.measureLayout !== 'function') return;
-  input.measureLayout(
-    relative,
-    (_x, y) => scroll.scrollTo({ y: Math.max(0, y - 24), animated: false }),
-    () => undefined,
-  );
+  scroll.scrollResponderScrollNativeHandleToKeyboard(input, 80, true);
 }
 
 export function Sheet({

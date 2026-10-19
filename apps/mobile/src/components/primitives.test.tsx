@@ -20,6 +20,15 @@ const keyboard = vi.hoisted(() => ({
   listeners: new Map<string, (event: { endCoordinates: { height: number } }) => void>(),
 }))
 
+const focusedField = vi.hoisted(() => ({
+  current: null as null | {
+    measureLayout: ReturnType<typeof vi.fn>
+    scrollIntoView?: (options: { block?: string }) => void
+  },
+}))
+
+const scrollToKeyboard = vi.hoisted(() => vi.fn())
+
 const platform = vi.hoisted(() => ({ os: 'ios' }))
 
 const modal = vi.hoisted(() => ({ reportsDismiss: true }))
@@ -154,26 +163,29 @@ vi.mock('react-native', () => ({
     },
     children,
   ),
-  TextInput: ({
-    accessibilityLabel,
-    value,
-    onChangeText,
-    placeholder,
-    style,
-  }: {
-    accessibilityLabel?: string
-    value?: string
-    onChangeText?: (value: string) => void
-    placeholder?: string
-    style?: unknown
-  }) => React.createElement('input', {
-    'aria-label': accessibilityLabel,
-    placeholder,
-    value: value ?? '',
-    'data-style': JSON.stringify(flattenStyle(style)),
-    onChange: (event: { target: { value: string } }) => onChangeText?.(event.target.value),
-  }),
-  ScrollView: ({
+  TextInput: Object.assign(
+    ({
+      accessibilityLabel,
+      value,
+      onChangeText,
+      placeholder,
+      style,
+    }: {
+      accessibilityLabel?: string
+      value?: string
+      onChangeText?: (value: string) => void
+      placeholder?: string
+      style?: unknown
+    }) => React.createElement('input', {
+      'aria-label': accessibilityLabel,
+      placeholder,
+      value: value ?? '',
+      'data-style': JSON.stringify(flattenStyle(style)),
+      onChange: (event: { target: { value: string } }) => onChangeText?.(event.target.value),
+    }),
+    { State: { currentlyFocusedInput: () => focusedField.current } },
+  ),
+  ScrollView: React.forwardRef(function SheetScrollView({
     children,
     keyboardShouldPersistTaps,
     automaticallyAdjustKeyboardInsets,
@@ -181,14 +193,19 @@ vi.mock('react-native', () => ({
     children?: React.ReactNode
     keyboardShouldPersistTaps?: string
     automaticallyAdjustKeyboardInsets?: boolean
-  }) => React.createElement(
-    'div',
-    {
-      'data-persist-taps': keyboardShouldPersistTaps ?? '',
-      'data-keyboard-insets': automaticallyAdjustKeyboardInsets ? 'true' : 'false',
-    },
-    children,
-  ),
+  }, ref: React.Ref<{ scrollResponderScrollNativeHandleToKeyboard: typeof scrollToKeyboard }>) {
+    React.useImperativeHandle(ref, () => ({
+      scrollResponderScrollNativeHandleToKeyboard: scrollToKeyboard,
+    }))
+    return React.createElement(
+      'div',
+      {
+        'data-persist-taps': keyboardShouldPersistTaps ?? '',
+        'data-keyboard-insets': automaticallyAdjustKeyboardInsets ? 'true' : 'false',
+      },
+      children,
+    )
+  }),
   Modal: ({
     visible,
     onRequestClose,
@@ -396,6 +413,53 @@ describe('Sheet', () => {
       keyboard.listeners.get('keyboardDidShow')?.({ endCoordinates: { height: 300 } })
     })
     expect(painted(screen.getByRole('dialog', { name: 'Add to list' })).paddingBottom).toBe(space[4] + 34)
+  })
+
+  it('scrolls a focused field through the scroll view host and never calls measureLayout', async () => {
+    platform.os = 'ios'
+    const measureLayout = vi.fn()
+    focusedField.current = { measureLayout }
+    scrollToKeyboard.mockClear()
+    render(
+      <Sheet visible title="Rate" onClose={() => undefined}>
+        <Text>Note</Text>
+      </Sheet>,
+    )
+    await act(async () => {
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)))
+    })
+    expect(measureLayout).not.toHaveBeenCalled()
+    expect(scrollToKeyboard).toHaveBeenCalledWith(focusedField.current, 80, true)
+
+    scrollToKeyboard.mockClear()
+    act(() => {
+      keyboard.listeners.get('keyboardDidShow')?.({ endCoordinates: { height: 300 } })
+    })
+    await act(async () => {
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)))
+    })
+    expect(measureLayout).not.toHaveBeenCalled()
+    expect(scrollToKeyboard).toHaveBeenCalledWith(focusedField.current, 80, true)
+    focusedField.current = null
+  })
+
+  it('uses scrollIntoView when the focused field is a web element', async () => {
+    const measureLayout = vi.fn()
+    const scrollIntoView = vi.fn()
+    focusedField.current = { measureLayout, scrollIntoView }
+    scrollToKeyboard.mockClear()
+    render(
+      <Sheet visible title="Rate" onClose={() => undefined}>
+        <Text>Note</Text>
+      </Sheet>,
+    )
+    await act(async () => {
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)))
+    })
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'center' })
+    expect(measureLayout).not.toHaveBeenCalled()
+    expect(scrollToKeyboard).not.toHaveBeenCalled()
+    focusedField.current = null
   })
 
   it('runs a navigation only after the sheet has closed', () => {

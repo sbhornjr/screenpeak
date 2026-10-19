@@ -1,10 +1,11 @@
 import type { GamePageData, GameReviewsPage } from '@screenpeak/shared/api/games'
 import type { LibraryWrite, ListWrite } from '@screenpeak/shared/api/writes'
 import type { GameRatingsStats } from '@screenpeak/shared/types'
+import { LIBRARY_SECTION_TITLE, libraryEmptyLine, libraryStatLines } from '@screenpeak/shared/library-copy'
 import { createListSchema, ratingReviewSchema } from '@screenpeak/shared/schemas'
 import { Image } from 'expo-image'
 import { useRef, useState } from 'react'
-import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
+import { Linking, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 
 import { igdbImageUri } from '@/lib/catalog-image'
 import {
@@ -130,6 +131,7 @@ export function GameDetail({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [form, setForm] = useState<LibraryForm>(() => libraryForm(viewer?.libraryEntry ?? null))
   const [details, setDetails] = useState(false)
+  const [makingList, setMakingList] = useState(false)
   const [listName, setListName] = useState('')
   const [listDescription, setListDescription] = useState('')
   const [listPublic, setListPublic] = useState(viewer?.defaultListPrivacy ?? true)
@@ -142,6 +144,7 @@ export function GameDetail({
   const [aboutFullHeight, setAboutFullHeight] = useState(0)
   const [aboutLimitHeight, setAboutLimitHeight] = useState(0)
   const [shotIndex, setShotIndex] = useState(0)
+  const [shotOpen, setShotOpen] = useState(false)
   const pending = useRef(false)
 
   function fail(message: string) {
@@ -170,6 +173,7 @@ export function GameDetail({
       setDetails(false)
     }
     if (next === 'list') {
+      setMakingList(false)
       setListName('')
       setListDescription('')
       setListPublic(viewer?.defaultListPrivacy ?? true)
@@ -260,6 +264,7 @@ export function GameDetail({
       if (!error) {
         setListName('')
         setListDescription('')
+        setMakingList(false)
       }
       return error
     }, true)
@@ -276,7 +281,12 @@ export function GameDetail({
   const inFile = !!(viewer?.review || viewer?.libraryEntry)
   const aboutOverflows = aboutFullHeight > aboutLimitHeight + 1 && aboutLimitHeight > 0
   const titleSize = compact ? typeScale['3xl'].size : typeScale['4xl'].size
-  const frame = shots.length === 0 ? null : shots[Math.min(shotIndex, shots.length - 1)]
+  const shotNumber = shots.length === 0 ? 0 : Math.min(shotIndex, shots.length - 1)
+  const frame = shots.length === 0 ? null : shots[shotNumber]
+
+  function stepShot(delta: number) {
+    setShotIndex(index => (index + delta + shots.length) % shots.length)
+  }
 
   return (
     <ScrollView
@@ -320,28 +330,42 @@ export function GameDetail({
             onPress={() => onOpenCatalogue?.({ esrb: game.esrb_rating ?? undefined })}
           />
         ) : null}
-        {year ? <Text style={styles.year}>{year}</Text> : null}
       </View>
 
-      <View style={styles.cover}>
-        {cover ? (
-          <Image source={cover} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityLabel={`${game.name} cover`} />
-        ) : (
-          <Text style={styles.noCover}>No Cover</Text>
-        )}
+      <View style={styles.hero}>
+        <View style={[styles.cover, compact && styles.coverCompact]}>
+          {cover ? (
+            <Image source={cover} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityLabel={`${game.name} cover`} />
+          ) : (
+            <Text style={styles.noCover}>No Cover</Text>
+          )}
+        </View>
+        <View style={styles.heroFacts}>
+          <Text style={styles.metaLabel}>Released</Text>
+          <Text style={styles.heroValue}>{year ?? '—'}</Text>
+          <Text style={styles.metaLabel}>Community</Text>
+          <Text style={styles.heroValue}>{community == null ? '—' : community}</Text>
+          <Text style={styles.metaLabel}>Platforms</Text>
+          <Text style={styles.heroValue}>
+            {taxonomy.platforms.length === 0 ? '—' : taxonomy.platforms.map(row => row.name).join(', ')}
+          </Text>
+        </View>
       </View>
 
       <Panel style={styles.savePanel}>
-        <Text style={styles.metaLabel}>Your save</Text>
+        <Text style={styles.metaLabel}>{LIBRARY_SECTION_TITLE}</Text>
         {inFile ? (
           <View style={styles.stack}>
             {viewer?.libraryEntry ? <Text style={styles.body}>Status {statusLabel(viewer.libraryEntry.status)}</Text> : null}
+            {viewer?.libraryEntry
+              ? libraryStatLines(viewer.libraryEntry).map(line => <Text key={line} style={styles.body}>{line}</Text>)
+              : null}
             {yours != null ? <Text style={styles.body}>Your score {yours} / 10</Text> : null}
             {viewer?.review?.updated_at ? <Text style={styles.meta}>Scored {relTime(viewer.review.updated_at)}</Text> : null}
             {!viewer?.libraryEntry && yours == null ? <Text style={styles.body}>Saved, not scored yet</Text> : null}
           </View>
         ) : (
-          <Text style={styles.body}>Not in your save yet. Save the game to add it.</Text>
+          <Text style={styles.body}>{libraryEmptyLine(signedIn)}</Text>
         )}
       </Panel>
 
@@ -498,50 +522,61 @@ export function GameDetail({
         ) : null}
       </Sheet>
 
-      <Sheet visible={panel === 'list'} title="Add to list" onClose={() => setPanel(null)}>
-        {(viewer?.lists ?? []).length === 0 ? <Text style={styles.body}>{"You don't have a list yet."}</Text> : null}
-        {(viewer?.lists ?? []).map(list => {
-          const listed = viewer?.listIdsGameIsIn.includes(list.id) ?? false
-          return (
-            <Button
-              key={list.id}
-              label={listed ? `${list.name} · On this list` : list.name}
-              accessibilityLabel={listed ? `Remove from ${list.name}` : `Add to ${list.name}`}
-              selected={listed}
-              variant="secondary"
-              disabled={busy}
-              onPress={() => {
-                if (listed && onRemoveFromList) void run(() => onRemoveFromList(list.id), true)
-                if (!listed && onAddToList) void run(() => onAddToList(list.id), true)
-              }}
-            />
-          )
-        })}
-        <TextField label="New list name" value={listName} onChangeText={setListName} />
-        <TextField label="List description" value={listDescription} onChangeText={setListDescription} multiline />
-        <Pressable
-          accessibilityRole="switch"
-          accessibilityLabel="Public list"
-          accessibilityState={{ checked: listPublic }}
-          onPress={() => setListPublic(value => !value)}
-          style={[styles.statusRow, listPublic && styles.statusSelected]}
-        >
-          <Text style={styles.body}>Public</Text>
-          <Text style={styles.meta}>{listPublic ? 'On' : 'Off'}</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="switch"
-          accessibilityLabel="Pinned list"
-          accessibilityState={{ checked: listPinned }}
-          onPress={() => setListPinned(value => !value)}
-          style={[styles.statusRow, listPinned && styles.statusSelected]}
-        >
-          <Text style={styles.body}>Pinned</Text>
-          <Text style={styles.meta}>{listPinned ? 'On' : 'Off'}</Text>
-        </Pressable>
-        {actionError ? <Text accessibilityLiveRegion="polite" style={styles.error}>{actionError}</Text> : null}
-        {canRetry ? <Button label="Retry" variant="secondary" onPress={retry} /> : null}
-        <Button label={busy ? 'Saving…' : 'Create list'} disabled={busy} onPress={() => { void submitList() }} />
+      <Sheet visible={panel === 'list'} title={makingList ? 'New list' : 'Add to list'} onClose={() => setPanel(null)}>
+        {makingList ? (
+          <>
+            <TextField label="New list name" value={listName} onChangeText={setListName} />
+            <TextField label="List description" value={listDescription} onChangeText={setListDescription} multiline />
+            <Pressable
+              accessibilityRole="switch"
+              accessibilityLabel="Public list"
+              accessibilityState={{ checked: listPublic }}
+              onPress={() => setListPublic(value => !value)}
+              style={[styles.statusRow, listPublic && styles.statusSelected]}
+            >
+              <Text style={styles.body}>Public</Text>
+              <Text style={styles.meta}>{listPublic ? 'On' : 'Off'}</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="switch"
+              accessibilityLabel="Pinned list"
+              accessibilityState={{ checked: listPinned }}
+              onPress={() => setListPinned(value => !value)}
+              style={[styles.statusRow, listPinned && styles.statusSelected]}
+            >
+              <Text style={styles.body}>Pinned</Text>
+              <Text style={styles.meta}>{listPinned ? 'On' : 'Off'}</Text>
+            </Pressable>
+            {actionError ? <Text accessibilityLiveRegion="polite" style={styles.error}>{actionError}</Text> : null}
+            {canRetry ? <Button label="Retry" variant="secondary" onPress={retry} /> : null}
+            <Button label={busy ? 'Saving…' : 'Create list'} disabled={busy} onPress={() => { void submitList() }} />
+            <Button label="Back to lists" variant="ghost" onPress={() => setMakingList(false)} />
+          </>
+        ) : (
+          <>
+            {(viewer?.lists ?? []).length === 0 ? <Text style={styles.body}>{"You don't have a list yet."}</Text> : null}
+            {(viewer?.lists ?? []).map(list => {
+              const listed = viewer?.listIdsGameIsIn.includes(list.id) ?? false
+              return (
+                <Button
+                  key={list.id}
+                  label={listed ? `${list.name} · On this list` : list.name}
+                  accessibilityLabel={listed ? `Remove from ${list.name}` : `Add to ${list.name}`}
+                  selected={listed}
+                  variant="secondary"
+                  disabled={busy}
+                  onPress={() => {
+                    if (listed && onRemoveFromList) void run(() => onRemoveFromList(list.id), true)
+                    if (!listed && onAddToList) void run(() => onAddToList(list.id), true)
+                  }}
+                />
+              )
+            })}
+            {actionError ? <Text accessibilityLiveRegion="polite" style={styles.error}>{actionError}</Text> : null}
+            {canRetry ? <Button label="Retry" variant="secondary" onPress={retry} /> : null}
+            <Button label="New list" variant="secondary" onPress={() => { setActionError(null); setCanRetry(false); setMakingList(true) }} />
+          </>
+        )}
       </Sheet>
 
       <Sheet visible={prompt} title="Sign up" onClose={() => setPrompt(false)}>
@@ -604,37 +639,55 @@ export function GameDetail({
         <>
           <SectionHead>Gallery</SectionHead>
           <View style={styles.shotFrame}>
-            <Image
-              key={frame}
-              source={frame}
-              style={styles.shot}
-              contentFit="cover"
-              accessibilityLabel={`Screenshot ${Math.min(shotIndex, shots.length - 1) + 1} of ${shots.length}`}
-            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Screenshot ${shotNumber + 1} of ${shots.length}`}
+              onPress={() => setShotOpen(true)}
+              style={styles.shotHit}
+            >
+              <Image key={frame} source={frame} style={styles.shot} contentFit="cover" accessible={false} />
+            </Pressable>
             {shots.length > 1 ? (
               <View style={styles.shotNav}>
                 <Button
                   label="Previous"
                   accessibilityLabel="Previous screenshot"
                   variant="secondary"
-                  onPress={() => setShotIndex(index => (index - 1 + shots.length) % shots.length)}
+                  onPress={() => stepShot(-1)}
                 />
                 <Button
                   label="Next"
                   accessibilityLabel="Next screenshot"
                   variant="secondary"
-                  onPress={() => setShotIndex(index => (index + 1) % shots.length)}
+                  onPress={() => stepShot(1)}
                 />
               </View>
             ) : null}
           </View>
-          <Pressable
-            accessibilityRole="link"
-            accessibilityLabel="Open screenshot full size"
-            onPress={() => { void Linking.openURL(frame).catch(() => undefined) }}
-          >
-            <Text style={styles.link}>Open full size</Text>
-          </Pressable>
+          <Modal visible={shotOpen} transparent animationType="fade" onRequestClose={() => setShotOpen(false)}>
+            <View style={styles.viewer}>
+              <Image source={frame} style={styles.viewerImage} contentFit="contain" accessible={false} />
+              <View style={styles.shotNav}>
+                {shots.length > 1 ? (
+                  <>
+                    <Button
+                      label="Previous"
+                      accessibilityLabel="Previous screenshot"
+                      variant="secondary"
+                      onPress={() => stepShot(-1)}
+                    />
+                    <Button
+                      label="Next"
+                      accessibilityLabel="Next screenshot"
+                      variant="secondary"
+                      onPress={() => stepShot(1)}
+                    />
+                  </>
+                ) : null}
+                <Button label="Close screenshot" variant="secondary" onPress={() => setShotOpen(false)} />
+              </View>
+            </View>
+          </Modal>
         </>
       ) : null}
 
@@ -744,6 +797,13 @@ export function GameDetail({
           ) : null}
         </View>
       ) : null}
+      <View style={styles.reviewWrite}>
+        <Button
+          label={viewer?.review?.review ? 'Edit your review' : 'Write a review'}
+          variant="secondary"
+          onPress={() => openAccount('rate')}
+        />
+      </View>
 
       {game.reddit_url ? (
         <Elsewhere url={game.reddit_url} />
@@ -778,9 +838,17 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2], alignItems: 'center' },
-  year: { fontFamily: face.mono[400], fontSize: typeScale.xs.size, color: colors.muted },
+  hero: { flexDirection: 'row', alignItems: 'flex-start', gap: space[4] },
+  heroFacts: { flex: 1, gap: space[1] },
+  heroValue: {
+    fontFamily: face.display[600],
+    fontSize: typeScale.lg.size,
+    lineHeight: typeScale.lg.line,
+    color: colors.text,
+    marginBottom: space[2],
+  },
   cover: {
-    width: 180,
+    width: 132,
     aspectRatio: 3 / 4,
     borderRadius: radius.base,
     borderWidth: 1,
@@ -790,6 +858,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  coverCompact: { width: 112 },
   noCover: {
     fontFamily: face.mono[400],
     fontSize: typeScale.eyebrow.size,
@@ -871,8 +940,18 @@ const styles = StyleSheet.create({
   about: { position: 'relative', gap: space[2] },
   aboutMeasure: { position: 'absolute', opacity: 0, left: 0, right: 0, zIndex: -1 },
   shotFrame: { gap: space[2] },
+  shotHit: { width: '100%' },
   shot: { width: '100%', aspectRatio: 16 / 9, borderRadius: radius.base, backgroundColor: colors.surfaceLight },
-  shotNav: { flexDirection: 'row', gap: space[2] },
+  shotNav: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2], justifyContent: 'center' },
+  viewer: {
+    flex: 1,
+    backgroundColor: colors.bg,
+    justifyContent: 'center',
+    padding: space[4],
+    gap: space[4],
+  },
+  viewerImage: { width: '100%', flex: 1 },
+  reviewWrite: { alignItems: 'flex-end' },
   barRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
   barLabel: { width: 20, fontFamily: face.mono[400], fontSize: typeScale.xs.size, color: colors.text, textAlign: 'right' },
   barTrack: { flex: 1, height: 8, backgroundColor: colors.surfaceLight, borderRadius: radius.bar, overflow: 'hidden' },
@@ -883,7 +962,7 @@ const styles = StyleSheet.create({
   reviewUser: { fontFamily: face.mono[600], fontSize: typeScale.sm.size, lineHeight: typeScale.sm.line },
   reviewName: { fontFamily: face.body[600], fontSize: typeScale.sm.size, color: colors.text },
   boneTitle: { height: 36, width: '70%', backgroundColor: colors.surfaceLight, borderRadius: radius.base },
-  boneCover: { width: 180, height: 240, backgroundColor: colors.surfaceLight, borderRadius: radius.base },
+  boneCover: { width: 132, height: 176, backgroundColor: colors.surfaceLight, borderRadius: radius.base },
   boneScore: { height: 88, backgroundColor: colors.surfaceLight, borderRadius: radius.base },
 })
 

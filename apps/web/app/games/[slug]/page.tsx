@@ -14,6 +14,7 @@ import ExpandableText from "@/app/components/util/ExpandableText";
 import SectionHead from "@/app/components/util/SectionHead";
 import { tierColor } from "@/lib/rating-tier";
 import Panel from "@/app/components/util/Panel";
+import { LIBRARY_SECTION_TITLE, libraryEmptyLine, libraryStatLines } from "@screenpeak/shared/library-copy";
 import { GameRatingsStats } from "@screenpeak/shared/types";
 import { getOptionalUser } from "@/lib/auth";
 import { loadGamePage } from "@/lib/loaders/game-page";
@@ -174,17 +175,18 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
                             )}
                         </div>
                         <Panel className="p-4">
-                            <p className={`${label} mb-2.5`}>Your save</p>
+                            <p className={`${label} mb-2.5`}>{LIBRARY_SECTION_TITLE}</p>
                             {inFile ? (
                                 <ul className="flex flex-col gap-1 text-[0.8125rem]">
                                     {statusLabel && <li className="flex items-baseline gap-2"><span className={label}>Status</span> {statusLabel}</li>}
+                                    {libraryEntry ? libraryStatLines(libraryEntry).map(line => <li key={line}>{line}</li>) : null}
                                     {userReview?.rating != null && <li className="flex items-baseline gap-2"><span className={label}>Your score</span> {userReview.rating} / 10</li>}
                                     {userReview?.updated_at && <li className="flex items-baseline gap-2"><span className={label}>Scored</span> {relTime(userReview.updated_at)}</li>}
                                     {!statusLabel && !userReview && <li className="text-(--color-muted)">Saved, not scored yet</li>}
                                 </ul>
                             ) : (
                                 <p className="text-sm text-(--color-muted) leading-relaxed">
-                                    Not in your save yet. Hit <span className="text-(--color-accent) font-mono">+ Save Game</span> to add it.
+                                    {libraryEmptyLine(!!user)}
                                 </p>
                             )}
                         </Panel>

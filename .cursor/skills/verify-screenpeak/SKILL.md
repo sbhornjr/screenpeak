@@ -74,9 +74,9 @@ node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-game
 
 `drive mobile-sign-up` starts the same Expo web server. It creates `signupfan` from the Sign up screen, checks the signup request has no PKCE challenge, rejects the password until the local confirmation link is opened, then signs in. It deletes `signupfan` and stops Expo before it exits. Port 8081 must be free. Do not run it at the same time as another Expo drive.
 
-`drive mobile-game` starts the same Expo web server at an iPhone SE viewport (375×667). It opens one of peek's games signed out, checks Rate opens the signup prompt, taps Log in and checks that sheet is gone on the sign-in screen, then signs in as peek and rates, edits the review, deletes the written review while keeping the score, changes library status without sending hours, play count, or the 100% flag, adds the game to the existing wishlist, and creates a list that contains the game. It then focuses the review field in a 375×420 viewport so Close stays on screen. It restores peek's rating and library row, deletes the created list, and stops Expo before it exits. Port 8081 must be free. Do not run it at the same time as another Expo drive.
+`drive mobile-game` starts the same Expo web server at an iPhone SE viewport (375×667). It opens one of peek's games signed out, checks the library wording and the in-app screenshot viewer, checks Rate opens the signup prompt, taps Log in and checks that sheet is gone on the sign-in screen, then signs in as peek and rates, edits the review, deletes the written review while keeping the score, checks hours, times played, and the 100% flag, changes library status without sending those fields, adds the game to the existing wishlist, and creates a list from the New list step. It then focuses the review field in a 375×420 viewport so Close stays on screen. It restores peek's rating and library row, deletes the created list, and stops Expo before it exits. Port 8081 must be free. Do not run it at the same time as another Expo drive.
 
-`drive game-page` does not sign in. It reads one of `peek`'s games from Postgres, fetches `GET /api/v1/games/[slug]` and the reviews route, and opens the website's game page. The native screen is `drive mobile-game`.
+`drive game-page` reads one of `peek`'s games from Postgres, fetches `GET /api/v1/games/[slug]` and the reviews route while signed out, and opens the website's game page. It then signs in as peek and checks the library stats on that page. The native screen is `drive mobile-game`.
 
 `drive read-endpoints` does not sign in. It fetches the public read routes, hides `peek`'s library and loadout, inserts one private list, and checks that those stay off the JSON. It restores the public flags and deletes that list before it exits.
 
@@ -99,10 +99,11 @@ A passing Loadout proof shows the action (the Generate control) and the resultin
 
 `drive game-page` writes `/tmp/screenpeak-verify/evidence/game-page/`:
 
-- `page.png` — the website game page, signed out, with the game's name visible
+- `page.png` — the website game page, signed out, with the game's name and "In your library" visible
+- `library.png` — the same page after sign-in, with hours played, times played, and the 100% flag
 - `result.json` — the slug, the API status, `viewer`, `avg_rating`, and the reviews status
 
-A passing game-page proof shows the game name in `page.png` and a 200 from `GET /api/v1/games/[slug]` with `viewer` null in `result.json`.
+A passing game-page proof shows the game name in `page.png`, the signed-out library line, the signed-in library stats in `library.png`, and a 200 from `GET /api/v1/games/[slug]` with `viewer` null in `result.json`.
 
 `drive read-endpoints` writes `/tmp/screenpeak-verify/evidence/read-endpoints/`:
 
@@ -169,13 +170,20 @@ A passing sign-up proof shows ScreenPeak on each screenshot, the check-your-emai
 
 `drive mobile-game` writes `/tmp/screenpeak-verify/evidence/mobile-game/`:
 
-- `se-signed-out.png` — the game at 375×667, signed out, with the name visible
+- `se-signed-out.png` — the game at 375×667, signed out, with the name, the cover facts, and In your library visible
+- `cover-se.png` — the same cover row at 320×568
+- `screenshot-viewer.png` — the in-app full-screen screenshot, with Close screenshot
 - `signup.png` — the signup prompt after Rate
 - `se-signed-in.png` — the same game as peek, with Your score
+- `library-stats.png` — hours played 12.5, times played 4, and the 100% flag
+- `write-review.png` — Write a review at the bottom right of Reviews, signed out
 - `review-saved.png` — the new written review
+- `edit-review.png` — Edit your review at the bottom right of Reviews
 - `review-edited.png` — the edited review
-- `review-deleted.png` — the score still on the page after the written review is gone
-- `library-saved.png` — the new status, with hours, play count, and the 100% flag unchanged in Postgres
+- `review-deleted.png` — the score still on the page after the written review is gone, with Write a review
+- `library-saved.png` — the new status, with the same hours, times played, and 100% flag still on the page and unchanged in Postgres
+- `list-sheet.png` — the lists and New list, before the create fields
+- `new-list.png` — the create step after New list
 - `list-created.png` — the new list in the Add to list sheet
 - `keyboard-open.png` — the rate sheet at 375×420 with the review field focused and Close on screen
 - `result.json` — the write checks and an empty `problems` list
