@@ -40,7 +40,18 @@ vi.mock('react-native', () => ({
   }),
   Keyboard: { addListener: () => ({ remove() {} }) },
   useWindowDimensions: () => ({ width: 400, height: 800, scale: 1, fontScale: 1 }),
-  ScrollView: ({ children }: { children?: React.ReactNode }) => React.createElement('div', null, children),
+  ScrollView: ({
+    children,
+    refreshControl,
+  }: {
+    children?: React.ReactNode
+    refreshControl?: React.ReactNode
+  }) => React.createElement('div', null, refreshControl, children),
+  RefreshControl: ({
+    onRefresh,
+  }: {
+    onRefresh?: () => void
+  }) => React.createElement('button', { type: 'button', 'aria-label': 'Refresh', onClick: onRefresh }),
   Modal: ({
     visible,
     children,
@@ -123,8 +134,11 @@ describe('GameDetail', () => {
     expect(screen.getAllByText('Hades').length).toBeGreaterThan(0)
     expect(screen.getAllByText('9.2').some(node => node.textContent === '9.2')).toBe(true)
     expect(screen.getByText('Community').textContent).toBe('Community')
+    expect(screen.getByText('Sign in to add your rating').textContent).toBe('Sign in to add your rating')
     expect(screen.getByText('“One more run.”').textContent).toBe('“One more run.”')
-    expect(screen.getAllByText('Supergiant Games').map(node => node.textContent)).toEqual(['Supergiant Games', 'Supergiant Games'])
+    expect(screen.getByText('zagreus').textContent).toBe('zagreus')
+    expect(screen.getAllByText('Supergiant Games').map(node => node.textContent)).toEqual(['Supergiant Games'])
+    expect(screen.getAllByText('1 · 25%').map(node => node.textContent)).toEqual(['1 · 25%', '1 · 25%'])
     expect(screen.getByRole('link', { name: 'Game data and images from IGDB' }).textContent).toBe('Game data and images from IGDB')
   })
 
@@ -262,19 +276,195 @@ describe('GameDetail', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Rate' }))
     fireEvent.change(screen.getByRole('textbox', { name: 'Review note' }), { target: { value: 'sharp' } })
     fireEvent.click(screen.getByRole('button', { name: 'Score 9' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Submit rating' }))
     await waitFor(() => expect(onRate).toHaveBeenCalledWith(9, 'sharp'))
 
     fireEvent.click(screen.getByRole('button', { name: 'Save game' }))
     fireEvent.click(screen.getByRole('button', { name: 'Log as completed' }))
-    await waitFor(() => expect(onSave).toHaveBeenCalledWith('completed'))
+    fireEvent.click(screen.getByRole('button', { name: 'Update library entry' }))
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith({ status: 'completed' }))
 
     fireEvent.click(screen.getByRole('button', { name: 'Add to list' }))
     fireEvent.click(screen.getByRole('button', { name: 'Add to Backlog' }))
     await waitFor(() => expect(onAddToList).toHaveBeenCalledWith('list-1'))
 
     fireEvent.change(screen.getByRole('textbox', { name: 'New list name' }), { target: { value: 'Favorites' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'List description' }), { target: { value: 'Best' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Public list' }))
     fireEvent.click(screen.getByRole('button', { name: 'Create list' }))
-    await waitFor(() => expect(onCreateList).toHaveBeenCalledWith('Favorites'))
+    await waitFor(() => expect(onCreateList).toHaveBeenCalledWith({
+      name: 'Favorites',
+      description: 'Best',
+      isPublic: false,
+      isPinned: false,
+    }))
     expect(screen.queryByText('Sign up to rate, log, or list this game.')).toBeNull()
+  })
+
+  it('keeps a chosen score until you submit, then edits and deletes the written review', async () => {
+    const onRate = vi.fn(async () => null)
+    render(
+      <GameDetail
+        data={SIGNED_IN}
+        reviews={REVIEWS}
+        reviewsNote={null}
+        signedIn
+        onBack={() => undefined}
+        onSignIn={() => undefined}
+        onSignUp={() => undefined}
+        onRetryReviews={() => undefined}
+        onRate={onRate}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rate' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Review note' }), { target: { value: 'sharper' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Score 9' }))
+    expect(onRate).not.toHaveBeenCalled()
+    expect(screen.getByText('Incredible game.').textContent).toBe('Incredible game.')
+    fireEvent.click(screen.getByRole('button', { name: 'Submit rating' }))
+    await waitFor(() => expect(onRate).toHaveBeenCalledWith(9, 'sharper'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rate' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete review' }))
+    expect(screen.getByText('Delete this review? Your score stays.').textContent).toBe('Delete this review? Your score stays.')
+    expect(onRate).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Delete the written review' }))
+    await waitFor(() => expect(onRate).toHaveBeenCalledWith(8, ''))
+  })
+
+  it('retries a rate-limited save with the same score and review', async () => {
+    const onRate = vi.fn()
+      .mockResolvedValueOnce('Too many requests. Try again in 8 seconds.')
+      .mockResolvedValueOnce(null)
+    render(
+      <GameDetail
+        data={SIGNED_IN}
+        reviews={REVIEWS}
+        reviewsNote={null}
+        signedIn
+        onBack={() => undefined}
+        onSignIn={() => undefined}
+        onSignUp={() => undefined}
+        onRetryReviews={() => undefined}
+        onRate={onRate}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rate' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Score 9' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Review note' }), { target: { value: 'again' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Submit rating' }))
+    expect(await screen.findByText('Too many requests. Try again in 8 seconds.')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(onRate).toHaveBeenCalledTimes(2))
+    expect(onRate).toHaveBeenNthCalledWith(2, 9, 'again')
+  })
+
+  it('sends a status change without hours, play count, or the 100% flag', async () => {
+    const onSave = vi.fn(async () => null)
+    render(
+      <GameDetail
+        data={SIGNED_IN}
+        reviews={REVIEWS}
+        reviewsNote={null}
+        signedIn
+        onBack={() => undefined}
+        onSignIn={() => undefined}
+        onSignUp={() => undefined}
+        onRetryReviews={() => undefined}
+        onSave={onSave}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save game' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Log as completed' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Update library entry' }))
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith({ status: 'completed' }))
+  })
+
+  it('sends hours only after they change, and rejects two decimal places', async () => {
+    const onSave = vi.fn(async () => null)
+    render(
+      <GameDetail
+        data={SIGNED_IN}
+        reviews={REVIEWS}
+        reviewsNote={null}
+        signedIn
+        onBack={() => undefined}
+        onSignIn={() => undefined}
+        onSignUp={() => undefined}
+        onRetryReviews={() => undefined}
+        onSave={onSave}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save game' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Show library details' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Hours played' }), { target: { value: '12.55' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Update library entry' }))
+    expect(onSave).not.toHaveBeenCalled()
+    expect(screen.getByText('Hours can have at most one decimal place').textContent)
+      .toBe('Hours can have at most one decimal place')
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Hours played' }), { target: { value: '20' } })
+    fireEvent.click(screen.getByRole('button', { name: '100% achievements completed' }))
+    fireEvent.click(screen.getByRole('button', { name: 'More times played' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Update library entry' }))
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith({
+      status: 'playing',
+      hours_played: 20,
+      completed_all_achievements: true,
+      play_count: 2,
+    }))
+  })
+
+  it('pages and re-sorts written reviews', () => {
+    const onReviewsQuery = vi.fn()
+    render(
+      <GameDetail
+        data={{ ...DATA, stats: { ...DATA.stats, total_reviews: 12 } }}
+        reviews={{ ...REVIEWS, total: 11, totalPages: 2 }}
+        reviewsNote={null}
+        reviewsQuery={{ page: 1, sort: 'date', order: 'desc' }}
+        signedIn={false}
+        onBack={() => undefined}
+        onSignIn={() => undefined}
+        onSignUp={() => undefined}
+        onRetryReviews={() => undefined}
+        onReviewsQuery={onReviewsQuery}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next page' }))
+    expect(onReviewsQuery).toHaveBeenCalledWith({ page: 2, sort: 'date', order: 'desc' })
+    fireEvent.click(screen.getByRole('button', { name: 'Sort reviews by rating' }))
+    expect(onReviewsQuery).toHaveBeenCalledWith({ page: 1, sort: 'rating', order: 'desc' })
+  })
+
+  it('asks a signed-out player to sign up from Rate and refreshes when pulled', () => {
+    const onSignUp = vi.fn()
+    const onRefresh = vi.fn()
+    render(
+      <GameDetail
+        data={DATA}
+        reviews={REVIEWS}
+        reviewsNote={null}
+        signedIn={false}
+        refreshing={false}
+        onRefresh={onRefresh}
+        onBack={() => undefined}
+        onSignIn={() => undefined}
+        onSignUp={onSignUp}
+        onRetryReviews={() => undefined}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rate' }))
+    expect(screen.getByText('Sign up to rate, log, or list this game.').textContent)
+      .toBe('Sign up to rate, log, or list this game.')
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+    expect(onRefresh).toHaveBeenCalledTimes(1)
+    expect(onSignUp).not.toHaveBeenCalled()
   })
 })

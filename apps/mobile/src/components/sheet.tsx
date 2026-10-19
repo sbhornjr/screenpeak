@@ -1,11 +1,37 @@
 // The website Modal, presented as a bottom sheet.
-import { useEffect, useState, type ReactNode } from 'react';
-import { Keyboard, Pressable, Modal, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { findNodeHandle, Keyboard, Pressable, Modal, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, face, overlays, radius, space, typeScale } from '@/theme';
 
 import { Button } from './button';
+
+type FocusedField = {
+  scrollIntoView?: (options: { block?: 'center' | 'nearest' }) => void;
+  measureLayout?: (
+    relative: number,
+    onSuccess: (x: number, y: number, width: number, height: number) => void,
+    onFail: () => void,
+  ) => void;
+};
+
+/** Keep the field being typed in view when the keyboard opens or the window gets shorter. */
+function revealFocusedField(scroll: ScrollView | null) {
+  const input = TextInput.State?.currentlyFocusedInput?.() as FocusedField | null;
+  if (!input || !scroll) return;
+  if (typeof input.scrollIntoView === 'function') {
+    input.scrollIntoView({ block: 'center' });
+    return;
+  }
+  const relative = findNodeHandle(scroll);
+  if (relative == null || typeof input.measureLayout !== 'function') return;
+  input.measureLayout(
+    relative,
+    (_x, y) => scroll.scrollTo({ y: Math.max(0, y - 24), animated: false }),
+    () => undefined,
+  );
+}
 
 export function Sheet({
   visible,
@@ -20,6 +46,7 @@ export function Sheet({
 }) {
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const scrollRef = useRef<ScrollView>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   useEffect(() => {
@@ -32,6 +59,11 @@ export function Sheet({
       hide.remove();
     };
   }, []);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => revealFocusedField(scrollRef.current));
+    return () => cancelAnimationFrame(frame);
+  }, [height, keyboardHeight]);
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -60,7 +92,13 @@ export function Sheet({
             <Text role="heading" accessibilityRole="header" accessibilityLevel={2} style={styles.title}>{title}</Text>
             <Button label="Close" variant="ghost" onPress={onClose} />
           </View>
-          <ScrollView keyboardShouldPersistTaps="handled" style={styles.scroll} contentContainerStyle={styles.body}>
+          <ScrollView
+            ref={scrollRef}
+            keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets
+            style={styles.scroll}
+            contentContainerStyle={styles.body}
+          >
             {children}
           </ScrollView>
         </View>

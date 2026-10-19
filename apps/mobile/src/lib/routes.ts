@@ -6,10 +6,19 @@ export function gameHref(slug: string): string {
   return `/games/${encodeURIComponent(slug)}`
 }
 
-export function catalogueHref(filter?: { genre?: string, platform?: string }): string {
+export function catalogueHref(filter?: {
+  genre?: string
+  platform?: string
+  developer?: string
+  publisher?: string
+  esrb?: string
+}): string {
   const params = new URLSearchParams()
   if (filter?.genre) params.set('genre', filter.genre)
   if (filter?.platform) params.set('platform', filter.platform)
+  if (filter?.developer) params.set('developer', filter.developer)
+  if (filter?.publisher) params.set('publisher', filter.publisher)
+  if (filter?.esrb) params.set('esrb', filter.esrb)
   const query = params.toString()
   return query ? `/games?${query}` : '/games'
 }

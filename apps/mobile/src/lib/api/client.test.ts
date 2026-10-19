@@ -46,6 +46,12 @@ describe('createApiClient', () => {
       'http://127.0.0.1:3210/api/v1/games/hades%20ii/reviews?page=1&pageSize=10&sort=date&order=desc',
       { headers: { Accept: 'application/json', Authorization: 'Bearer access-token' }, credentials: 'omit' },
     )
+
+    await api.games.reviews('hades', { page: 2, sort: 'rating', order: 'asc' })
+    expect(fetchImpl).toHaveBeenLastCalledWith(
+      'http://127.0.0.1:3210/api/v1/games/hades/reviews?page=2&pageSize=10&sort=rating&order=asc',
+      { headers: { Accept: 'application/json', Authorization: 'Bearer access-token' }, credentials: 'omit' },
+    )
   })
 
   it('throws the API error body when the game is missing', async () => {

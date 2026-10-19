@@ -1,6 +1,6 @@
 # Game page
 
-A game page shows the title, the community score, and the written reviews. Signed out, the page and `GET /api/v1/games/[slug]` both load, and the JSON `viewer` is null. The phone uses that same JSON. This drive checks the website and the JSON. It does not open the native screen.
+A game page shows the title, the community score, and the written reviews. Signed out, the page and `GET /api/v1/games/[slug]` both load, and the JSON `viewer` is null. The phone uses that same JSON. This drive checks the website and the JSON. The native screen is mobile-game.
 
 ## Sub-features
 
