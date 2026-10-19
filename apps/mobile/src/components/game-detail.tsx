@@ -2,14 +2,22 @@ import type { GamePageData, GameReviewsPage } from '@screenpeak/shared/api/games
 import type { GameRatingsStats } from '@screenpeak/shared/types'
 import { Image } from 'expo-image'
 import { useState } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import { ScrollView, StyleSheet, Text, View } from 'react-native'
 
 import { igdbImageUri } from '@/lib/catalog-image'
-import { colors, face, radius, space, tierColor, tracking, trackingPx } from '@/theme'
+import { colors, face, radius, space, tierColor, tracking, trackingPx, typeScale } from '@/theme'
 
+import { Avatar } from './avatar'
+import { Button } from './button'
 import { DataAttribution } from './data-attribution'
-import { Eyebrow } from './eyebrow'
+import { EmptyState } from './empty-state'
 import { GameCard } from './game-card'
+import { Panel } from './panel'
+import { RatingBadge } from './rating-badge'
+import { SectionHead } from './section-head'
+import { Sheet } from './sheet'
+import { TextField } from './text-field'
+import { Wordmark } from './wordmark'
 
 const LIBRARY_STATUS = ['playing', 'completed', 'backlog', 'abandoned'] as const
 
@@ -104,10 +112,8 @@ export function GameDetail({
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={onBack} style={styles.back}>
-        <Text style={styles.backText}>Back</Text>
-      </Pressable>
-      <Eyebrow>ScreenPeak</Eyebrow>
+      <Wordmark />
+      <Button label="Back" variant="ghost" onPress={onBack} />
       <View style={styles.titleRow}>
         <View style={styles.titleSeam} />
         <Text style={styles.title}>{game.name}</Text>
@@ -136,129 +142,102 @@ export function GameDetail({
         />
       </View>
 
-      <Text style={styles.section}>The Scoreboard</Text>
-      <View style={styles.scores}>
-        <View style={styles.scoreBlock}>
-          <Text style={styles.scoreLabel}>You</Text>
-          <Text style={[styles.scoreValue, { color: yours == null ? colors.muted : tierColor(yours) }]}>
-            {yours ?? '—'}
+      <SectionHead>The Scoreboard</SectionHead>
+      <Panel style={styles.scorePanel}>
+        <View style={styles.scores}>
+          <View style={styles.scoreBlock}>
+            <Text style={styles.scoreLabel}>You</Text>
+            {yours == null ? <Text style={styles.scoreEmpty}>—</Text> : <RatingBadge score={yours} />}
             <Text style={styles.scoreScale}> / 10</Text>
-          </Text>
-        </View>
-        <View style={styles.scoreBlock}>
-          <Text style={styles.scoreLabel}>Community</Text>
-          <Text style={[styles.scoreValue, { color: colors.community }]}>
-            {community ?? '—'}
+          </View>
+          <View style={styles.scoreBlock}>
+            <Text style={styles.scoreLabel}>Community</Text>
+            {community == null ? <Text style={styles.scoreEmpty}>—</Text> : (
+              <Text style={[styles.communityScore, { color: colors.community }]}>{community}</Text>
+            )}
             <Text style={styles.scoreScale}> / 10</Text>
-          </Text>
-          <Text style={styles.scoreMeta}>
-            {stats.total_ratings} {stats.total_ratings === 1 ? 'score' : 'scores'}
-          </Text>
+            <Text style={styles.scoreMeta}>
+              {stats.total_ratings} {stats.total_ratings === 1 ? 'score' : 'scores'}
+            </Text>
+          </View>
         </View>
-      </View>
+      </Panel>
 
       <Text style={styles.scoreLabel}>Your turn</Text>
       <View style={styles.actions}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Rate" onPress={() => accountAction('rate')} style={styles.action}>
-          <Text style={styles.actionText}>{yours == null ? 'Rate' : `Rated ${yours}`}</Text>
-        </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Save game" onPress={() => accountAction('save')} style={styles.action}>
-          <Text style={styles.actionText}>{viewer?.libraryEntry ? statusLabel(viewer.libraryEntry.status) : 'Save game'}</Text>
-        </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Add to list" onPress={() => accountAction('list')} style={styles.action}>
-          <Text style={styles.actionText}>Add to list</Text>
-        </Pressable>
+        <Button
+          label={yours == null ? 'Rate' : `Rated ${yours}`}
+          accessibilityLabel="Rate"
+          variant="secondary"
+          onPress={() => accountAction('rate')}
+        />
+        <Button
+          label={viewer?.libraryEntry ? statusLabel(viewer.libraryEntry.status) : 'Save game'}
+          accessibilityLabel="Save game"
+          variant="secondary"
+          onPress={() => accountAction('save')}
+        />
+        <Button label="Add to list" variant="secondary" onPress={() => accountAction('list')} />
       </View>
       {actionError ? <Text style={styles.body}>{actionError}</Text> : null}
-      {panel === 'rate' ? (
-        <View style={styles.prompt}>
-          <View style={styles.actions}>
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(score => (
-              <Pressable
-                key={score}
-                accessibilityRole="button"
-                accessibilityLabel={`Score ${score}`}
-                onPress={() => { if (onRate) void run(() => onRate(score, note)) }}
-                style={styles.action}
-              >
-                <Text style={styles.actionText}>{score}</Text>
-              </Pressable>
-            ))}
-          </View>
-          <TextInput
-            accessibilityLabel="Review note"
-            value={note}
-            onChangeText={setNote}
-            style={styles.note}
-          />
-        </View>
-      ) : null}
-      {panel === 'save' ? (
+
+      <Sheet visible={panel === 'rate'} title="Rate" onClose={() => setPanel(null)}>
         <View style={styles.actions}>
-          {LIBRARY_STATUS.map(status => (
-            <Pressable
-              key={status}
-              accessibilityRole="button"
-              accessibilityLabel={`Log as ${status}`}
-              onPress={() => { if (onSave) void run(() => onSave(status)) }}
-              style={styles.action}
-            >
-              <Text style={styles.actionText}>{statusLabel(status)}</Text>
-            </Pressable>
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(score => (
+            <Button
+              key={score}
+              label={String(score)}
+              accessibilityLabel={`Score ${score}`}
+              variant="secondary"
+              onPress={() => { if (onRate) void run(() => onRate(score, note)) }}
+            />
           ))}
         </View>
-      ) : null}
-      {panel === 'list' ? (
-        <View style={styles.prompt}>
-          {(viewer?.lists ?? []).map(list => {
-            const listed = viewer?.listIdsGameIsIn.includes(list.id) ?? false
-            return (
-              <Pressable
-                key={list.id}
-                accessibilityRole="button"
-                accessibilityLabel={listed ? `Remove from ${list.name}` : `Add to ${list.name}`}
-                onPress={() => {
-                  if (listed && onRemoveFromList) void run(() => onRemoveFromList(list.id), true)
-                  if (!listed && onAddToList) void run(() => onAddToList(list.id), true)
-                }}
-                style={styles.action}
-              >
-                <Text style={styles.actionText}>{list.name}</Text>
-              </Pressable>
-            )
-          })}
-          <TextInput
-            accessibilityLabel="New list name"
-            value={listName}
-            onChangeText={setListName}
-            style={styles.note}
-          />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Create list"
-            onPress={() => { if (onCreateList && listName.trim()) void run(() => onCreateList(listName.trim()), true) }}
-            style={styles.action}
-          >
-            <Text style={styles.actionText}>Create list</Text>
-          </Pressable>
+        <TextField label="Review note" value={note} onChangeText={setNote} />
+      </Sheet>
+      <Sheet visible={panel === 'save'} title="Save game" onClose={() => setPanel(null)}>
+        <View style={styles.actions}>
+          {LIBRARY_STATUS.map(status => (
+            <Button
+              key={status}
+              label={statusLabel(status)}
+              accessibilityLabel={`Log as ${status}`}
+              variant="secondary"
+              onPress={() => { if (onSave) void run(() => onSave(status)) }}
+            />
+          ))}
         </View>
-      ) : null}
+      </Sheet>
+      <Sheet visible={panel === 'list'} title="Add to list" onClose={() => setPanel(null)}>
+        {(viewer?.lists ?? []).map(list => {
+          const listed = viewer?.listIdsGameIsIn.includes(list.id) ?? false
+          return (
+            <Button
+              key={list.id}
+              label={list.name}
+              accessibilityLabel={listed ? `Remove from ${list.name}` : `Add to ${list.name}`}
+              variant="secondary"
+              onPress={() => {
+                if (listed && onRemoveFromList) void run(() => onRemoveFromList(list.id), true)
+                if (!listed && onAddToList) void run(() => onAddToList(list.id), true)
+              }}
+            />
+          )
+        })}
+        <TextField label="New list name" value={listName} onChangeText={setListName} />
+        <Button
+          label="Create list"
+          variant="secondary"
+          onPress={() => { if (onCreateList && listName.trim()) void run(() => onCreateList(listName.trim()), true) }}
+        />
+      </Sheet>
+      <Sheet visible={prompt} title="Sign up" onClose={() => setPrompt(false)}>
+        <Text style={styles.body}>Sign up to rate, log, or list this game.</Text>
+        <Button label="Sign up" onPress={onSignUp} />
+        <Button label="Log in" variant="secondary" onPress={onSignIn} />
+      </Sheet>
 
-      {prompt ? (
-        <View style={styles.prompt}>
-          <Text style={styles.promptTitle}>Sign up to rate, log, or list this game.</Text>
-          <View style={styles.actions}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Sign up" onPress={onSignUp} style={styles.actionPrimary}>
-              <Text style={styles.actionPrimaryText}>Sign up</Text>
-            </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Log in" onPress={onSignIn} style={styles.action}>
-              <Text style={styles.actionText}>Log in</Text>
-            </Pressable>
-          </View>
-        </View>
-      ) : null}
-
-      <Text style={styles.section}>Credits</Text>
+      <SectionHead>Credits</SectionHead>
       <Text style={styles.metaLabel}>Platforms</Text>
       <Text style={styles.body}>{taxonomy.platforms.map(row => row.name).join(', ') || '—'}</Text>
       <Text style={styles.metaLabel}>Developed by</Text>
@@ -268,14 +247,14 @@ export function GameDetail({
 
       {game.description ? (
         <>
-          <Text style={styles.section}>About</Text>
+          <SectionHead>About</SectionHead>
           <Text style={styles.body}>{game.description}</Text>
         </>
       ) : null}
 
       {shots.length > 0 ? (
         <>
-          <Text style={styles.section}>Gallery</Text>
+          <SectionHead>Gallery</SectionHead>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.gallery}>
             {shots.map(uri => (
               <Image key={uri} source={uri} style={styles.shot} contentFit="cover" accessibilityLabel={`${game.name} screenshot`} />
@@ -284,13 +263,15 @@ export function GameDetail({
         </>
       ) : null}
 
-      <Text style={styles.section}>The Community</Text>
+      <SectionHead count={stats.total_ratings > 0 ? `${stats.total_ratings} ${stats.total_ratings === 1 ? 'score' : 'scores'}` : 'no scores yet'}>
+        The Community
+      </SectionHead>
       {stats.total_ratings > 0 ? (
         distribution.map(row => (
           <View key={row.name} style={styles.barRow}>
             <Text style={styles.barLabel}>{row.name}</Text>
             <View style={styles.barTrack}>
-              <View style={[styles.barFill, { width: `${(row.count / maxCount) * 100}%` }]} />
+              <View style={[styles.barFill, { width: `${(row.count / maxCount) * 100}%`, backgroundColor: tierColor(row.name) }]} />
             </View>
             <Text style={styles.barCount}>{row.count}</Text>
           </View>
@@ -299,61 +280,58 @@ export function GameDetail({
         <Text style={styles.body}>No one on ScreenPeak has scored {game.name} yet.</Text>
       )}
 
-      <Text style={styles.section}>Reviews</Text>
+      <SectionHead count={stats.total_reviews}>Reviews</SectionHead>
       {reviewsNote ? (
         <View>
           <Text style={styles.body}>{reviewsNote}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Retry reviews" onPress={onRetryReviews}>
-            <Text style={styles.actionText}>Retry reviews</Text>
-          </Pressable>
+          <Button label="Retry reviews" variant="ghost" onPress={onRetryReviews} />
         </View>
       ) : null}
       {viewer?.review?.review ? (
-        <View style={styles.review}>
-          <Text style={styles.reviewUser}>You · {viewer.review.rating} / 10</Text>
-          <Text style={styles.body}>&ldquo;{viewer.review.review}&rdquo;</Text>
-        </View>
+        <Panel style={styles.review}>
+          <Text style={[styles.reviewUser, { color: tierColor(viewer.review.rating) }]}>
+            You · {viewer.review.rating} / 10
+          </Text>
+          <Text style={styles.body}>{`“${viewer.review.review}”`}</Text>
+        </Panel>
       ) : null}
       {reviews?.reviews.map(review => (
-        <View key={review.user_id} style={styles.review}>
-          <Text style={styles.reviewUser}>{review.users.username} · {review.rating} / 10</Text>
+        <Panel key={review.user_id} style={styles.review}>
+          <View style={styles.reviewHead}>
+            <Avatar alt={review.users.username} src={review.users.avatar_url || null} size="sm" />
+            <Text style={[styles.reviewUser, { color: tierColor(review.rating) }]}>
+              {review.users.username} · {review.rating} / 10
+            </Text>
+          </View>
           <Text style={styles.body}>{review.review ? `“${review.review}”` : 'Scored it, no note.'}</Text>
-        </View>
+        </Panel>
       ))}
-      {stats.total_reviews === 0 ? <Text style={styles.muted}>No written reviews yet.</Text> : null}
+      {stats.total_reviews === 0 ? <EmptyState dense title="No written reviews yet." /> : null}
 
       <DataAttribution />
     </ScrollView>
   )
 }
 
-const TITLE = 32
+const TITLE = typeScale['4xl'].size
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: space[6], paddingTop: space[6], paddingBottom: space[12], gap: space[3] },
-  back: { alignSelf: 'flex-start' },
-  backText: {
-    fontFamily: face.mono[400],
-    fontSize: 11,
-    letterSpacing: trackingPx(tracking.label, 11),
-    textTransform: 'uppercase',
-    color: colors.muted,
-  },
   titleRow: { flexDirection: 'row', alignItems: 'stretch', gap: space[3] },
   titleSeam: { width: 3, backgroundColor: colors.accent },
   title: {
     flex: 1,
     fontFamily: face.display[600],
     fontSize: TITLE,
-    lineHeight: 34,
+    lineHeight: typeScale['4xl'].line,
     letterSpacing: trackingPx(tracking.display, TITLE),
     color: colors.text,
   },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2], alignItems: 'center' },
   tag: {
     fontFamily: face.mono[400],
-    fontSize: 11,
+    fontSize: typeScale.eyebrow.size,
     color: colors.muted,
     borderWidth: 1,
     borderColor: colors.border,
@@ -361,86 +339,39 @@ const styles = StyleSheet.create({
     paddingHorizontal: space[2],
     paddingVertical: space[0.5],
   },
-  year: { fontFamily: face.mono[400], fontSize: 12, color: colors.muted },
+  year: { fontFamily: face.mono[400], fontSize: typeScale.xs.size, color: colors.muted },
   cardWrap: { width: 180 },
-  section: {
-    marginTop: space[4],
-    fontFamily: face.mono[400],
-    fontSize: 11,
-    letterSpacing: trackingPx(tracking.wide, 11),
-    textTransform: 'uppercase',
-    color: colors.muted,
-  },
+  scorePanel: { padding: space[4] },
   scores: { flexDirection: 'row', gap: space[6] },
   scoreBlock: { gap: space[1] },
   scoreLabel: {
     fontFamily: face.mono[400],
-    fontSize: 11,
-    letterSpacing: trackingPx(tracking.label, 11),
+    fontSize: typeScale.eyebrow.size,
+    letterSpacing: trackingPx(tracking.label, typeScale.eyebrow.size),
     textTransform: 'uppercase',
     color: colors.muted,
   },
-  scoreValue: { fontFamily: face.display[600], fontSize: 28, color: colors.text },
-  scoreScale: { fontFamily: face.mono[400], fontSize: 12, color: colors.muted },
-  scoreMeta: { fontFamily: face.mono[400], fontSize: 12, color: colors.muted },
+  scoreEmpty: { fontFamily: face.display[600], fontSize: typeScale['2xl'].size, color: colors.muted },
+  communityScore: { fontFamily: face.display[600], fontSize: typeScale['2xl'].size },
+  scoreScale: { fontFamily: face.mono[400], fontSize: typeScale.xs.size, color: colors.muted },
+  scoreMeta: { fontFamily: face.mono[400], fontSize: typeScale.xs.size, color: colors.muted },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
-  action: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.base,
-    paddingHorizontal: space[3],
-    paddingVertical: space[2],
-  },
-  actionText: { fontFamily: face.body[500], fontSize: 14, color: colors.text },
-  note: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.base,
-    paddingHorizontal: space[3],
-    paddingVertical: space[2],
-    fontFamily: face.body[400],
-    fontSize: 16,
-    color: colors.text,
-  },
-  actionPrimary: {
-    backgroundColor: colors.accent,
-    borderRadius: radius.base,
-    paddingHorizontal: space[3],
-    paddingVertical: space[2],
-  },
-  actionPrimaryText: { fontFamily: face.body[600], fontSize: 14, color: colors.bg },
-  prompt: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    borderRadius: radius.base,
-    padding: space[4],
-    gap: space[3],
-  },
-  promptTitle: { fontFamily: face.body[500], fontSize: 16, lineHeight: 22, color: colors.text },
   metaLabel: {
     fontFamily: face.mono[400],
-    fontSize: 11,
-    letterSpacing: trackingPx(tracking.wide, 11),
+    fontSize: typeScale.eyebrow.size,
+    letterSpacing: trackingPx(tracking.wide, typeScale.eyebrow.size),
     textTransform: 'uppercase',
     color: colors.muted,
   },
-  body: { fontFamily: face.body[400], fontSize: 16, lineHeight: 24, color: colors.text },
-  muted: { fontFamily: face.body[400], fontSize: 14, color: colors.muted },
+  body: { fontFamily: face.body[400], fontSize: typeScale.base.size, lineHeight: typeScale.base.line, color: colors.text },
   gallery: { gap: space[2] },
   shot: { width: 240, height: 135, borderRadius: radius.base, backgroundColor: colors.surfaceLight },
   barRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
-  barLabel: { width: 20, fontFamily: face.mono[400], fontSize: 12, color: colors.text, textAlign: 'right' },
+  barLabel: { width: 20, fontFamily: face.mono[400], fontSize: typeScale.xs.size, color: colors.text, textAlign: 'right' },
   barTrack: { flex: 1, height: 8, backgroundColor: colors.surfaceLight, borderRadius: radius.bar, overflow: 'hidden' },
-  barFill: { height: '100%', backgroundColor: colors.community },
-  barCount: { width: 24, fontFamily: face.mono[400], fontSize: 12, color: colors.muted },
-  review: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    borderRadius: radius.base,
-    padding: space[3],
-    gap: space[2],
-  },
-  reviewUser: { fontFamily: face.body[600], fontSize: 14, color: colors.text },
+  barFill: { height: '100%' },
+  barCount: { width: 24, fontFamily: face.mono[400], fontSize: typeScale.xs.size, color: colors.muted },
+  review: { padding: space[3], gap: space[2] },
+  reviewHead: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
+  reviewUser: { fontFamily: face.mono[600], fontSize: typeScale.sm.size, lineHeight: typeScale.sm.line },
 })

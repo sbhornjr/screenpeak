@@ -1,7 +1,15 @@
+import { ratingTier } from '@screenpeak/shared/tokens'
+
 // Rating-tier colour for a score value (the --color-good / --color-mid /
-// --color-bad tokens). `scale` is the range `score` is on: 10 for ScreenPeak
-// scores. A scale of 100 normalises onto the same 0–10 tiers.
+// --color-bad tokens). The threshold lives in @screenpeak/shared/tokens so
+// the phone app paints the same tiers. This stays a CSS variable: the web
+// stylesheet is still what resolves the colour.
+const tierVar = {
+    good: 'var(--color-good)',
+    mid: 'var(--color-mid)',
+    bad: 'var(--color-bad)',
+} as const
+
 export function tierColor(score: number, scale: 10 | 100 = 10) {
-    const s = scale === 100 ? score / 10 : score
-    return s >= 8 ? 'var(--color-good)' : s >= 6 ? 'var(--color-mid)' : 'var(--color-bad)'
+    return tierVar[ratingTier(score, scale)]
 }

@@ -10,13 +10,10 @@ import { panelClass } from "@/app/components/util/Panel";
 import EmptyState from "@/app/components/util/EmptyState";
 import { getOptionalUser } from "@/lib/auth";
 import { loadLoadoutPage } from "@/lib/loaders/loadout-page";
+import { tierColor } from "@/lib/rating-tier";
 
 type LoadoutPageProps = {
     params: Promise<{ username: string }>
-}
-
-function tierColor(rating: number) {
-    return rating >= 8 ? 'var(--color-good)' : rating >= 6 ? 'var(--color-mid)' : 'var(--color-bad)'
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ username: string }> }): Promise<Metadata> {

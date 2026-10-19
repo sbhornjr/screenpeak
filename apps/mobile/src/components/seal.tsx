@@ -35,7 +35,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderBright,
     borderBottomWidth: 2,
-    boxShadow: '0 1px 4px rgba(0, 0, 0, 0.5)',
+    boxShadow: overlays.sealShadow,
   },
   left: { left: space[2] },
   right: { right: space[2] },

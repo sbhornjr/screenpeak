@@ -1,7 +1,11 @@
 import type { LoadoutGenre } from '@screenpeak/shared/api/loadout'
 import { Text } from 'react-native'
 
-import { ScreenScroll, screenStyles, SectionLabel } from './screen-scroll'
+import { space } from '@/theme'
+
+import { Panel } from './panel'
+import { ScreenScroll, screenStyles } from './screen-scroll'
+import { SectionHead } from './section-head'
 
 export function LoadoutScreen({
   username,
@@ -20,9 +24,11 @@ export function LoadoutScreen({
 }) {
   return (
     <ScreenScroll title={`${username}'s Loadout`} onBack={onBack}>
-      <Text style={screenStyles.body}>{identity.trim() ? identity : 'No Read-out yet.'}</Text>
+      <Panel style={{ padding: space[4] }}>
+        <Text style={screenStyles.body}>{identity.trim() ? identity : 'No Read-out yet.'}</Text>
+      </Panel>
       <Text style={screenStyles.muted}>{`${ratingCount} rated${avgRating == null ? '' : ` · ${avgRating} average`}`}</Text>
-      {genres.length > 0 ? <SectionLabel>Genres</SectionLabel> : null}
+      {genres.length > 0 ? <SectionHead>Genres</SectionHead> : null}
       {genres.map(genre => (
         <Text key={genre.genre_name} style={screenStyles.body}>{genre.genre_name}</Text>
       ))}

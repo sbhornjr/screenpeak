@@ -4,13 +4,18 @@
 // or spacing value in a component — add it to packages/shared/tokens.ts instead.
 export {
   alpha,
+  avatarTint,
+  colorScheme,
   colors,
+  hitTarget,
   overlays,
   radius,
+  ratingTier,
   seam,
   space,
   tierColor,
   tracking,
   trackingPx,
+  typeScale,
 } from '@screenpeak/shared/tokens';
 export { face, fontFiles } from './fonts';

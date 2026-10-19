@@ -888,6 +888,14 @@ stack.
 4. Theme + the core primitives, ported from `app/components/util/`:
    `Eyebrow`, `SectionHead`, `Wordmark`, `Panel`, `EmptyState`, `Avatar`, a
    rating badge (tier colours), buttons, text inputs, `Modal` → bottom sheet.
+   > **Done.** Colours (including the rating tiers), the type scale, spacing,
+   > radii, and the website's single dark scheme live in `packages/shared/tokens.ts`.
+   > The phone theme re-exports them. Eyebrow, SectionHead, Wordmark, Panel,
+   > EmptyState, Avatar, the rating badge, buttons, text inputs, and a bottom-sheet
+   > Modal are in `apps/mobile/src/components/`, and the tabs, profile hub, game
+   > screen, and auth screens use them. Web tier colours still resolve through
+   > the CSS variables. A lint rule and `src/theme/raw-hex.test.ts` keep raw hex
+   > out of the phone screens.
 5. Sentry + a `__DEV__` API base URL (your LAN IP running `npm run dev`).
 
 ### Phase 3 — Screens (≈4–6 weeks)

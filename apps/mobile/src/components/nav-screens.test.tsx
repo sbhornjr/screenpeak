@@ -39,6 +39,22 @@ vi.mock('expo-router/unstable-native-tabs', () => {
   return { NativeTabs }
 })
 
+const NAMED_ROLES = new Set(['button', 'link', 'img', 'image', 'header', 'heading', 'text', 'summary'])
+
+function exposedRole(role?: string, accessibilityRole?: string): string | undefined {
+  const value = role ?? accessibilityRole
+  if (value === 'image' || value === 'img') return 'img'
+  if (value === 'header' || value === 'heading') return 'heading'
+  return value
+}
+
+function exposedName(role: string | undefined, accessibilityRole: string | undefined, label?: string): string | undefined {
+  if (!label) return undefined
+  const mapped = exposedRole(role, accessibilityRole)
+  if (!mapped || (!NAMED_ROLES.has(mapped) && !NAMED_ROLES.has(role ?? '') && !NAMED_ROLES.has(accessibilityRole ?? ''))) return undefined
+  return label
+}
+
 vi.mock('react-native', () => ({
   Linking: { openURL: vi.fn(() => Promise.resolve()) },
   Pressable: ({
@@ -64,7 +80,20 @@ vi.mock('react-native', () => ({
     },
     children,
   ),
-  View: ({ children }: { children?: React.ReactNode }) => React.createElement('div', null, children),
+  View: ({
+    children,
+    accessibilityLabel,
+    accessibilityRole,
+    role,
+  }: {
+    children?: React.ReactNode
+    accessibilityLabel?: string
+    accessibilityRole?: string
+    role?: string
+  }) => React.createElement('div', {
+    'aria-label': exposedName(role, accessibilityRole, accessibilityLabel),
+    role: exposedRole(role, accessibilityRole),
+  }, children),
   Text: ({ children }: { children?: React.ReactNode }) => React.createElement('span', null, children),
   TextInput: ({
     accessibilityLabel,
@@ -88,6 +117,10 @@ vi.mock('react-native', () => ({
 
 vi.mock('react-native-safe-area-context', () => ({
   SafeAreaView: ({ children }: { children?: React.ReactNode }) => React.createElement('div', null, children),
+}))
+
+vi.mock('expo-image', () => ({
+  Image: () => null,
 }))
 
 afterEach(() => {
@@ -237,7 +270,7 @@ describe('welcome', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Log in' }))
     fireEvent.click(screen.getByRole('button', { name: 'Browse' }))
     expect(onOpen.mock.calls).toEqual([['/sign-up'], ['/sign-in'], ['/games']])
-    expect(screen.getByText('ScreenPeak').textContent).toBe('ScreenPeak')
+    expect(screen.getByRole('img', { name: 'ScreenPeak' }).textContent).toBe('ScreenPeak')
   })
 })
 

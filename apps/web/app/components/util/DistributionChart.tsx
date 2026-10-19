@@ -1,9 +1,8 @@
+import { tierColor } from "@/lib/rating-tier"
+
 export default function DistributionChart({ data }: { data: { name: number, count: number }[] }) {
     const maxCount = Math.max(...data.map(d => d.count), 1)
     const total = data.reduce((sum, d) => sum + d.count, 0)
-
-    const barColor = (rating: number) =>
-        rating >= 8 ? 'var(--color-good)' : rating >= 6 ? 'var(--color-mid)' : 'var(--color-bad)'
 
     return (
         <div className="w-full max-w-md mb-4">
@@ -18,7 +17,7 @@ export default function DistributionChart({ data }: { data: { name: number, coun
                                     className="h-full rounded-[2px] transition-[width] duration-500"
                                     style={{
                                         width: `${(count / maxCount) * 100}%`,
-                                        backgroundColor: barColor(name),
+                                        backgroundColor: tierColor(name),
                                         minWidth: count > 0 ? '3px' : '0',
                                     }}
                                 />

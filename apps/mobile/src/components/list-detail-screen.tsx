@@ -1,8 +1,9 @@
-import { Pressable, Text } from 'react-native'
+import { Text } from 'react-native'
 
 import { gameHref } from '@/lib/routes'
 
-import { ScreenScroll, screenStyles } from './screen-scroll'
+import { EmptyState } from './empty-state'
+import { ScreenScroll, screenStyles, PanelRow } from './screen-scroll'
 
 export function ListDetailScreen({
   name,
@@ -20,11 +21,11 @@ export function ListDetailScreen({
   return (
     <ScreenScroll title={name} onBack={onBack}>
       {description ? <Text style={screenStyles.body}>{description}</Text> : null}
-      {games.length === 0 ? <Text style={screenStyles.muted}>No games in this list.</Text> : null}
+      {games.length === 0 ? <EmptyState dense title="No games in this list." /> : null}
       {games.map(game => (
-        <Pressable key={game.slug} accessibilityRole="link" accessibilityLabel={game.name} onPress={() => onOpen(gameHref(game.slug))} style={screenStyles.rowButton}>
-          <Text style={screenStyles.rowText}>{game.name}</Text>
-        </Pressable>
+        <PanelRow key={game.slug} accessibilityRole="link" accessibilityLabel={game.name} onPress={() => onOpen(gameHref(game.slug))}>
+          <Text style={screenStyles.body}>{game.name}</Text>
+        </PanelRow>
       ))}
     </ScreenScroll>
   )

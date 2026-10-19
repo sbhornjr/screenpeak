@@ -1,7 +1,9 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
 
 import { ApiClientError } from '@/lib/api/client'
-import { colors, face, space } from '@/theme'
+import { colors, face, space, typeScale } from '@/theme'
+
+import { Button } from './button'
 
 export function screenGate(input: {
   ready: boolean
@@ -34,18 +36,23 @@ export function ScreenMessage({ title, body, onRetry }: { title: string, body?: 
     <View style={styles.notice}>
       <Text style={styles.title}>{title}</Text>
       {body ? <Text style={styles.body}>{body}</Text> : null}
-      {onRetry ? (
-        <Pressable accessibilityRole="button" accessibilityLabel="Retry" onPress={onRetry}>
-          <Text style={styles.retry}>Retry</Text>
-        </Pressable>
-      ) : null}
+      {onRetry ? <Button label="Retry" variant="secondary" onPress={onRetry} /> : null}
     </View>
   )
 }
 
 const styles = StyleSheet.create({
   notice: { flex: 1, justifyContent: 'center', backgroundColor: colors.bg, paddingHorizontal: space[6], gap: space[3] },
-  title: { fontFamily: face.display[600], fontSize: 28, color: colors.text },
-  body: { fontFamily: face.body[400], fontSize: 16, lineHeight: 24, color: colors.muted },
-  retry: { fontFamily: face.body[600], fontSize: 16, color: colors.accent },
+  title: {
+    fontFamily: face.display[600],
+    fontSize: typeScale['3xl'].size,
+    lineHeight: typeScale['3xl'].line,
+    color: colors.text,
+  },
+  body: {
+    fontFamily: face.body[400],
+    fontSize: typeScale.base.size,
+    lineHeight: typeScale.base.line,
+    color: colors.muted,
+  },
 })

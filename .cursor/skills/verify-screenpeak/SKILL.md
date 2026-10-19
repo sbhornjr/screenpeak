@@ -132,6 +132,9 @@ A passing search proof shows the developer name in `filters.png`, the game name 
 - `feed-signed-in.png`, `explore-signed-in.png`, `library-signed-in.png`, `own-profile-as-peek.png` — the same tabs as peek
 - `user-ada-as-peek.png` — ada's private profile while signed in as peek
 - `library-from-profile.png` and `library-from-peek.png` — the Library tab after the preview is tapped, with the hub no longer on top
+- `game-rate-sheet.png` — the Rate sheet on one of peek's games, with Close still visible
+- `game-list-sheet.png` — the Add to list sheet on that game
+- `game-list-focused.png` — the same sheet with the new-list field focused
 - `user-ada-library.png` and `user-ada-loadout.png` — Not found, with no game titles
 - `result.json` — the profile JSON checks, the library-tab landing, and ada's 404 library and loadout
 

@@ -1,17 +1,12 @@
 import Link from "next/link"
 import ExpandableText from "../util/ExpandableText"
 import Avatar from "../user/Avatar"
+import { tierColor } from "@/lib/rating-tier"
 
 export default function Review({ rating_review, gameName, gameSlug } : { rating_review: { rating: number, review: string, user_id: string, created_at: string, updated_at: string,
     users: { username: string, display_name: string, avatar_url: string }}, gameName?: string, gameSlug?: string}) {
 
-    const ngScoreColor = rating_review.rating >= 8
-    ? 'var(--color-good)'
-    : rating_review.rating >= 6
-    ? 'var(--color-mid)'
-    : rating_review.rating >= 3
-    ? 'var(--color-bad)'
-    : 'var(--color-muted)'
+    const ngScoreColor = tierColor(rating_review.rating)
 
     return (
         <div className="border border-(--color-border) rounded-[3px] px-4 py-4 mb-3 bg-(--color-surface)">

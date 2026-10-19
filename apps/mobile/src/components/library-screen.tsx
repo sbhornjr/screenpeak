@@ -1,9 +1,10 @@
 import type { LibraryGameCard } from '@screenpeak/shared/api/library'
-import { Pressable, Text } from 'react-native'
+import { Text } from 'react-native'
 
 import { gameHref } from '@/lib/routes'
 
-import { ScreenScroll, screenStyles, SignupButtons } from './screen-scroll'
+import { EmptyState } from './empty-state'
+import { ScreenScroll, screenStyles, PanelRow, SignupButtons } from './screen-scroll'
 
 function statusLabel(status: string | null): string | null {
   if (status === 'playing') return 'Playing'
@@ -28,27 +29,26 @@ export function LibraryScreen({
   if (locked) {
     return (
       <ScreenScroll title="Library" onBack={onBack}>
-        <Text style={screenStyles.muted}>Sign up to see your library.</Text>
+        <EmptyState dense title="Sign up to see your library." />
         <SignupButtons onOpen={onOpen} />
       </ScreenScroll>
     )
   }
   return (
     <ScreenScroll title="Library" onBack={onBack}>
-      {games.length === 0 ? <Text style={screenStyles.muted}>Nothing in this library yet.</Text> : null}
+      {games.length === 0 ? <EmptyState dense title="Nothing in this library yet." /> : null}
       {games.map(game => {
         const status = statusLabel(game.library_status)
         return (
-          <Pressable
+          <PanelRow
             key={game.id}
             accessibilityRole="link"
             accessibilityLabel={game.name}
             onPress={() => onOpen(gameHref(game.slug))}
-            style={screenStyles.rowButton}
           >
-            <Text style={screenStyles.rowText}>{game.name}</Text>
+            <Text style={screenStyles.body}>{game.name}</Text>
             {status ? <Text style={screenStyles.detail}>{status}</Text> : null}
-          </Pressable>
+          </PanelRow>
         )
       })}
     </ScreenScroll>
