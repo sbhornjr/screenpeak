@@ -33,7 +33,15 @@
       "expo-image",
       "expo-status-bar",
       "expo-web-browser",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "organization": "im-a-teapot",
+          "project": "screenpeak-mobile"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

@@ -1,7 +1,16 @@
+import Constants from 'expo-constants'
+
+import { apiBaseUrlFromEnv, devApiRuntime } from '../api-base'
 import { createApiClient } from './client'
 import { supabase } from '../supabase'
 
-const baseUrl = process.env.EXPO_PUBLIC_API_URL ?? ''
+const baseUrl = apiBaseUrlFromEnv(
+  {
+    dev: devApiRuntime(typeof __DEV__ === 'undefined' ? undefined : __DEV__),
+    EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,
+  },
+  Constants,
+)
 
 export const api = createApiClient({
   baseUrl,

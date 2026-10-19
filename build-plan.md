@@ -308,7 +308,7 @@ UI is the biggest *chunk of work*, but the differences that bite are about
 | Images | `expo-image` | Caching for IGDB cover art + R2 avatars |
 | Charts | CSS bars on the web (`DistributionChart`) | No chart library. A native chart can wait until a screen needs one. |
 | Icons | `lucide-react-native` | Same icon set the web uses |
-| Errors | `@sentry/react-native` | Same Sentry org as the web |
+| Errors | `@sentry/react-native` | Same Sentry org as the web (`im-a-teapot`), separate project `screenpeak-mobile` |
 | Builds / release | EAS Build, EAS Submit, EAS Update | |
 | Tests | Vitest (`apps/mobile`, `npm test`). Expo web is how a cloud agent checks layout. Maestro, or a real device, is the owner's milestone check. | |
 
@@ -897,6 +897,27 @@ stack.
    > the CSS variables. A lint rule and `src/theme/raw-hex.test.ts` keep raw hex
    > out of the phone screens.
 5. Sentry + a `__DEV__` API base URL (your LAN IP running `npm run dev`).
+   > **Done.** In `__DEV__` the phone calls `http://<host>:3000`, where `<host>`
+   > is Expo's `hostUri` (the computer running Metro) and `3000` is `npm run dev`.
+   > `EXPO_PUBLIC_API_URL` overrides that, which is how the verify harness points
+   > Expo web at port 3210. A release build uses `EXPO_PUBLIC_API_URL` as the
+   > site origin and throws if it is unset. It does not reuse the dev host.
+   > `npm run dev` passes no `-H`. Next 16 then listens on every interface, so
+   > a phone on the same Wi-Fi can reach port 3000. `-H 127.0.0.1` (what
+   > verify-screenpeak uses) does not. `/api/v1` sends
+   > `Access-Control-Allow-Origin: *` with no credentials. Next's dev
+   > cross-origin block applies to `/_next`, not the API. Native fetch ignores
+   > CORS; Expo web needs those headers.
+   > Sentry is `@sentry/react-native` through the Expo config plugin. Org
+   > `im-a-teapot` (the website's org). Project `screenpeak-mobile`, not the
+   > website project `javascript-nextjs`. No `EXPO_PUBLIC_SENTRY_DSN` means the
+   > SDK never starts, including dev, tests, and Expo web. Events and
+   > breadcrumbs on both apps go through `@screenpeak/shared/sentry`, which
+   > strips emails, bearer tokens, Supabase session cookies, and the query or
+   > hash keys `code`, `token_hash`, `access_token`, and `state`. The root
+   > layout and the Expo Router error boundary both report when the SDK is on.
+   >
+   > Phase 2 is complete.
 
 ### Phase 3 — Screens (≈4–6 weeks)
 
@@ -940,7 +961,7 @@ and check it on a small phone (iPhone SE size) and with the keyboard open.
    project, set its **Root Directory to `apps/web`** (Vercel: Project →
    Settings → Build & Deployment) and copy the env vars from
    `apps/web/.env.local`. Point the mobile `production`/`preview` EAS profiles
-   at that URL.
+   at that URL with `EXPO_PUBLIC_API_URL`. A release build throws if it is unset.
 
    **Before first deploy**
 
@@ -978,6 +999,21 @@ and check it on a small phone (iPhone SE size) and with the keyboard open.
      reset email's redirect until the URL is on the list. Signup confirmation
      still uses the website's `/auth/confirm`, not the app scheme. No extra
      allowlist entry is required for sign-up.
+   - [ ] Create a React Native Sentry project named `screenpeak-mobile` in the
+     existing org `im-a-teapot`. Leave the website project `javascript-nextjs`
+     as it is. Set `EXPO_PUBLIC_SENTRY_DSN` on the EAS preview and production
+     environments to that project's DSN. Leave it unset for local Expo; the
+     phone SDK does not start without it.
+   - [ ] Upload mobile source maps with `SENTRY_AUTH_TOKEN`, the same variable
+     the website uses. `withSentryConfig` in `apps/web/next.config.ts` reads it
+     from `.env.sentry-build-plugin` (gitignored). The Expo plugin
+     (`@sentry/react-native/expo`, org `im-a-teapot`, project
+     `screenpeak-mobile`) reads the same name. An organization token can upload
+     maps for the new project: add the existing token as an EAS secret named
+     `SENTRY_AUTH_TOKEN`. A token limited to `javascript-nextjs` cannot. In
+     that case create an organization auth token (Sentry → Settings → Auth
+     Tokens, source-map upload) and store that as the secret instead. Do not
+     commit the token.
 1. `eas build --profile preview` → TestFlight (iOS) and Internal testing
    (Android). Get 3–5 friends on it for a week.
 2. Store listings: screenshots, description, keywords, privacy policy URL (you
