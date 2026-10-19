@@ -43,8 +43,80 @@ describe('apiBaseUrlFromEnv', () => {
     )).toBe('http://localhost:3000')
   })
 
-  it('stays unconfigured in dev when Expo has no host', () => {
-    expect(apiBaseUrlFromEnv({ dev: true }, { expoConfig: null })).toBe('')
+  it('names the missing dev host instead of guessing one', () => {
+    const message = 'No dev API host: Expo hostUri is missing. Set EXPO_PUBLIC_API_URL to the computer running npm run dev.'
+    expect(() => apiBaseUrlFromEnv({ dev: true }, { expoConfig: null })).toThrow(message)
+    expect(() => apiBaseUrlFromEnv({ dev: true }, { expoConfig: { hostUri: '   ' } })).toThrow(message)
+    expect(() => apiBaseUrlFromEnv({ dev: true })).toThrow(message)
+  })
+
+  it('uses a private, loopback, link-local, localhost, or .local dev host', () => {
+    expect(apiBaseUrlFromEnv(
+      { dev: true },
+      { expoConfig: { hostUri: '10.1.2.3:8081' } },
+    )).toBe('http://10.1.2.3:3000')
+    expect(apiBaseUrlFromEnv(
+      { dev: true },
+      { expoConfig: { hostUri: '127.0.0.1:8081' } },
+    )).toBe('http://127.0.0.1:3000')
+    expect(apiBaseUrlFromEnv(
+      { dev: true },
+      { expoConfig: { hostUri: '172.16.5.4:8081' } },
+    )).toBe('http://172.16.5.4:3000')
+    expect(apiBaseUrlFromEnv(
+      { dev: true },
+      { expoConfig: { hostUri: '172.31.255.255:8081' } },
+    )).toBe('http://172.31.255.255:3000')
+    expect(apiBaseUrlFromEnv(
+      { dev: true },
+      { expoConfig: { hostUri: '169.254.10.1:8081' } },
+    )).toBe('http://169.254.10.1:3000')
+    expect(apiBaseUrlFromEnv(
+      { dev: true },
+      { expoConfig: { hostUri: 'screenpeak.local:8081' } },
+    )).toBe('http://screenpeak.local:3000')
+    expect(apiBaseUrlFromEnv(
+      { dev: true },
+      { expoConfig: { hostUri: 'exp://[fe80::1]:8081' } },
+    )).toBe('http://[fe80::1]:3000')
+    expect(apiBaseUrlFromEnv(
+      { dev: true },
+      { expoConfig: { hostUri: '[fd12:3456::1]:8081' } },
+    )).toBe('http://[fd12:3456::1]:3000')
+  })
+
+  it('fails closed for a tunnel, a public host, and an unbracketed IPv6 literal', () => {
+    expect(apiBaseUrlFromEnv(
+      { dev: true },
+      { expoConfig: { hostUri: 'abcd.exp.direct:8081' } },
+    )).toBe('')
+    expect(apiBaseUrlFromEnv(
+      { dev: true },
+      { expoConfig: { hostUri: '8.8.8.8:8081' } },
+    )).toBe('')
+    expect(apiBaseUrlFromEnv(
+      { dev: true },
+      { expoConfig: { hostUri: '172.15.0.1:8081' } },
+    )).toBe('')
+    expect(apiBaseUrlFromEnv(
+      { dev: true },
+      { expoConfig: { hostUri: '172.32.0.1:8081' } },
+    )).toBe('')
+    expect(apiBaseUrlFromEnv(
+      { dev: true },
+      { expoConfig: { hostUri: '::1:8081' } },
+    )).toBe('')
+    expect(apiBaseUrlFromEnv(
+      { dev: true },
+      { expoConfig: { hostUri: 'fe80::1:8081' } },
+    )).toBe('')
+  })
+
+  it('splits userinfo on @ before the port', () => {
+    expect(apiBaseUrlFromEnv(
+      { dev: true },
+      { expoConfig: { hostUri: 'exp://dev:secret@192.168.1.20:8081' } },
+    )).toBe('http://192.168.1.20:3000')
   })
 
   it('uses the configured site URL in a release build and ignores the Expo host', () => {
@@ -59,5 +131,16 @@ describe('apiBaseUrlFromEnv', () => {
       { dev: false },
       { expoConfig: { hostUri: '192.168.1.20:8081' } },
     )).toThrow(RELEASE_MESSAGE)
+  })
+
+  it('throws in a release build unless the API URL is https', () => {
+    const message = 'This release build\'s API URL must use https:.'
+    expect(() => apiBaseUrlFromEnv(
+      { dev: false, EXPO_PUBLIC_API_URL: 'http://screenpeak.example' },
+      { expoConfig: { hostUri: '192.168.1.20:8081' } },
+    )).toThrow(message)
+    expect(() => apiBaseUrlFromEnv(
+      { dev: false, EXPO_PUBLIC_API_URL: 'screenpeak.example' },
+    )).toThrow(message)
   })
 })

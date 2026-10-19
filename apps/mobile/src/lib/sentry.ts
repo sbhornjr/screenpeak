@@ -4,8 +4,13 @@ import { sentryBeforeBreadcrumb, sentryBeforeSend } from '@screenpeak/shared/sen
 
 let started = false
 
-/** No-op when EXPO_PUBLIC_SENTRY_DSN is unset, so dev, tests, and Expo web keep running. */
-export function startMobileSentry(dsn = process.env.EXPO_PUBLIC_SENTRY_DSN): boolean {
+/**
+ * No-op when the DSN is unset, so dev, tests, and Expo web keep running.
+ * An omitted argument reads EXPO_PUBLIC_SENTRY_DSN. An explicit `undefined`
+ * stays unset even when that variable is set.
+ */
+export function startMobileSentry(...args: [] | [string | null | undefined]): boolean {
+  const dsn = args.length === 0 ? process.env.EXPO_PUBLIC_SENTRY_DSN : args[0]
   const value = dsn?.trim()
   if (!value) return false
   if (started) return true
@@ -19,8 +24,12 @@ export function startMobileSentry(dsn = process.env.EXPO_PUBLIC_SENTRY_DSN): boo
   return true
 }
 
-export function reportAppError(error: unknown): void {
+export function reportAppError(error: unknown, componentStack?: string | null): void {
   if (!started) return
+  if (componentStack) {
+    Sentry.captureException(error, { contexts: { react: { componentStack } } })
+    return
+  }
   Sentry.captureException(error)
 }
 

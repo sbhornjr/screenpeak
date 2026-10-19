@@ -1,69 +1,58 @@
 import { describe, expect, it, vi } from 'vitest'
+import { sentryReplayCases, sentryScrubCases, type SentryScrubCase } from '@screenpeak/shared/sentry-cases'
 
 const init = vi.hoisted(() => vi.fn())
+const replayIntegration = vi.hoisted(() => vi.fn((options?: { beforeAddRecordingEvent?: (event: unknown) => unknown }) => ({
+  name: 'Replay',
+  options,
+})))
 
 vi.mock('@sentry/nextjs', () => ({
   init,
-  replayIntegration: () => ({ name: 'Replay' }),
+  replayIntegration,
   captureRouterTransitionStart: vi.fn(),
   captureRequestError: vi.fn(),
   captureException: vi.fn(),
 }))
 
-const dirtyEvent = {
-  message: 'Sign-in failed for hornflakes+peek@mail.grokbot.com',
-  request: {
-    url: 'https://abc.supabase.co/auth/v1/verify?token_hash=hash-1&type=recovery&code=pkce-code&state=state-1&access_token=sekret',
-    headers: { Authorization: 'Bearer supa-access-token' },
-  },
-  breadcrumbs: [
-    {
-      category: 'navigation',
-      data: { url: 'screenpeak://auth/confirm?code=pkce-code&next=/auth/update-password' },
-    },
-  ],
-}
-
-const cleanEvent = {
-  message: 'Sign-in failed for [REDACTED_EMAIL]',
-  request: {
-    url: 'https://abc.supabase.co/auth/v1/verify?type=recovery',
-    headers: { Authorization: '[REDACTED]' },
-  },
-  breadcrumbs: [
-    {
-      category: 'navigation',
-      data: { url: 'screenpeak://auth/confirm?next=/auth/update-password' },
-    },
-  ],
-}
-
-const dirtyBreadcrumb = {
-  category: 'fetch',
-  data: { url: 'http://192.168.1.20:3000/api/v1/games/hades?access_token=sekret&state=abc&page=1' },
-}
-
-const cleanBreadcrumb = {
-  category: 'fetch',
-  data: { url: 'http://192.168.1.20:3000/api/v1/games/hades?page=1' },
+function scrubbed(hook: ((value: unknown) => unknown) | undefined, row: { name: string, input: unknown, output: unknown }, where: string) {
+  expect(typeof hook, where).toBe('function')
+  const input = structuredClone(row.input)
+  expect(hook!(input), `${where} ${row.name}`).toEqual(row.output)
+  expect(input, `${where} ${row.name} input`).toEqual(row.input)
 }
 
 describe('web Sentry init', () => {
-  it('scrubs the same secrets on the client, server, and edge', async () => {
+  it('scrubs the shared fixture on the client, server, and edge, including transactions and replay urls', async () => {
     vi.resetModules()
     await import('@/instrumentation-client')
     await import('@/sentry.server.config')
     await import('@/sentry.edge.config')
 
-    expect(init.mock.calls.map(call => call[0]?.beforeSend?.(dirtyEvent))).toEqual([
-      cleanEvent,
-      cleanEvent,
-      cleanEvent,
-    ])
-    expect(init.mock.calls.map(call => call[0]?.beforeBreadcrumb?.(dirtyBreadcrumb))).toEqual([
-      cleanBreadcrumb,
-      cleanBreadcrumb,
-      cleanBreadcrumb,
-    ])
+    const options = init.mock.calls.map(call => call[0] as {
+      beforeSend?: (event: unknown) => unknown
+      beforeBreadcrumb?: (breadcrumb: unknown) => unknown
+      beforeSendTransaction?: (event: unknown) => unknown
+    })
+    expect(options).toHaveLength(3)
+
+    for (const [index, option] of options.entries()) {
+      const where = ['client', 'server', 'edge'][index] ?? String(index)
+      for (const row of sentryScrubCases) {
+        const hook = row.hook === 'beforeSend' ? option.beforeSend : option.beforeBreadcrumb
+        scrubbed(hook, row, where)
+      }
+      for (const row of sentryScrubCases.filter((item): item is SentryScrubCase => item.hook === 'beforeSend')) {
+        scrubbed(option.beforeSendTransaction, row, `${where} transaction`)
+      }
+    }
+
+    expect(replayIntegration.mock.calls.map(call => {
+      const hook = call[0]?.beforeAddRecordingEvent
+      return sentryReplayCases.map(row => {
+        scrubbed(hook, row, 'replay')
+        return row.name
+      })
+    })).toEqual([sentryReplayCases.map(row => row.name)])
   })
 })

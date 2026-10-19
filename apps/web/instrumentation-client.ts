@@ -9,10 +9,15 @@ Sentry.init({
   dsn: "https://a4583dae7f8c2aa4ba4ce25399257449@o4512142406057984.ingest.us.sentry.io/4512142410973184",
 
   beforeSend: sentryBeforeSend,
+  beforeSendTransaction: sentryBeforeSend,
   beforeBreadcrumb: sentryBeforeBreadcrumb,
 
   // Add optional integrations for additional features
-  integrations: [Sentry.replayIntegration()],
+  integrations: [Sentry.replayIntegration({
+    beforeAddRecordingEvent(event) {
+      return sentryBeforeSend(event);
+    },
+  })],
 
   // Define how likely traces are sampled. Adjust this value in production, or use tracesSampler for greater control.
   tracesSampleRate: 1,

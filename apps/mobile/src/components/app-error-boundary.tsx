@@ -1,4 +1,4 @@
-import { Component, useEffect, type ReactNode } from 'react'
+import { Component, useEffect, type ErrorInfo, type ReactNode } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 
 import { reportAppError } from '@/lib/sentry'
@@ -23,8 +23,8 @@ export class AppErrorBoundary extends Component<{ children: ReactNode }, { error
     return { error }
   }
 
-  componentDidCatch(error: Error) {
-    reportAppError(error)
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    reportAppError(error, info.componentStack || undefined)
   }
 
   render() {
