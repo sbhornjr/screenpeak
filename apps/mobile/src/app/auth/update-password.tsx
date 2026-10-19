@@ -5,6 +5,7 @@ import { Text } from 'react-native'
 import { AuthScaffold, authText } from '@/components/auth-scaffold'
 import { Button } from '@/components/button'
 import { TextField } from '@/components/text-field'
+import { authConfigError } from '@/lib/auth-config'
 import { useAuth } from '@/lib/auth'
 import { leavePasswordScreen, updatePasswordView } from '@/lib/password-reset'
 import { readRecovery, subscribeRecovery } from '@/lib/recovery-session'
@@ -70,7 +71,7 @@ export default function UpdatePasswordScreen() {
 
   return (
     <AuthScaffold title="Set a new password">
-      {configured ? null : <Text style={authText.error}>Sign-in is not configured.</Text>}
+      {configured ? null : <Text style={authText.error}>{authConfigError()}</Text>}
       {!view.form ? <Text style={authText.notice}>{view.message}</Text> : null}
       {!view.form && !done ? (
         <Button label="Request a new link" variant="ghost" onPress={() => router.push('/forgot-password')} />

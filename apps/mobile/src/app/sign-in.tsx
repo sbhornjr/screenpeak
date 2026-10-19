@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { AuthScaffold, authText } from '@/components/auth-scaffold'
 import { Button } from '@/components/button'
 import { TextField } from '@/components/text-field'
+import { authConfigError } from '@/lib/auth-config'
 import { useAuth } from '@/lib/auth'
 import { backOrHome } from '@/lib/go'
 import { Text } from 'react-native'
@@ -31,7 +32,7 @@ export default function SignInScreen() {
 
   return (
     <AuthScaffold title="Log in">
-      {configured ? null : <Text style={authText.error}>Sign-in is not configured.</Text>}
+      {configured ? null : <Text style={authText.error}>{authConfigError()}</Text>}
       <TextField
         label="Email"
         placeholder="Email"

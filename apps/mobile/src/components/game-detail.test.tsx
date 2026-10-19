@@ -94,11 +94,20 @@ vi.mock('react-native', () => ({
   }) => React.createElement('button', { type: 'button', 'aria-label': 'Refresh', onClick: onRefresh }),
   Modal: ({
     visible,
+    onDismiss,
     children,
   }: {
     visible?: boolean
+    onDismiss?: () => void
     children?: React.ReactNode
-  }) => (visible ? React.createElement('div', null, children) : null),
+  }) => {
+    const wasVisible = React.useRef(visible)
+    React.useEffect(() => {
+      if (wasVisible.current && visible === false) onDismiss?.()
+      wasVisible.current = visible
+    }, [visible, onDismiss])
+    return visible ? React.createElement('div', null, children) : null
+  },
   StyleSheet: { create: (styles: unknown) => styles, absoluteFill: {} },
 }))
 
@@ -216,8 +225,13 @@ describe('GameDetail', () => {
     expect(screen.getByRole('button', { name: 'Save game' }).textContent).toBe('Save game')
   })
 
-  it('asks for an account when a signed-out player tries to save the game', () => {
-    const onSignUp = vi.fn()
+  it('closes the signup sheet before Sign up or Log in runs', () => {
+    const onSignUp = vi.fn(() => {
+      expect(screen.queryByText('Sign up to rate, log, or list this game.')).toBeNull()
+    })
+    const onSignIn = vi.fn(() => {
+      expect(screen.queryByText('Sign up to rate, log, or list this game.')).toBeNull()
+    })
     render(
       <GameDetail
         data={DATA}
@@ -225,7 +239,7 @@ describe('GameDetail', () => {
         reviewsNote={null}
         signedIn={false}
         onBack={() => undefined}
-        onSignIn={() => undefined}
+        onSignIn={onSignIn}
         onSignUp={onSignUp}
         onRetryReviews={() => undefined}
       />,
@@ -235,6 +249,12 @@ describe('GameDetail', () => {
     expect(screen.getByText('Sign up to rate, log, or list this game.').textContent).toBe('Sign up to rate, log, or list this game.')
     fireEvent.click(screen.getByRole('button', { name: 'Sign up' }))
     expect(onSignUp).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText('Sign up to rate, log, or list this game.')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save game' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Log in' }))
+    expect(onSignIn).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText('Sign up to rate, log, or list this game.')).toBeNull()
   })
 
   it('shows your score instead of the signup prompt when you are signed in', () => {

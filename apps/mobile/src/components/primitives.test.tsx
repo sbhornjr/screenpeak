@@ -11,7 +11,7 @@ import { EmptyState } from './empty-state'
 import { RatingBadge } from './rating-badge'
 import { ScreenScroll } from './screen-scroll'
 import { SectionHead } from './section-head'
-import { Sheet } from './sheet'
+import { Sheet, useSheetDismiss } from './sheet'
 import { TextField } from './text-field'
 import { Wordmark } from './wordmark'
 import { Text } from 'react-native'
@@ -21,6 +21,8 @@ const keyboard = vi.hoisted(() => ({
 }))
 
 const platform = vi.hoisted(() => ({ os: 'ios' }))
+
+const modal = vi.hoisted(() => ({ reportsDismiss: true }))
 
 function flattenStyle(style: unknown): Record<string, unknown> {
   if (!style) return {}
@@ -190,23 +192,32 @@ vi.mock('react-native', () => ({
   Modal: ({
     visible,
     onRequestClose,
+    onDismiss,
     children,
   }: {
     visible?: boolean
     onRequestClose?: () => void
+    onDismiss?: () => void
     children?: React.ReactNode
-  }) => (visible
-    ? React.createElement(
-      'div',
-      {
-        'data-modal': 'open',
-        onKeyDown: (event: { key: string }) => {
-          if (event.key === 'Escape') onRequestClose?.()
+  }) => {
+    const wasVisible = React.useRef(visible)
+    React.useEffect(() => {
+      if (wasVisible.current && visible === false && modal.reportsDismiss) onDismiss?.()
+      wasVisible.current = visible
+    }, [visible, onDismiss])
+    return visible
+      ? React.createElement(
+        'div',
+        {
+          'data-modal': 'open',
+          onKeyDown: (event: { key: string }) => {
+            if (event.key === 'Escape') onRequestClose?.()
+          },
         },
-      },
-      children,
-    )
-    : null),
+        children,
+      )
+      : null
+  },
   StyleSheet: {
     create: (styles: unknown) => styles,
     absoluteFill: {},
@@ -236,6 +247,7 @@ afterEach(() => {
   cleanup()
   keyboard.listeners.clear()
   platform.os = 'ios'
+  modal.reportsDismiss = true
 })
 
 function painted(node: Element): Record<string, unknown> {
@@ -384,6 +396,55 @@ describe('Sheet', () => {
       keyboard.listeners.get('keyboardDidShow')?.({ endCoordinates: { height: 300 } })
     })
     expect(painted(screen.getByRole('dialog', { name: 'Add to list' })).paddingBottom).toBe(space[4] + 34)
+  })
+
+  it('runs a navigation only after the sheet has closed', () => {
+    function Leave({ onLeave }: { onLeave: () => void }) {
+      const dismiss = useSheetDismiss()
+      return <Button label="Log in" onPress={() => dismiss(onLeave)} />
+    }
+    function Harness({ onLeave }: { onLeave: () => void }) {
+      const [open, setOpen] = React.useState(true)
+      return (
+        <Sheet visible={open} title="Sign up" onClose={() => setOpen(false)}>
+          <Leave onLeave={onLeave} />
+        </Sheet>
+      )
+    }
+    const onLeave = vi.fn(() => {
+      expect(screen.queryByRole('dialog', { name: 'Sign up' })).toBeNull()
+    })
+    render(<Harness onLeave={onLeave} />)
+    expect(screen.getByRole('dialog', { name: 'Sign up' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Log in' }))
+    expect(onLeave).toHaveBeenCalledTimes(1)
+  })
+
+  it('on android navigates after the sheet closes when the modal does not report dismiss', async () => {
+    platform.os = 'android'
+    modal.reportsDismiss = false
+    function Leave({ onLeave }: { onLeave: () => void }) {
+      const dismiss = useSheetDismiss()
+      return <Button label="Sign up" onPress={() => dismiss(onLeave)} />
+    }
+    function Harness({ onLeave }: { onLeave: () => void }) {
+      const [open, setOpen] = React.useState(true)
+      return (
+        <Sheet visible={open} title="Sign up" onClose={() => setOpen(false)}>
+          <Leave onLeave={onLeave} />
+        </Sheet>
+      )
+    }
+    const onLeave = vi.fn(() => {
+      expect(screen.queryByRole('dialog', { name: 'Sign up' })).toBeNull()
+    })
+    render(<Harness onLeave={onLeave} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Sign up' }))
+    expect(onLeave).not.toHaveBeenCalled()
+    await act(async () => {
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)))
+    })
+    expect(onLeave).toHaveBeenCalledTimes(1)
   })
 
   it('leaves keyboard insets to the browser when the window itself shrinks', () => {

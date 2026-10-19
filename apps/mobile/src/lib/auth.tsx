@@ -17,6 +17,7 @@ import {
 } from './password-reset'
 import { readRecovery, writeRecovery } from './recovery-session'
 import { signUpAuthBody } from './sign-up'
+import { authConfigError } from './auth-config'
 import { supabase } from './supabase'
 
 type AuthValue = {
@@ -85,12 +86,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     session,
     configured: supabase != null,
     async signIn(email, password) {
-      if (!supabase) throw new Error('Sign-in is not configured.')
+      if (!supabase) throw new Error(authConfigError())
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) throw error
     },
     async signUp(email, password, username) {
-      if (!supabase) throw new Error('Sign-up is not configured.')
+      if (!supabase) throw new Error(authConfigError('Sign-up'))
       const parsed = signUpAuthBody(email, password, username)
       if (!parsed.ok) throw new Error(parsed.error)
       const { data, error } = await supabase.auth.signUp(parsed.body)
@@ -105,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     resetSentAt,
     async requestPasswordReset(email) {
-      if (!supabase) throw new Error('Sign-in is not configured.')
+      if (!supabase) throw new Error(authConfigError())
       const claim = claimResetSend(email, lastResetAt.current, Date.now())
       lastResetAt.current = claim.lastSentAt
       if (!claim.decision.send) {
@@ -128,7 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     async openRecoveryLink(url) {
       const client = supabase
-      if (!client) throw new Error('Sign-in is not configured.')
+      if (!client) throw new Error(authConfigError())
       const origin = Platform.OS === 'web' && typeof window !== 'undefined'
         ? window.location.origin
         : 'https://screenpeak.app'
@@ -147,7 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return result.destination
     },
     async updatePassword(password, again) {
-      if (!supabase) throw new Error('Sign-in is not configured.')
+      if (!supabase) throw new Error(authConfigError())
       if (!readRecovery()) throw new Error(RESET_LINK_HINT)
       const problem = newPasswordProblem(password, again)
       if (problem) throw new Error(problem)

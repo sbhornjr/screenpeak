@@ -7,6 +7,7 @@ import { parseOrError, usernameSchema } from '@screenpeak/shared/schemas'
 import { AuthScaffold, authText } from '@/components/auth-scaffold'
 import { Button } from '@/components/button'
 import { TextField } from '@/components/text-field'
+import { authConfigError } from '@/lib/auth-config'
 import { useAuth } from '@/lib/auth'
 import { backOrHome } from '@/lib/go'
 
@@ -42,7 +43,7 @@ export default function SignUpScreen() {
 
   return (
     <AuthScaffold title="Sign up">
-      {configured ? null : <Text style={authText.error}>Sign-up is not configured.</Text>}
+      {configured ? null : <Text style={authText.error}>{authConfigError('Sign-up')}</Text>}
       <TextField
         label="Email"
         placeholder="Email"

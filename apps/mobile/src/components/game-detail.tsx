@@ -28,7 +28,7 @@ import { DataAttribution } from './data-attribution'
 import { EmptyState } from './empty-state'
 import { Panel } from './panel'
 import { SectionHead } from './section-head'
-import { Sheet } from './sheet'
+import { Sheet, useSheetDismiss } from './sheet'
 import { TextField } from './text-field'
 import { Wordmark } from './wordmark'
 
@@ -545,9 +545,7 @@ export function GameDetail({
       </Sheet>
 
       <Sheet visible={prompt} title="Sign up" onClose={() => setPrompt(false)}>
-        <Text style={styles.body}>Sign up to rate, log, or list this game.</Text>
-        <Button label="Sign up" onPress={onSignUp} />
-        <Button label="Log in" variant="secondary" onPress={onSignIn} />
+        <AccountPrompt onSignIn={onSignIn} onSignUp={onSignUp} />
       </Sheet>
 
       <SectionHead>Credits</SectionHead>
@@ -888,3 +886,14 @@ const styles = StyleSheet.create({
   boneCover: { width: 180, height: 240, backgroundColor: colors.surfaceLight, borderRadius: radius.base },
   boneScore: { height: 88, backgroundColor: colors.surfaceLight, borderRadius: radius.base },
 })
+
+function AccountPrompt({ onSignIn, onSignUp }: { onSignIn: () => void, onSignUp: () => void }) {
+  const dismiss = useSheetDismiss()
+  return (
+    <>
+      <Text style={styles.body}>Sign up to rate, log, or list this game.</Text>
+      <Button label="Sign up" onPress={() => dismiss(onSignUp)} />
+      <Button label="Log in" variant="secondary" onPress={() => dismiss(onSignIn)} />
+    </>
+  )
+}

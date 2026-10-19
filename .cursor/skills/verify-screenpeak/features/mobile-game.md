@@ -5,7 +5,7 @@ The phone game page shows the title, cover, your save, the scoreboard, credits, 
 ## Sub-features
 
 - `signed-out` shows the game name and keeps the signup prompt closed until an action.
-- `signup-prompt` opens that prompt from Rate and offers Sign up and Log in.
+- `signup-prompt` opens that prompt from Rate and offers Sign up and Log in. Log in closes the sheet before the sign-in screen.
 - `review` saves a score and a note, edits the note, then deletes the note and keeps the score.
 - `library-status` changes status with a request body that contains only `status`, leaving hours 12.5, play count 4, and the 100% flag set.
 - `lists` adds the game to the existing wishlist and creates a list that contains the game.
@@ -14,8 +14,8 @@ The phone game page shows the title, cover, your save, the scoreboard, credits, 
 ## How to get to it (user POV)
 
 - Open `http://localhost:8081/games/<slug>` while signed out. `<slug>` is one game peek has rated and logged.
-- Tap Rate. The signup sheet opens. Close it.
-- Open `http://localhost:8081/sign-in`, log in as peek, and open the same game.
+- Tap Rate. The signup sheet opens. Tap Log in. The sheet is gone on the sign-in screen.
+- Log in as peek, and open the same game.
 - Tap Rate, pick a score, write a note, and submit. Open Rate again to edit the note, then delete the written review.
 - Tap Save game, pick the other of Playing or Backlog, and update the library entry.
 - Tap Add to list, tap the wishlist, then create a list named Phone Shelf.
@@ -30,8 +30,8 @@ Preconditions:
 - `peek` has five ratings and five library games. You start signed out. The drive sets this game's hours to 12.5, play count to 4, and the 100% flag after sign-in, then restores the original rating, review, and library row.
 
 - **Open the game signed out.** The drive opens `http://localhost:8081/games/<slug>` at 375×667. The screen shows the game name. The signup sentence is not showing.
-- **Open the signup prompt.** Click the Rate control (its accessible name stays Rate when the visible label is Amend). The sheet says "Sign up to rate, log, or list this game." and shows Sign up. Click Close.
-- **Log in.** Open `http://localhost:8081/sign-in`, fill Email and Password for peek, and click Log in.
+- **Open the signup prompt.** Click the Rate control (its accessible name stays Rate when the visible label is Amend). The sheet says "Sign up to rate, log, or list this game." and shows Sign up. Click Log in.
+- **Log in.** The sign-in screen shows Password, and the signup sheet is gone: the signup sentence is not on the page and no dialog is open. Fill Email and Password for peek, and click Log in.
 - **Open the game signed in.** The screen shows the game name and Your score. The signup sentence is not showing.
 - **Rate and review.** Click Rate, click a score, fill Review note with "Phone run one.", and click Submit rating. The page shows that sentence. Postgres stores that rating and that text.
 - **Edit the review.** Click Rate, replace the note with "Phone run two.", and submit. The page and Postgres show the new sentence and the same rating.

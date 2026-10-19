@@ -4,6 +4,7 @@ import { Text } from 'react-native'
 import { AuthScaffold, authText } from '@/components/auth-scaffold'
 import { Button } from '@/components/button'
 import { TextField } from '@/components/text-field'
+import { authConfigError } from '@/lib/auth-config'
 import { useAuth } from '@/lib/auth'
 import { resetCooldownRemaining } from '@/lib/password-reset'
 
@@ -42,7 +43,7 @@ export default function ForgotPasswordScreen() {
 
   return (
     <AuthScaffold title="Reset password">
-      {configured ? null : <Text style={authText.error}>Sign-in is not configured.</Text>}
+      {configured ? null : <Text style={authText.error}>{authConfigError()}</Text>}
       <TextField
         label="Email"
         placeholder="Email"

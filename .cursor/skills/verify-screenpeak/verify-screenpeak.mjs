@@ -2544,11 +2544,16 @@ async function driveMobileGame() {
         await page.clickLabel('Rate')
         const prompt = await shot('signup.png', 'Sign up to rate, log, or list this game.')
         if (!prompt.includes('Sign up')) problems.push('signup prompt is missing Sign up')
-        await page.clickControl('Close')
-        await page.waitUntil(`document.body.innerText.includes('Sign up to rate, log, or list this game.') ? 'waiting' : 'ok'`)
-
-        await page.navigate(`${expoOrigin}/sign-in`)
-        await page.waitForText('Log in')
+        await page.clickControl('Log in')
+        await page.waitForText('Password')
+        const arrived = await page.bodyText()
+        if (arrived.includes('Sign up to rate, log, or list this game.')) problems.push('signup sheet stayed open on the sign-in screen')
+        const leftoverSheet = await page.evaluate(`(() => {
+            const dialog = document.querySelector('[role="dialog"]')
+            if (!dialog) return ''
+            return dialog.getAttribute('aria-label') || dialog.innerText || 'dialog'
+        })()`)
+        if (leftoverSheet) problems.push(`signup sheet still open on sign-in: ${leftoverSheet}`)
         await page.fillPlaceholder('Email', peekEmail)
         await page.fillPlaceholder('Password', peekPassword)
         await page.clickControl('Log in')
