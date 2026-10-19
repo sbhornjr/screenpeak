@@ -10,6 +10,8 @@
     "./tokens": "./tokens.ts",
     "./redirect": "./redirect.ts",
     "./schemas": "./schemas.ts",
+    "./sentry": "./sentry.ts",
+    "./sentry-cases": "./sentry-cases.ts",
     "./types": "./types/index.ts",
     "./types/*": "./types/*.ts"
   },

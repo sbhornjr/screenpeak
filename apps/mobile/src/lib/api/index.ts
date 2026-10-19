@@ -1,7 +1,27 @@
+import Constants from 'expo-constants'
+
+import { apiBaseUrlFromEnv, devApiRuntime, MissingDevHostError } from '../api-base'
 import { createApiClient } from './client'
 import { supabase } from '../supabase'
 
-const baseUrl = process.env.EXPO_PUBLIC_API_URL ?? ''
+const dev = devApiRuntime(typeof __DEV__ === 'undefined' ? undefined : __DEV__)
+
+function resolveBaseUrl(): string {
+  try {
+    return apiBaseUrlFromEnv(
+      {
+        dev,
+        EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,
+      },
+      Constants,
+    )
+  } catch (error) {
+    if (dev && error instanceof MissingDevHostError) return ''
+    throw error
+  }
+}
+
+const baseUrl = resolveBaseUrl()
 
 export const api = createApiClient({
   baseUrl,

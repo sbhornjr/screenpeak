@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const { ApiError, UnauthenticatedError, AuthUnavailableError, apiError, withAuth } = await import('@/lib/api')
+const { ApiError, UnauthenticatedError, AuthUnavailableError, apiError, corsPreflight, withAuth } = await import('@/lib/api')
 
 const req = () => new NextRequest('http://localhost/api/v1/anything')
 const ctx = { params: Promise.resolve({ slug: 'baldurs-gate-3' }) }
@@ -12,6 +12,18 @@ describe('apiError', () => {
 
         expect(res.status).toBe(404)
         expect(await res.json()).toEqual({ error: { code: 'not_found', message: 'No such game' } })
+    })
+})
+
+describe('corsPreflight', () => {
+    it('lets a browser on another origin, including a phone on the LAN, call /api/v1', () => {
+        const res = corsPreflight()
+
+        expect(res.status).toBe(204)
+        expect(res.headers.get('access-control-allow-origin')).toBe('*')
+        expect(res.headers.get('access-control-allow-headers')).toBe('Authorization, Content-Type, Accept')
+        expect(res.headers.get('access-control-allow-methods')).toBe('GET, POST, PUT, PATCH, DELETE, OPTIONS')
+        expect(res.headers.get('access-control-allow-credentials')).toBeNull()
     })
 })
 

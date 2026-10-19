@@ -5,8 +5,12 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 
+import { AppErrorBoundary, RouteErrorBoundary } from '@/components/app-error-boundary';
 import { AuthProvider } from '@/lib/auth';
+import { startMobileSentry, wrapRoot } from '@/lib/sentry';
 import { colors, fontFiles } from '@/theme';
+
+startMobileSentry();
 
 SplashScreen.preventAutoHideAsync();
 
@@ -26,7 +30,7 @@ const navigationTheme = {
   },
 };
 
-export default function RootLayout() {
+function RootLayout() {
   // Chakra Petch + IBM Plex, loaded at runtime (works in Expo Go). The splash
   // stays up until they're ready so text never flashes in the system font; on
   // a load error, render anyway — a system-font fallback beats a stuck splash.
@@ -41,18 +45,26 @@ export default function RootLayout() {
   if (!ready) return null;
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <ThemeProvider value={navigationTheme}>
-          <StatusBar style="light" />
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: colors.bg },
-            }}
-          />
-        </ThemeProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+    <AppErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <ThemeProvider value={navigationTheme}>
+            <StatusBar style="light" />
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: colors.bg },
+              }}
+            />
+          </ThemeProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </AppErrorBoundary>
   );
 }
+
+export function ErrorBoundary({ error, retry }: { error: Error, retry: () => void }) {
+  return <RouteErrorBoundary error={error} retry={retry} />;
+}
+
+export default wrapRoot(RootLayout);
