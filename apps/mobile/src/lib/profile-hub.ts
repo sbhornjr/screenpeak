@@ -1,6 +1,7 @@
 import type { ProfilePageData } from '@screenpeak/shared/api/profile'
 
-import { listsHref, loadoutHref, userLibraryHref } from './routes'
+import { parseDbTimestamp } from './game-page'
+import { listsHref, loadoutHref, ratingsHref, settingsHref, userLibraryHref } from './routes'
 
 // Visibility matches the website profile nav (apps/web/app/user/[username]/page.tsx).
 // Library: owner, or library_public. Loadout: owner, or loadout_public.
@@ -10,14 +11,57 @@ import { listsHref, loadoutHref, userLibraryHref } from './routes'
 // library, loadout, or lists routes.
 
 export type ProfileHubModel = {
+  userId: string
   username: string
+  displayName: string
+  title: string
+  memberSince: string | null
   bio: string | null
+  loadoutQuote: string | null
   followerCount: number
   followingCount: number
   avatarUrl: string | null
+  isOwner: boolean
+  /** Null when signed out or looking at your own profile. Otherwise whether you follow them. */
+  following: boolean | null
   loadoutHref: string | null
   listsHref: string
   library: { href: string, totalGames: number | null, completed: number | null } | null
+  ratedCount: number
+  avgRating: number | null
+  favorites: ProfilePageData['favorites']
+  reviews: ProfilePageData['recent_reviews']
+  reviewsHref: string
+  settingsHref: string | null
+}
+
+/** "2026-01-15 00:00:00+00" → "1/15/2026". Null when the value is missing or not a date. */
+export function calendarLabel(value: string | null): string | null {
+  if (!value) return null
+  const date = parseDbTimestamp(value)
+  if (!Number.isFinite(date.getTime())) return null
+  return `${date.getUTCMonth() + 1}/${date.getUTCDate()}/${date.getUTCFullYear()}`
+}
+
+export function memberSinceLabel(value: string | null): string | null {
+  const day = calendarLabel(value)
+  return day ? `Member since ${day}` : null
+}
+
+/** Truncate to two decimals, matching the website profile. A dash when there is no score. */
+export function averageText(count: number, avg: number | null): string {
+  if (count <= 0 || avg == null) return '—'
+  return `${Math.trunc(avg * 100) / 100} / 10`
+}
+
+/** The follow button's optimistic row. Owners and signed-out profiles stay as they are. */
+export function withFollowing(model: ProfileHubModel, following: boolean): ProfileHubModel {
+  if (model.following == null || model.following === following) return model
+  return {
+    ...model,
+    following,
+    followerCount: Math.max(0, model.followerCount + (following ? 1 : -1)),
+  }
 }
 
 export type ProfileHubSource = {
@@ -31,12 +75,21 @@ export function profileHubModel(data: ProfilePageData): ProfileHubModel {
   const isOwner = data.viewer?.is_owner ?? false
   const showLibrary = isOwner || data.profile.library_public
   const showLoadout = isOwner || data.profile.loadout_public
+  const quote = data.profile.profile_loadout_bio?.trim() ? data.profile.profile_loadout_bio : null
+  const bio = data.profile.user_bio?.trim() ? data.profile.user_bio.trim() : null
   return {
+    userId: data.profile.id,
     username,
-    bio: data.profile.user_bio,
+    displayName: data.profile.display_name?.trim() || username,
+    title: data.profile.selected_title?.trim() || 'Title-less Noob',
+    memberSince: memberSinceLabel(data.profile.created_at),
+    bio,
+    loadoutQuote: showLoadout ? quote : null,
     avatarUrl: data.profile.avatar_url,
     followerCount: data.profile.follower_count,
     followingCount: data.profile.following_count,
+    isOwner,
+    following: data.viewer && !isOwner ? data.viewer.is_following : null,
     loadoutHref: showLoadout ? loadoutHref(username) : null,
     listsHref: listsHref(username),
     library: showLibrary
@@ -46,6 +99,12 @@ export function profileHubModel(data: ProfilePageData): ProfileHubModel {
           completed: data.library_stats?.completed ?? null,
         }
       : null,
+    ratedCount: data.rating_count,
+    avgRating: data.avg_rating,
+    favorites: data.favorites,
+    reviews: data.recent_reviews,
+    reviewsHref: ratingsHref(username),
+    settingsHref: isOwner ? settingsHref() : null,
   }
 }
 
