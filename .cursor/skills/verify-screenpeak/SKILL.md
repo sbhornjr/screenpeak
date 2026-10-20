@@ -1,11 +1,11 @@
 ---
 name: verify-screenpeak
-description: "Drive the ScreenPeak web app against a local Postgres and prove the Loadout Read-Out through the signed-in UI. Also drives the phone navigation skeleton and the phone game page on Expo web. Use before calling ScreenPeak work done, and whenever a change can affect sign-in, the library fixture, /user/peek/loadout, the phone tabs, or the phone game page."
+description: "Drive the ScreenPeak web app against a local Postgres and prove the Loadout Read-Out through the signed-in UI. Also drives the phone navigation skeleton, the phone profile, and the phone game page on Expo web. Use before calling ScreenPeak work done, and whenever a change can affect sign-in, the library fixture, /user/peek/loadout, the phone tabs, the phone profile, or the phone game page."
 ---
 
 # Verify ScreenPeak
 
-ScreenPeak's primary surface is the Next.js web app. This skill launches that app on a disposable local Postgres, signs in as the fixture user through the sign-in dialog, and proves the Loadout Read-Out. The phone navigation skeleton is driven on Expo web against the same local API (`drive mobile-nav`). The phone game page, including rate, review, library, and lists, is `drive mobile-game`. Steam import is intentionally absent: agents have no Steam account.
+ScreenPeak's primary surface is the Next.js web app. This skill launches that app on a disposable local Postgres, signs in as the fixture user through the sign-in dialog, and proves the Loadout Read-Out. The phone navigation skeleton is driven on Expo web against the same local API (`drive mobile-nav`). The phone profile, including follow and the privacy gates, is `drive mobile-profile`. The phone game page, including rate, review, library, and lists, is `drive mobile-game`. Steam import is intentionally absent: agents have no Steam account.
 
 One instance per machine. `up` refuses when port 3210, 54321, or 54322 is already taken. Do not point this skill at a hosted database.
 
@@ -61,6 +61,7 @@ node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive read-endpoints
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive game-writes
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive search
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-nav
+node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-profile
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-forgot-password
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-sign-up
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-game
@@ -70,7 +71,9 @@ node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-game
 
 `drive mobile-nav` starts Expo web on `localhost:8081` with `EXPO_PUBLIC_API_URL` pointed at the local website and the public Supabase URL and anon key from the env file this skill wrote. It does not write those values into the repo. It screenshots the four tabs signed out and signed in as peek, peek's public profile signed out, and a second local user `ada` whose library and loadout are private, both signed out and as peek. It also opens the catalogue from Browse and comes Back, opens the Library tab from the profile preview, and opens ada's library and loadout, which stay Not found. It deletes `ada` and stops Expo before it exits. Port 8081 must be free.
 
-`drive mobile-forgot-password` starts the same Expo web server. It does not change peek's password. It inserts a local user `resetfan`, requests a reset from the Log in screen, opens the local recovery link the gateway recorded (there is no email server), sets a new password, then signs in with that password. It also opens set-new-password again while that normal session is signed in and checks the form stays hidden. It deletes `resetfan` and stops Expo before it exits. Port 8081 must be free. Do not run it at the same time as `drive mobile-nav` or `drive mobile-sign-up`.
+`drive mobile-profile` starts the same Expo web server. It dresses peek's display name, bio, title, read-out, one favorite, and one written review, then restores those columns. It inserts `nova`, whose library and loadout are public, and `ada`, whose library and loadout are private. Signed in as peek, it screenshots the Profile tab, nova, and ada at 375×667 and 320×568. It opens the Settings stub and the ratings stub, opens the Library tab from peek's preview, follows and unfollows nova by user id, and opens nova's library. It deletes `nova` and `ada`, restores peek, and stops Expo before it exits. Port 8081 must be free. Do not run it at the same time as another Expo drive.
+
+`drive mobile-forgot-password` starts the same Expo web server. It does not change peek's password. It inserts a local user `resetfan`, requests a reset from the Log in screen, opens the local recovery link the gateway recorded (there is no email server), sets a new password, then signs in with that password. It also opens set-new-password again while that normal session is signed in and checks the form stays hidden. It deletes `resetfan` and stops Expo before it exits. Port 8081 must be free. Do not run it at the same time as another Expo drive.
 
 `drive mobile-sign-up` starts the same Expo web server. It creates `signupfan` from the Sign up screen, checks the signup request has no PKCE challenge, rejects the password until the local confirmation link is opened, then signs in. It deletes `signupfan` and stops Expo before it exits. Port 8081 must be free. Do not run it at the same time as another Expo drive.
 
@@ -144,6 +147,16 @@ A passing search proof shows the developer name in `filters.png`, the game name 
 
 A passing mobile-nav proof shows ScreenPeak on each screenshot, the welcome and signup prompts while signed out, peek's games on the signed-in library, Loadout and the library counts on peek's own hub and on the signed-out public profile, and neither Loadout nor the library counts on ada. `result.json` has an empty `problems` list, `library_stats` null for ada, and `viewer.is_owner` true for peek.
 
+`drive mobile-profile` writes `/tmp/screenpeak-verify/evidence/mobile-profile/`:
+
+- `own-375.png` and `own-320.png` — peek's Profile tab at 375×667 and 320×568, with the display name, bio, read-out, and library counts
+- `review-title-320.png` — the same profile at 320×568, scrolled to a long review title beside its score
+- `public-375.png` and `public-320.png` — nova's public profile at those sizes, with Follow
+- `private-375.png` and `private-320.png` — ada's private profile at those sizes, with Follow and Lists, and without Loadout or the library counts
+- `result.json` — the follow URL, the library landings, and an empty `problems` list
+
+A passing mobile-profile proof shows ScreenPeak on each screenshot, Peek Reader and the written review on the Profile tab, Nova Vale with Follow and the library counts, and Ada Lovelace with the written review and neither the read-out nor the library counts. Follow and unfollow use `/api/v1/user/<uuid>/follow`. After the drive, peek's display name, bio, title, read-out, favorites, and that review text are restored, and `nova` and `ada` are gone.
+
 `drive mobile-forgot-password` writes `/tmp/screenpeak-verify/evidence/mobile-forgot-password/`:
 
 - `signed-out-home.png` — the welcome, signed out
@@ -197,7 +210,7 @@ A passing mobile-game proof shows ScreenPeak and the game name on `se-signed-out
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs down
 ```
 
-Kill only the pids in `/tmp/screenpeak-verify/pids`. After `down`, `/tmp/screenpeak-verify/evidence/loadout-readout/`, `/tmp/screenpeak-verify/evidence/game-page/`, `/tmp/screenpeak-verify/evidence/read-endpoints/`, `/tmp/screenpeak-verify/evidence/game-writes/`, `/tmp/screenpeak-verify/evidence/search/`, `/tmp/screenpeak-verify/evidence/mobile-nav/`, `/tmp/screenpeak-verify/evidence/mobile-forgot-password/`, `/tmp/screenpeak-verify/evidence/mobile-sign-up/`, and `/tmp/screenpeak-verify/evidence/mobile-game/` must still exist. Confirm that before treating the run as finished.
+Kill only the pids in `/tmp/screenpeak-verify/pids`. After `down`, `/tmp/screenpeak-verify/evidence/loadout-readout/`, `/tmp/screenpeak-verify/evidence/game-page/`, `/tmp/screenpeak-verify/evidence/read-endpoints/`, `/tmp/screenpeak-verify/evidence/game-writes/`, `/tmp/screenpeak-verify/evidence/search/`, `/tmp/screenpeak-verify/evidence/mobile-nav/`, `/tmp/screenpeak-verify/evidence/mobile-profile/`, `/tmp/screenpeak-verify/evidence/mobile-forgot-password/`, `/tmp/screenpeak-verify/evidence/mobile-sign-up/`, and `/tmp/screenpeak-verify/evidence/mobile-game/` must still exist. Confirm that before treating the run as finished.
 
 ## Helpers
 

@@ -42,3 +42,11 @@ export function loadoutHref(username: string): string {
 export function userLibraryHref(username: string): string {
   return `${profileHref(username)}/library`
 }
+
+export function ratingsHref(username: string): string {
+  return `${profileHref(username)}/ratings_reviews`
+}
+
+export function settingsHref(): string {
+  return '/settings'
+}

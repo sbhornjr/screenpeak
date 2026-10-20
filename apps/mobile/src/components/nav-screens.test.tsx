@@ -112,7 +112,9 @@ vi.mock('react-native', () => ({
     onChange: (event: { target: { value: string } }) => onChangeText?.(event.target.value),
   }),
   ScrollView: ({ children }: { children?: React.ReactNode }) => React.createElement('div', null, children),
-  StyleSheet: { create: (styles: unknown) => styles },
+  RefreshControl: () => null,
+  useWindowDimensions: () => ({ width: 390, height: 844, scale: 1, fontScale: 1 }),
+  StyleSheet: { create: (styles: unknown) => styles, absoluteFill: {} },
 }))
 
 vi.mock('react-native-safe-area-context', () => ({
@@ -490,6 +492,15 @@ describe('profile hub', () => {
       viewer: 'other',
     })
     data.profile.profile_loadout_bio = 'A patient roguelike reader.'
+    data.recent_reviews = [{
+      user_id: data.profile.id,
+      rating: 9,
+      review: 'Sharp climb.',
+      created_at: '2026-02-01 00:00:00+00',
+      updated_at: '2026-02-01 00:00:00+00',
+      users: { username: 'ada', display_name: 'Ada', avatar_url: '' },
+      games: { name: 'Celeste', slug: 'celeste' },
+    }]
     const model = profileHubModel(data)
     expect(model.loadoutHref).toBeNull()
     expect(model.library).toBeNull()
@@ -497,8 +508,12 @@ describe('profile hub', () => {
     expect(screen.queryByRole('button', { name: 'Loadout' })).toBeNull()
     expect(screen.queryByRole('button', { name: /Library/ })).toBeNull()
     expect(screen.queryByText('10 games · 3 completed')).toBeNull()
-    expect(screen.queryByText('A patient roguelike reader.')).toBeNull()
+    expect(screen.queryByText(/patient roguelike reader/)).toBeNull()
+    expect(screen.queryByText('Games')).toBeNull()
     expect(screen.getByRole('button', { name: 'Lists' })).toBeTruthy()
+    expect(screen.getByText('Sharp climb.').textContent).toBe('Sharp climb.')
+    expect(screen.getByRole('link', { name: 'Celeste' }).textContent).toBe('Celeste')
+    expect(screen.getByText('9 / 10').textContent).toBe('9 / 10')
   })
 
   it('omits Loadout and the library preview when another player has hidden them, and still links Lists', () => {
@@ -514,7 +529,7 @@ describe('profile hub', () => {
     expect(screen.queryByRole('button', { name: 'Loadout' })).toBeNull()
     expect(screen.queryByRole('button', { name: /Library/ })).toBeNull()
     expect(screen.queryByText('Library is private')).toBeNull()
-    expect(screen.queryByText('A patient roguelike reader.')).toBeNull()
+    expect(screen.queryByText(/patient roguelike reader/)).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Lists' }))
     expect(onOpen).toHaveBeenCalledWith('/user/ada/lists')
   })

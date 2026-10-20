@@ -474,6 +474,29 @@ describe('loadProfilePage', () => {
 
         expect(data!.viewer).toEqual({ is_owner: false, is_following: true, top_developer_names: [] })
         expect(data!.library_stats).toBeNull()
+        expect(data!.profile.profile_loadout_bio).toBeNull()
+        expect(data!.recent_reviews[0].review).toBe('Loved it')
+    })
+
+    it('shows a stranger the library totals and the read-out when the player made them public', async () => {
+        userQ.getFullProfile.mockResolvedValue({
+            id: OWNER, username: 'ada', display_name: 'Ada', avatar_url: null,
+            created_at: '2026-01-01 00:00:00+00', selected_title: 'Ranger',
+            favorite_game_ids: ['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', SECRET_GAME.id],
+            user_bio: 'hello', profile_loadout_bio: 'secret readout',
+            library_public: true, loadout_public: true, default_list_public: true,
+        })
+
+        const data = await loadProfilePage('ada', null)
+
+        expect(data!.viewer).toBeNull()
+        expect(data!.library_stats).toEqual({ total_games: 2, completed: 1 })
+        expect(data!.profile.profile_loadout_bio).toBe('secret readout')
+        expect(data!.profile.library_public).toBe(true)
+        expect(data!.profile.loadout_public).toBe(true)
+        expect(data!.recent_reviews[0].games).toEqual({ name: 'Secret Backlog Game', slug: 'secret-backlog' })
+        expect(data!.favorites.map(game => game.name)).toEqual(['Secret Backlog Game', 'Second'])
+        expect(JSON.stringify(data)).not.toContain('Secret Studio')
     })
 
     it('returns null for an unknown username', async () => {
