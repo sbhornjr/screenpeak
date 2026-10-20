@@ -2219,20 +2219,23 @@ async function driveMobileNav() {
         const adaInLeaks = page.requestUrlsSince(adaInMark).filter((url) => /\/api\/v1\/user\/ada\/(library|loadout|lists)/.test(url))
         if (adaInLeaks.length) problems.push(`ada as peek fetched ${adaInLeaks.join(', ')}`)
 
-        async function hiddenRoute(path, shotName) {
+        async function hiddenRoute(path, shotName, needle, title) {
+            const mark = page.eventMark()
             await page.navigate(`${expoOrigin}${path}`)
-            await page.waitForText('Not found.')
+            await page.waitForText(needle)
             const text = await page.bodyText()
             const leaked = library.games.filter((name) => text.includes(name))
-            if (!text.includes("Couldn't load this screen")) problems.push(`${path} is missing the not-found title`)
+            if (!text.includes(title)) problems.push(`${path} is missing ${title}`)
             if (leaked.length) problems.push(`${path} showed ${leaked.join(', ')}`)
+            const libraryFetches = page.requestUrlsSince(mark).filter((url) => url.includes(`/api/v1/user/${adaUsername}/library`))
             const file = join(dir, shotName)
             await page.screenshot(file)
             shots[shotName] = file
-            return { leaked }
+            return { leaked, libraryFetches }
         }
-        const adaLibraryScreen = await hiddenRoute(`/user/${adaUsername}/library`, 'user-ada-library.png')
-        const adaLoadoutScreen = await hiddenRoute(`/user/${adaUsername}/loadout`, 'user-ada-loadout.png')
+        const adaLibraryScreen = await hiddenRoute(`/user/${adaUsername}/library`, 'user-ada-library.png', 'This library is private.', 'This library is private.')
+        if (adaLibraryScreen.libraryFetches.length) problems.push(`ada library fetched ${adaLibraryScreen.libraryFetches.join(', ')}`)
+        const adaLoadoutScreen = await hiddenRoute(`/user/${adaUsername}/loadout`, 'user-ada-loadout.png', 'Not found.', "Couldn't load this screen")
 
         const token = await page.evaluate(`(() => {
             for (let i = 0; i < localStorage.length; i += 1) {
@@ -3361,6 +3364,228 @@ async function driveMobileProfile() {
     log(`proved mobile-profile evidence ${dir}`)
 }
 
+async function driveMobileLibrary() {
+    const doctorRun = spawnSync(process.execPath, [fileURLToPath(import.meta.url), 'doctor'], { encoding: 'utf8' })
+    process.stdout.write(doctorRun.stdout || '')
+    if (doctorRun.status !== 0) fail('Doctor failed. Not driving.')
+    if (await portOpen(expoPort)) fail(`Port ${expoPort} is already in use. Not starting Expo.`)
+    const publicEnv = readPublicEnv()
+    const games = peekLibraryGames()
+    const gameName = games[0]?.name
+    if (!gameName) fail('peek has no library games')
+    const dir = join(evidenceRoot, 'mobile-library')
+    await mkdir(dir, { recursive: true })
+    insertPrivateAda()
+    const origin = `http://127.0.0.1:${appPort}`
+    const expoOrigin = `http://localhost:${expoPort}`
+    const expoPid = spawnLogged('expo', 'npm', ['run', 'web', '-w', '@screenpeak/mobile', '--', '--host', 'localhost', '--port', String(expoPort)], {
+        CI: '1',
+        BROWSER: 'none',
+        EXPO_NO_TELEMETRY: '1',
+        EXPO_PUBLIC_API_URL: origin,
+        EXPO_PUBLIC_SUPABASE_URL: publicEnv.url,
+        EXPO_PUBLIC_SUPABASE_ANON_KEY: publicEnv.anon,
+    })
+    const problems = []
+    const shots = {}
+    const marks = {}
+    let page = null
+    let chromePid = null
+    let code = 0
+    try {
+        await waitForHttp(expoOrigin, 180_000)
+        chromePid = await launchChrome()
+        page = await connectChrome()
+
+        async function shot(name) {
+            const path = join(dir, name)
+            await page.screenshot(path)
+            shots[name] = path
+        }
+
+        async function wordmark() {
+            return page.evaluate(`(() => {
+                const nodes = [...document.querySelectorAll('[aria-label="ScreenPeak"]')]
+                const visible = nodes.filter((item) => item.getClientRects().length > 0)
+                const mark = visible[0]
+                if (!mark) return null
+                const rect = mark.getBoundingClientRect()
+                const mid = rect.left + rect.width / 2
+                const center = window.innerWidth / 2
+                return { mid, center, delta: Math.round((mid - center) * 10) / 10, width: window.innerWidth }
+            })()`)
+        }
+
+        async function closeSheet() {
+            await page.clickControl('Close')
+            await page.waitUntil(`(() => {
+                const open = [...document.querySelectorAll('[role="dialog"]')].some((item) => item.getClientRects().length > 0)
+                return open ? 'waiting' : 'ok'
+            })()`)
+        }
+
+        async function fillSearch(value) {
+            const outcome = await page.evaluate(`(() => {
+                const inputs = [...document.querySelectorAll('input, textarea')]
+                const visible = inputs.filter((item) => item.getClientRects().length > 0)
+                const pool = visible.length ? visible : inputs
+                const field = pool.find((item) => {
+                    const label = item.getAttribute('aria-label') || ''
+                    const placeholder = item.getAttribute('placeholder') || ''
+                    return label === 'Search games' || placeholder === 'Search games'
+                })
+                if (!field) {
+                    const described = pool.map((item) => [item.tagName, item.getAttribute('aria-label') || '', item.getAttribute('placeholder') || ''].join(' ')).join(' | ')
+                    return 'missing ' + described
+                }
+                const proto = field instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype
+                const setter = Object.getOwnPropertyDescriptor(proto, 'value').set
+                setter.call(field, ${JSON.stringify(value)})
+                field.dispatchEvent(new Event('input', { bubbles: true }))
+                field.dispatchEvent(new Event('change', { bubbles: true }))
+                return field.value === ${JSON.stringify(value)} ? 'ok' : 'value'
+            })()`)
+            if (outcome !== 'ok') throw new Error(`Could not fill Search games (${outcome})`)
+        }
+
+        async function expectCentered(label) {
+            const measure = await wordmark()
+            marks[label] = measure
+            if (!measure) {
+                problems.push(`${label} is missing ScreenPeak`)
+                return
+            }
+            if (Math.abs(measure.delta) > 12) problems.push(`${label} wordmark is ${measure.delta}px off center`)
+        }
+
+        await page.navigate(`${expoOrigin}/sign-in`)
+        await page.waitForText('Log in', 180_000)
+        await page.fillPlaceholder('Email', peekEmail)
+        await page.fillPlaceholder('Password', peekPassword)
+        await page.clickControl('Log in')
+        await page.waitUntil(`(() => {
+            for (let i = 0; i < localStorage.length; i += 1) {
+                const key = localStorage.key(i) || ''
+                if (key.includes('auth-token') && localStorage.getItem(key)) return 'ok'
+            }
+            return 'waiting'
+        })()`)
+
+        await page.setViewport(375, 667)
+        await page.clickTab('Library')
+        await page.waitForText(gameName)
+        const own = await page.panelText()
+        if (!/done/i.test(own)) problems.push('own library is missing a completed chip')
+        if (!/playing/i.test(own)) problems.push('own library is missing a playing chip')
+        if (!own.includes('Completed')) problems.push('own library is missing the Completed tab')
+        const hours = await page.evaluate(`document.querySelector('[aria-label^="Hours played"]') ? 'yes' : 'no'`)
+        if (hours !== 'yes') problems.push('own library is missing the hours icon')
+        await expectCentered('own-375')
+        await shot('own-375.png')
+        await page.setViewport(320, 568)
+        await page.waitForText(gameName)
+        await expectCentered('own-320')
+        await shot('own-320.png')
+
+        await page.setViewport(375, 667)
+        await page.clickControl('Filters')
+        await page.waitForText('Clear filters')
+        await expectCentered('filters-375')
+        await shot('filters-375.png')
+        await closeSheet()
+        await page.setViewport(320, 568)
+        await page.clickControl('Filters')
+        await page.waitForText('Clear filters')
+        await shot('filters-320.png')
+        await closeSheet()
+
+        await page.setViewport(375, 667)
+        await fillSearch('zzzz-no-such-game')
+        await page.clickControl('Search')
+        await page.waitForText('No games found')
+        if ((await page.panelText()).includes(gameName)) problems.push('empty search still shows a game')
+        await shot('empty-375.png')
+        await page.setViewport(320, 568)
+        await page.waitForText('No games found')
+        await shot('empty-320.png')
+        await page.setViewport(375, 667)
+        await fillSearch('')
+        await page.clickControl('Search')
+        await page.waitForText(gameName)
+
+        await page.clickLabel(gameName)
+        await page.waitForText('Add to list')
+        const gamePath = await page.evaluate('location.pathname')
+        if (!String(gamePath).startsWith('/games/')) problems.push(`library card opened ${gamePath}`)
+        await page.clickControl('Back')
+        await page.waitForText(gameName)
+
+        await page.clickLabel(`Edit ${gameName}`)
+        await page.waitForText('Manage game')
+        await page.waitForText('Update library entry')
+        await page.clickControl('Close')
+        await page.waitUntil(`document.body.innerText.includes('Manage game') ? 'waiting' : 'ok'`)
+
+        await page.setViewport(375, 667)
+        const privateMark = page.eventMark()
+        await page.navigate(`${expoOrigin}/user/${adaUsername}/library`)
+        await page.waitForText('This library is private.')
+        const privateText = await page.bodyText()
+        if (privateText.includes('Not found.')) problems.push('private library says Not found')
+        if (games.some((game) => privateText.includes(game.name))) problems.push('private library shows a game')
+        const privateFetches = page.requestUrlsSince(privateMark).filter((url) => url.includes(`/api/v1/user/${adaUsername}/library`))
+        if (privateFetches.length) problems.push(`private library fetched ${privateFetches.join(', ')}`)
+        await expectCentered('private-375')
+        await shot('private-375.png')
+        await page.setViewport(320, 568)
+        await page.waitForText('This library is private.')
+        await expectCentered('private-320')
+        await shot('private-320.png')
+
+        await page.setViewport(375, 667)
+        await page.navigate(expoOrigin)
+        await page.waitForTextEither(['Nothing in your feed yet.', gameName, "Couldn't load this screen"], 45_000)
+        await expectCentered('logo-375')
+        await shot('logo-375.png')
+        await page.setViewport(320, 568)
+        await expectCentered('logo-320')
+        await shot('logo-320.png')
+
+        await writeFile(join(dir, 'result.json'), JSON.stringify({
+            feature: 'mobile-library',
+            expo: expoOrigin,
+            shots,
+            marks,
+            gameName,
+            gamePath,
+            privateFetches,
+            problems,
+        }, null, 2))
+    } catch (error) {
+        problems.push(error instanceof Error ? error.message : String(error))
+        try { await page?.screenshot(join(dir, 'failed.png')) } catch { /* the page may already be gone */ }
+        try {
+            await writeFile(join(dir, 'result.json'), JSON.stringify({ feature: 'mobile-library', shots, marks, problems }, null, 2))
+        } catch { /* evidence dir may be missing */ }
+        code = 1
+    } finally {
+        page?.close()
+        stopRecorded('chrome')
+        if (chromePid) {
+            try { process.kill(chromePid, 'SIGTERM') } catch { /* already stopped */ }
+        }
+        stopRecorded('expo')
+        if (expoPid) {
+            try { process.kill(-expoPid, 'SIGTERM') } catch { /* already stopped */ }
+            try { process.kill(expoPid, 'SIGTERM') } catch { /* already stopped */ }
+        }
+        deleteAda()
+    }
+    if (problems.length) console.error(problems.join('\n'))
+    if (code !== 0 || problems.length) process.exit(code || 1)
+    log(`proved mobile-library evidence ${dir}`)
+}
+
 async function drive(feature) {
     if (feature === 'game-page') return driveGamePage()
     if (feature === 'mobile-game') return driveMobileGame()
@@ -3371,7 +3596,8 @@ async function drive(feature) {
     if (feature === 'mobile-forgot-password') return driveForgotPassword()
     if (feature === 'mobile-sign-up') return driveSignUp()
     if (feature === 'mobile-profile') return driveMobileProfile()
-    if (feature !== 'loadout-readout') fail(`Unknown feature ${feature || ''}. Mapped features: loadout-readout, game-page, read-endpoints, game-writes, search, mobile-nav, mobile-forgot-password, mobile-sign-up, mobile-game, mobile-profile.`)
+    if (feature === 'mobile-library') return driveMobileLibrary()
+    if (feature !== 'loadout-readout') fail(`Unknown feature ${feature || ''}. Mapped features: loadout-readout, game-page, read-endpoints, game-writes, search, mobile-nav, mobile-forgot-password, mobile-sign-up, mobile-game, mobile-profile, mobile-library.`)
     const doctorRun = spawnSync(process.execPath, [fileURLToPath(import.meta.url), 'doctor'], { encoding: 'utf8' })
     process.stdout.write(doctorRun.stdout || '')
     if (doctorRun.status !== 0) fail('Doctor failed. Not driving.')

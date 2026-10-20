@@ -5,15 +5,13 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { backOrHome } from '@/lib/go'
 import { colors, face, space, typeScale } from '@/theme'
 
-import { Button } from './button'
-import { Wordmark } from './wordmark'
+import { AppHeader } from './app-header'
 
 export function AuthScaffold({ title, children }: { title: string, children: ReactNode }) {
   return (
     <SafeAreaView style={styles.screen}>
+      <AppHeader onBack={backOrHome} />
       <View style={styles.content}>
-        <Wordmark />
-        <Button label="Back" variant="ghost" onPress={backOrHome} />
         <Text role="heading" accessibilityRole="header" accessibilityLevel={1} style={styles.title}>{title}</Text>
         {children}
       </View>

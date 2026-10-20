@@ -1,26 +1,11 @@
 import { useLocalSearchParams } from 'expo-router'
 
-import { api } from '@/lib/api'
-import { back, go } from '@/lib/go'
-import { useRemote } from '@/lib/use-remote'
-
-import { LibraryScreen } from '@/components/library-screen'
+import { UserLibrary } from '@/components/library-browser'
 import { ScreenMessage } from '@/components/screen-state'
 
 export default function UserLibraryRoute() {
   const params = useLocalSearchParams<{ username: string }>()
   const username = typeof params.username === 'string' ? params.username : ''
-  const remote = useRemote(['user-library', username], () => api.users.library(username), username.length > 0)
   if (!username) return <ScreenMessage title="Missing player" body="This link does not include a player." />
-  if (remote.gate || !remote.query.data) {
-    const gate = remote.gate ?? { title: 'Loading', body: '', retry: false }
-    return (
-      <ScreenMessage
-        title={gate.title}
-        body={gate.body}
-        onRetry={gate.retry ? () => { void remote.query.refetch() } : undefined}
-      />
-    )
-  }
-  return <LibraryScreen locked={false} games={remote.query.data.games} onOpen={go} onBack={back} />
+  return <UserLibrary username={username} />
 }

@@ -4,9 +4,9 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { colors, face, hitTarget, space, typeScale } from '@/theme'
 
+import { AppHeader } from './app-header'
 import { Button } from './button'
 import { Panel } from './panel'
-import { Wordmark } from './wordmark'
 
 export function ScreenScroll({
   title,
@@ -19,9 +19,8 @@ export function ScreenScroll({
 }) {
   return (
     <SafeAreaView style={styles.screen}>
+      <AppHeader onBack={onBack} />
       <ScrollView contentContainerStyle={styles.content}>
-        <Wordmark />
-        {onBack ? <Button label="Back" variant="ghost" onPress={onBack} /> : null}
         <Text role="heading" accessibilityRole="header" accessibilityLevel={1} style={styles.title}>{title}</Text>
         {children}
       </ScrollView>
