@@ -13,6 +13,7 @@ type TextFieldProps = {
   autoCapitalize?: TextInputProps['autoCapitalize'];
   autoComplete?: TextInputProps['autoComplete'];
   onSubmitEditing?: TextInputProps['onSubmitEditing'];
+  multiline?: boolean;
 };
 
 /** Website text field: a visible label, surface fill, 3px corners, accent border while focused. */
@@ -26,6 +27,7 @@ export function TextField({
   autoCapitalize,
   autoComplete,
   onSubmitEditing,
+  multiline = false,
 }: TextFieldProps) {
   const [focused, setFocused] = useState(false);
   return (
@@ -42,9 +44,17 @@ export function TextField({
         autoCapitalize={autoCapitalize}
         autoComplete={autoComplete}
         onSubmitEditing={onSubmitEditing}
-        onFocus={() => setFocused(true)}
+        multiline={multiline}
+        onFocus={() => {
+          setFocused(true);
+          requestAnimationFrame(() => {
+            const input = TextInput.State?.currentlyFocusedInput?.() as { scrollIntoView?: (options: { block?: 'center' }) => void } | null;
+            input?.scrollIntoView?.({ block: 'center' });
+          });
+        }}
         onBlur={() => setFocused(false)}
-        style={[styles.input, focused && styles.focused]}
+        textAlignVertical={multiline ? 'top' : 'center'}
+        style={[styles.input, multiline && styles.multiline, focused && styles.focused]}
       />
     </View>
   );
@@ -71,4 +81,5 @@ const styles = StyleSheet.create({
     paddingVertical: space[3],
   },
   focused: { borderColor: colors.accent },
+  multiline: { minHeight: 96, paddingTop: space[3] },
 });

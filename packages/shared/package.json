@@ -7,6 +7,7 @@
     "./api/*": "./api/*.ts",
     "./constants": "./constants.ts",
     "./images": "./images.ts",
+    "./library-copy": "./library-copy.ts",
     "./tokens": "./tokens.ts",
     "./redirect": "./redirect.ts",
     "./schemas": "./schemas.ts",

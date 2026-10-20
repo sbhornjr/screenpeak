@@ -1,5 +1,6 @@
 // Typed GET client for /api/v1. No Node, no React — both apps can call it.
 // fetch is read off globalThis because this package's tsconfig has no DOM lib.
+import { GAME_REVIEWS_PAGE_SIZE } from '../constants'
 import type { ApiErrorBody } from './errors'
 import type { FeedPageData } from './feed'
 import type { ExplorePageData, ExploreRange } from './explore'
@@ -47,8 +48,6 @@ export class ApiClientError extends Error {
         this.retryAfter = retryAfter
     }
 }
-
-const REVIEWS_QUERY = 'page=1&pageSize=10&sort=date&order=desc'
 
 type FetchResponse = {
     ok: boolean
@@ -147,7 +146,13 @@ export function createApiClient(opts: {
     return {
         games: {
             get: (slug: string) => get<GamePageData>(`/api/v1/games/${encodeURIComponent(slug)}`),
-            reviews: (slug: string) => get<GameReviewsPage>(`/api/v1/games/${encodeURIComponent(slug)}/reviews?${REVIEWS_QUERY}`),
+            reviews: (slug: string, query?: { page?: number, pageSize?: number, sort?: 'date' | 'rating', order?: 'asc' | 'desc' }) =>
+                get<GameReviewsPage>(`/api/v1/games/${encodeURIComponent(slug)}/reviews${qs({
+                    page: query?.page ?? 1,
+                    pageSize: query?.pageSize ?? GAME_REVIEWS_PAGE_SIZE,
+                    sort: query?.sort ?? 'date',
+                    order: query?.order ?? 'desc',
+                })}`),
             list: (query: Partial<GamesListQuery> = {}) => get<GamesListPage>(`/api/v1/games${qs(query)}`),
             search: (q: string, limit?: number) => get<GameSearchPage>(`/api/v1/games/search${qs({ q, limit })}`),
             putReview: (gameId: string, body: RatingWrite) =>

@@ -14,18 +14,35 @@ function one(value: string | string[] | undefined): string | undefined {
 }
 
 export default function CatalogueRoute() {
-  const params = useLocalSearchParams<{ genre?: string, platform?: string }>()
+  const params = useLocalSearchParams<{
+    genre?: string
+    platform?: string
+    developer?: string
+    publisher?: string
+    esrb?: string
+  }>()
   const genre = one(params.genre)
   const platform = one(params.platform)
-  const filterKey = `${genre ?? ''}|${platform ?? ''}`
+  const developer = one(params.developer)
+  const publisher = one(params.publisher)
+  const esrb = one(params.esrb)
+  const filterKey = `${genre ?? ''}|${platform ?? ''}|${developer ?? ''}|${publisher ?? ''}|${esrb ?? ''}`
   const [pageState, setPageState] = useState({ filterKey, page: 1 })
   const page = pageState.filterKey === filterKey ? pageState.page : 1
   function setPage(next: number) {
     setPageState({ filterKey, page: next })
   }
   const remote = useRemote(
-    ['catalogue', genre ?? '', platform ?? '', page],
-    () => api.games.list({ genre: genre ?? null, platform: platform ?? null, page, pageSize: 10 }),
+    ['catalogue', genre ?? '', platform ?? '', developer ?? '', publisher ?? '', esrb ?? '', page],
+    () => api.games.list({
+      genre: genre ?? null,
+      platform: platform ?? null,
+      developer: developer ?? null,
+      publisher: publisher ?? null,
+      esrb: esrb ?? null,
+      page,
+      pageSize: 10,
+    }),
     true,
   )
   if (remote.gate || !remote.query.data) {
@@ -41,7 +58,8 @@ export default function CatalogueRoute() {
   const data = remote.query.data
   const genreName = genre ? data.genres.find(item => item.slug === genre)?.name ?? genre : null
   const platformName = platform ? data.platforms.find(item => item.slug === platform)?.name ?? platform : null
-  const filterLabel = [genreName, platformName].filter((item): item is string => !!item).join(' · ') || null
+  const esrbName = esrb ? data.esrb_ratings.find(item => item === esrb) ?? esrb : null
+  const filterLabel = [genreName, platformName, developer, publisher, esrbName].filter((item): item is string => !!item).join(' · ') || null
   return (
     <CatalogueScreen
       filterLabel={filterLabel}

@@ -1,11 +1,41 @@
 // The website Modal, presented as a bottom sheet.
-import { useEffect, useState, type ReactNode } from 'react';
-import { Keyboard, Pressable, Modal, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
+import { Keyboard, Platform, Pressable, Modal, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, face, overlays, radius, space, typeScale } from '@/theme';
 
 import { Button } from './button';
+
+type FocusedField = {
+  scrollIntoView?: (options: { block?: 'center' | 'nearest' }) => void;
+};
+
+type SheetDismiss = (then?: () => void) => void;
+
+const SheetDismissContext = createContext<SheetDismiss | null>(null);
+
+/** Close this sheet, then run `then` after it has left the screen. */
+export function useSheetDismiss(): SheetDismiss {
+  const dismiss = useContext(SheetDismissContext);
+  if (!dismiss) throw new Error('useSheetDismiss must be used inside a Sheet');
+  return dismiss;
+}
+
+/**
+ * Keep the field being typed in view when the keyboard opens or the window gets shorter.
+ * Native measurement goes through the scroll view's inner host. Passing findNodeHandle's
+ * number into measureLayout warns: "ref.measureLayout must be called with a ref to a native component".
+ */
+function revealFocusedField(scroll: ScrollView | null) {
+  const input = TextInput.State?.currentlyFocusedInput?.() as FocusedField | null;
+  if (!input || !scroll) return;
+  if (typeof input.scrollIntoView === 'function') {
+    input.scrollIntoView({ block: 'center' });
+    return;
+  }
+  scroll.scrollResponderScrollNativeHandleToKeyboard(input, 80, true);
+}
 
 export function Sheet({
   visible,
@@ -20,21 +50,43 @@ export function Sheet({
 }) {
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const scrollRef = useRef<ScrollView>(null);
+  const pending = useRef<(() => void) | null>(null);
+  const native = Platform.OS === 'ios' || Platform.OS === 'android';
+
+  function runPending() {
+    const then = pending.current;
+    if (!then) return;
+    pending.current = null;
+    then();
+  }
 
   useEffect(() => {
-    const show = Keyboard.addListener('keyboardDidShow', (event) => {
-      setKeyboardHeight(event.endCoordinates.height);
+    // iOS and web call onDismiss after the modal is gone. Android does not.
+    if (visible || !pending.current || Platform.OS !== 'android') return;
+    const frame = requestAnimationFrame(runPending);
+    return () => cancelAnimationFrame(frame);
+  }, [visible]);
+
+  function dismiss(then?: () => void) {
+    if (then) pending.current = then;
+    onClose();
+  }
+
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => {
+      requestAnimationFrame(() => revealFocusedField(scrollRef.current));
     });
-    const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardHeight(0));
-    return () => {
-      show.remove();
-      hide.remove();
-    };
+    return () => show.remove();
   }, []);
 
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => revealFocusedField(scrollRef.current));
+    return () => cancelAnimationFrame(frame);
+  }, [height]);
+
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" onDismiss={runPending} onRequestClose={onClose}>
       <View style={styles.fill}>
         <Pressable
           accessibilityRole="button"
@@ -52,7 +104,7 @@ export function Sheet({
             styles.sheet,
             {
               maxHeight: Math.round(height * 0.9),
-              paddingBottom: space[4] + keyboardHeight + insets.bottom,
+              paddingBottom: space[4] + insets.bottom,
             },
           ]}
         >
@@ -60,8 +112,16 @@ export function Sheet({
             <Text role="heading" accessibilityRole="header" accessibilityLevel={2} style={styles.title}>{title}</Text>
             <Button label="Close" variant="ghost" onPress={onClose} />
           </View>
-          <ScrollView keyboardShouldPersistTaps="handled" style={styles.scroll} contentContainerStyle={styles.body}>
-            {children}
+          <ScrollView
+            ref={scrollRef}
+            keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets={native}
+            style={styles.scroll}
+            contentContainerStyle={styles.body}
+          >
+            <SheetDismissContext.Provider value={dismiss}>
+              {children}
+            </SheetDismissContext.Provider>
           </ScrollView>
         </View>
       </View>

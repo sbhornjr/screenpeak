@@ -1,11 +1,11 @@
 ---
 name: verify-screenpeak
-description: "Drive the ScreenPeak web app against a local Postgres and prove the Loadout Read-Out through the signed-in UI. Also drives the phone navigation skeleton on Expo web. Use before calling ScreenPeak work done, and whenever a change can affect sign-in, the library fixture, /user/peek/loadout, or the phone tabs."
+description: "Drive the ScreenPeak web app against a local Postgres and prove the Loadout Read-Out through the signed-in UI. Also drives the phone navigation skeleton and the phone game page on Expo web. Use before calling ScreenPeak work done, and whenever a change can affect sign-in, the library fixture, /user/peek/loadout, the phone tabs, or the phone game page."
 ---
 
 # Verify ScreenPeak
 
-ScreenPeak's primary surface is the Next.js web app. This skill launches that app on a disposable local Postgres, signs in as the fixture user through the sign-in dialog, and proves the Loadout Read-Out. The phone navigation skeleton is driven on Expo web against the same local API (`drive mobile-nav`). Other phone screens are not driven here. Steam import is intentionally absent: agents have no Steam account.
+ScreenPeak's primary surface is the Next.js web app. This skill launches that app on a disposable local Postgres, signs in as the fixture user through the sign-in dialog, and proves the Loadout Read-Out. The phone navigation skeleton is driven on Expo web against the same local API (`drive mobile-nav`). The phone game page, including rate, review, library, and lists, is `drive mobile-game`. Steam import is intentionally absent: agents have no Steam account.
 
 One instance per machine. `up` refuses when port 3210, 54321, or 54322 is already taken. Do not point this skill at a hosted database.
 
@@ -63,6 +63,7 @@ node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive search
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-nav
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-forgot-password
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-sign-up
+node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-game
 ```
 
 `drive search` does not start signed in. It reads one of `peek`'s rated games and that game's developer and publisher from Postgres, fetches the game and taxonomy search routes, and types into the catalogue's developer dropdown and the signed-in favorite-game picker. It does not click Lock.
@@ -73,7 +74,9 @@ node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-sign-up
 
 `drive mobile-sign-up` starts the same Expo web server. It creates `signupfan` from the Sign up screen, checks the signup request has no PKCE challenge, rejects the password until the local confirmation link is opened, then signs in. It deletes `signupfan` and stops Expo before it exits. Port 8081 must be free. Do not run it at the same time as another Expo drive.
 
-`drive game-page` does not sign in. It reads one of `peek`'s games from Postgres, fetches `GET /api/v1/games/[slug]` and the reviews route, and opens the website's game page. The native screen is checked with Expo web, not this drive.
+`drive mobile-game` starts the same Expo web server at an iPhone SE viewport (375×667). It opens one of peek's games signed out, checks the library wording and the in-app screenshot viewer, checks Rate opens the signup prompt, taps Log in and checks that sheet is gone on the sign-in screen, then signs in as peek and rates, edits the review, deletes the written review while keeping the score, checks hours, times played, and the 100% flag, changes library status without sending those fields, adds the game to the existing wishlist, and creates a list from the New list step. It then focuses the review field in a 375×420 viewport so Close stays on screen. It restores peek's rating and library row, deletes the created list, and stops Expo before it exits. Port 8081 must be free. Do not run it at the same time as another Expo drive.
+
+`drive game-page` reads one of `peek`'s games from Postgres, fetches `GET /api/v1/games/[slug]` and the reviews route while signed out, and opens the website's game page. It then signs in as peek and checks the library stats on that page. The native screen is `drive mobile-game`.
 
 `drive read-endpoints` does not sign in. It fetches the public read routes, hides `peek`'s library and loadout, inserts one private list, and checks that those stay off the JSON. It restores the public flags and deletes that list before it exits.
 
@@ -96,10 +99,11 @@ A passing Loadout proof shows the action (the Generate control) and the resultin
 
 `drive game-page` writes `/tmp/screenpeak-verify/evidence/game-page/`:
 
-- `page.png` — the website game page, signed out, with the game's name visible
+- `page.png` — the website game page, signed out, with the game's name and "In your library" visible
+- `library.png` — the same page after sign-in, with hours played, times played, and the 100% flag
 - `result.json` — the slug, the API status, `viewer`, `avg_rating`, and the reviews status
 
-A passing game-page proof shows the game name in `page.png` and a 200 from `GET /api/v1/games/[slug]` with `viewer` null in `result.json`.
+A passing game-page proof shows the game name in `page.png`, the signed-out library line, the signed-in library stats in `library.png`, and a 200 from `GET /api/v1/games/[slug]` with `viewer` null in `result.json`.
 
 `drive read-endpoints` writes `/tmp/screenpeak-verify/evidence/read-endpoints/`:
 
@@ -164,13 +168,36 @@ A passing forgot-password proof shows ScreenPeak on each screenshot, the same co
 
 A passing sign-up proof shows ScreenPeak on each screenshot, the check-your-email sentence, "Email not confirmed" before the link, and the feed without the welcome after it. `result.json` has an empty `problems` list, `signupChallenge` null, `confirmed` true, and `signedIn` true. peek's password is still `peekpeek`.
 
+`drive mobile-game` writes `/tmp/screenpeak-verify/evidence/mobile-game/`:
+
+- `se-signed-out.png` — the game at 375×667, signed out, with the name, the cover facts, and In your library visible
+- `cover-se.png` — the same cover row at 320×568
+- `screenshot-viewer.png` — the in-app full-screen screenshot, with Close screenshot
+- `signup.png` — the signup prompt after Rate
+- `se-signed-in.png` — the same game as peek, with Your score
+- `library-stats.png` — hours played 12.5, times played 4, and the 100% flag
+- `write-review.png` — Write a review at the bottom right of Reviews, signed out
+- `review-saved.png` — the new written review
+- `edit-review.png` — Edit your review at the bottom right of Reviews
+- `review-edited.png` — the edited review
+- `review-deleted.png` — the score still on the page after the written review is gone, with Write a review
+- `library-saved.png` — the new status, with the same hours, times played, and 100% flag still on the page and unchanged in Postgres
+- `list-sheet.png` — the lists and New list, before the create fields
+- `new-list.png` — the create step after New list
+- `list-created.png` — the new list in the Add to list sheet
+- `keyboard-open.png` — the rate sheet at 375×420 with the review field focused and Close on screen
+- `result.json` — the write checks and an empty `problems` list
+- `postgres.txt` — the review text, the status-only library row, the list counts, and the restored fixture
+
+A passing mobile-game proof shows ScreenPeak and the game name on `se-signed-out.png`, the signup sentence on `signup.png`, the new review then the edited review, the score still visible after the written review is deleted, a library PUT body that is only `{ "status": ... }` while Postgres still has hours 12.5, play count 4, and the 100% flag, the game on the wishlist and on the created list, and Close inside the short viewport. `result.json` has an empty `problems` list. After the drive, peek still has five ratings and five library rows, and the created list is gone.
+
 ## Cleanup
 
 ```bash
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs down
 ```
 
-Kill only the pids in `/tmp/screenpeak-verify/pids`. After `down`, `/tmp/screenpeak-verify/evidence/loadout-readout/`, `/tmp/screenpeak-verify/evidence/game-page/`, `/tmp/screenpeak-verify/evidence/read-endpoints/`, `/tmp/screenpeak-verify/evidence/game-writes/`, `/tmp/screenpeak-verify/evidence/search/`, `/tmp/screenpeak-verify/evidence/mobile-nav/`, `/tmp/screenpeak-verify/evidence/mobile-forgot-password/`, and `/tmp/screenpeak-verify/evidence/mobile-sign-up/` must still exist. Confirm that before treating the run as finished.
+Kill only the pids in `/tmp/screenpeak-verify/pids`. After `down`, `/tmp/screenpeak-verify/evidence/loadout-readout/`, `/tmp/screenpeak-verify/evidence/game-page/`, `/tmp/screenpeak-verify/evidence/read-endpoints/`, `/tmp/screenpeak-verify/evidence/game-writes/`, `/tmp/screenpeak-verify/evidence/search/`, `/tmp/screenpeak-verify/evidence/mobile-nav/`, `/tmp/screenpeak-verify/evidence/mobile-forgot-password/`, `/tmp/screenpeak-verify/evidence/mobile-sign-up/`, and `/tmp/screenpeak-verify/evidence/mobile-game/` must still exist. Confirm that before treating the run as finished.
 
 ## Helpers
 

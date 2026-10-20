@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Platform, Text } from 'react-native'
 
 import { AuthScaffold, authText } from '@/components/auth-scaffold'
+import { authConfigError } from '@/lib/auth-config'
 import { useAuth } from '@/lib/auth'
 import { RESET_LINK_HINT } from '@/lib/password-reset'
 
@@ -27,7 +28,7 @@ export default function ConfirmResetScreen() {
 
   return (
     <AuthScaffold title="Reset link">
-      {configured ? null : <Text style={authText.error}>Sign-in is not configured.</Text>}
+      {configured ? null : <Text style={authText.error}>{authConfigError()}</Text>}
       {error ? <Text style={authText.notice}>{error}</Text> : <Text style={authText.notice}>Checking your link…</Text>}
     </AuthScaffold>
   )

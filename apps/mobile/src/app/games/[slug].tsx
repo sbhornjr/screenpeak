@@ -1,21 +1,21 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import type { GamePageData } from '@screenpeak/shared/api/games'
+import type { LibraryWrite } from '@screenpeak/shared/api/writes'
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
+import { useState } from 'react'
 import { StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
-import { GameDetail } from '@/components/game-detail'
+import { GameDetail, GameDetailSkeleton } from '@/components/game-detail'
 import { ScreenMessage } from '@/components/screen-state'
 import { api, apiConfigured } from '@/lib/api'
-import { ApiClientError } from '@/lib/api/client'
+import { actionFailure, withLibraryWrite, withListMembership, withViewerReview, withoutLibraryEntry, type ReviewListQuery } from '@/lib/game-page'
 import { useAuth } from '@/lib/auth'
-import { back } from '@/lib/go'
+import { back, go } from '@/lib/go'
+import { catalogueHref, profileHref } from '@/lib/routes'
 import { colors } from '@/theme'
 
-function messageOf(error: unknown): string {
-  if (error instanceof ApiClientError) return error.message
-  if (error instanceof Error && error.message) return error.message
-  return 'Something went wrong.'
-}
+const FIRST_PAGE: ReviewListQuery = { page: 1, sort: 'date', order: 'desc' }
 
 export default function GameScreen() {
   const params = useLocalSearchParams<{ slug: string }>()
@@ -25,6 +25,9 @@ export default function GameScreen() {
   const { session, ready } = useAuth()
   const viewerId = session?.user.id ?? null
   const configured = apiConfigured()
+  const [reviewState, setReviewState] = useState({ slug, query: FIRST_PAGE })
+  const reviewsQuery = reviewState.slug === slug ? reviewState.query : FIRST_PAGE
+  const [refreshing, setRefreshing] = useState(false)
 
   const game = useQuery({
     queryKey: ['game', slug, viewerId],
@@ -32,23 +35,50 @@ export default function GameScreen() {
     enabled: ready && configured && slug.length > 0,
   })
   const reviews = useQuery({
-    queryKey: ['game', slug, 'reviews', viewerId],
-    queryFn: () => api.games.reviews(slug),
+    queryKey: ['game', slug, 'reviews', viewerId, reviewsQuery.page, reviewsQuery.sort, reviewsQuery.order],
+    queryFn: () => api.games.reviews(slug, reviewsQuery),
     enabled: ready && configured && slug.length > 0 && game.isSuccess,
+    placeholderData: keepPreviousData,
   })
 
-  async function afterWrite(run: () => Promise<unknown>): Promise<string | null> {
+  const gameKey = ['game', slug, viewerId] as const
+
+  async function commit(
+    run: () => Promise<unknown>,
+    optimistic?: (data: GamePageData) => GamePageData,
+  ): Promise<string | null> {
+    await queryClient.cancelQueries({ queryKey: gameKey })
+    const previous = queryClient.getQueryData<GamePageData>(gameKey)
+    const next = optimistic && previous ? optimistic(previous) : undefined
+    const owned = next ? queryClient.setQueryData(gameKey, next) : previous
     try {
       await run()
-      await queryClient.invalidateQueries({ queryKey: ['game', slug] })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['game', slug] }),
+        queryClient.invalidateQueries({ queryKey: ['library'] }),
+        queryClient.invalidateQueries({ queryKey: ['lists'] }),
+        queryClient.invalidateQueries({ queryKey: ['profile'] }),
+      ])
       return null
     } catch (error) {
-      return messageOf(error)
+      const current = queryClient.getQueryData<GamePageData>(gameKey)
+      if (previous && current === owned) queryClient.setQueryData(gameKey, previous)
+      return actionFailure(error)
+    }
+  }
+
+  async function refresh() {
+    setRefreshing(true)
+    try {
+      await Promise.all([game.refetch(), reviews.refetch()])
+    } finally {
+      setRefreshing(false)
     }
   }
 
   const signedIn = session != null
   const gameId = game.data?.game.id
+  const userId = viewerId ?? ''
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -58,30 +88,47 @@ export default function GameScreen() {
       ) : slug.length === 0 ? (
         <ScreenMessage title="Missing game" body="This link does not include a game." />
       ) : !ready || game.isLoading ? (
-        <ScreenMessage title="Loading" body={slug} />
+        <GameDetailSkeleton />
       ) : game.isError ? (
-        <ScreenMessage title="Couldn't load this game" body={messageOf(game.error)} onRetry={() => { void game.refetch() }} />
-      ) : game.data ? (
+        <ScreenMessage title="Couldn't load this game" body={actionFailure(game.error)} onRetry={() => { void game.refetch() }} />
+      ) : game.data && gameId ? (
         <GameDetail
           data={game.data}
           reviews={reviews.data ?? null}
-          reviewsNote={reviews.isError ? messageOf(reviews.error) : null}
+          reviewsNote={reviews.isError ? actionFailure(reviews.error) : null}
+          reviewsLoading={reviews.isFetching}
+          reviewsQuery={reviewsQuery}
           signedIn={signedIn}
+          refreshing={refreshing}
+          onRefresh={() => { void refresh() }}
           onBack={back}
           onSignIn={() => router.push('/sign-in')}
           onSignUp={() => router.push('/sign-up')}
           onRetryReviews={() => { void reviews.refetch() }}
-          onRate={signedIn && gameId ? (rating, review) => afterWrite(() => api.games.putReview(gameId, { rating, review })) : undefined}
-          onSave={signedIn && gameId ? (status) => afterWrite(() => api.me.library.put(gameId, { status })) : undefined}
-          onAddToList={signedIn && gameId ? (listId) => afterWrite(() => api.lists.addGame(listId, gameId)) : undefined}
-          onRemoveFromList={signedIn && gameId ? (listId) => afterWrite(() => api.lists.removeGame(listId, gameId)) : undefined}
-          onCreateList={signedIn && gameId ? (name) => afterWrite(() => api.lists.create({
-            name,
-            description: '',
-            isPublic: game.data?.viewer?.defaultListPrivacy ?? true,
-            isPinned: false,
-            gameId,
-          })) : undefined}
+          onReviewsQuery={query => setReviewState({ slug, query })}
+          onOpenProfile={username => go(profileHref(username))}
+          onOpenCatalogue={filter => go(catalogueHref(filter))}
+          onRate={signedIn ? (rating, review) => commit(
+            () => api.games.putReview(gameId, { rating, review }),
+            data => withViewerReview(data, rating, review, userId),
+          ) : undefined}
+          onSave={signedIn ? (write: LibraryWrite) => commit(
+            () => api.me.library.put(gameId, write),
+            data => withLibraryWrite(data, write),
+          ) : undefined}
+          onRemoveLibrary={signedIn ? () => commit(
+            () => api.me.library.delete(gameId),
+            withoutLibraryEntry,
+          ) : undefined}
+          onAddToList={signedIn ? (listId) => commit(
+            () => api.lists.addGame(listId, gameId),
+            data => withListMembership(data, listId, true),
+          ) : undefined}
+          onRemoveFromList={signedIn ? (listId) => commit(
+            () => api.lists.removeGame(listId, gameId),
+            data => withListMembership(data, listId, false),
+          ) : undefined}
+          onCreateList={signedIn ? (input) => commit(() => api.lists.create({ ...input, gameId })) : undefined}
         />
       ) : null}
     </SafeAreaView>

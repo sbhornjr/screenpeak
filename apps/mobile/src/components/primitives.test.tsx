@@ -11,7 +11,7 @@ import { EmptyState } from './empty-state'
 import { RatingBadge } from './rating-badge'
 import { ScreenScroll } from './screen-scroll'
 import { SectionHead } from './section-head'
-import { Sheet } from './sheet'
+import { Sheet, useSheetDismiss } from './sheet'
 import { TextField } from './text-field'
 import { Wordmark } from './wordmark'
 import { Text } from 'react-native'
@@ -19,6 +19,19 @@ import { Text } from 'react-native'
 const keyboard = vi.hoisted(() => ({
   listeners: new Map<string, (event: { endCoordinates: { height: number } }) => void>(),
 }))
+
+const focusedField = vi.hoisted(() => ({
+  current: null as null | {
+    measureLayout: ReturnType<typeof vi.fn>
+    scrollIntoView?: (options: { block?: string }) => void
+  },
+}))
+
+const scrollToKeyboard = vi.hoisted(() => vi.fn())
+
+const platform = vi.hoisted(() => ({ os: 'ios' }))
+
+const modal = vi.hoisted(() => ({ reportsDismiss: true }))
 
 function flattenStyle(style: unknown): Record<string, unknown> {
   if (!style) return {}
@@ -43,6 +56,12 @@ function exposedName(role: string | undefined, accessibilityRole: string | undef
 }
 
 vi.mock('react-native', () => ({
+  Platform: {
+    get OS() {
+      return platform.os
+    },
+    select: (spec: Record<string, unknown>) => spec[platform.os] ?? spec.default,
+  },
   Keyboard: {
     addListener: (event: string, callback: (value: { endCoordinates: { height: number } }) => void) => {
       keyboard.listeners.set(event, callback)
@@ -144,52 +163,78 @@ vi.mock('react-native', () => ({
     },
     children,
   ),
-  TextInput: ({
-    accessibilityLabel,
-    value,
-    onChangeText,
-    placeholder,
-    style,
-  }: {
-    accessibilityLabel?: string
-    value?: string
-    onChangeText?: (value: string) => void
-    placeholder?: string
-    style?: unknown
-  }) => React.createElement('input', {
-    'aria-label': accessibilityLabel,
-    placeholder,
-    value: value ?? '',
-    'data-style': JSON.stringify(flattenStyle(style)),
-    onChange: (event: { target: { value: string } }) => onChangeText?.(event.target.value),
-  }),
-  ScrollView: ({
+  TextInput: Object.assign(
+    ({
+      accessibilityLabel,
+      value,
+      onChangeText,
+      placeholder,
+      style,
+    }: {
+      accessibilityLabel?: string
+      value?: string
+      onChangeText?: (value: string) => void
+      placeholder?: string
+      style?: unknown
+    }) => React.createElement('input', {
+      'aria-label': accessibilityLabel,
+      placeholder,
+      value: value ?? '',
+      'data-style': JSON.stringify(flattenStyle(style)),
+      onChange: (event: { target: { value: string } }) => onChangeText?.(event.target.value),
+    }),
+    { State: { currentlyFocusedInput: () => focusedField.current } },
+  ),
+  ScrollView: React.forwardRef(function SheetScrollView({
     children,
     keyboardShouldPersistTaps,
+    automaticallyAdjustKeyboardInsets,
   }: {
     children?: React.ReactNode
     keyboardShouldPersistTaps?: string
-  }) => React.createElement('div', { 'data-persist-taps': keyboardShouldPersistTaps ?? '' }, children),
+    automaticallyAdjustKeyboardInsets?: boolean
+  }, ref: React.Ref<{ scrollResponderScrollNativeHandleToKeyboard: typeof scrollToKeyboard }>) {
+    React.useImperativeHandle(ref, () => ({
+      scrollResponderScrollNativeHandleToKeyboard: scrollToKeyboard,
+    }))
+    return React.createElement(
+      'div',
+      {
+        'data-persist-taps': keyboardShouldPersistTaps ?? '',
+        'data-keyboard-insets': automaticallyAdjustKeyboardInsets ? 'true' : 'false',
+      },
+      children,
+    )
+  }),
   Modal: ({
     visible,
     onRequestClose,
+    onDismiss,
     children,
   }: {
     visible?: boolean
     onRequestClose?: () => void
+    onDismiss?: () => void
     children?: React.ReactNode
-  }) => (visible
-    ? React.createElement(
-      'div',
-      {
-        'data-modal': 'open',
-        onKeyDown: (event: { key: string }) => {
-          if (event.key === 'Escape') onRequestClose?.()
+  }) => {
+    const wasVisible = React.useRef(visible)
+    React.useEffect(() => {
+      if (wasVisible.current && visible === false && modal.reportsDismiss) onDismiss?.()
+      wasVisible.current = visible
+    }, [visible, onDismiss])
+    return visible
+      ? React.createElement(
+        'div',
+        {
+          'data-modal': 'open',
+          onKeyDown: (event: { key: string }) => {
+            if (event.key === 'Escape') onRequestClose?.()
+          },
         },
-      },
-      children,
-    )
-    : null),
+        children,
+      )
+      : null
+  },
   StyleSheet: {
     create: (styles: unknown) => styles,
     absoluteFill: {},
@@ -218,6 +263,8 @@ vi.mock('expo-image', () => ({
 afterEach(() => {
   cleanup()
   keyboard.listeners.clear()
+  platform.os = 'ios'
+  modal.reportsDismiss = true
 })
 
 function painted(node: Element): Record<string, unknown> {
@@ -358,13 +405,122 @@ describe('Sheet', () => {
     expect(scroll?.textContent).toContain('Row 39')
     expect(scroll?.contains(heading)).toBe(false)
     expect(scroll?.contains(close)).toBe(false)
+    expect(scroll?.getAttribute('data-keyboard-insets')).toBe('true')
     expect(painted(dialog).maxHeight).toBe(720)
     expect(painted(dialog).paddingBottom).toBe(space[4] + 34)
 
     act(() => {
       keyboard.listeners.get('keyboardDidShow')?.({ endCoordinates: { height: 300 } })
     })
-    expect(painted(screen.getByRole('dialog', { name: 'Add to list' })).paddingBottom).toBe(space[4] + 300 + 34)
+    expect(painted(screen.getByRole('dialog', { name: 'Add to list' })).paddingBottom).toBe(space[4] + 34)
+  })
+
+  it('scrolls a focused field through the scroll view host and never calls measureLayout', async () => {
+    platform.os = 'ios'
+    const measureLayout = vi.fn()
+    focusedField.current = { measureLayout }
+    scrollToKeyboard.mockClear()
+    render(
+      <Sheet visible title="Rate" onClose={() => undefined}>
+        <Text>Note</Text>
+      </Sheet>,
+    )
+    await act(async () => {
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)))
+    })
+    expect(measureLayout).not.toHaveBeenCalled()
+    expect(scrollToKeyboard).toHaveBeenCalledWith(focusedField.current, 80, true)
+
+    scrollToKeyboard.mockClear()
+    act(() => {
+      keyboard.listeners.get('keyboardDidShow')?.({ endCoordinates: { height: 300 } })
+    })
+    await act(async () => {
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)))
+    })
+    expect(measureLayout).not.toHaveBeenCalled()
+    expect(scrollToKeyboard).toHaveBeenCalledWith(focusedField.current, 80, true)
+    focusedField.current = null
+  })
+
+  it('uses scrollIntoView when the focused field is a web element', async () => {
+    const measureLayout = vi.fn()
+    const scrollIntoView = vi.fn()
+    focusedField.current = { measureLayout, scrollIntoView }
+    scrollToKeyboard.mockClear()
+    render(
+      <Sheet visible title="Rate" onClose={() => undefined}>
+        <Text>Note</Text>
+      </Sheet>,
+    )
+    await act(async () => {
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)))
+    })
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'center' })
+    expect(measureLayout).not.toHaveBeenCalled()
+    expect(scrollToKeyboard).not.toHaveBeenCalled()
+    focusedField.current = null
+  })
+
+  it('runs a navigation only after the sheet has closed', () => {
+    function Leave({ onLeave }: { onLeave: () => void }) {
+      const dismiss = useSheetDismiss()
+      return <Button label="Log in" onPress={() => dismiss(onLeave)} />
+    }
+    function Harness({ onLeave }: { onLeave: () => void }) {
+      const [open, setOpen] = React.useState(true)
+      return (
+        <Sheet visible={open} title="Sign up" onClose={() => setOpen(false)}>
+          <Leave onLeave={onLeave} />
+        </Sheet>
+      )
+    }
+    const onLeave = vi.fn(() => {
+      expect(screen.queryByRole('dialog', { name: 'Sign up' })).toBeNull()
+    })
+    render(<Harness onLeave={onLeave} />)
+    expect(screen.getByRole('dialog', { name: 'Sign up' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Log in' }))
+    expect(onLeave).toHaveBeenCalledTimes(1)
+  })
+
+  it('on android navigates after the sheet closes when the modal does not report dismiss', async () => {
+    platform.os = 'android'
+    modal.reportsDismiss = false
+    function Leave({ onLeave }: { onLeave: () => void }) {
+      const dismiss = useSheetDismiss()
+      return <Button label="Sign up" onPress={() => dismiss(onLeave)} />
+    }
+    function Harness({ onLeave }: { onLeave: () => void }) {
+      const [open, setOpen] = React.useState(true)
+      return (
+        <Sheet visible={open} title="Sign up" onClose={() => setOpen(false)}>
+          <Leave onLeave={onLeave} />
+        </Sheet>
+      )
+    }
+    const onLeave = vi.fn(() => {
+      expect(screen.queryByRole('dialog', { name: 'Sign up' })).toBeNull()
+    })
+    render(<Harness onLeave={onLeave} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Sign up' }))
+    expect(onLeave).not.toHaveBeenCalled()
+    await act(async () => {
+      await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)))
+    })
+    expect(onLeave).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves keyboard insets to the browser when the window itself shrinks', () => {
+    platform.os = 'web'
+    render(
+      <Sheet visible title="Rate" onClose={() => undefined}>
+        <Text>Note</Text>
+      </Sheet>,
+    )
+    const scroll = document.querySelector('[data-persist-taps="handled"]')
+    expect(scroll?.getAttribute('data-keyboard-insets')).toBe('false')
+    expect(painted(screen.getByRole('dialog', { name: 'Rate' })).paddingBottom).toBe(space[4] + 34)
   })
 
   it('closes from the scrim and from the system back', () => {

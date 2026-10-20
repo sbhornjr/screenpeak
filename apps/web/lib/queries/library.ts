@@ -32,7 +32,7 @@ const LIBRARY_ENTRY_COLUMNS = {
 
 export async function getLibraryEntry(userId: string, gameId: string) {
     // A database error must reject. Returning null makes an outage look like
-    // "not in your save yet" on the game page.
+    // "not in your library yet" on the game page.
     const rows = await db
         .select(LIBRARY_ENTRY_COLUMNS)
         .from(libraryEntries)

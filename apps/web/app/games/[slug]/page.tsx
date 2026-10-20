@@ -14,6 +14,7 @@ import ExpandableText from "@/app/components/util/ExpandableText";
 import SectionHead from "@/app/components/util/SectionHead";
 import { tierColor } from "@/lib/rating-tier";
 import Panel from "@/app/components/util/Panel";
+import { LIBRARY_SECTION_TITLE, libraryEmptyLine, libraryScoreText, libraryStats, type LibraryStatKey } from "@screenpeak/shared/library-copy";
 import { GameRatingsStats } from "@screenpeak/shared/types";
 import { getOptionalUser } from "@/lib/auth";
 import { loadGamePage } from "@/lib/loaders/game-page";
@@ -22,7 +23,7 @@ import { displayCoverUrl, displayLandscapeUrl } from "@/lib/catalog/images";
 import { getGameBySlug } from "@/lib/queries/game";
 import { getGameReviewsForPage } from "@/lib/queries/review";
 import { Metadata } from "next";
-import { ChevronLeft } from "lucide-react"
+import { ChevronLeft, Clock, Repeat, Trophy } from "lucide-react"
 
 type GamePageProps = {
     params: Promise<{ slug: string }>
@@ -47,6 +48,7 @@ type LogRow = {
 }
 
 const label = "font-mono text-[0.5625rem] uppercase tracking-[0.2em] text-(--color-muted)"
+const libraryStatIcon = { hours: Clock, plays: Repeat, complete: Trophy } satisfies Record<LibraryStatKey, typeof Clock>
 const metaLink = "text-sm text-(--color-text) underline decoration-(--color-border) underline-offset-2 hover:decoration-(--color-accent) hover:text-(--color-accent) transition-colors duration-200"
 const tag = "inline-flex px-2 py-0.5 rounded text-[0.6875rem] font-mono tracking-[0.06em] border border-(--color-border) text-(--color-muted) hover:text-(--color-accent) hover:border-(--color-border-bright) transition-colors duration-200"
 
@@ -174,17 +176,46 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
                             )}
                         </div>
                         <Panel className="p-4">
-                            <p className={`${label} mb-2.5`}>Your save</p>
+                            <p className={`${label} mb-2.5`}>{LIBRARY_SECTION_TITLE}</p>
                             {inFile ? (
-                                <ul className="flex flex-col gap-1 text-[0.8125rem]">
-                                    {statusLabel && <li className="flex items-baseline gap-2"><span className={label}>Status</span> {statusLabel}</li>}
-                                    {userReview?.rating != null && <li className="flex items-baseline gap-2"><span className={label}>Your score</span> {userReview.rating} / 10</li>}
-                                    {userReview?.updated_at && <li className="flex items-baseline gap-2"><span className={label}>Scored</span> {relTime(userReview.updated_at)}</li>}
-                                    {!statusLabel && !userReview && <li className="text-(--color-muted)">Saved, not scored yet</li>}
-                                </ul>
+                                <div className="flex flex-col gap-3">
+                                    <div className="flex items-center justify-between gap-3">
+                                        {statusLabel && (
+                                            <span className="inline-flex items-center rounded-full border border-(--color-border) bg-(--color-surface-light) px-2.5 py-1 font-mono text-[0.6875rem] uppercase tracking-[0.08em] text-(--color-text)">
+                                                {statusLabel}
+                                            </span>
+                                        )}
+                                        {userReview?.rating != null && (
+                                            <span
+                                                className="ml-auto font-(family-name:--font-display) text-[1.75rem] font-semibold leading-none tabular-nums"
+                                                style={{ color: tierColor(userReview.rating) }}
+                                                aria-label={`Your score ${userReview.rating} out of 10`}
+                                            >
+                                                {libraryScoreText(userReview.rating)}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {libraryEntry && libraryStats(libraryEntry).length > 0 && (
+                                        <ul className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                                            {libraryStats(libraryEntry).map(stat => {
+                                                const Icon = libraryStatIcon[stat.key]
+                                                return (
+                                                    <li key={stat.key} className="inline-flex items-center gap-1.5 font-mono text-sm tabular-nums text-(--color-text)">
+                                                        <Icon size={16} className="text-(--color-muted)" aria-label={stat.label} />
+                                                        <span aria-hidden="true">{stat.value}</span>
+                                                    </li>
+                                                )
+                                            })}
+                                        </ul>
+                                    )}
+                                    {userReview?.updated_at && (
+                                        <p className="font-mono text-xs text-(--color-muted)">Scored {relTime(userReview.updated_at)}</p>
+                                    )}
+                                    {!statusLabel && !userReview && <p className="text-sm text-(--color-muted)">Saved, not scored yet</p>}
+                                </div>
                             ) : (
                                 <p className="text-sm text-(--color-muted) leading-relaxed">
-                                    Not in your save yet. Hit <span className="text-(--color-accent) font-mono">+ Save Game</span> to add it.
+                                    {libraryEmptyLine(!!user)}
                                 </p>
                             )}
                         </Panel>
