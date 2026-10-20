@@ -1,14 +1,24 @@
 // @vitest-environment jsdom
 import type { ProfilePageData } from '@screenpeak/shared/api/profile'
+import { hitTarget } from '@screenpeak/shared/tokens'
 import React from 'react'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { averageText, calendarLabel, profileHubModel, withFollowing } from '@/lib/profile-hub'
+import { averageText, calendarLabel, profileHubModel, reviewDateLabel, withFollowing } from '@/lib/profile-hub'
 
 import { ProfileHub } from './profile-hub'
 
-vi.mock('react-native', () => ({
+process.env.TZ = 'America/Los_Angeles'
+
+vi.mock('react-native', () => {
+  function flatStyle(style: unknown): Record<string, unknown> {
+    if (!style) return {}
+    if (Array.isArray(style)) return Object.assign({}, ...style.map(flatStyle))
+    if (typeof style === 'function') return {}
+    return style as Record<string, unknown>
+  }
+  return ({
   Platform: { OS: 'web' },
   Pressable: ({
     onPress,
@@ -16,12 +26,14 @@ vi.mock('react-native', () => ({
     accessibilityLabel,
     accessibilityRole,
     disabled,
+    style,
   }: {
     onPress?: () => void
     children?: React.ReactNode
     accessibilityLabel?: string
     accessibilityRole?: string
     disabled?: boolean
+    style?: unknown
   }) => React.createElement(
     'button',
     {
@@ -30,6 +42,7 @@ vi.mock('react-native', () => ({
       'aria-label': accessibilityLabel,
       role: accessibilityRole,
       disabled,
+      'data-style': JSON.stringify(flatStyle(style)),
     },
     children,
   ),
@@ -39,21 +52,24 @@ vi.mock('react-native', () => ({
     accessibilityLiveRegion,
     accessibilityRole,
     accessibilityLevel,
+    style,
   }: {
     children?: React.ReactNode
     accessibilityLiveRegion?: string
     accessibilityRole?: string
     accessibilityLevel?: number
+    style?: unknown
   }) => React.createElement('span', {
     'aria-live': accessibilityLiveRegion,
     role: accessibilityRole === 'header' ? 'heading' : undefined,
     'aria-level': accessibilityLevel,
+    'data-style': JSON.stringify(flatStyle(style)),
   }, children),
   ScrollView: ({ children }: { children?: React.ReactNode }) => React.createElement('div', null, children),
   RefreshControl: () => null,
   useWindowDimensions: () => ({ width: 320, height: 568, scale: 1, fontScale: 1 }),
   StyleSheet: { create: (styles: unknown) => styles, absoluteFill: {} },
-}))
+}) })
 
 vi.mock('react-native-safe-area-context', () => ({
   SafeAreaView: ({ children }: { children?: React.ReactNode }) => React.createElement('div', null, children),
@@ -132,9 +148,11 @@ function page(input: {
 }
 
 describe('profile dates and averages', () => {
-  it('formats a Postgres timestamp as a calendar day and an average out of 10', () => {
-    expect(calendarLabel('2026-01-15 00:00:00+00')).toBe('1/15/2026')
+  it('formats member since on the local calendar and a review as a short local date', () => {
+    expect(calendarLabel('2026-01-15 00:00:00+00')).toBe('1/14/2026')
     expect(calendarLabel('not a date')).toBeNull()
+    expect(reviewDateLabel('2026-02-01 00:00:00+00')).toBe('Jan 31, 2026')
+    expect(reviewDateLabel('not a date')).toBeNull()
     expect(averageText(5, 7.666)).toBe('7.66 / 10')
     expect(averageText(1, 8)).toBe('8 / 10')
     expect(averageText(0, 8)).toBe('—')
@@ -178,10 +196,10 @@ describe('profile page', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Peek' }).textContent).toBe('Peek')
     expect(screen.getByText('@peek').textContent).toBe('@peek')
     expect(screen.getByText('Ranger').textContent).toBe('Ranger')
-    expect(screen.getByText('Member since 1/15/2026').textContent).toBe('Member since 1/15/2026')
+    expect(screen.getByText('Member since 1/14/2026').textContent).toBe('Member since 1/14/2026')
     expect(screen.getByText('3 followers · 2 following').textContent).toBe('3 followers · 2 following')
     expect(screen.getByText('Writes proofs.').textContent).toBe('Writes proofs.')
-    expect(screen.getByText('A patient roguelike reader.').textContent).toBe('A patient roguelike reader.')
+    expect(screen.getByText('“A patient roguelike reader.”').textContent).toBe('“A patient roguelike reader.”')
     expect(screen.queryByRole('button', { name: 'Follow peek' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Edit profile' }))
     fireEvent.click(screen.getByRole('button', { name: 'Loadout' }))
@@ -197,12 +215,32 @@ describe('profile page', () => {
       ['/user/peek/lists'],
       ['/library'],
       ['/games/celeste'],
-      ['/user/peek/ratings'],
+      ['/user/peek/ratings_reviews'],
     ])
     expect(screen.getByText('5 games · 2 completed').textContent).toBe('5 games · 2 completed')
     expect(screen.getByText('Sharp climb.').textContent).toBe('Sharp climb.')
     expect(screen.getByText('7.66 / 10').textContent).toBe('7.66 / 10')
-    expect(screen.getByText('2/1/2026').textContent).toBe('2/1/2026')
+    expect(screen.getByText('Jan 31, 2026').textContent).toBe('Jan 31, 2026')
+  })
+
+  it('keeps a long review title beside its score', () => {
+    const data = page({ username: 'peek', viewer: 'owner' })
+    const title = 'The Extremely Long Chronicle of the Northern Reach'
+    data.recent_reviews = [{
+      ...data.recent_reviews[0],
+      review: '',
+      games: { name: title, slug: 'northern-reach' },
+    }]
+    render(<ProfileHub model={profileHubModel(data)} onOpen={vi.fn()} />)
+    const link = screen.getByRole('link', { name: title })
+    const linkStyle = JSON.parse(link.getAttribute('data-style') || '{}') as Record<string, unknown>
+    expect(linkStyle.flex).toBe(1)
+    expect(linkStyle.flexShrink).toBe(1)
+    expect(linkStyle.minHeight).toBe(hitTarget)
+    const score = screen.getByText('9 / 10')
+    const scoreStyle = JSON.parse(score.getAttribute('data-style') || '{}') as Record<string, unknown>
+    expect(scoreStyle.flexShrink).toBe(0)
+    expect(screen.queryByText('Scored it, no note.')).toBeNull()
   })
 
   it('follows another public player and opens their library, not yours', () => {
@@ -250,7 +288,7 @@ describe('profile page', () => {
     expect(screen.queryByRole('button', { name: 'Follow ada' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Loadout' })).toBeNull()
     expect(screen.queryByRole('button', { name: /Library/ })).toBeNull()
-    expect(screen.queryByText('A patient roguelike reader.')).toBeNull()
+    expect(screen.queryByText(/patient roguelike reader/)).toBeNull()
     expect(screen.queryByText('Games')).toBeNull()
     expect(screen.getByRole('button', { name: 'Lists' })).toBeTruthy()
     expect(screen.getByText('Sharp climb.').textContent).toBe('Sharp climb.')

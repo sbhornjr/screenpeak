@@ -14,7 +14,7 @@ The phone profile shows the player card (avatar, display name, @username, title,
 ## How to get to it (user POV)
 
 - Log in as peek and open the Profile tab.
-- Tap the pencil (Edit profile), then Back. Tap View all reviews, then Back.
+- Tap the pencil (Edit profile), then Back. Tap View all reviews. That opens `/user/peek/ratings_reviews`, then Back.
 - Tap the library counts. The Library tab opens.
 - Open `http://localhost:8081/user/nova`. Tap Follow, then Following.
 - Tap nova's library counts. That player's library opens, with Back.
@@ -30,13 +30,13 @@ Preconditions:
 - `peek` has five ratings and five library games. The drive sets a display name, bio, title, read-out, one favorite, and one written review, then restores them. It inserts `nova` (library and loadout public, two games, one written review) and `ada` (library and loadout private, one written review, no library rows). You start signed out. The drive signs in as peek.
 
 - **Open your profile.** The drive signs in, sets the viewport to 375×667, and opens the Profile tab. The screen shows Peek Reader, @peek, Range Finder, the bio, the read-out, the favorite game, the written review, Loadout, Lists, and the library counts. Follow is not a control. Edit profile is present. It then checks the same screen at 320×568.
-- **Open the stubs.** Click Edit profile. The screen says profile editing is not on this screen yet. Click Back. Click View all reviews. The screen says the full ratings page is not on this screen yet, and that peek's recent reviews stay on the profile. Click Back.
+- **Open the stubs.** Click Edit profile. The screen says profile editing is not on this screen yet. Click Back. Click View all reviews. The path is `/user/peek/ratings_reviews`. The screen says the full ratings page is not on this screen yet, and that peek's recent reviews stay on the profile. Click Back.
 - **Open your library.** Click the library counts. The path is `/library`, the Library tab is selected, Back is gone, and Loadout is not on top of the games.
 - **Open a public profile.** Open `/user/nova` at 375×667. The screen shows Nova Vale, @nova, the bio, the read-out, Follow, Loadout, Lists, and "2 games · 1 completed". Edit profile is absent. It then checks the same screen at 320×568.
 - **Follow and unfollow.** Click Follow. The control becomes Unfollow nova, the page says "1 follower", the request is POST `/api/v1/user/<nova's uuid>/follow`, and Postgres has one follow row. The request is not `/api/v1/user/nova/follow`. Click Following. The control is Follow nova again, the page says "0 followers", the request is DELETE on that uuid path, and the row is gone.
 - **Open their library.** Click "2 games · 1 completed". The path is `/user/nova/library`, Back is present, and the game is on the page.
 - **Open a private profile.** Open `/user/ada` at 375×667. The screen shows Ada Lovelace, @ada, the bio, Lists, Follow, and the written review. It does not show the read-out, Loadout, or a library count, and it does not request ada's library, loadout, or lists. Edit profile is absent. It then checks the same screen at 320×568.
-- **Proof.** The drive writes `/tmp/screenpeak-verify/evidence/mobile-profile/`. The png files are the three profiles at both sizes. `result.json` records the follow URL and both library landings. The drive then restores peek's profile columns and that review, and deletes nova and ada.
+- **Proof.** The drive writes `/tmp/screenpeak-verify/evidence/mobile-profile/`. The png files are the three profiles at both sizes, plus `review-title-320.png`, the review title scrolled into a 320×568 viewport. `result.json` records the follow URL and both library landings. The drive then restores peek's profile columns, the review, and the renamed game, and deletes nova and ada.
 
 ```bash
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-profile

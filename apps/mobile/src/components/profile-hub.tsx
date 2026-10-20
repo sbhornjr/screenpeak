@@ -4,7 +4,7 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimen
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import type { ProfileHubModel } from '@/lib/profile-hub'
-import { averageText, calendarLabel } from '@/lib/profile-hub'
+import { averageText, reviewDateLabel } from '@/lib/profile-hub'
 import { gameHref } from '@/lib/routes'
 import { colors, face, hitTarget, radius, seam, space, tierColor, tracking, trackingPx, typeScale } from '@/theme'
 
@@ -178,7 +178,7 @@ export function ProfileHub({
           <Stat label="Rated" value={String(model.ratedCount)} />
           <Stat label="Avg" value={averageText(model.ratedCount, model.avgRating)} />
         </View>
-        {model.loadoutQuote ? <Text style={styles.quote}>{model.loadoutQuote}</Text> : null}
+        {model.loadoutQuote ? <Text style={styles.quote}>{`“${model.loadoutQuote}”`}</Text> : null}
 
         <SectionHead>Favorite games</SectionHead>
         {model.favorites.length > 0 ? (
@@ -210,13 +210,18 @@ export function ProfileHub({
         {model.reviews.length > 0 ? model.reviews.map(review => (
           <Panel key={`${review.games.slug}-${review.created_at}`} style={styles.review}>
             <View style={styles.reviewHead}>
-              <Pressable accessibilityRole="link" accessibilityLabel={review.games.name} onPress={() => onOpen(gameHref(review.games.slug))}>
-                <Text style={styles.reviewGame}>{review.games.name}</Text>
+              <Pressable
+                accessibilityRole="link"
+                accessibilityLabel={review.games.name}
+                onPress={() => onOpen(gameHref(review.games.slug))}
+                style={styles.reviewLink}
+              >
+                <Text numberOfLines={1} style={styles.reviewGame}>{review.games.name}</Text>
               </Pressable>
               <Text style={[styles.score, { color: tierColor(review.rating) }]}>{review.rating} / 10</Text>
             </View>
-            {calendarLabel(review.created_at) ? <Text style={styles.meta}>{calendarLabel(review.created_at)}</Text> : null}
-            <Text style={screenStyles.body}>{review.review ? review.review : 'Scored it, no note.'}</Text>
+            {reviewDateLabel(review.created_at) ? <Text style={styles.meta}>{reviewDateLabel(review.created_at)}</Text> : null}
+            {review.review ? <Text style={screenStyles.body}>{review.review}</Text> : null}
           </Panel>
         )) : (
           <EmptyState dense title={reviewEmpty.title} description={reviewEmpty.description} />
@@ -335,13 +340,16 @@ const styles = StyleSheet.create({
   favorite: { width: '48%', flexGrow: 1 },
   review: { padding: space[3], gap: space[2] },
   reviewHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space[3] },
+  reviewLink: { flex: 1, flexShrink: 1, minHeight: hitTarget, justifyContent: 'center' },
   reviewGame: {
+    flexShrink: 1,
     fontFamily: face.display[600],
     fontSize: typeScale.base.size,
     lineHeight: typeScale.base.line,
     color: colors.text,
   },
   score: {
+    flexShrink: 0,
     fontFamily: face.mono[600],
     fontSize: typeScale.lg.size,
     lineHeight: typeScale.lg.line,

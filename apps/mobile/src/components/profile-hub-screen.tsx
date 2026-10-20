@@ -1,7 +1,8 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { api } from '@/lib/api'
+import { useAuth } from '@/lib/auth'
 import { actionFailure } from '@/lib/game-page'
 import { back, go } from '@/lib/go'
 import { loadProfileHub, withFollowing, type ProfileHubModel } from '@/lib/profile-hub'
@@ -11,12 +12,23 @@ import { ProfileHub, ProfileHubSkeleton } from './profile-hub'
 import { ScreenMessage } from './screen-state'
 
 export function ProfileHubScreen({ username, showBack }: { username: string, showBack?: boolean }) {
+  const { session } = useAuth()
+  const viewerId = session?.user.id ?? ''
+  return <ProfileFollowSession key={`${username}:${viewerId}`} username={username} showBack={showBack} />
+}
+
+function ProfileFollowSession({ username, showBack }: { username: string, showBack?: boolean }) {
   const queryClient = useQueryClient()
   const remote = useRemote(['profile', username], () => loadProfileHub(api, username), username.length > 0)
   const [followNote, setFollowNote] = useState<string | null>(null)
   const [followBusy, setFollowBusy] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const pending = useRef(false)
+  const alive = useRef(true)
+  const viewerId = remote.session?.user.id ?? null
+  const profileKey = ['profile', username, viewerId] as const
+
+  useEffect(() => () => { alive.current = false }, [])
 
   async function changeFollow(following: boolean) {
     const current = remote.query.data
@@ -24,18 +36,21 @@ export function ProfileHubScreen({ username, showBack }: { username: string, sho
     pending.current = true
     setFollowBusy(true)
     setFollowNote(null)
-    await queryClient.cancelQueries({ queryKey: ['profile', username] })
-    const snapshots = queryClient.getQueriesData<ProfileHubModel>({ queryKey: ['profile', username] })
-    queryClient.setQueriesData<ProfileHubModel>({ queryKey: ['profile', username] }, (row) =>
+    await queryClient.cancelQueries({ queryKey: profileKey })
+    const previous = queryClient.getQueryData<ProfileHubModel>(profileKey)
+    queryClient.setQueryData<ProfileHubModel>(profileKey, (row) =>
       row ? withFollowing(row, following) : row)
     try {
       if (following) await api.users.follow(current.userId)
       else await api.users.unfollow(current.userId)
-      await queryClient.invalidateQueries({ queryKey: ['profile', username] })
+      if (!alive.current) return
+      await queryClient.invalidateQueries({ queryKey: ['profile'] })
     } catch (error) {
-      for (const [key, data] of snapshots) queryClient.setQueryData(key, data)
+      if (!alive.current) return
+      queryClient.setQueryData(profileKey, previous)
       setFollowNote(actionFailure(error))
     } finally {
+      if (!alive.current) return
       pending.current = false
       setFollowBusy(false)
     }

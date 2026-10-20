@@ -44,7 +44,7 @@ export function userLibraryHref(username: string): string {
 }
 
 export function ratingsHref(username: string): string {
-  return `${profileHref(username)}/ratings`
+  return `${profileHref(username)}/ratings_reviews`
 }
 
 export function settingsHref(): string {

@@ -35,12 +35,24 @@ export type ProfileHubModel = {
   settingsHref: string | null
 }
 
-/** "2026-01-15 00:00:00+00" → "1/15/2026". Null when the value is missing or not a date. */
-export function calendarLabel(value: string | null): string | null {
+function localDate(value: string | null): Date | null {
   if (!value) return null
   const date = parseDbTimestamp(value)
-  if (!Number.isFinite(date.getTime())) return null
-  return `${date.getUTCMonth() + 1}/${date.getUTCDate()}/${date.getUTCFullYear()}`
+  return Number.isFinite(date.getTime()) ? date : null
+}
+
+/** Local month/day/year, matching the website's member-since line. */
+export function calendarLabel(value: string | null): string | null {
+  const date = localDate(value)
+  if (!date) return null
+  return `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear()}`
+}
+
+/** Short local date for a review, matching the website review card. */
+export function reviewDateLabel(value: string | null): string | null {
+  const date = localDate(value)
+  if (!date) return null
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 export function memberSinceLabel(value: string | null): string | null {

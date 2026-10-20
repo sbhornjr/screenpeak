@@ -3105,6 +3105,7 @@ async function driveMobileProfile() {
     const games = peekLibraryGames()
     if (games.length < 2 || games.some((game) => !/^[0-9a-f-]{36}$/i.test(game.id))) fail('peek needs two library games before the profile drive.')
     const [reviewGame, favoriteGame] = games
+    const longReviewTitle = 'The Extremely Long Chronicle of the Northern Reach'
     const saved = peekProfileColumns()
     const reviewB64 = psql(databaseUrl, `
         select encode(convert_to(coalesce(review, ''), 'UTF8'), 'base64')
@@ -3128,6 +3129,7 @@ async function driveMobileProfile() {
     let novaId = ''
     try {
         dressPeekProfile(favoriteGame.id, reviewGame.id)
+        psql(databaseUrl, `update games set name = ${sqlLiteral(longReviewTitle)} where id = '${reviewGame.id}'::uuid`)
         insertPublicNova(reviewGame.id, favoriteGame.id)
         insertPrivateAda()
         giveAdaPrivateNote(reviewGame.id)
@@ -3171,7 +3173,8 @@ async function driveMobileProfile() {
         })()`)
 
         await page.setViewport(375, 667)
-        await page.navigate(expoOrigin)
+        await page.waitUntil(`location.pathname.includes('sign-in') ? 'waiting' : 'ok'`, 30_000)
+        await page.waitUntil(`document.querySelector('[role="tab"]') ? 'ok' : 'waiting'`, 30_000)
         await page.clickTab('Profile')
         await page.waitForText('Peek Reader', 45_000)
         await page.waitForText('A sharp climb.')
@@ -3182,7 +3185,7 @@ async function driveMobileProfile() {
         if (!ownWide.includes('Reads the room before the boss.')) problems.push('own profile is missing the bio')
         if (!ownWide.includes('A patient roguelike reader.')) problems.push('own profile is missing the read-out')
         if (!ownWide.includes(peekCounts)) problems.push('own profile is missing the library counts')
-        if (!ownWide.includes(reviewGame.name)) problems.push('own profile is missing the written review game')
+        if (!ownWide.includes(longReviewTitle)) problems.push('own profile is missing the written review game')
         if (await page.controlInView('Loadout') !== 'yes') problems.push('own profile hides Loadout')
         if (await page.controlInView('Lists') !== 'yes') problems.push('own profile hides Lists')
         if (await page.controlInView('Follow') === 'yes') problems.push('own profile shows Follow')
@@ -3191,6 +3194,15 @@ async function driveMobileProfile() {
 
         await page.setViewport(320, 568)
         await shot('own-320.png')
+        const scrolled = await page.evaluate(`(() => {
+            const name = ${JSON.stringify(longReviewTitle)}
+            const node = [...document.querySelectorAll('[aria-label]')].find((item) => (item.getAttribute('aria-label') || '') === name)
+            if (!node) return 'missing'
+            node.scrollIntoView({ block: 'center' })
+            return 'ok'
+        })()`)
+        if (scrolled !== 'ok') problems.push('could not scroll the long review title into view')
+        await shot('review-title-320.png')
         await page.setViewport(375, 667)
 
         await page.clickLabel('Edit profile')
@@ -3202,13 +3214,15 @@ async function driveMobileProfile() {
 
         await page.clickControl('View all reviews')
         await page.waitForText('The full ratings page is not on this screen yet.')
+        const ratingsPath = await page.evaluate('location.pathname')
+        if (ratingsPath !== `/user/${peekUsername}/ratings_reviews`) problems.push(`ratings stub opened ${ratingsPath}`)
         const ratingsText = await page.bodyText()
         if (!ratingsText.includes("peek's recent reviews stay on the profile.")) problems.push('ratings stub is missing its note')
         await page.clickControl('Back')
         await page.waitForText(peekCounts)
 
         await page.clickControl(peekCounts)
-        await page.waitForText(reviewGame.name)
+        await page.waitForText(longReviewTitle)
         const libraryTab = await page.evaluate(`(() => {
             const tab = document.querySelector('[role="tab"][aria-selected="true"]')
             const panel = document.querySelector('[role="tabpanel"][data-state="active"]')
@@ -3219,7 +3233,7 @@ async function driveMobileProfile() {
                 tab: tab ? tab.textContent.trim() : '',
                 back: controls.includes('Back'),
                 loadout: controls.includes('Loadout'),
-                game: (root.innerText || '').includes(${JSON.stringify(reviewGame.name)}),
+                game: (root.innerText || '').includes(${JSON.stringify(longReviewTitle)}),
             }
         })()`)
         if (libraryTab.path !== '/library') problems.push(`own library preview landed on ${libraryTab.path}`)
@@ -3273,11 +3287,11 @@ async function driveMobileProfile() {
         if (followRows(peekUsername, novaUsername) !== '0') problems.push('unfollow left a row')
 
         await page.clickControl(novaCounts)
-        await page.waitForText(reviewGame.name)
+        await page.waitForText(longReviewTitle)
         const novaLibrary = await page.evaluate(`(() => {
             const root = document.body
             const controls = [...root.querySelectorAll('button, [role="button"]')].map((item) => item.textContent.trim())
-            return { path: location.pathname, back: controls.includes('Back'), game: (root.innerText || '').includes(${JSON.stringify(reviewGame.name)}) }
+            return { path: location.pathname, back: controls.includes('Back'), game: (root.innerText || '').includes(${JSON.stringify(longReviewTitle)}) }
         })()`)
         if (novaLibrary.path !== `/user/${novaUsername}/library`) problems.push(`nova library preview landed on ${novaLibrary.path}`)
         if (!novaLibrary.back) problems.push('nova library is missing Back')
@@ -3333,6 +3347,7 @@ async function driveMobileProfile() {
             try { process.kill(expoPid, 'SIGTERM') } catch { /* already stopped */ }
         }
         try {
+            psql(databaseUrl, `update games set name = ${sqlLiteral(reviewGame.name)} where id = '${reviewGame.id}'::uuid`)
             restorePeekProfile(saved, reviewGame.id, reviewB64)
         } catch (error) {
             log(error instanceof Error ? error.message : String(error))

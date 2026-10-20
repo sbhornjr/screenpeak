@@ -150,6 +150,7 @@ A passing mobile-nav proof shows ScreenPeak on each screenshot, the welcome and 
 `drive mobile-profile` writes `/tmp/screenpeak-verify/evidence/mobile-profile/`:
 
 - `own-375.png` and `own-320.png` — peek's Profile tab at 375×667 and 320×568, with the display name, bio, read-out, and library counts
+- `review-title-320.png` — the same profile at 320×568, scrolled to a long review title beside its score
 - `public-375.png` and `public-320.png` — nova's public profile at those sizes, with Follow
 - `private-375.png` and `private-320.png` — ada's private profile at those sizes, with Follow and Lists, and without Loadout or the library counts
 - `result.json` — the follow URL, the library landings, and an empty `problems` list
