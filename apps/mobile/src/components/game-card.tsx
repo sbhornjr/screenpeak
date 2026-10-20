@@ -39,7 +39,7 @@ export function GameCard({ game, developer, spRating, userRating, libraryStatus,
         <View style={[styles.card, pressed && styles.cardPressed]}>
           <View style={styles.cover}>
             {cover ? (
-              <Image source={cover} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
+              <Image source={cover} recyclingKey={game.id} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
             ) : (
               <View style={styles.noCover}>
                 <Text style={styles.noCoverText}>No Cover</Text>

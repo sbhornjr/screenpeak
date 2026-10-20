@@ -59,7 +59,18 @@ vi.mock('lucide-react-native', () => {
   function Icon({ accessibilityLabel }: { accessibilityLabel?: string }) {
     return React.createElement('span', { role: 'img', 'aria-label': accessibilityLabel })
   }
-  return { Clock: Icon, Library: Icon, List: Icon, Pencil: Icon, Repeat: Icon, SlidersHorizontal: Icon, Trophy: Icon, Crosshair: Icon }
+  return {
+    ArrowDownWideNarrow: Icon,
+    ArrowUpNarrowWide: Icon,
+    Clock: Icon,
+    Library: Icon,
+    List: Icon,
+    Pencil: Icon,
+    Repeat: Icon,
+    SlidersHorizontal: Icon,
+    Trophy: Icon,
+    Crosshair: Icon,
+  }
 })
 
 vi.mock('react-native', () => ({

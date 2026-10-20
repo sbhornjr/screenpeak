@@ -209,6 +209,8 @@ A passing sign-up proof shows ScreenPeak on each screenshot, the check-your-emai
 `drive mobile-library` writes `/tmp/screenpeak-verify/evidence/mobile-library/`:
 
 - `own-375.png` and `own-320.png` — peek's Library tab, with status tabs and a game
+- `odd-375.png` and `odd-320.png` — the same grid, with an odd number of cards, at 375×667 and 320×568
+- `sort-375.png` and `sort-320.png` — Date added, with the descending sort toggle
 - `filters-375.png` and `filters-320.png` — the filters sheet
 - `empty-375.png` and `empty-320.png` — a search with no games
 - `private-375.png` and `private-320.png` — ada's private library

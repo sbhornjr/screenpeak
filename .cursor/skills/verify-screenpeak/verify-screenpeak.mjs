@@ -3480,12 +3480,38 @@ async function driveMobileLibrary() {
         if (!own.includes('Completed')) problems.push('own library is missing the Completed tab')
         const hours = await page.evaluate(`document.querySelector('[aria-label^="Hours played"]') ? 'yes' : 'no'`)
         if (hours !== 'yes') problems.push('own library is missing the hours icon')
+        const sortToggle = await page.evaluate(`document.querySelector('[aria-label="Sort ascending — tap for descending"], [aria-label="Sort descending — tap for ascending"]') ? 'yes' : 'no'`)
+        if (sortToggle !== 'yes') problems.push('own library is missing the sort direction toggle')
+        async function lastCardWidth() {
+            return page.evaluate(`(() => {
+                const names = new Set(${JSON.stringify(games.map((game) => game.name))})
+                const panel = document.querySelector('[role="tabpanel"]') || document.body
+                const scrollers = [panel, ...panel.querySelectorAll('*')].filter((node) => node.scrollHeight > node.clientHeight + 24)
+                const scroller = scrollers.sort((a, b) => (b.scrollHeight - b.clientHeight) - (a.scrollHeight - a.clientHeight))[0]
+                if (scroller) scroller.scrollTop = scroller.scrollHeight
+                const cards = [...document.querySelectorAll('[aria-label]')].filter((item) => names.has(item.getAttribute('aria-label')) && item.getClientRects().length > 0)
+                const card = cards[cards.length - 1]
+                if (!card) return null
+                const rect = card.getBoundingClientRect()
+                return { count: cards.length, width: Math.round(rect.width * 10) / 10, window: window.innerWidth }
+            })()`)
+        }
         await expectCentered('own-375')
         await shot('own-375.png')
+        const wideCards = await lastCardWidth()
+        marks['odd-375'] = wideCards
+        if (!wideCards) problems.push('library grid has no cards at 375')
+        else if (Math.abs(wideCards.width - 165.5) > 12) problems.push(`last card is ${wideCards.width}px wide at 375`)
+        await shot('odd-375.png')
         await page.setViewport(320, 568)
         await page.waitForText(gameName)
         await expectCentered('own-320')
         await shot('own-320.png')
+        const narrowCards = await lastCardWidth()
+        marks['odd-320'] = narrowCards
+        if (!narrowCards) problems.push('library grid has no cards at 320')
+        else if (Math.abs(narrowCards.width - 138) > 12) problems.push(`last card is ${narrowCards.width}px wide at 320`)
+        await shot('odd-320.png')
 
         await page.setViewport(375, 667)
         await page.clickControl('Filters')
@@ -3512,6 +3538,15 @@ async function driveMobileLibrary() {
         await fillSearch('')
         await page.clickControl('Search')
         await page.waitForText(gameName)
+
+        await page.clickControl('Date added')
+        await page.waitUntil(`document.querySelector('[aria-label="Sort descending — tap for ascending"]') ? 'ok' : 'waiting'`)
+        await page.waitForText(gameName)
+        await shot('sort-375.png')
+        await page.setViewport(320, 568)
+        await page.waitForText(gameName)
+        await shot('sort-320.png')
+        await page.setViewport(375, 667)
 
         await page.clickLabel(gameName)
         await page.waitForText('Add to list')

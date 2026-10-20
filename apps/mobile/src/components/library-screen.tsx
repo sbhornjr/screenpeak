@@ -1,12 +1,11 @@
 import type { LibraryGameCard, LibraryPageData, LibraryQuery, LibrarySort } from '@screenpeak/shared/api/library'
 import type { LibraryWrite } from '@screenpeak/shared/api/writes'
-import { libraryStats } from '@screenpeak/shared/library-copy'
-import { Clock, Pencil, Repeat, SlidersHorizontal, Trophy } from 'lucide-react-native'
+import { ArrowDownWideNarrow, ArrowUpNarrowWide, Pencil, SlidersHorizontal } from 'lucide-react-native'
 import { useState } from 'react'
 import { FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
-import { cardEntry, EMPTY_FACETS, LIBRARY_QUERY, libraryFiltersActive, orderForSort } from '@/lib/library-page'
+import { cardEntry, EMPTY_FACETS, LIBRARY_QUERY, libraryColumnWidth, libraryFiltersActive, libraryRowLayout, orderForSort } from '@/lib/library-page'
 import { gameHref } from '@/lib/routes'
 import { colors, face, hitTarget, radius, space, typeScale } from '@/theme'
 
@@ -15,6 +14,7 @@ import { Button } from './button'
 import { EmptyState } from './empty-state'
 import { GameCard } from './game-card'
 import { LibrarySheet } from './library-sheet'
+import { LibraryStatRow } from './library-stat-row'
 import { Sheet } from './sheet'
 import { SignupButtons, screenStyles } from './screen-scroll'
 import { TextField } from './text-field'
@@ -33,8 +33,6 @@ const SORTS: { sort: LibrarySort, label: string }[] = [
   { sort: 'ngplus_rating', label: 'ScreenPeak rating' },
   { sort: 'your_rating', label: 'Your rating' },
 ]
-
-const STAT_ICON = { hours: Clock, plays: Repeat, complete: Trophy }
 
 type CardStatus = 'playing' | 'completed' | 'backlog' | 'abandoned'
 
@@ -58,26 +56,25 @@ export type LibraryScreenProps = {
   onBack?: () => void
   refreshing?: boolean
   onRefresh?: () => void
+  loadError?: string | null
+  onRetry?: () => void
 }
 
 function LibraryCell({
   game,
   canEdit,
+  width,
   onOpen,
   onEdit,
 }: {
   game: LibraryGameCard
   canEdit: boolean
+  width: number
   onOpen: (href: string) => void
   onEdit: () => void
 }) {
-  const stats = libraryStats({
-    hours_played: game.hours_played,
-    play_count: game.play_count,
-    completed_all_achievements: game.completed_all_achievements,
-  })
   return (
-    <View style={styles.cell}>
+    <View style={[styles.cell, { width }]}>
       <GameCard
         game={{
           id: game.id,
@@ -92,17 +89,7 @@ function LibraryCell({
         libraryStatus={cardStatus(game.library_status)}
         onPress={() => onOpen(gameHref(game.slug))}
       />
-      <View style={styles.statRow}>
-        {stats.map(stat => {
-          const Icon = STAT_ICON[stat.key]
-          return (
-            <View key={stat.key} style={styles.statItem}>
-              <Icon size={16} color={colors.muted} accessibilityLabel={stat.label} />
-              <Text accessibilityElementsHidden importantForAccessibility="no" style={styles.statValue}>{stat.value}</Text>
-            </View>
-          )
-        })}
-      </View>
+      <LibraryStatRow entry={game} />
       {canEdit ? (
         <Pressable
           accessibilityRole="button"
@@ -164,13 +151,16 @@ export function LibraryScreen({
   onBack,
   refreshing = false,
   onRefresh,
+  loadError = null,
+  onRetry,
 }: LibraryScreenProps) {
   const { width } = useWindowDimensions()
   const compact = width <= 375
+  const columnWidth = libraryColumnWidth(width)
   const [draft, setDraft] = useState(query.q ?? '')
   const [filtersOpen, setFiltersOpen] = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const editing = games.find(game => game.id === editingId) ?? null
+  const [headerHeight, setHeaderHeight] = useState(0)
+  const [editing, setEditing] = useState<LibraryGameCard | null>(null)
   const filteredEmpty = libraryFiltersActive(query)
 
   function change(next: LibraryQuery) {
@@ -207,7 +197,13 @@ export function LibraryScreen({
   }
 
   const header = (
-    <View style={styles.header}>
+    <View
+      style={styles.header}
+      onLayout={(event) => {
+        const next = event.nativeEvent.layout.height
+        setHeaderHeight(current => current === next ? current : next)
+      }}
+    >
       <Text accessibilityRole="header" style={styles.title}>{title}</Text>
       <View style={styles.wrap}>
         {STATUS_TABS.map(tab => (
@@ -236,7 +232,23 @@ export function LibraryScreen({
             onPress={() => change({ ...query, sort: sort.sort, order: orderForSort(sort.sort) })}
           />
         ))}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={query.order === 'desc' ? 'Sort descending — tap for ascending' : 'Sort ascending — tap for descending'}
+          onPress={() => change({ ...query, order: query.order === 'desc' ? 'asc' : 'desc' })}
+          style={styles.sortToggle}
+        >
+          {query.order === 'desc'
+            ? <ArrowDownWideNarrow size={18} color={colors.muted} />
+            : <ArrowUpNarrowWide size={18} color={colors.muted} />}
+        </Pressable>
       </View>
+      {loadError ? (
+        <View style={styles.stack}>
+          <Text accessibilityLiveRegion="polite" style={styles.error}>{loadError}</Text>
+          {onRetry ? <Button label="Retry" variant="secondary" onPress={onRetry} /> : null}
+        </View>
+      ) : null}
       <View style={styles.searchRow}>
         <View style={styles.searchField}>
           <TextField
@@ -269,6 +281,7 @@ export function LibraryScreen({
         numColumns={2}
         refreshing={refreshing}
         onRefresh={onRefresh}
+        getItemLayout={(_data, index) => libraryRowLayout(columnWidth, canEdit, headerHeight, index)}
         columnWrapperStyle={games.length > 0 ? styles.columns : undefined}
         contentContainerStyle={[styles.list, compact && styles.padCompact]}
         ListHeaderComponent={header}
@@ -283,8 +296,9 @@ export function LibraryScreen({
           <LibraryCell
             game={item}
             canEdit={canEdit}
+            width={columnWidth}
             onOpen={onOpen}
-            onEdit={() => setEditingId(item.id)}
+            onEdit={() => setEditing(item)}
           />
         )}
       />
@@ -346,7 +360,7 @@ export function LibraryScreen({
       <LibrarySheet
         visible={editing != null}
         entry={editing ? cardEntry(editing) : null}
-        onClose={() => setEditingId(null)}
+        onClose={() => setEditing(null)}
         onSave={editing && onSave ? (write) => onSave(editing.id, write) : undefined}
         onRemove={editing && onRemove ? () => onRemove(editing.id) : undefined}
       />
@@ -356,13 +370,13 @@ export function LibraryScreen({
 
 export function LibrarySkeleton() {
   return (
-    <View accessibilityLabel="Loading library" style={styles.screen}>
+    <SafeAreaView accessibilityLabel="Loading library" style={styles.screen}>
       <AppHeader />
       <View style={styles.pad}>
         <View style={styles.bone} />
         <View style={styles.boneShort} />
       </View>
-    </View>
+    </SafeAreaView>
   )
 }
 
@@ -382,10 +396,18 @@ const styles = StyleSheet.create({
   searchRow: { flexDirection: 'row', alignItems: 'flex-end', gap: space[2] },
   searchField: { flex: 1 },
   columns: { gap: space[3] },
-  cell: { flex: 1, gap: space[2], marginBottom: space[3] },
-  statRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[3] },
-  statItem: { flexDirection: 'row', alignItems: 'center', gap: space[1] },
-  statValue: { fontFamily: face.mono[400], fontSize: typeScale.sm.size, color: colors.text },
+  cell: { gap: space[2], marginBottom: space[3] },
+  sortToggle: {
+    minWidth: hitTarget,
+    minHeight: hitTarget,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.base,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  error: { fontFamily: face.body[400], fontSize: typeScale.sm.size, lineHeight: typeScale.sm.line, color: colors.bad },
   edit: {
     minWidth: hitTarget,
     minHeight: hitTarget,

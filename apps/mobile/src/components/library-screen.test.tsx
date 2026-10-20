@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { LibraryGameCard, LibraryPageData, LibraryQuery } from '@screenpeak/shared/api/library'
-import { hitTarget } from '@screenpeak/shared/tokens'
+import { hitTarget, space } from '@screenpeak/shared/tokens'
 import React from 'react'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -14,8 +14,8 @@ vi.mock('expo-image', () => ({
 }))
 
 vi.mock('lucide-react-native', () => {
-  function Icon({ accessibilityLabel }: { accessibilityLabel?: string }) {
-    return React.createElement('span', { role: 'img', 'aria-label': accessibilityLabel })
+  function Icon() {
+    return React.createElement('span', { 'aria-hidden': 'true' })
   }
   return {
     ArrowDownWideNarrow: Icon,
@@ -27,6 +27,8 @@ vi.mock('lucide-react-native', () => {
     Trophy: Icon,
   }
 })
+
+const viewport = vi.hoisted(() => ({ width: 375, height: 667 }))
 
 vi.mock('react-native-safe-area-context', () => ({
   SafeAreaView: ({ children }: { children?: React.ReactNode }) => React.createElement('div', null, children),
@@ -136,7 +138,7 @@ vi.mock('react-native', () => ({
     onChange: (event: { target: { value: string } }) => onChangeText?.(event.target.value),
   }),
   Keyboard: { addListener: () => ({ remove() {} }) },
-  useWindowDimensions: () => ({ width: 375, height: 667, scale: 1, fontScale: 1 }),
+  useWindowDimensions: () => ({ width: viewport.width, height: viewport.height, scale: 1, fontScale: 1 }),
   StyleSheet: { create: (styles: unknown) => styles, absoluteFill: {} },
 }))
 
@@ -180,25 +182,33 @@ function renderLibrary(overrides: Partial<React.ComponentProps<typeof LibraryScr
   const onQuery = vi.fn()
   const onSave = vi.fn(async () => null)
   const onRemove = vi.fn(async () => null)
-  render(
-    <LibraryScreen
-      locked={false}
-      games={[HADES]}
-      facets={FACETS}
-      query={LIBRARY_QUERY}
-      canEdit
-      onOpen={onOpen}
-      onQuery={onQuery}
-      onSave={onSave}
-      onRemove={onRemove}
-      {...overrides}
-    />,
-  )
-  return { onOpen, onQuery, onSave, onRemove }
+  const props = {
+    locked: false,
+    games: [HADES],
+    facets: FACETS,
+    query: LIBRARY_QUERY,
+    canEdit: true,
+    onOpen,
+    onQuery,
+    onSave,
+    onRemove,
+    ...overrides,
+  }
+  const view = render(<LibraryScreen {...props} />)
+  return {
+    onOpen,
+    onQuery,
+    onSave,
+    onRemove,
+    rerender(next: Partial<React.ComponentProps<typeof LibraryScreen>> = {}) {
+      view.rerender(<LibraryScreen {...props} {...next} />)
+    },
+  }
 }
 
 afterEach(() => {
   cleanup()
+  viewport.width = 375
 })
 
 describe('library screen', () => {
@@ -215,9 +225,9 @@ describe('library screen', () => {
     const card = screen.getByRole('link', { name: 'Hades' })
     expect(card.textContent).toContain('Playing')
     expect(card.textContent).toContain('8')
-    expect(screen.getByRole('img', { name: 'Hours played 12.5' }).getAttribute('role')).toBe('img')
-    expect(screen.getByRole('img', { name: 'Times played 4' }).getAttribute('role')).toBe('img')
-    expect(screen.getByRole('img', { name: '100% achievements completed' }).getAttribute('role')).toBe('img')
+    expect(screen.getByLabelText('Hours played 12.5').textContent).toContain('12.5')
+    expect(screen.getByLabelText('Times played 4').textContent).toContain('4')
+    expect(screen.getByLabelText('100% achievements completed').textContent).toContain('100%')
     fireEvent.click(screen.getByRole('link', { name: 'Hades' }))
     expect(onOpen).toHaveBeenCalledWith('/games/hades')
   })
@@ -225,26 +235,33 @@ describe('library screen', () => {
   it('labels a dropped game and hides the trophy when the flag is off', () => {
     renderLibrary({ games: [CELESTE], canEdit: false })
     expect(screen.getByText('Dropped').textContent).toBe('Dropped')
-    expect(screen.getByRole('img', { name: 'Hours played —' }).getAttribute('role')).toBe('img')
-    expect(screen.getByRole('img', { name: 'Times played 1' }).getAttribute('role')).toBe('img')
-    expect(screen.queryByRole('img', { name: '100% achievements completed' })).toBeNull()
+    expect(screen.getByLabelText('Hours played —').textContent).toContain('—')
+    expect(screen.getByLabelText('Times played 1').textContent).toContain('1')
+    expect(screen.queryByLabelText('100% achievements completed')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Edit Celeste' })).toBeNull()
   })
 
   it('filters by status, 100%, sort, and a library search', () => {
-    const { onQuery } = renderLibrary()
+    const { onQuery, rerender } = renderLibrary()
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search games' }), { target: { value: 'Hades' } })
     fireEvent.click(screen.getByRole('button', { name: 'Playing' }))
     expect(onQuery).toHaveBeenCalledWith({ ...LIBRARY_QUERY, status: 'playing' } satisfies LibraryQuery)
+    expect((screen.getByRole('textbox', { name: 'Search games' }) as HTMLInputElement).value).toBe('Hades')
 
     fireEvent.click(screen.getByRole('button', { name: '100% only' }))
     expect(onQuery).toHaveBeenCalledWith({ ...LIBRARY_QUERY, is100: true })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Date added' }))
-    expect(onQuery).toHaveBeenCalledWith({ ...LIBRARY_QUERY, sort: 'date_added', order: 'desc' })
-
-    fireEvent.change(screen.getByRole('textbox', { name: 'Search games' }), { target: { value: 'Hades' } })
     fireEvent.click(screen.getByRole('button', { name: 'Search' }))
     expect(onQuery).toHaveBeenCalledWith({ ...LIBRARY_QUERY, q: 'Hades' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Date added' }))
+    expect(onQuery).toHaveBeenCalledWith({ ...LIBRARY_QUERY, sort: 'date_added', order: 'desc' })
+    expect((screen.getByRole('textbox', { name: 'Search games' }) as HTMLInputElement).value).toBe('Hades')
+
+    rerender({ query: { ...LIBRARY_QUERY, sort: 'date_added', order: 'desc' } })
+    expect((screen.getByRole('textbox', { name: 'Search games' }) as HTMLInputElement).value).toBe('Hades')
+    fireEvent.click(screen.getByRole('button', { name: 'Sort descending — tap for ascending' }))
+    expect(onQuery).toHaveBeenCalledWith({ ...LIBRARY_QUERY, sort: 'date_added', order: 'asc' })
   })
 
   it('applies a genre from the filters sheet', () => {
@@ -279,5 +296,13 @@ describe('library screen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Update library entry' }))
     await screen.findByRole('button', { name: 'Edit Hades' })
     expect(onSave).toHaveBeenCalledWith(HADES.id, { status: 'completed' })
+  })
+
+  it('keeps a single card at the half-column width', () => {
+    viewport.width = 320
+    renderLibrary({ games: [HADES] })
+    const cell = screen.getByRole('link', { name: 'Hades' }).parentElement
+    const half = (320 - space[4] * 2 - space[3]) / 2
+    expect(JSON.parse(cell?.getAttribute('data-style') || '{}').width).toBe(half)
   })
 })

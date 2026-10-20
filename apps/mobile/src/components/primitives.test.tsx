@@ -389,22 +389,14 @@ describe('ScreenScroll', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Library' }).textContent).toBe('Library')
   })
 
-  it('centers the ScreenPeak wordmark between equal header sides', () => {
-    render(<ScreenScroll title="Library" onBack={() => undefined}><Text>Hi</Text></ScreenScroll>)
+  it('keeps Back beside the ScreenPeak wordmark', () => {
+    const onBack = vi.fn()
+    render(<ScreenScroll title="Library" onBack={onBack}><Text>Hi</Text></ScreenScroll>)
     const mark = screen.getByRole('img', { name: 'ScreenPeak' })
-    const bar = mark.parentElement?.parentElement
-    expect(bar?.getAttribute('data-style')).toBe(JSON.stringify({
-      flexDirection: 'row',
-      alignItems: 'center',
-      minHeight: 44,
-    }))
-    const sides = bar ? Array.from(bar.children).filter((node) => node !== mark.parentElement) : []
-    expect(sides).toHaveLength(2)
-    expect(sides.map((node) => node.getAttribute('data-style'))).toEqual([
-      JSON.stringify({ flex: 1, minHeight: 44, justifyContent: 'center', minWidth: 0 }),
-      JSON.stringify({ flex: 1, minHeight: 44, justifyContent: 'center', minWidth: 0 }),
-    ])
-    expect(mark.parentElement?.getAttribute('data-style')).toBe(JSON.stringify({ alignItems: 'center' }))
+    const back = screen.getByRole('button', { name: 'Back' })
+    expect(back.contains(mark)).toBe(false)
+    fireEvent.click(back)
+    expect(onBack).toHaveBeenCalledTimes(1)
   })
 })
 

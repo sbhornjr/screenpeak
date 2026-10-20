@@ -1,10 +1,9 @@
 import type { GamePageData, GameReviewsPage } from '@screenpeak/shared/api/games'
 import type { LibraryWrite, ListWrite } from '@screenpeak/shared/api/writes'
 import type { GameRatingsStats } from '@screenpeak/shared/types'
-import { LIBRARY_SECTION_TITLE, libraryEmptyLine, libraryScoreText, libraryStats, type LibraryStat } from '@screenpeak/shared/library-copy'
+import { LIBRARY_SECTION_TITLE, libraryEmptyLine, libraryScoreText } from '@screenpeak/shared/library-copy'
 import { createListSchema, ratingReviewSchema } from '@screenpeak/shared/schemas'
 import { Image } from 'expo-image'
-import { Clock, Repeat, Trophy } from 'lucide-react-native'
 import { useRef, useState } from 'react'
 import { Linking, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 
@@ -26,18 +25,13 @@ import { Button } from './button'
 import { DataAttribution } from './data-attribution'
 import { EmptyState } from './empty-state'
 import { LibrarySheet } from './library-sheet'
+import { LibraryStatRow } from './library-stat-row'
 import { Panel } from './panel'
 import { SectionHead } from './section-head'
 import { Sheet, useSheetDismiss } from './sheet'
 import { TextField } from './text-field'
 
 const SCORES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-const LIBRARY_STAT_ICON = { hours: Clock, plays: Repeat, complete: Trophy }
-
-function LibraryStatIcon({ stat }: { stat: LibraryStat }) {
-  const Icon = LIBRARY_STAT_ICON[stat.key]
-  return <Icon size={16} color={colors.muted} accessibilityLabel={stat.label} />
-}
 const DEFAULT_QUERY: ReviewListQuery = { page: 1, sort: 'date', order: 'desc' }
 
 export type GameDetailProps = {
@@ -355,14 +349,7 @@ export function GameDetail({
               ) : null}
             </View>
             {viewer?.libraryEntry ? (
-              <View style={styles.statRow}>
-                {libraryStats(viewer.libraryEntry).map(stat => (
-                  <View key={stat.key} style={styles.statItem}>
-                    <LibraryStatIcon stat={stat} />
-                    <Text accessibilityElementsHidden importantForAccessibility="no" style={styles.statValue}>{stat.value}</Text>
-                  </View>
-                ))}
-              </View>
+              <LibraryStatRow entry={viewer.libraryEntry} rowGap={space[4]} itemGap={space[1.5]} />
             ) : null}
             {viewer?.review?.updated_at ? <Text style={styles.meta}>Scored {relTime(viewer.review.updated_at)}</Text> : null}
             {!viewer?.libraryEntry && yours == null ? <Text style={styles.body}>Saved, not scored yet</Text> : null}
@@ -832,9 +819,6 @@ const styles = StyleSheet.create({
     fontSize: typeScale['2xl'].size,
     lineHeight: typeScale['2xl'].line,
   },
-  statRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[4] },
-  statItem: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
-  statValue: { fontFamily: face.mono[400], fontSize: typeScale.sm.size, color: colors.text },
   stack: { gap: space[2] },
   scorePanel: { padding: space[4], gap: space[2] },
   scores: { flexDirection: 'row', gap: space[6] },

@@ -1,8 +1,7 @@
 import type { LibraryPageData } from '@screenpeak/shared/api/library'
-import type { ProfilePageData } from '@screenpeak/shared/api/profile'
 import { describe, expect, it } from 'vitest'
 
-import { LIBRARY_QUERY, applyLibraryWrite, libraryGate, orderForSort, withoutLibraryGame } from './library-page'
+import { LIBRARY_QUERY, applyLibraryWrite, orderForSort, withoutLibraryGame } from './library-page'
 
 const HADES_ID = '11111111-1111-4111-8111-111111111111'
 
@@ -23,31 +22,6 @@ const PAGE: LibraryPageData = {
     hours_played: 12.5,
     play_count: 4,
   }],
-}
-
-function profile(input: { owner: boolean, libraryPublic: boolean, viewer: boolean }): ProfilePageData {
-  return {
-    profile: {
-      id: '33333333-3333-4333-8333-333333333333',
-      username: 'ada',
-      display_name: 'Ada Lovelace',
-      avatar_url: null,
-      created_at: '2026-01-01 00:00:00+00',
-      selected_title: null,
-      user_bio: null,
-      profile_loadout_bio: null,
-      library_public: input.libraryPublic,
-      loadout_public: false,
-      follower_count: 0,
-      following_count: 0,
-    },
-    library_stats: input.owner || input.libraryPublic ? { total_games: 1, completed: 0 } : null,
-    favorites: [],
-    recent_reviews: [],
-    rating_count: 0,
-    avg_rating: null,
-    viewer: input.viewer ? { is_owner: input.owner, is_following: false, top_developer_names: [] } : null,
-  }
 }
 
 describe('library writes on the cached page', () => {
@@ -84,16 +58,6 @@ describe('library writes on the cached page', () => {
     const removed = withoutLibraryGame(PAGE, HADES_ID)
     expect(removed.games).toEqual([])
     expect(withoutLibraryGame(PAGE, '22222222-2222-4222-8222-222222222222').games).toEqual(PAGE.games)
-  })
-})
-
-describe('who can see a library', () => {
-  it('opens a public library and the owner, and keeps a private library closed for everyone else', () => {
-    expect(libraryGate(profile({ owner: false, libraryPublic: false, viewer: true }))).toBe('private')
-    expect(libraryGate(profile({ owner: false, libraryPublic: false, viewer: false }))).toBe('private')
-    expect(libraryGate(profile({ owner: true, libraryPublic: false, viewer: true }))).toBe('open')
-    expect(libraryGate(profile({ owner: false, libraryPublic: true, viewer: false }))).toBe('open')
-    expect(libraryGate(null)).toBe('missing')
   })
 })
 

@@ -52,10 +52,18 @@ vi.mock('expo-image', () => ({
 }))
 
 vi.mock('lucide-react-native', () => {
-  function Icon({ accessibilityLabel }: { accessibilityLabel?: string }) {
-    return React.createElement('span', { role: 'img', 'aria-label': accessibilityLabel })
+  function Icon() {
+    return React.createElement('span', { 'aria-hidden': 'true' })
   }
-  return { Clock: Icon, Pencil: Icon, Repeat: Icon, SlidersHorizontal: Icon, Trophy: Icon }
+  return {
+    ArrowDownWideNarrow: Icon,
+    ArrowUpNarrowWide: Icon,
+    Clock: Icon,
+    Pencil: Icon,
+    Repeat: Icon,
+    SlidersHorizontal: Icon,
+    Trophy: Icon,
+  }
 })
 
 vi.mock('react-native-safe-area-context', () => ({
@@ -117,14 +125,16 @@ vi.mock('react-native', () => ({
     renderItem,
     ListHeaderComponent,
     ListEmptyComponent,
+    refreshing,
   }: {
     data: { id: string }[]
     renderItem: (info: { item: { id: string } }) => React.ReactNode
     ListHeaderComponent?: React.ReactNode
     ListEmptyComponent?: React.ReactNode
+    refreshing?: boolean
   }) => React.createElement(
     'div',
-    null,
+    { 'aria-busy': refreshing ? 'true' : 'false' },
     ListHeaderComponent,
     data.length === 0 ? ListEmptyComponent : data.map((item) => renderItem({ item })),
   ),
@@ -199,7 +209,13 @@ function profile(input: { username: string, libraryPublic: boolean, owner: boole
 
 function renderLibrary(node: React.ReactNode) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(<QueryClientProvider client={client}>{node}</QueryClientProvider>)
+  const view = render(<QueryClientProvider client={client}>{node}</QueryClientProvider>)
+  return {
+    ...view,
+    rerender(next: React.ReactNode) {
+      view.rerender(<QueryClientProvider client={client}>{next}</QueryClientProvider>)
+    },
+  }
 }
 
 afterEach(() => {
@@ -251,6 +267,124 @@ describe('OwnLibrary', () => {
       .toBe('Too many requests. Try again in 9 seconds.')
     await waitFor(() => expect(link.textContent).toContain('Playing'))
     expect(link.textContent).not.toContain('Done')
+  })
+
+  it('keeps the filters sheet and the previous game while the next filter loads', async () => {
+    getMe.mockResolvedValue({ user: { username: 'peek' } })
+    let releaseNext: (page: LibraryPageData) => void = () => undefined
+    getLibrary.mockImplementation(() => {
+      if (getLibrary.mock.calls.length === 1) return Promise.resolve({
+        ...PAGE,
+        facets: {
+          genres: [{ id: 'genre-1', name: 'Roguelike', slug: 'roguelike' }],
+          platforms: [],
+          developers: [],
+          publishers: [],
+          esrb_ratings: [],
+        },
+      })
+      return new Promise<LibraryPageData>((resolve) => {
+        releaseNext = resolve
+      })
+    })
+    renderLibrary(<OwnLibrary />)
+    expect((await screen.findByRole('link', { name: 'Hades' })).textContent).toContain('Hades')
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search games' }), { target: { value: 'had' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Filters' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Roguelike' }))
+    expect(screen.getByRole('button', { name: 'Clear filters' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Hades' })).toBeTruthy()
+    expect((screen.getByRole('textbox', { name: 'Search games' }) as HTMLInputElement).value).toBe('had')
+    expect(document.querySelector('[aria-busy="true"]')).toBeTruthy()
+    releaseNext({ ...PAGE, games: [] })
+    await waitFor(() => expect(screen.queryByRole('link', { name: 'Hades' })).toBeNull())
+  })
+
+  it('drops the cached games when the viewer changes and does not fetch them for the new viewer', async () => {
+    getMe.mockResolvedValue({ user: { username: 'peek' } })
+    getLibrary.mockResolvedValue(PAGE)
+    const { rerender } = renderLibrary(<OwnLibrary />)
+    expect((await screen.findByRole('link', { name: 'Hades' })).textContent).toContain('Hades')
+    const calls = getLibrary.mock.calls.length
+    getMe.mockImplementation(() => new Promise(() => undefined))
+    auth.session = { user: { id: 'viewer-2' } }
+    rerender(<OwnLibrary />)
+    expect(screen.queryByRole('link', { name: 'Hades' })).toBeNull()
+    expect(getLibrary).toHaveBeenCalledTimes(calls)
+  })
+
+  it('drops a cached library after sign-out', async () => {
+    getMe.mockResolvedValue({ user: { username: 'peek' } })
+    getLibrary.mockResolvedValue(PAGE)
+    const { rerender } = renderLibrary(<OwnLibrary />)
+    expect((await screen.findByRole('link', { name: 'Hades' })).textContent).toContain('Hades')
+    const calls = getLibrary.mock.calls.length
+    auth.session = null
+    rerender(<OwnLibrary />)
+    expect(screen.getByText('Sign up to see your library.').textContent).toBe('Sign up to see your library.')
+    expect(screen.queryByRole('link', { name: 'Hades' })).toBeNull()
+    expect(getLibrary).toHaveBeenCalledTimes(calls)
+  })
+
+  it('keeps the edit sheet and its choices when a 429 removes the card from Playing', async () => {
+    getMe.mockResolvedValue({ user: { username: 'peek' } })
+    getLibrary.mockResolvedValue(PAGE)
+    let rejectSave: (error: unknown) => void = () => undefined
+    putLibrary.mockImplementation(() => new Promise((_resolve, reject) => {
+      rejectSave = reject
+    }))
+    renderLibrary(<OwnLibrary />)
+    expect(await screen.findByRole('link', { name: 'Hades' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Playing' }))
+    expect(await screen.findByRole('button', { name: 'Edit Hades' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Hades' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Log as completed' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Update library entry' }))
+    await waitFor(() => expect(screen.queryByRole('link', { name: 'Hades' })).toBeNull())
+    expect(screen.getByRole('button', { name: 'Log as completed' }).getAttribute('aria-selected')).toBe('true')
+    rejectSave(new ApiClientError(429, 'rate_limited', 'slow down', 9))
+    expect((await screen.findByText('Too many requests. Try again in 9 seconds.')).textContent)
+      .toBe('Too many requests. Try again in 9 seconds.')
+    expect(screen.getByRole('button', { name: 'Log as completed' }).getAttribute('aria-selected')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Update library entry' })).toBeTruthy()
+    expect(screen.getByText('Manage game').textContent).toBe('Manage game')
+  })
+
+  it('closes the edit sheet after the save succeeds', async () => {
+    getMe.mockResolvedValue({ user: { username: 'peek' } })
+    getLibrary.mockResolvedValue(PAGE)
+    let resolveSave: (value: unknown) => void = () => undefined
+    putLibrary.mockImplementation(() => new Promise((resolve) => {
+      resolveSave = resolve
+    }))
+    renderLibrary(<OwnLibrary />)
+    expect(await screen.findByRole('link', { name: 'Hades' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Playing' }))
+    expect(await screen.findByRole('button', { name: 'Edit Hades' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Hades' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Log as completed' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Update library entry' }))
+    await waitFor(() => expect(screen.queryByRole('link', { name: 'Hades' })).toBeNull())
+    expect(screen.getByText('Manage game').textContent).toBe('Manage game')
+    resolveSave(undefined)
+    await waitFor(() => expect(screen.queryByText('Manage game')).toBeNull())
+    expect(screen.queryByRole('button', { name: 'Update library entry' })).toBeNull()
+  })
+
+  it('lets All bring back the previous games when a filter request fails', async () => {
+    getMe.mockResolvedValue({ user: { username: 'peek' } })
+    getLibrary
+      .mockResolvedValueOnce(PAGE)
+      .mockRejectedValueOnce(new ApiClientError(500, 'internal', 'The library request failed.'))
+      .mockResolvedValue(PAGE)
+    renderLibrary(<OwnLibrary />)
+    expect(await screen.findByRole('link', { name: 'Hades' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Playing' }))
+    expect((await screen.findByText('The library request failed.')).textContent).toBe('The library request failed.')
+    expect(screen.getByRole('link', { name: 'Hades' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'All' }))
+    await waitFor(() => expect(screen.queryByText('The library request failed.')).toBeNull())
+    expect(screen.getByRole('link', { name: 'Hades' })).toBeTruthy()
   })
 
   it('shows the rate-limit message and loads the library after Retry', async () => {

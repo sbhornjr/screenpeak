@@ -1,7 +1,7 @@
 import type { LibraryPageData, LibraryQuery } from '@screenpeak/shared/api/library'
 import type { LibraryWrite } from '@screenpeak/shared/api/writes'
 import { ApiClientError } from '@screenpeak/shared/api/client'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { StyleSheet, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -23,6 +23,19 @@ import { colors } from '@/theme'
 import { AppHeader } from './app-header'
 import { LibraryScreen, LibrarySkeleton } from './library-screen'
 import { ScreenMessage } from './screen-state'
+
+function latestLibraryPage(client: QueryClient, username: string, viewerId: string | null): LibraryPageData | undefined {
+  let latest: LibraryPageData | undefined
+  let updatedAt = -1
+  for (const cached of client.getQueryCache().findAll({ queryKey: ['library', username] })) {
+    if (cached.queryKey.at(-1) !== viewerId || cached.state.status !== 'success') continue
+    const data = cached.state.data as LibraryPageData | undefined
+    if (!data || cached.state.dataUpdatedAt < updatedAt) continue
+    updatedAt = cached.state.dataUpdatedAt
+    latest = data
+  }
+  return latest
+}
 
 function libraryFailure(error: unknown): { title: string, body: string } {
   if (error instanceof ApiClientError && error.status === 429) {
@@ -67,9 +80,22 @@ export function LibraryBrowser({
   const [query, setQuery] = useState<LibraryQuery>(LIBRARY_QUERY)
   const [refreshing, setRefreshing] = useState(false)
   const parts = libraryCacheParts(username, query)
-  const remote = useRemote(parts, () => api.users.library(username, query), username.length > 0)
-  const viewerId = remote.session?.user.id ?? null
+  const { ready, session } = useAuth()
+  const configured = apiConfigured()
+  const viewerId = session?.user.id ?? null
+  const libraryQuery = useQuery({
+    queryKey: [...parts, viewerId],
+    queryFn: () => api.users.library(username, query),
+    enabled: username.length > 0 && ready && configured,
+    placeholderData: (previousData, previousQuery) => {
+      if (previousQuery?.queryKey.at(-1) !== viewerId) return undefined
+      return previousData
+    },
+  })
   const libraryKey = [...parts, viewerId] as const
+  const failure = libraryQuery.isError ? libraryFailure(libraryQuery.error) : null
+  const page = libraryQuery.data
+    ?? (failure ? latestLibraryPage(queryClient, username, viewerId) : undefined)
 
   async function commit(
     run: () => Promise<unknown>,
@@ -97,33 +123,36 @@ export function LibraryBrowser({
   async function refresh() {
     setRefreshing(true)
     try {
-      await remote.query.refetch()
+      await libraryQuery.refetch()
     } finally {
       setRefreshing(false)
     }
   }
 
-  if (remote.query.isError) {
-    const failure = libraryFailure(remote.query.error)
-    return (
-      <LibraryNotice
-        title={failure.title}
-        body={failure.body}
-        onBack={onBack}
-        onRetry={() => { void remote.query.refetch() }}
-      />
-    )
+  if (!page) {
+    if (failure) {
+      return (
+        <LibraryNotice
+          title={failure.title}
+          body={failure.body}
+          onBack={onBack}
+          onRetry={() => { void libraryQuery.refetch() }}
+        />
+      )
+    }
+    return <LibrarySkeleton />
   }
-  if (!remote.query.data) return <LibrarySkeleton />
 
   return (
     <LibraryScreen
-      games={remote.query.data.games}
-      facets={remote.query.data.facets}
+      games={page.games}
+      facets={page.facets}
       query={query}
       canEdit={canEdit}
       title={title}
-      refreshing={refreshing}
+      refreshing={refreshing || libraryQuery.isFetching}
+      loadError={failure?.body ?? null}
+      onRetry={failure ? () => { void libraryQuery.refetch() } : undefined}
       onRefresh={() => { void refresh() }}
       onOpen={go}
       onBack={onBack}
