@@ -9,7 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { GameDetail, GameDetailSkeleton } from '@/components/game-detail'
 import { ScreenMessage } from '@/components/screen-state'
 import { api, apiConfigured } from '@/lib/api'
-import { actionFailure, withLibraryWrite, withListMembership, withViewerReview, withoutLibraryEntry, type ReviewListQuery } from '@/lib/game-page'
+import { actionFailure, withCreatedList, withLibraryWrite, withListMembership, withViewerReview, withoutLibraryEntry, type ReviewListQuery } from '@/lib/game-page'
 import { useAuth } from '@/lib/auth'
 import { back, go } from '@/lib/go'
 import { catalogueHref, profileHref } from '@/lib/routes'
@@ -128,7 +128,23 @@ export default function GameScreen() {
             () => api.lists.removeGame(listId, gameId),
             data => withListMembership(data, listId, false),
           ) : undefined}
-          onCreateList={signedIn ? (input) => commit(() => api.lists.create({ ...input, gameId })) : undefined}
+          onCreateList={signedIn ? async (input) => {
+            try {
+              const created = await api.lists.create({ ...input, gameId })
+              queryClient.setQueryData<GamePageData>(gameKey, current =>
+                current ? withCreatedList(current, { id: created.id, name: input.name.trim() }) : current,
+              )
+              void Promise.all([
+                queryClient.invalidateQueries({ queryKey: ['game', slug] }),
+                queryClient.invalidateQueries({ queryKey: ['library'] }),
+                queryClient.invalidateQueries({ queryKey: ['lists'] }),
+                queryClient.invalidateQueries({ queryKey: ['profile'] }),
+              ])
+              return null
+            } catch (error) {
+              return actionFailure(error)
+            }
+          } : undefined}
         />
       ) : null}
     </SafeAreaView>
