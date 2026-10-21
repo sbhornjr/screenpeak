@@ -38,8 +38,8 @@ Preconditions:
 - **Open a game, then the sheets.** On the signed-in Library tab, open the first game. Click the Rate control. The sheet shows Review note, the scores, and Close. Close it. Click Add to list. The sheet shows New list and does not show New list name yet. Click New list, then focus that field. Close the sheet and go Back to the library.
 - **Open the library from the hub.** On the Profile tab, click the library preview. The Library tab is selected, the address is `/library`, and the hub is not left on top. Open `http://localhost:8081/user/peek` and click that preview again. The same Library tab is showing.
 - **Open the private profile as peek.** Open `http://localhost:8081/user/ada` again. Lists stays. Loadout and the library counts stay absent, and those routes are still not requested.
-- **Open the hidden routes.** Open `http://localhost:8081/user/ada/library` and `http://localhost:8081/user/ada/loadout`. Each says Couldn't load this screen and Not found. Neither shows a game title.
-- **Proof.** The drive writes `/tmp/screenpeak-verify/evidence/mobile-nav/`. The png files are the tabs, the profile views, the Library tab after each preview tap, the Rate sheet, the Add to list sheet, the focused new-list field, and ada's not-found library and loadout. `result.json` records the profile JSON: peek's signed-out `library_stats.total_games` is 5, ada's `library_stats` is null, ada's library and loadout routes are 404, and peek's own profile JSON has `viewer.is_owner` true. It also records the Library tab path after each preview tap.
+- **Open the hidden routes.** Open `http://localhost:8081/user/ada/library`. It says This library is private and does not request ada's library. Open `http://localhost:8081/user/ada/loadout`. It says Couldn't load this screen and Not found. Neither shows a game title.
+- **Proof.** The drive writes `/tmp/screenpeak-verify/evidence/mobile-nav/`. The png files are the tabs, the profile views, the Library tab after each preview tap, the Rate sheet, the Add to list sheet, the focused new-list field, ada's private library, and ada's not-found loadout. `result.json` records the profile JSON: peek's signed-out `library_stats.total_games` is 5, ada's `library_stats` is null, ada's library and loadout routes are 404, and peek's own profile JSON has `viewer.is_owner` true. It also records the Library tab path after each preview tap.
 
 ```bash
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-nav
@@ -48,7 +48,7 @@ node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-nav
 ## Gotchas
 
 - Expo web mounts every tab. Inactive tabs use `display: none`. Read the active tabpanel (`data-state="active"`), not the whole page text. The word Library is also the tab label.
-- The hub reads `GET /api/v1/user/[username]` only. Library counts on that payload are null when the library is private. The library and loadout routes themselves are 404 for everyone except the owner. Do not treat a 404 on ada's library as a missing player.
+- The hub reads `GET /api/v1/user/[username]` only. Library counts on that payload are null when the library is private. The library and loadout API routes are still 404 for everyone except the owner. The phone library screen reads the profile first and shows a private state instead of Not found. Do not treat a 404 on ada's library API as a missing player.
 - Lists have no profile-wide flag. A private profile still shows Lists. ada's default Wishlist is public; the hub does not open it.
 - peek's library and loadout are public, so signed-out `/user/peek` shows every section. The Profile tab while signed out is the own-profile signup prompt. The Profile tab as peek is the own hub, and its library preview links to the Library tab.
 - The drive inserts ada and deletes that auth user before it exits, including after a failure. `down` drops the database. Do not point this drive at a hosted database.

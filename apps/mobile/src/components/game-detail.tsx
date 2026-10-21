@@ -1,46 +1,37 @@
 import type { GamePageData, GameReviewsPage } from '@screenpeak/shared/api/games'
 import type { LibraryWrite, ListWrite } from '@screenpeak/shared/api/writes'
 import type { GameRatingsStats } from '@screenpeak/shared/types'
-import { LIBRARY_SECTION_TITLE, libraryEmptyLine, libraryScoreText, libraryStats, type LibraryStat } from '@screenpeak/shared/library-copy'
+import { LIBRARY_SECTION_TITLE, libraryEmptyLine, libraryScoreText } from '@screenpeak/shared/library-copy'
 import { createListSchema, ratingReviewSchema } from '@screenpeak/shared/schemas'
 import { Image } from 'expo-image'
-import { Clock, Repeat, Trophy } from 'lucide-react-native'
 import { useRef, useState } from 'react'
 import { Linking, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 
 import { igdbImageUri } from '@/lib/catalog-image'
 import {
   communityScore,
-  libraryForm,
-  libraryWrite,
-  LIBRARY_CHOICES,
   ratingLabel,
   relTime,
   scoreGap,
   statusLabel,
   yearOf,
-  type LibraryForm,
   type ReviewListQuery,
 } from '@/lib/game-page'
 import { colors, face, radius, space, tierColor, tracking, trackingPx, typeScale } from '@/theme'
 
+import { AppHeader } from './app-header'
 import { Avatar } from './avatar'
 import { Button } from './button'
 import { DataAttribution } from './data-attribution'
 import { EmptyState } from './empty-state'
+import { LibrarySheet } from './library-sheet'
+import { LibraryStatRow } from './library-stat-row'
 import { Panel } from './panel'
 import { SectionHead } from './section-head'
 import { Sheet, useSheetDismiss } from './sheet'
 import { TextField } from './text-field'
-import { Wordmark } from './wordmark'
 
 const SCORES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-const LIBRARY_STAT_ICON = { hours: Clock, plays: Repeat, complete: Trophy }
-
-function LibraryStatIcon({ stat }: { stat: LibraryStat }) {
-  const Icon = LIBRARY_STAT_ICON[stat.key]
-  return <Icon size={16} color={colors.muted} accessibilityLabel={stat.label} />
-}
 const DEFAULT_QUERY: ReviewListQuery = { page: 1, sort: 'date', order: 'desc' }
 
 export type GameDetailProps = {
@@ -136,8 +127,6 @@ export function GameDetail({
   const [score, setScore] = useState<number | null>(yours)
   const [note, setNote] = useState(viewer?.review?.review ?? '')
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const [form, setForm] = useState<LibraryForm>(() => libraryForm(viewer?.libraryEntry ?? null))
-  const [details, setDetails] = useState(false)
   const [makingList, setMakingList] = useState(false)
   const [listName, setListName] = useState('')
   const [listDescription, setListDescription] = useState('')
@@ -174,10 +163,6 @@ export function GameDetail({
       setScore(viewer?.review?.rating ?? null)
       setNote(viewer?.review?.review ?? '')
       setConfirmDelete(false)
-    }
-    if (next === 'save') {
-      setForm(libraryForm(viewer?.libraryEntry ?? null))
-      setDetails(false)
     }
     if (next === 'list') {
       setMakingList(false)
@@ -233,21 +218,6 @@ export function GameDetail({
     await run(() => onRate(rating, ''))
   }
 
-  async function submitLibrary() {
-    const result = libraryWrite(viewer?.libraryEntry ?? null, form)
-    if (!result.ok) {
-      fail(result.message)
-      return
-    }
-    if (!result.write) {
-      fail('Nothing to update.')
-      return
-    }
-    if (!onSave) return
-    const write = result.write
-    await run(() => onSave(write))
-  }
-
   async function submitList() {
     const parsed = createListSchema.safeParse({
       name: listName,
@@ -296,15 +266,15 @@ export function GameDetail({
   }
 
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={[styles.content, compact && styles.contentCompact]}
-      refreshControl={onRefresh
-        ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} colors={[colors.accent]} />
-        : undefined}
-    >
-      <Wordmark />
-      <Button label="Back" variant="ghost" onPress={onBack} />
+    <View style={styles.screen}>
+      <AppHeader onBack={onBack} />
+      <ScrollView
+        style={styles.fill}
+        contentContainerStyle={[styles.content, compact && styles.contentCompact]}
+        refreshControl={onRefresh
+          ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} colors={[colors.accent]} />
+          : undefined}
+      >
       <View style={styles.titleRow}>
         <View style={styles.titleSeam} />
         <Text
@@ -379,14 +349,7 @@ export function GameDetail({
               ) : null}
             </View>
             {viewer?.libraryEntry ? (
-              <View style={styles.statRow}>
-                {libraryStats(viewer.libraryEntry).map(stat => (
-                  <View key={stat.key} style={styles.statItem}>
-                    <LibraryStatIcon stat={stat} />
-                    <Text accessibilityElementsHidden importantForAccessibility="no" style={styles.statValue}>{stat.value}</Text>
-                  </View>
-                ))}
-              </View>
+              <LibraryStatRow entry={viewer.libraryEntry} rowGap={space[4]} itemGap={space[1.5]} />
             ) : null}
             {viewer?.review?.updated_at ? <Text style={styles.meta}>Scored {relTime(viewer.review.updated_at)}</Text> : null}
             {!viewer?.libraryEntry && yours == null ? <Text style={styles.body}>Saved, not scored yet</Text> : null}
@@ -479,75 +442,13 @@ export function GameDetail({
         ) : null}
       </Sheet>
 
-      <Sheet visible={panel === 'save'} title={viewer?.libraryEntry ? 'Manage game' : 'Add to library'} onClose={() => setPanel(null)}>
-        {LIBRARY_CHOICES.map(choice => {
-          const selected = form.status === choice.status
-          return (
-            <Pressable
-              key={choice.status}
-              accessibilityRole="button"
-              accessibilityLabel={`Log as ${choice.status}`}
-              accessibilityState={{ selected }}
-              onPress={() => setForm(current => ({ ...current, status: choice.status }))}
-              style={[styles.statusRow, selected && styles.statusSelected]}
-            >
-              <Text style={styles.statusTitle}>{choice.label}</Text>
-              <Text style={styles.meta}>{choice.description}</Text>
-            </Pressable>
-          )
-        })}
-        <Button
-          label={details ? 'Hide library details' : 'Show library details'}
-          variant="ghost"
-          onPress={() => setDetails(open => !open)}
-        />
-        {details ? (
-          <View style={styles.stack}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="100% achievements completed"
-              accessibilityState={{ checked: form.completed }}
-              onPress={() => setForm(current => ({ ...current, completed: !current.completed }))}
-              style={[styles.statusRow, form.completed && styles.statusSelected]}
-            >
-              <Text style={styles.body}>100% achievements completed</Text>
-              <Text style={styles.meta}>{form.completed ? 'On' : 'Off'}</Text>
-            </Pressable>
-            <TextField
-              label="Hours played"
-              value={form.hours}
-              onChangeText={value => setForm(current => ({ ...current, hours: value }))}
-              keyboardType="decimal-pad"
-            />
-            <Text style={styles.metaLabel}>Times played</Text>
-            <View style={styles.actions}>
-              <Button
-                label="−"
-                accessibilityLabel="Fewer times played"
-                variant="secondary"
-                onPress={() => setForm(current => ({ ...current, playCount: Math.max(1, current.playCount - 1) }))}
-              />
-              <Text style={styles.playCount}>{form.playCount}</Text>
-              <Button
-                label="+"
-                accessibilityLabel="More times played"
-                variant="secondary"
-                onPress={() => setForm(current => ({ ...current, playCount: Math.min(32767, current.playCount + 1) }))}
-              />
-            </View>
-          </View>
-        ) : null}
-        {actionError ? <Text accessibilityLiveRegion="polite" style={styles.error}>{actionError}</Text> : null}
-        {canRetry ? <Button label="Retry" variant="secondary" onPress={retry} /> : null}
-        <Button
-          label={busy ? 'Saving…' : (viewer?.libraryEntry ? 'Update library entry' : 'Save game')}
-          disabled={busy}
-          onPress={() => { void submitLibrary() }}
-        />
-        {viewer?.libraryEntry && onRemoveLibrary ? (
-          <Button label="Remove from library" variant="secondary" disabled={busy} onPress={() => { void run(() => onRemoveLibrary()) }} />
-        ) : null}
-      </Sheet>
+      <LibrarySheet
+        visible={panel === 'save'}
+        entry={viewer?.libraryEntry ?? null}
+        onClose={() => setPanel(null)}
+        onSave={onSave}
+        onRemove={onRemoveLibrary}
+      />
 
       <Sheet visible={panel === 'list'} title={makingList ? 'New list' : 'Add to list'} onClose={() => setPanel(null)}>
         {makingList ? (
@@ -837,7 +738,8 @@ export function GameDetail({
       ) : null}
 
       <DataAttribution />
-    </ScrollView>
+      </ScrollView>
+    </View>
   )
 }
 
@@ -855,6 +757,7 @@ export function GameDetailSkeleton() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
+  fill: { flex: 1 },
   content: { paddingHorizontal: space[6], paddingTop: space[6], paddingBottom: space[12], gap: space[3] },
   contentCompact: { paddingHorizontal: space[4] },
   titleRow: { flexDirection: 'row', alignItems: 'stretch', gap: space[3] },
@@ -916,9 +819,6 @@ const styles = StyleSheet.create({
     fontSize: typeScale['2xl'].size,
     lineHeight: typeScale['2xl'].line,
   },
-  statRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[4] },
-  statItem: { flexDirection: 'row', alignItems: 'center', gap: space[1.5] },
-  statValue: { fontFamily: face.mono[400], fontSize: typeScale.sm.size, color: colors.text },
   stack: { gap: space[2] },
   scorePanel: { padding: space[4], gap: space[2] },
   scores: { flexDirection: 'row', gap: space[6] },
@@ -965,14 +865,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   statusSelected: { borderColor: colors.accent },
-  statusTitle: { fontFamily: face.display[600], fontSize: typeScale.base.size, color: colors.text },
-  playCount: {
-    minWidth: 32,
-    fontFamily: face.mono[600],
-    fontSize: typeScale.lg.size,
-    color: colors.text,
-    textAlign: 'center',
-  },
   metaLabel: {
     fontFamily: face.mono[400],
     fontSize: typeScale.eyebrow.size,

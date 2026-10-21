@@ -1,11 +1,11 @@
 ---
 name: verify-screenpeak
-description: "Drive the ScreenPeak web app against a local Postgres and prove the Loadout Read-Out through the signed-in UI. Also drives the phone navigation skeleton, the phone profile, and the phone game page on Expo web. Use before calling ScreenPeak work done, and whenever a change can affect sign-in, the library fixture, /user/peek/loadout, the phone tabs, the phone profile, or the phone game page."
+description: "Drive the ScreenPeak web app against a local Postgres and prove the Loadout Read-Out through the signed-in UI. Also drives the phone navigation skeleton, the phone profile, the phone library, and the phone game page on Expo web. Use before calling ScreenPeak work done, and whenever a change can affect sign-in, the library fixture, /user/peek/loadout, the phone tabs, the phone profile, the phone library, or the phone game page."
 ---
 
 # Verify ScreenPeak
 
-ScreenPeak's primary surface is the Next.js web app. This skill launches that app on a disposable local Postgres, signs in as the fixture user through the sign-in dialog, and proves the Loadout Read-Out. The phone navigation skeleton is driven on Expo web against the same local API (`drive mobile-nav`). The phone profile, including follow and the privacy gates, is `drive mobile-profile`. The phone game page, including rate, review, library, and lists, is `drive mobile-game`. Steam import is intentionally absent: agents have no Steam account.
+ScreenPeak's primary surface is the Next.js web app. This skill launches that app on a disposable local Postgres, signs in as the fixture user through the sign-in dialog, and proves the Loadout Read-Out. The phone navigation skeleton is driven on Expo web against the same local API (`drive mobile-nav`). The phone profile, including follow and the privacy gates, is `drive mobile-profile`. The phone library, including filters and a private library, is `drive mobile-library`. The phone game page, including rate, review, library, and lists, is `drive mobile-game`. Steam import is intentionally absent: agents have no Steam account.
 
 One instance per machine. `up` refuses when port 3210, 54321, or 54322 is already taken. Do not point this skill at a hosted database.
 
@@ -65,11 +65,14 @@ node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-profile
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-forgot-password
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-sign-up
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-game
+node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-library
 ```
 
 `drive search` does not start signed in. It reads one of `peek`'s rated games and that game's developer and publisher from Postgres, fetches the game and taxonomy search routes, and types into the catalogue's developer dropdown and the signed-in favorite-game picker. It does not click Lock.
 
-`drive mobile-nav` starts Expo web on `localhost:8081` with `EXPO_PUBLIC_API_URL` pointed at the local website and the public Supabase URL and anon key from the env file this skill wrote. It does not write those values into the repo. It screenshots the four tabs signed out and signed in as peek, peek's public profile signed out, and a second local user `ada` whose library and loadout are private, both signed out and as peek. It also opens the catalogue from Browse and comes Back, opens the Library tab from the profile preview, and opens ada's library and loadout, which stay Not found. It deletes `ada` and stops Expo before it exits. Port 8081 must be free.
+`drive mobile-nav` starts Expo web on `localhost:8081` with `EXPO_PUBLIC_API_URL` pointed at the local website and the public Supabase URL and anon key from the env file this skill wrote. It does not write those values into the repo. It screenshots the four tabs signed out and signed in as peek, peek's public profile signed out, and a second local user `ada` whose library and loadout are private, both signed out and as peek. It also opens the catalogue from Browse and comes Back, opens the Library tab from the profile preview, and opens ada's library (private) and loadout (Not found). It deletes `ada` and stops Expo before it exits. Port 8081 must be free.
+
+`drive mobile-library` starts the same Expo web server. Signed in as peek, it screenshots the Library header, the open Status dropdown, the cover edit overlay, the filters sheet with a facet search, an empty search, and ada's private library at 375×667 and 320×568, plus the centered wordmark on the feed at both widths. It opens one game and the owner's library sheet, then closes both without saving. The edit press stays on the library. It deletes `ada` and stops Expo before it exits. Port 8081 must be free. Do not run it at the same time as another Expo drive.
 
 `drive mobile-profile` starts the same Expo web server. It dresses peek's display name, bio, title, read-out, one favorite, and one written review, then restores those columns. It inserts `nova`, whose library and loadout are public, and `ada`, whose library and loadout are private. Signed in as peek, it screenshots the Profile tab, nova, and ada at 375×667 and 320×568. It opens the Settings stub and the ratings stub, opens the Library tab from peek's preview, follows and unfollows nova by user id, and opens nova's library. It deletes `nova` and `ada`, restores peek, and stops Expo before it exits. Port 8081 must be free. Do not run it at the same time as another Expo drive.
 
@@ -142,7 +145,8 @@ A passing search proof shows the developer name in `filters.png`, the game name 
 - `game-rate-sheet.png` — the Rate sheet on one of peek's games, with Close still visible
 - `game-list-sheet.png` — the Add to list sheet on that game
 - `game-list-focused.png` — the same sheet with the new-list field focused
-- `user-ada-library.png` and `user-ada-loadout.png` — Not found, with no game titles
+- `user-ada-library.png` — ada's library is private, with no game titles and no library request
+- `user-ada-loadout.png` — Not found, with no game titles
 - `result.json` — the profile JSON checks, the library-tab landing, and ada's 404 library and loadout
 
 A passing mobile-nav proof shows ScreenPeak on each screenshot, the welcome and signup prompts while signed out, peek's games on the signed-in library, Loadout and the library counts on peek's own hub and on the signed-out public profile, and neither Loadout nor the library counts on ada. `result.json` has an empty `problems` list, `library_stats` null for ada, and `viewer.is_owner` true for peek.
@@ -202,6 +206,22 @@ A passing sign-up proof shows ScreenPeak on each screenshot, the check-your-emai
 - `result.json` — the write checks and an empty `problems` list
 - `postgres.txt` — the review text, the status-only library row, the list counts, and the restored fixture
 
+`drive mobile-library` writes `/tmp/screenpeak-verify/evidence/mobile-library/`:
+
+- `header-375.png` and `header-320.png` — Status: All, Sort: Name, and 100% only
+- `menu-375.png` and `menu-320.png` — the open Status dropdown
+- `overlay-375.png` and `overlay-320.png` — the cover edit pencil
+- `own-375.png` and `own-320.png` — peek's Library tab and a game
+- `odd-375.png` and `odd-320.png` — the same grid, with an odd number of cards, at 375×667 and 320×568
+- `sort-375.png` and `sort-320.png` — Date added, with the descending sort toggle
+- `filters-375.png` and `filters-320.png` — the filters sheet, with a facet search open
+- `empty-375.png` and `empty-320.png` — a search with no games
+- `private-375.png` and `private-320.png` — ada's private library
+- `logo-375.png` and `logo-320.png` — the centered Screen | Peak wordmark on the feed
+- `result.json` — the wordmark offsets, the game path, and an empty `problems` list
+
+A passing mobile-library proof shows ScreenPeak on each screenshot, a game on the Library tab, Clear filters in the sheet, "No games found" after the search, and "This library is private." on ada's library. `result.json` has an empty `problems` list and wordmark deltas within 12px. ada is gone after the drive.
+
 A passing mobile-game proof shows ScreenPeak and the game name on `se-signed-out.png`, the signup sentence on `signup.png`, the new review then the edited review, the score still visible after the written review is deleted, a library PUT body that is only `{ "status": ... }` while Postgres still has hours 12.5, play count 4, and the 100% flag, the game on the wishlist and on the created list, and Close inside the short viewport. `result.json` has an empty `problems` list. After the drive, peek still has five ratings and five library rows, and the created list is gone.
 
 ## Cleanup
@@ -210,7 +230,7 @@ A passing mobile-game proof shows ScreenPeak and the game name on `se-signed-out
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs down
 ```
 
-Kill only the pids in `/tmp/screenpeak-verify/pids`. After `down`, `/tmp/screenpeak-verify/evidence/loadout-readout/`, `/tmp/screenpeak-verify/evidence/game-page/`, `/tmp/screenpeak-verify/evidence/read-endpoints/`, `/tmp/screenpeak-verify/evidence/game-writes/`, `/tmp/screenpeak-verify/evidence/search/`, `/tmp/screenpeak-verify/evidence/mobile-nav/`, `/tmp/screenpeak-verify/evidence/mobile-profile/`, `/tmp/screenpeak-verify/evidence/mobile-forgot-password/`, `/tmp/screenpeak-verify/evidence/mobile-sign-up/`, and `/tmp/screenpeak-verify/evidence/mobile-game/` must still exist. Confirm that before treating the run as finished.
+Kill only the pids in `/tmp/screenpeak-verify/pids`. After `down`, `/tmp/screenpeak-verify/evidence/loadout-readout/`, `/tmp/screenpeak-verify/evidence/game-page/`, `/tmp/screenpeak-verify/evidence/read-endpoints/`, `/tmp/screenpeak-verify/evidence/game-writes/`, `/tmp/screenpeak-verify/evidence/search/`, `/tmp/screenpeak-verify/evidence/mobile-nav/`, `/tmp/screenpeak-verify/evidence/mobile-profile/`, `/tmp/screenpeak-verify/evidence/mobile-forgot-password/`, `/tmp/screenpeak-verify/evidence/mobile-sign-up/`, `/tmp/screenpeak-verify/evidence/mobile-game/`, and `/tmp/screenpeak-verify/evidence/mobile-library/` must still exist. Confirm that before treating the run as finished.
 
 ## Helpers
 

@@ -13,9 +13,9 @@ import { Button } from './button'
 import { EmptyState } from './empty-state'
 import { GameCard } from './game-card'
 import { Panel } from './panel'
+import { AppHeader } from './app-header'
 import { screenStyles, PanelRow } from './screen-scroll'
 import { SectionHead } from './section-head'
-import { Wordmark } from './wordmark'
 
 function libraryCopy(library: NonNullable<ProfileHubModel['library']>): { label: string, text: string } {
   if (library.totalGames == null || library.completed == null) {
@@ -96,14 +96,13 @@ export function ProfileHub({
 
   return (
     <SafeAreaView style={styles.screen}>
+      <AppHeader onBack={onBack} />
       <ScrollView
         contentContainerStyle={[styles.content, compact && styles.contentCompact]}
         refreshControl={onRefresh
           ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} colors={[colors.accent]} />
           : undefined}
       >
-        <Wordmark />
-        {onBack ? <Button label="Back" variant="ghost" onPress={onBack} /> : null}
         <View style={styles.header}>
           <Avatar alt={model.username} src={model.avatarUrl} size="lg" />
           <View style={styles.identity}>

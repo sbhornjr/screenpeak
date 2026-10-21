@@ -55,8 +55,29 @@ function exposedName(role: string | undefined, accessibilityRole: string | undef
   return label
 }
 
+vi.mock('lucide-react-native', () => {
+  function Icon({ accessibilityLabel }: { accessibilityLabel?: string }) {
+    return React.createElement('span', { role: 'img', 'aria-label': accessibilityLabel })
+  }
+  return {
+    ArrowDownWideNarrow: Icon,
+    ArrowUpNarrowWide: Icon,
+    ChevronDown: Icon,
+    Clock: Icon,
+    Library: Icon,
+    List: Icon,
+    Pencil: Icon,
+    Repeat: Icon,
+    SlidersHorizontal: Icon,
+    Trophy: Icon,
+    Crosshair: Icon,
+  }
+})
+
 vi.mock('react-native', () => ({
   Linking: { openURL: vi.fn(() => Promise.resolve()) },
+  Platform: { OS: 'web' },
+  Keyboard: { addListener: () => ({ remove() {} }) },
   Pressable: ({
     onPress,
     children,
@@ -65,7 +86,7 @@ vi.mock('react-native', () => ({
     disabled,
   }: {
     onPress?: () => void
-    children?: React.ReactNode
+    children?: React.ReactNode | ((state: { pressed: boolean }) => React.ReactNode)
     accessibilityLabel?: string
     accessibilityRole?: string
     disabled?: boolean
@@ -78,7 +99,7 @@ vi.mock('react-native', () => ({
       role: accessibilityRole,
       disabled,
     },
-    children,
+    typeof children === 'function' ? children({ pressed: false }) : children,
   ),
   View: ({
     children,
@@ -113,12 +134,32 @@ vi.mock('react-native', () => ({
   }),
   ScrollView: ({ children }: { children?: React.ReactNode }) => React.createElement('div', null, children),
   RefreshControl: () => null,
+  FlatList: ({
+    data,
+    renderItem,
+    ListHeaderComponent,
+    ListEmptyComponent,
+  }: {
+    data?: { id?: string }[]
+    renderItem?: (info: { item: { id?: string } }) => React.ReactNode
+    ListHeaderComponent?: React.ReactNode
+    ListEmptyComponent?: React.ReactNode
+  }) => React.createElement(
+    'div',
+    null,
+    ListHeaderComponent,
+    data && data.length > 0 && renderItem ? data.map((item) => renderItem({ item })) : ListEmptyComponent,
+  ),
+  Modal: ({ visible, children }: { visible?: boolean, children?: React.ReactNode }) => (
+    visible ? React.createElement('div', null, children) : null
+  ),
   useWindowDimensions: () => ({ width: 390, height: 844, scale: 1, fontScale: 1 }),
   StyleSheet: { create: (styles: unknown) => styles, absoluteFill: {} },
 }))
 
 vi.mock('react-native-safe-area-context', () => ({
   SafeAreaView: ({ children }: { children?: React.ReactNode }) => React.createElement('div', null, children),
+  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
 }))
 
 vi.mock('expo-image', () => ({
@@ -390,12 +431,13 @@ describe('library', () => {
   it('lists a signed-in library and opens the game', () => {
     const onOpen = vi.fn()
     render(<LibraryScreen locked={false} games={[HADES]} onOpen={onOpen} />)
-    expect(screen.getByText('Completed').textContent).toBe('Completed')
+    expect(screen.getByRole('button', { name: 'Status: All' }).textContent).toContain('Status: All')
+    expect(screen.getByRole('button', { name: 'Sort: Name' }).textContent).toContain('Sort: Name')
     fireEvent.click(screen.getByRole('link', { name: 'Hades' }))
     expect(onOpen).toHaveBeenCalledWith('/games/hades')
     cleanup()
     render(<LibraryScreen locked={false} games={[{ ...HADES, id: '22222222-2222-2222-2222-222222222222', name: 'Celeste', slug: 'celeste', library_status: 'abandoned' }]} onOpen={onOpen} />)
-    expect(screen.getByText('Abandoned').textContent).toBe('Abandoned')
+    expect(screen.getByText('Dropped').textContent).toBe('Dropped')
   })
 })
 

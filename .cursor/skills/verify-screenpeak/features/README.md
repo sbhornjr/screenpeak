@@ -51,3 +51,4 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 - [Mobile forgot password](./mobile-forgot-password.md) covers the phone reset request, the neutral confirmation, the local reset link, and signing in with the new password.
 - [Mobile sign-up](./mobile-sign-up.md) covers creating an account on Expo web, confirming it without a phone code verifier, and signing in.
 - [Mobile game](./mobile-game.md) covers the phone game page on Expo web: signed-out reading, the in-app screenshot viewer, the signup prompt, rating and review, library stats, and lists.
+- [Mobile library](./mobile-library.md) covers the phone library grid, filters, search, the owner's edit sheet, and a private library.

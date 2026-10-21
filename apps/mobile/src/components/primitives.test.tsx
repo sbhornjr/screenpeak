@@ -388,6 +388,16 @@ describe('ScreenScroll', () => {
     render(<ScreenScroll title="Library"><Text>Hi</Text></ScreenScroll>)
     expect(screen.getByRole('heading', { level: 1, name: 'Library' }).textContent).toBe('Library')
   })
+
+  it('keeps Back beside the ScreenPeak wordmark', () => {
+    const onBack = vi.fn()
+    render(<ScreenScroll title="Library" onBack={onBack}><Text>Hi</Text></ScreenScroll>)
+    const mark = screen.getByRole('img', { name: 'ScreenPeak' })
+    const back = screen.getByRole('button', { name: 'Back' })
+    expect(back.contains(mark)).toBe(false)
+    fireEvent.click(back)
+    expect(onBack).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('Sheet', () => {

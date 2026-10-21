@@ -47,7 +47,13 @@ vi.mock('react-native', () => ({
     },
     typeof children === 'function' ? children({ pressed: false }) : children,
   ),
-  View: ({ children }: { children?: React.ReactNode }) => React.createElement('div', null, children),
+  View: ({
+    children,
+    accessibilityLabel,
+  }: {
+    children?: React.ReactNode
+    accessibilityLabel?: string
+  }) => React.createElement('div', { 'aria-label': accessibilityLabel }, children),
   Text: ({
     children,
     accessibilityLabel,
@@ -113,8 +119,8 @@ vi.mock('react-native', () => ({
 }))
 
 vi.mock('lucide-react-native', () => {
-  function Icon({ accessibilityLabel }: { accessibilityLabel?: string }) {
-    return React.createElement('span', { role: 'img', 'aria-label': accessibilityLabel })
+  function Icon() {
+    return React.createElement('span', { 'aria-hidden': 'true' })
   }
   return { Clock: Icon, Repeat: Icon, Trophy: Icon }
 })
@@ -309,9 +315,9 @@ describe('GameDetail', () => {
       />,
     )
 
-    expect(screen.getByLabelText('Hours played 12').getAttribute('role')).toBe('img')
+    expect(screen.getByLabelText('Hours played 12').textContent).toContain('12')
     expect(screen.getByText('12').textContent).toBe('12')
-    expect(screen.getByLabelText('Times played 1').getAttribute('role')).toBe('img')
+    expect(screen.getByLabelText('Times played 1').textContent).toContain('1')
     expect(screen.queryByLabelText('100% achievements completed')).toBeNull()
     expect(screen.getByText('8/10').textContent).toBe('8/10')
     expect(screen.getAllByText('Playing').length).toBeGreaterThan(0)
