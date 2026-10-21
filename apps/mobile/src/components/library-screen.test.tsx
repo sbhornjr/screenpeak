@@ -20,6 +20,7 @@ vi.mock('lucide-react-native', () => {
   return {
     ArrowDownWideNarrow: Icon,
     ArrowUpNarrowWide: Icon,
+    ChevronDown: Icon,
     Clock: Icon,
     Pencil: Icon,
     Repeat: Icon,
@@ -170,7 +171,10 @@ const CELESTE: LibraryGameCard = {
 }
 
 const FACETS: LibraryPageData['facets'] = {
-  genres: [{ id: 'genre-1', name: 'Roguelike', slug: 'roguelike' }],
+  genres: [
+    { id: 'genre-1', name: 'Roguelike', slug: 'roguelike' },
+    { id: 'genre-2', name: 'Platformer', slug: 'platformer' },
+  ],
   platforms: [{ id: 'platform-1', name: 'PC', slug: 'pc' }],
   developers: [{ id: 'dev-1', name: 'Supergiant Games', slug: 'supergiant-games' }],
   publishers: [],
@@ -243,7 +247,12 @@ describe('library screen', () => {
 
   it('filters by status, 100%, sort, and a library search', () => {
     const { onQuery, rerender } = renderLibrary()
+    expect(screen.queryByText('Search games')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Status: All' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Sort: Name' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Completed' })).toBeNull()
     fireEvent.change(screen.getByRole('textbox', { name: 'Search games' }), { target: { value: 'Hades' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Status: All' }))
     fireEvent.click(screen.getByRole('button', { name: 'Playing' }))
     expect(onQuery).toHaveBeenCalledWith({ ...LIBRARY_QUERY, status: 'playing' } satisfies LibraryQuery)
     expect((screen.getByRole('textbox', { name: 'Search games' }) as HTMLInputElement).value).toBe('Hades')
@@ -254,6 +263,7 @@ describe('library screen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Search' }))
     expect(onQuery).toHaveBeenCalledWith({ ...LIBRARY_QUERY, q: 'Hades' })
 
+    fireEvent.click(screen.getByRole('button', { name: 'Sort: Name' }))
     fireEvent.click(screen.getByRole('button', { name: 'Date added' }))
     expect(onQuery).toHaveBeenCalledWith({ ...LIBRARY_QUERY, sort: 'date_added', order: 'desc' })
     expect((screen.getByRole('textbox', { name: 'Search games' }) as HTMLInputElement).value).toBe('Hades')
@@ -264,11 +274,41 @@ describe('library screen', () => {
     expect(onQuery).toHaveBeenCalledWith({ ...LIBRARY_QUERY, sort: 'date_added', order: 'asc' })
   })
 
-  it('applies a genre from the filters sheet', () => {
-    const { onQuery } = renderLibrary()
+  it('applies a genre from its picker and clears that category', () => {
+    const { onQuery, rerender } = renderLibrary()
     fireEvent.click(screen.getByRole('button', { name: 'Filters' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Genres: 0 selected' }))
     fireEvent.click(screen.getByRole('button', { name: 'Roguelike' }))
     expect(onQuery).toHaveBeenCalledWith({ ...LIBRARY_QUERY, genre: 'roguelike' })
+    rerender({ query: { ...LIBRARY_QUERY, genre: 'roguelike' } })
+    expect(screen.getByRole('button', { name: 'Genres: 1 selected' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear Genres' }))
+    expect(onQuery).toHaveBeenCalledWith({ ...LIBRARY_QUERY, genre: null })
+  })
+
+  it('filters facet options from the category search', () => {
+    const { onQuery } = renderLibrary()
+    fireEvent.click(screen.getByRole('button', { name: 'Filters' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Genres: 0 selected' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search genres' }), { target: { value: 'plat' } })
+    expect(screen.queryByRole('button', { name: 'Roguelike' })).toBeNull()
+    expect(screen.getByText('Platformer').textContent).toBe('Platformer')
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search genres' }), { target: { value: 'zzz' } })
+    expect(screen.getByText('No matches').textContent).toBe('No matches')
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search genres' }), { target: { value: '  PLAT' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Platformer' }))
+    expect(onQuery).toHaveBeenCalledWith({ ...LIBRARY_QUERY, genre: 'platformer' })
+  })
+
+  it('opens the edit sheet from the cover overlay without opening the game', () => {
+    const { onOpen } = renderLibrary()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Hades' }))
+    expect(onOpen).not.toHaveBeenCalled()
+    expect(screen.getByText('Manage game').textContent).toBe('Manage game')
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    fireEvent.click(screen.getByRole('link', { name: 'Hades' }))
+    expect(onOpen).toHaveBeenCalledTimes(1)
+    expect(onOpen).toHaveBeenCalledWith('/games/hades')
   })
 
   it('says the library is empty, and that a search found nothing', () => {

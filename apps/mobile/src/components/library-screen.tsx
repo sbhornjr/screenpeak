@@ -1,6 +1,6 @@
 import type { LibraryGameCard, LibraryPageData, LibraryQuery, LibrarySort } from '@screenpeak/shared/api/library'
 import type { LibraryWrite } from '@screenpeak/shared/api/writes'
-import { ArrowDownWideNarrow, ArrowUpNarrowWide, Pencil, SlidersHorizontal } from 'lucide-react-native'
+import { ArrowDownWideNarrow, ArrowUpNarrowWide, ChevronDown, Pencil, SlidersHorizontal } from 'lucide-react-native'
 import { useState } from 'react'
 import { FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -73,6 +73,7 @@ function LibraryCell({
   onOpen: (href: string) => void
   onEdit: () => void
 }) {
+  const coverBottom = 1 + (width - 2) * (4 / 3)
   return (
     <View style={[styles.cell, { width }]}>
       <GameCard
@@ -89,22 +90,31 @@ function LibraryCell({
         libraryStatus={cardStatus(game.library_status)}
         onPress={() => onOpen(gameHref(game.slug))}
       />
-      <LibraryStatRow entry={game} />
       {canEdit ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Edit ${game.name}`}
           onPress={onEdit}
-          style={styles.edit}
+          style={[styles.edit, { top: coverBottom - hitTarget - space[2] }]}
         >
           <Pencil size={18} color={colors.accent} />
         </Pressable>
       ) : null}
+      <LibraryStatRow entry={game} />
     </View>
   )
 }
 
-function FacetGroup({
+function MenuTrigger({ label, onPress }: { label: string, onPress: () => void }) {
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={styles.menuTrigger}>
+      <Text numberOfLines={1} style={styles.menuLabel}>{label}</Text>
+      <ChevronDown size={16} color={colors.muted} />
+    </Pressable>
+  )
+}
+
+function FacetPicker({
   label,
   options,
   selected,
@@ -115,22 +125,38 @@ function FacetGroup({
   selected: string | null
   onSelect: (slug: string | null) => void
 }) {
+  const [open, setOpen] = useState(false)
+  const [needle, setNeedle] = useState('')
   if (options.length === 0) return null
+  const count = selected ? 1 : 0
+  const name = `${label}: ${count} selected`
+  const queryText = needle.trim().toLowerCase()
+  const shown = queryText ? options.filter(option => option.name.toLowerCase().includes(queryText)) : options
+  const searchLabel = `Search ${label.toLowerCase()}`
   return (
     <View style={styles.stack}>
-      <Text style={styles.metaLabel}>{label}</Text>
-      <View style={styles.wrap}>
-        <Button label={`All ${label.toLowerCase()}`} selected={!selected} variant="secondary" onPress={() => onSelect(null)} />
-        {options.map(option => (
-          <Button
-            key={option.id}
-            label={option.name}
-            selected={selected === option.slug}
-            variant="secondary"
-            onPress={() => onSelect(option.slug)}
-          />
-        ))}
+      <View style={styles.controlRow}>
+        <MenuTrigger label={name} onPress={() => setOpen(current => !current)} />
+        <Button label="Clear" accessibilityLabel={`Clear ${label}`} variant="secondary" onPress={() => onSelect(null)} />
       </View>
+      {open ? (
+        <View style={styles.stack}>
+          <TextField label={searchLabel} hideLabel placeholder={searchLabel} value={needle} onChangeText={setNeedle} />
+          {shown.length === 0 ? <Text style={styles.emptyMatch}>No matches</Text> : shown.map(option => (
+            <Button
+              key={option.id}
+              label={option.name}
+              selected={selected === option.slug}
+              variant="secondary"
+              onPress={() => {
+                onSelect(option.slug)
+                setNeedle('')
+                setOpen(false)
+              }}
+            />
+          ))}
+        </View>
+      ) : null}
     </View>
   )
 }
@@ -159,6 +185,7 @@ export function LibraryScreen({
   const columnWidth = libraryColumnWidth(width)
   const [draft, setDraft] = useState(query.q ?? '')
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const [menu, setMenu] = useState<null | 'status' | 'sort'>(null)
   const [headerHeight, setHeaderHeight] = useState(0)
   const [editing, setEditing] = useState<LibraryGameCard | null>(null)
   const filteredEmpty = libraryFiltersActive(query)
@@ -205,33 +232,24 @@ export function LibraryScreen({
       }}
     >
       <Text accessibilityRole="header" style={styles.title}>{title}</Text>
-      <View style={styles.wrap}>
-        {STATUS_TABS.map(tab => (
-          <Button
-            key={tab.label}
-            label={tab.label}
-            selected={query.status === tab.status}
-            variant="secondary"
-            onPress={() => change({ ...query, status: tab.status })}
-          />
-        ))}
+      <View style={styles.controlRow}>
+        <MenuTrigger
+          label={`Status: ${STATUS_TABS.find(tab => tab.status === query.status)?.label ?? 'All'}`}
+          onPress={() => setMenu('status')}
+        />
         <Button
           label="100% only"
           selected={query.is100}
           variant="secondary"
           onPress={() => change({ ...query, is100: !query.is100 })}
+          style={styles.sideControl}
         />
       </View>
-      <View style={styles.wrap}>
-        {SORTS.map(sort => (
-          <Button
-            key={sort.sort}
-            label={sort.label}
-            selected={query.sort === sort.sort}
-            variant="secondary"
-            onPress={() => change({ ...query, sort: sort.sort, order: orderForSort(sort.sort) })}
-          />
-        ))}
+      <View style={styles.controlRow}>
+        <MenuTrigger
+          label={`Sort: ${SORTS.find(sort => sort.sort === query.sort)?.label ?? 'Name'}`}
+          onPress={() => setMenu('sort')}
+        />
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={query.order === 'desc' ? 'Sort descending — tap for ascending' : 'Sort ascending — tap for descending'}
@@ -253,6 +271,8 @@ export function LibraryScreen({
         <View style={styles.searchField}>
           <TextField
             label="Search games"
+            hideLabel
+            placeholder="Search games"
             value={draft}
             onChangeText={setDraft}
             onSubmitEditing={() => change({ ...query, q: draft.trim() || null })}
@@ -303,47 +323,16 @@ export function LibraryScreen({
         )}
       />
       <Sheet visible={filtersOpen} title="Filters" onClose={() => setFiltersOpen(false)}>
-        <FacetGroup
-          label="Genres"
-          options={facets.genres}
-          selected={query.genre}
-          onSelect={genre => change({ ...query, genre })}
+        <FacetPicker label="Genres" options={facets.genres} selected={query.genre} onSelect={genre => change({ ...query, genre })} />
+        <FacetPicker label="Platforms" options={facets.platforms} selected={query.platform} onSelect={platform => change({ ...query, platform })} />
+        <FacetPicker label="Developers" options={facets.developers} selected={query.developer} onSelect={developer => change({ ...query, developer })} />
+        <FacetPicker label="Publishers" options={facets.publishers} selected={query.publisher} onSelect={publisher => change({ ...query, publisher })} />
+        <FacetPicker
+          label="ESRB"
+          options={facets.esrb_ratings.map(rating => ({ id: rating, name: rating, slug: rating }))}
+          selected={query.esrb}
+          onSelect={esrb => change({ ...query, esrb })}
         />
-        <FacetGroup
-          label="Platforms"
-          options={facets.platforms}
-          selected={query.platform}
-          onSelect={platform => change({ ...query, platform })}
-        />
-        <FacetGroup
-          label="Developers"
-          options={facets.developers}
-          selected={query.developer}
-          onSelect={developer => change({ ...query, developer })}
-        />
-        <FacetGroup
-          label="Publishers"
-          options={facets.publishers}
-          selected={query.publisher}
-          onSelect={publisher => change({ ...query, publisher })}
-        />
-        {facets.esrb_ratings.length > 0 ? (
-          <View style={styles.stack}>
-            <Text style={styles.metaLabel}>ESRB</Text>
-            <View style={styles.wrap}>
-              <Button label="All ESRB ratings" selected={!query.esrb} variant="secondary" onPress={() => change({ ...query, esrb: null })} />
-              {facets.esrb_ratings.map(rating => (
-                <Button
-                  key={rating}
-                  label={rating}
-                  selected={query.esrb === rating}
-                  variant="secondary"
-                  onPress={() => change({ ...query, esrb: rating })}
-                />
-              ))}
-            </View>
-          </View>
-        ) : null}
         <Button
           label="Clear filters"
           variant="ghost"
@@ -356,6 +345,36 @@ export function LibraryScreen({
             esrb: null,
           })}
         />
+      </Sheet>
+      <Sheet
+        visible={menu != null}
+        title={menu === 'sort' ? 'Sort' : 'Status'}
+        onClose={() => setMenu(null)}
+      >
+        {menu === 'sort' ? SORTS.map(sort => (
+          <Button
+            key={sort.sort}
+            label={sort.label}
+            selected={query.sort === sort.sort}
+            variant="secondary"
+            onPress={() => {
+              change({ ...query, sort: sort.sort, order: orderForSort(sort.sort) })
+              setMenu(null)
+            }}
+          />
+        )) : null}
+        {menu === 'status' ? STATUS_TABS.map(tab => (
+          <Button
+            key={tab.label}
+            label={tab.label}
+            selected={query.status === tab.status}
+            variant="secondary"
+            onPress={() => {
+              change({ ...query, status: tab.status })
+              setMenu(null)
+            }}
+          />
+        )) : null}
       </Sheet>
       <LibrarySheet
         visible={editing != null}
@@ -392,14 +411,37 @@ const styles = StyleSheet.create({
     lineHeight: typeScale['3xl'].line,
     color: colors.text,
   },
-  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2], alignItems: 'center' },
-  searchRow: { flexDirection: 'row', alignItems: 'flex-end', gap: space[2] },
+  controlRow: { flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', gap: space[2] },
+  menuTrigger: {
+    flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 0,
+    minHeight: hitTarget,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[2],
+    paddingHorizontal: space[3],
+    borderRadius: radius.base,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  menuLabel: {
+    flex: 1,
+    fontFamily: face.display[600],
+    fontSize: typeScale.sm.size,
+    lineHeight: typeScale.sm.line,
+    color: colors.text,
+  },
+  sideControl: { flexShrink: 0, paddingHorizontal: space[3] },
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
   searchField: { flex: 1 },
   columns: { gap: space[3] },
-  cell: { gap: space[2], marginBottom: space[3] },
+  cell: { position: 'relative', gap: space[2], marginBottom: space[3] },
   sortToggle: {
     minWidth: hitTarget,
     minHeight: hitTarget,
+    flexShrink: 0,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.base,
@@ -409,11 +451,19 @@ const styles = StyleSheet.create({
   },
   error: { fontFamily: face.body[400], fontSize: typeScale.sm.size, lineHeight: typeScale.sm.line, color: colors.bad },
   edit: {
+    position: 'absolute',
+    right: space[2],
+    zIndex: 2,
+    width: hitTarget,
+    height: hitTarget,
     minWidth: hitTarget,
     minHeight: hitTarget,
     alignItems: 'center',
     justifyContent: 'center',
-    alignSelf: 'flex-start',
+    borderRadius: radius.base,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
   filterButton: {
     minHeight: hitTarget,
@@ -429,9 +479,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   stack: { gap: space[2] },
-  metaLabel: {
-    fontFamily: face.mono[400],
-    fontSize: typeScale.eyebrow.size,
+  emptyMatch: {
+    fontFamily: face.body[400],
+    fontSize: typeScale.sm.size,
+    lineHeight: typeScale.sm.line,
     color: colors.muted,
   },
   bone: { height: 28, width: '55%', backgroundColor: colors.surfaceLight, borderRadius: radius.base },

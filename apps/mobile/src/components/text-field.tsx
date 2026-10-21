@@ -14,6 +14,8 @@ type TextFieldProps = {
   autoComplete?: TextInputProps['autoComplete'];
   onSubmitEditing?: TextInputProps['onSubmitEditing'];
   multiline?: boolean;
+  /** Keep the name for the field and the placeholder, without a caption above it. */
+  hideLabel?: boolean;
 };
 
 /** Website text field: a visible label, surface fill, 3px corners, accent border while focused. */
@@ -28,11 +30,12 @@ export function TextField({
   autoComplete,
   onSubmitEditing,
   multiline = false,
+  hideLabel = false,
 }: TextFieldProps) {
   const [focused, setFocused] = useState(false);
   return (
     <View style={styles.wrap}>
-      <Text style={styles.label}>{label}</Text>
+      {hideLabel ? null : <Text style={styles.label}>{label}</Text>}
       <TextInput
         accessibilityLabel={label}
         value={value}

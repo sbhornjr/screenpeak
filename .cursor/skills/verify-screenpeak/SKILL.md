@@ -72,7 +72,7 @@ node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-library
 
 `drive mobile-nav` starts Expo web on `localhost:8081` with `EXPO_PUBLIC_API_URL` pointed at the local website and the public Supabase URL and anon key from the env file this skill wrote. It does not write those values into the repo. It screenshots the four tabs signed out and signed in as peek, peek's public profile signed out, and a second local user `ada` whose library and loadout are private, both signed out and as peek. It also opens the catalogue from Browse and comes Back, opens the Library tab from the profile preview, and opens ada's library (private) and loadout (Not found). It deletes `ada` and stops Expo before it exits. Port 8081 must be free.
 
-`drive mobile-library` starts the same Expo web server. Signed in as peek, it screenshots the Library tab, the filters sheet, an empty search, and ada's private library at 375×667 and 320×568, plus the centered wordmark on the feed at both widths. It opens one game and the owner's library sheet, then closes both without saving. It deletes `ada` and stops Expo before it exits. Port 8081 must be free. Do not run it at the same time as another Expo drive.
+`drive mobile-library` starts the same Expo web server. Signed in as peek, it screenshots the Library header, the open Status dropdown, the cover edit overlay, the filters sheet with a facet search, an empty search, and ada's private library at 375×667 and 320×568, plus the centered wordmark on the feed at both widths. It opens one game and the owner's library sheet, then closes both without saving. The edit press stays on the library. It deletes `ada` and stops Expo before it exits. Port 8081 must be free. Do not run it at the same time as another Expo drive.
 
 `drive mobile-profile` starts the same Expo web server. It dresses peek's display name, bio, title, read-out, one favorite, and one written review, then restores those columns. It inserts `nova`, whose library and loadout are public, and `ada`, whose library and loadout are private. Signed in as peek, it screenshots the Profile tab, nova, and ada at 375×667 and 320×568. It opens the Settings stub and the ratings stub, opens the Library tab from peek's preview, follows and unfollows nova by user id, and opens nova's library. It deletes `nova` and `ada`, restores peek, and stops Expo before it exits. Port 8081 must be free. Do not run it at the same time as another Expo drive.
 
@@ -208,10 +208,13 @@ A passing sign-up proof shows ScreenPeak on each screenshot, the check-your-emai
 
 `drive mobile-library` writes `/tmp/screenpeak-verify/evidence/mobile-library/`:
 
-- `own-375.png` and `own-320.png` — peek's Library tab, with status tabs and a game
+- `header-375.png` and `header-320.png` — Status: All, Sort: Name, and 100% only
+- `menu-375.png` and `menu-320.png` — the open Status dropdown
+- `overlay-375.png` and `overlay-320.png` — the cover edit pencil
+- `own-375.png` and `own-320.png` — peek's Library tab and a game
 - `odd-375.png` and `odd-320.png` — the same grid, with an odd number of cards, at 375×667 and 320×568
 - `sort-375.png` and `sort-320.png` — Date added, with the descending sort toggle
-- `filters-375.png` and `filters-320.png` — the filters sheet
+- `filters-375.png` and `filters-320.png` — the filters sheet, with a facet search open
 - `empty-375.png` and `empty-320.png` — a search with no games
 - `private-375.png` and `private-320.png` — ada's private library
 - `logo-375.png` and `logo-320.png` — the centered Screen | Peak wordmark on the feed

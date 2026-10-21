@@ -3477,11 +3477,64 @@ async function driveMobileLibrary() {
         const own = await page.panelText()
         if (!/done/i.test(own)) problems.push('own library is missing a completed chip')
         if (!/playing/i.test(own)) problems.push('own library is missing a playing chip')
-        if (!own.includes('Completed')) problems.push('own library is missing the Completed tab')
+        if (!own.includes('Status: All')) problems.push('own library is missing the status dropdown')
+        if (!own.includes('Sort: Name')) problems.push('own library is missing the sort dropdown')
+        if (!own.includes('100% only')) problems.push('own library is missing the 100% toggle')
         const hours = await page.evaluate(`document.querySelector('[aria-label^="Hours played"]') ? 'yes' : 'no'`)
         if (hours !== 'yes') problems.push('own library is missing the hours icon')
         const sortToggle = await page.evaluate(`document.querySelector('[aria-label="Sort ascending — tap for descending"], [aria-label="Sort descending — tap for ascending"]') ? 'yes' : 'no'`)
         if (sortToggle !== 'yes') problems.push('own library is missing the sort direction toggle')
+        async function waitInView(label) {
+            await page.waitUntil(`(() => {
+                const nodes = [...document.querySelectorAll('button, [role="button"], input, textarea')]
+                const node = nodes.find((item) => (item.textContent || '').trim() === ${JSON.stringify(label)} || item.getAttribute('aria-label') === ${JSON.stringify(label)})
+                if (!node) return 'waiting'
+                const rect = node.getBoundingClientRect()
+                if (rect.height < 8 || rect.width < 8) return 'waiting'
+                if (rect.top < 0 || rect.bottom > window.innerHeight) return 'waiting'
+                return 'ok'
+            })()`)
+        }
+        async function openStatusMenu() {
+            await page.clickControl('Status: All')
+            await waitInView('Completed')
+        }
+        async function revealEdit() {
+            const outcome = await page.evaluate(`(() => {
+                const button = document.querySelector('[aria-label^="Edit "]')
+                if (!button) return 'missing'
+                button.scrollIntoView({ block: 'center' })
+                return 'ok'
+            })()`)
+            if (outcome !== 'ok') problems.push('own library is missing the edit overlay')
+        }
+        async function openFacetSearch() {
+            const outcome = await page.evaluate(`(() => {
+                const button = [...document.querySelectorAll('button, [role="button"]')].find((item) => /: \\d+ selected$/.test((item.textContent || '').trim()) && item.getClientRects().length > 0)
+                if (!button) return 'missing'
+                button.click()
+                return 'ok'
+            })()`)
+            if (outcome !== 'ok') {
+                problems.push('filters sheet has no facet picker')
+                return
+            }
+            await page.waitUntil(`(() => {
+                const dialog = [...document.querySelectorAll('[role="dialog"]')].find((item) => item.getClientRects().length > 0)
+                if (!dialog) return 'waiting'
+                const field = [...dialog.querySelectorAll('input')].find((item) => (item.getAttribute('aria-label') || '').startsWith('Search '))
+                if (!field) return 'waiting'
+                const rect = field.getBoundingClientRect()
+                if (rect.height < 8 || rect.top < 0 || rect.bottom > window.innerHeight) return 'waiting'
+                return 'ok'
+            })()`)
+        }
+        await shot('header-375.png')
+        await openStatusMenu()
+        await shot('menu-375.png')
+        await closeSheet()
+        await revealEdit()
+        await shot('overlay-375.png')
         async function lastCardWidth() {
             return page.evaluate(`(() => {
                 const names = new Set(${JSON.stringify(games.map((game) => game.name))})
@@ -3505,7 +3558,19 @@ async function driveMobileLibrary() {
         await shot('odd-375.png')
         await page.setViewport(320, 568)
         await page.waitForText(gameName)
+        await page.evaluate(`(() => {
+            const panel = document.querySelector('[role="tabpanel"]') || document.body
+            const scrollers = [panel, ...panel.querySelectorAll('*')].filter((node) => node.scrollHeight > node.clientHeight + 24)
+            const scroller = scrollers.sort((a, b) => (b.scrollHeight - b.clientHeight) - (a.scrollHeight - a.clientHeight))[0]
+            if (scroller) scroller.scrollTop = 0
+        })()`)
         await expectCentered('own-320')
+        await shot('header-320.png')
+        await openStatusMenu()
+        await shot('menu-320.png')
+        await closeSheet()
+        await revealEdit()
+        await shot('overlay-320.png')
         await shot('own-320.png')
         const narrowCards = await lastCardWidth()
         marks['odd-320'] = narrowCards
@@ -3516,12 +3581,14 @@ async function driveMobileLibrary() {
         await page.setViewport(375, 667)
         await page.clickControl('Filters')
         await page.waitForText('Clear filters')
+        await openFacetSearch()
         await expectCentered('filters-375')
         await shot('filters-375.png')
         await closeSheet()
         await page.setViewport(320, 568)
         await page.clickControl('Filters')
         await page.waitForText('Clear filters')
+        await openFacetSearch()
         await shot('filters-320.png')
         await closeSheet()
 
@@ -3539,6 +3606,8 @@ async function driveMobileLibrary() {
         await page.clickControl('Search')
         await page.waitForText(gameName)
 
+        await page.clickControl('Sort: Name')
+        await page.waitForText('Date added')
         await page.clickControl('Date added')
         await page.waitUntil(`document.querySelector('[aria-label="Sort descending — tap for ascending"]') ? 'ok' : 'waiting'`)
         await page.waitForText(gameName)
@@ -3555,9 +3624,12 @@ async function driveMobileLibrary() {
         await page.clickControl('Back')
         await page.waitForText(gameName)
 
+        const beforeEdit = await page.evaluate('location.pathname')
         await page.clickLabel(`Edit ${gameName}`)
         await page.waitForText('Manage game')
         await page.waitForText('Update library entry')
+        const editPath = await page.evaluate('location.pathname')
+        if (editPath !== beforeEdit) problems.push(`edit overlay navigated to ${editPath}`)
         await page.clickControl('Close')
         await page.waitUntil(`document.body.innerText.includes('Manage game') ? 'waiting' : 'ok'`)
 

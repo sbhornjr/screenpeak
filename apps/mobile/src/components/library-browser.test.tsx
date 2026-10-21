@@ -58,6 +58,7 @@ vi.mock('lucide-react-native', () => {
   return {
     ArrowDownWideNarrow: Icon,
     ArrowUpNarrowWide: Icon,
+    ChevronDown: Icon,
     Clock: Icon,
     Pencil: Icon,
     Repeat: Icon,
@@ -228,6 +229,11 @@ afterEach(() => {
   deleteLibrary.mockReset()
 })
 
+function chooseStatus(label: string) {
+  fireEvent.click(screen.getByRole('button', { name: /^Status: / }))
+  fireEvent.click(screen.getByRole('button', { name: label }))
+}
+
 describe('OwnLibrary', () => {
   it('asks a signed-out player to sign up', () => {
     auth.session = null
@@ -243,7 +249,7 @@ describe('OwnLibrary', () => {
     renderLibrary(<OwnLibrary />)
     expect((await screen.findByRole('link', { name: 'Hades' })).textContent).toContain('Hades')
     expect(getLibrary).toHaveBeenCalledWith('peek', expect.objectContaining({ status: '', sort: 'name', order: 'asc' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Playing' }))
+    chooseStatus('Playing')
     await waitFor(() => expect(getLibrary).toHaveBeenCalledWith('peek', expect.objectContaining({ status: 'playing' })))
   })
 
@@ -291,6 +297,7 @@ describe('OwnLibrary', () => {
     expect((await screen.findByRole('link', { name: 'Hades' })).textContent).toContain('Hades')
     fireEvent.change(screen.getByRole('textbox', { name: 'Search games' }), { target: { value: 'had' } })
     fireEvent.click(screen.getByRole('button', { name: 'Filters' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Genres: 0 selected' }))
     fireEvent.click(screen.getByRole('button', { name: 'Roguelike' }))
     expect(screen.getByRole('button', { name: 'Clear filters' })).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Hades' })).toBeTruthy()
@@ -335,7 +342,7 @@ describe('OwnLibrary', () => {
     }))
     renderLibrary(<OwnLibrary />)
     expect(await screen.findByRole('link', { name: 'Hades' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Playing' }))
+    chooseStatus('Playing')
     expect(await screen.findByRole('button', { name: 'Edit Hades' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Edit Hades' }))
     fireEvent.click(screen.getByRole('button', { name: 'Log as completed' }))
@@ -359,7 +366,7 @@ describe('OwnLibrary', () => {
     }))
     renderLibrary(<OwnLibrary />)
     expect(await screen.findByRole('link', { name: 'Hades' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Playing' }))
+    chooseStatus('Playing')
     expect(await screen.findByRole('button', { name: 'Edit Hades' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Edit Hades' }))
     fireEvent.click(screen.getByRole('button', { name: 'Log as completed' }))
@@ -379,10 +386,10 @@ describe('OwnLibrary', () => {
       .mockResolvedValue(PAGE)
     renderLibrary(<OwnLibrary />)
     expect(await screen.findByRole('link', { name: 'Hades' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Playing' }))
+    chooseStatus('Playing')
     expect((await screen.findByText('The library request failed.')).textContent).toBe('The library request failed.')
     expect(screen.getByRole('link', { name: 'Hades' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'All' }))
+    chooseStatus('All')
     await waitFor(() => expect(screen.queryByText('The library request failed.')).toBeNull())
     expect(screen.getByRole('link', { name: 'Hades' })).toBeTruthy()
   })

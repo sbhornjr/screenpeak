@@ -62,6 +62,7 @@ vi.mock('lucide-react-native', () => {
   return {
     ArrowDownWideNarrow: Icon,
     ArrowUpNarrowWide: Icon,
+    ChevronDown: Icon,
     Clock: Icon,
     Library: Icon,
     List: Icon,
@@ -430,12 +431,13 @@ describe('library', () => {
   it('lists a signed-in library and opens the game', () => {
     const onOpen = vi.fn()
     render(<LibraryScreen locked={false} games={[HADES]} onOpen={onOpen} />)
-    expect(screen.getByText('Completed').textContent).toBe('Completed')
+    expect(screen.getByRole('button', { name: 'Status: All' }).textContent).toContain('Status: All')
+    expect(screen.getByRole('button', { name: 'Sort: Name' }).textContent).toContain('Sort: Name')
     fireEvent.click(screen.getByRole('link', { name: 'Hades' }))
     expect(onOpen).toHaveBeenCalledWith('/games/hades')
     cleanup()
     render(<LibraryScreen locked={false} games={[{ ...HADES, id: '22222222-2222-2222-2222-222222222222', name: 'Celeste', slug: 'celeste', library_status: 'abandoned' }]} onOpen={onOpen} />)
-    expect(screen.getByText('Abandoned').textContent).toBe('Abandoned')
+    expect(screen.getByText('Dropped').textContent).toBe('Dropped')
   })
 })
 

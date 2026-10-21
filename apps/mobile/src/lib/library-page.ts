@@ -2,7 +2,7 @@ import type { ViewerLibraryEntry } from '@screenpeak/shared/api/games'
 import type { LibraryGameCard, LibraryPageData, LibraryQuery, LibrarySort } from '@screenpeak/shared/api/library'
 import type { LibraryWrite } from '@screenpeak/shared/api/writes'
 
-import { hitTarget, space } from '@screenpeak/shared/tokens'
+import { space } from '@screenpeak/shared/tokens'
 
 /** The website's lenient library URL: every status, name ascending. */
 export const LIBRARY_QUERY: LibraryQuery = {
@@ -59,8 +59,8 @@ export function libraryRowLayout(columnWidth: number, canEdit: boolean, headerHe
   const cover = columnWidth * (4 / 3)
   const card = 2 + space[2.5] + 19 + space[1.5] + 1 + space[1.5] + 12 + space[3]
   const stats = space[2] + 16
-  const edit = canEdit ? space[2] + hitTarget : 0
-  const length = cover + card + stats + edit + space[3] + space[3]
+  const length = cover + card + stats + space[3] + space[3]
+  void canEdit
   return {
     length,
     offset: headerHeight + space[3] + rowIndex * length,
