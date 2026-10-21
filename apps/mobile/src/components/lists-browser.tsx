@@ -3,7 +3,7 @@ import type { ListPageData, ListsPageData, ListsTab } from '@screenpeak/shared/a
 import type { ListGameSync } from '@screenpeak/shared/api/writes'
 import { ApiClientError } from '@screenpeak/shared/api/client'
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { StyleSheet, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
@@ -57,6 +57,64 @@ function Notice({ title, body, onRetry, onBack }: { title: string, body: string,
   )
 }
 
+type WriteGate<T> = { count: number, server: T | undefined, ok: boolean }
+
+/**
+ * Optimistic writes on one cache key. The server snapshot is taken synchronously
+ * before the first await, and a failure puts that snapshot back even when a
+ * second write has already replaced the optimistic object.
+ */
+function useCachedWrite<T>(key: readonly unknown[], viewerId: string | null) {
+  const queryClient = useQueryClient()
+  const writes = useRef(new Map<string, WriteGate<T>>())
+
+  return async function commit(
+    request: () => Promise<unknown>,
+    optimistic?: (page: T) => T,
+    touchGames?: (data: GamePageData) => GamePageData,
+  ): Promise<string | null> {
+    const id = JSON.stringify(key)
+    let gate = writes.current.get(id)
+    if (!gate) {
+      gate = { count: 0, server: undefined, ok: false }
+      writes.current.set(id, gate)
+    }
+    if (gate.count === 0) {
+      gate.server = queryClient.getQueryData<T>(key)
+      gate.ok = false
+    }
+    gate.count += 1
+    const server = gate.server
+    let restoreGames: (() => void) | null = null
+    let failure: string | null = null
+    try {
+      await queryClient.cancelQueries({ queryKey: key, exact: true })
+      const current = queryClient.getQueryData<T>(key) ?? server
+      if (current && optimistic) queryClient.setQueryData(key, optimistic(current))
+      if (touchGames) restoreGames = await patchViewerGames(queryClient, viewerId, touchGames)
+      await request()
+      gate.ok = true
+    } catch (error) {
+      if (server !== undefined) queryClient.setQueryData(key, server)
+      restoreGames?.()
+      failure = actionFailure(error)
+    } finally {
+      gate.count -= 1
+      if (gate.count === 0) {
+        const refresh = gate.ok
+        writes.current.delete(id)
+        if (refresh) {
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ['lists'] }),
+            queryClient.invalidateQueries({ queryKey: ['game'] }),
+          ])
+        }
+      }
+    }
+    return failure
+  }
+}
+
 function latestListsPage(client: QueryClient, username: string, viewerId: string | null): ListsPageData | undefined {
   let latest: ListsPageData | undefined
   let updatedAt = -1
@@ -83,33 +141,9 @@ export function UserLists({ username }: { username: string }) {
     queryKey: key,
     queryFn: () => api.users.lists(username, tab),
     enabled: username.length > 0 && ready && configured,
-    placeholderData: (previous, previousQuery) => sameViewerPlaceholder(previous, previousQuery, viewerId),
+    placeholderData: (previous, previousQuery) => sameViewerPlaceholder(previous, previousQuery, viewerId, username),
   })
-
-  async function commit(
-    request: () => Promise<unknown>,
-    optimistic?: (page: ListsPageData) => ListsPageData,
-    touchGames?: (data: GamePageData) => GamePageData,
-  ): Promise<string | null> {
-    await queryClient.cancelQueries({ queryKey: key, exact: true })
-    const previous = queryClient.getQueryData<ListsPageData>(key)
-    const next = previous && optimistic ? optimistic(previous) : undefined
-    const owned = next ? queryClient.setQueryData(key, next) : previous
-    const restoreGames = touchGames ? patchViewerGames(queryClient, viewerId, touchGames) : null
-    try {
-      await request()
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['lists'] }),
-        queryClient.invalidateQueries({ queryKey: ['game'] }),
-      ])
-      return null
-    } catch (error) {
-      const current = queryClient.getQueryData(key)
-      if (previous && current === owned) queryClient.setQueryData(key, previous)
-      restoreGames?.()
-      return actionFailure(error)
-    }
-  }
+  const commit = useCachedWrite<ListsPageData>(key, viewerId)
 
   async function refresh() {
     setRefreshing(true)
@@ -167,8 +201,9 @@ export function UserLists({ username }: { username: string }) {
         const error = await commit(async () => {
           const created = await api.lists.create(input)
           const userKey = listsQueryKey(username, 'user', viewerId)
+          await queryClient.cancelQueries({ queryKey: userKey, exact: true })
           queryClient.setQueryData<ListsPageData>(userKey, current => current ? withNewList(current, created.id, input) : current)
-          patchViewerGames(queryClient, viewerId, data => withViewerListOption(data, {
+          await patchViewerGames(queryClient, viewerId, data => withViewerListOption(data, {
             id: created.id,
             name: input.name.trim(),
             game_count: 0,
@@ -200,33 +235,9 @@ export function ListDetail({ username, listId }: { username: string, listId: str
     queryKey: key,
     queryFn: () => api.users.list(username, listId),
     enabled: username.length > 0 && listId.length > 0 && ready && configured,
-    placeholderData: (previous, previousQuery) => sameViewerPlaceholder(previous, previousQuery, viewerId),
+    placeholderData: (previous, previousQuery) => sameViewerPlaceholder(previous, previousQuery, viewerId, username, listId),
   })
-
-  async function commit(
-    request: () => Promise<unknown>,
-    optimistic?: (page: ListPageData) => ListPageData,
-    touchGames?: (data: GamePageData) => GamePageData,
-  ): Promise<string | null> {
-    await queryClient.cancelQueries({ queryKey: key, exact: true })
-    const previous = queryClient.getQueryData<ListPageData>(key)
-    const next = previous && optimistic ? optimistic(previous) : undefined
-    const owned = next ? queryClient.setQueryData(key, next) : previous
-    const restoreGames = touchGames ? patchViewerGames(queryClient, viewerId, touchGames) : null
-    try {
-      await request()
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['lists'] }),
-        queryClient.invalidateQueries({ queryKey: ['game'] }),
-      ])
-      return null
-    } catch (error) {
-      const current = queryClient.getQueryData(key)
-      if (previous && current === owned) queryClient.setQueryData(key, previous)
-      restoreGames?.()
-      return actionFailure(error)
-    }
-  }
+  const commit = useCachedWrite<ListPageData>(key, viewerId)
 
   function patchIndex(update: (page: ListsPageData) => ListsPageData) {
     for (const tab of ['user', 'liked'] as const) {

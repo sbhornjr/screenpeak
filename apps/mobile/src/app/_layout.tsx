@@ -6,6 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 
 import { AppErrorBoundary, RouteErrorBoundary } from '@/components/app-error-boundary';
+import { ClearListsOnSignOut } from '@/components/clear-lists-on-sign-out';
 import { AuthProvider } from '@/lib/auth';
 import { startMobileSentry, wrapRoot } from '@/lib/sentry';
 import { colors, fontFiles } from '@/theme';
@@ -48,6 +49,7 @@ function RootLayout() {
     <AppErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
+          <ClearListsOnSignOut />
           <ThemeProvider value={navigationTheme}>
             <StatusBar style="light" />
             <Stack

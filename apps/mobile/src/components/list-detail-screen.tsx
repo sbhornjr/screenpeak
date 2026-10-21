@@ -8,7 +8,8 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { actionFailure } from '@/lib/game-page'
 import { libraryColumnWidth } from '@/lib/library-page'
-import { gamesLabel, likeLabel } from '@/lib/lists-page'
+import { gamesLabel, likeActionLabel, likeLabel } from '@/lib/lists-page'
+import { useSingleFlight } from '@/lib/single-flight'
 import { gameHref, profileHref } from '@/lib/routes'
 import { colors, face, hitTarget, radius, space, typeScale } from '@/theme'
 
@@ -143,6 +144,8 @@ export function ListDetailScreen({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const likeFlight = useSingleFlight()
+  const removeFlight = useSingleFlight()
   const count = gameCount ?? games.length
 
   async function saveEdit(values: ListFormValues) {
@@ -167,17 +170,23 @@ export function ListDetailScreen({
     if (next) setError(next)
   }
 
-  async function confirmRemove() {
-    if (!removing || !onRemoveGame) return
-    setBusy(true)
-    setActionError(null)
-    const next = await onRemoveGame(removing.id)
-    setBusy(false)
-    if (next) {
-      setActionError(next)
-      return
-    }
-    setRemoving(null)
+  function confirmRemove() {
+    const game = removing
+    if (!game || !onRemoveGame) return
+    void removeFlight(async () => {
+      setBusy(true)
+      setActionError(null)
+      try {
+        const next = await onRemoveGame(game.id)
+        if (next) {
+          setActionError(next)
+          return
+        }
+        setRemoving(null)
+      } finally {
+        setBusy(false)
+      }
+    })
   }
 
   const header = (
@@ -201,13 +210,16 @@ export function ListDetailScreen({
       </Text>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={liked ? `Unlike ${name}` : `Like ${name}`}
+        accessibilityLabel={likeActionLabel(liked, name, likeCount)}
         onPress={() => {
           if (!signedIn) {
             setAccount(true)
             return
           }
-          void onLike?.(!liked)?.then(message => setActionError(message))
+          void likeFlight(async () => {
+            const message = await onLike?.(!liked)
+            setActionError(message ?? null)
+          })
         }}
         style={styles.action}
       >
@@ -336,6 +348,9 @@ function AddGamesSheet({
   const [searchError, setSearchError] = useState<string | null>(null)
   const [searching, setSearching] = useState(false)
   const open = useRef(false)
+  const generation = useRef(0)
+  const searchFlight = useSingleFlight()
+  const saveFlight = useSingleFlight()
   const gameKey = games.map(game => game.id).join('\0')
 
   useEffect(() => {
@@ -348,7 +363,7 @@ function AddGamesSheet({
     open.current = visible
   }, [visible, gameKey, games])
 
-  async function search() {
+  function search() {
     const needle = query.trim()
     if (!needle) {
       setHits([])
@@ -356,16 +371,22 @@ function AddGamesSheet({
       return
     }
     if (!onSearch) return
-    setSearching(true)
-    setSearchError(null)
-    try {
-      setHits(await onSearch(needle))
-    } catch (failure) {
-      setHits([])
-      setSearchError(actionFailure(failure))
-    } finally {
-      setSearching(false)
-    }
+    void searchFlight(async () => {
+      const request = ++generation.current
+      setSearching(true)
+      setSearchError(null)
+      try {
+        const found = await onSearch(needle)
+        if (request !== generation.current) return
+        setHits(found)
+      } catch (failure) {
+        if (request !== generation.current) return
+        setHits([])
+        setSearchError(actionFailure(failure))
+      } finally {
+        if (request === generation.current) setSearching(false)
+      }
+    }, needle)
   }
 
   function toggle(id: string) {
@@ -388,7 +409,7 @@ function AddGamesSheet({
             onSubmitEditing={() => { void search() }}
           />
         </View>
-        <Button label={searching ? 'Searching…' : 'Search'} disabled={searching} onPress={() => { void search() }} />
+        <Button label={searching ? 'Searching…' : 'Search'} onPress={search} />
       </View>
       {searchError ? <Text accessibilityLiveRegion="polite" style={styles.error}>{searchError}</Text> : null}
       {already.length > 0 ? <Text style={styles.meta}>On this list</Text> : null}
@@ -423,7 +444,7 @@ function AddGamesSheet({
           const toAdd = [...next].filter(id => !current.has(id)).map(id => ({ id }))
           const toRemove = [...current].filter(id => !next.has(id)).map(id => ({ id }))
           const added = hits.filter(hit => next.has(hit.id) && !current.has(hit.id))
-          void onSave({ toAdd, toRemove }, added)
+          void saveFlight(() => onSave({ toAdd, toRemove }, added))
         }}
       />
     </Sheet>

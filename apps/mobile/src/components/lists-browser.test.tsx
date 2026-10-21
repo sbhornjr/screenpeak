@@ -5,12 +5,15 @@ import { ApiClientError } from '@screenpeak/shared/api/client'
 import { hitTarget, space } from '@screenpeak/shared/tokens'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import React from 'react'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { listsQueryKey } from '@/lib/lists-page'
 
+import { ClearListsOnSignOut } from './clear-lists-on-sign-out'
 import { ListDetail, UserLists } from './lists-browser'
+
+process.env.TZ = 'America/Los_Angeles'
 
 const PEEK = '22222222-2222-4222-8222-222222222222'
 const OTHER = '33333333-3333-4333-8333-333333333333'
@@ -24,6 +27,7 @@ const auth = vi.hoisted(() => ({
 
 const push = vi.hoisted(() => vi.fn())
 const back = vi.hoisted(() => vi.fn())
+const viewport = vi.hoisted(() => ({ width: 375, height: 667, scale: 1, fontScale: 1 }))
 
 const { getLists, getList, createList, updateList, deleteList, likeList, unlikeList, searchGames, syncGames, removeGame } = vi.hoisted(() => ({
   getLists: vi.fn(),
@@ -119,6 +123,9 @@ vi.mock('react-native', () => ({
     {
       type: 'button',
       onClick: onPress,
+      ref: (node: (HTMLButtonElement & { press?: () => void }) | null) => {
+        if (node && onPress) node.press = onPress
+      },
       'aria-label': accessibilityLabel,
       role: accessibilityRole ?? 'button',
       'aria-selected': accessibilityState?.selected ? 'true' : undefined,
@@ -207,7 +214,7 @@ vi.mock('react-native', () => ({
     onChange: (event: { target: { value: string } }) => onChangeText?.(event.target.value),
   }),
   Keyboard: { addListener: () => ({ remove() {} }) },
-  useWindowDimensions: () => ({ width: 375, height: 667, scale: 1, fontScale: 1 }),
+  useWindowDimensions: () => viewport,
   StyleSheet: { create: (styles: unknown) => styles, absoluteFill: {} },
 }))
 
@@ -306,8 +313,19 @@ function renderLists(node: React.ReactNode) {
   }
 }
 
+function pressTwice(name: string) {
+  const button = screen.getByRole('button', { name }) as HTMLButtonElement & { press?: () => void }
+  const tap = button.press
+  if (!tap) throw new Error(`missing press for ${name}`)
+  act(() => {
+    tap()
+    tap()
+  })
+}
+
 afterEach(() => {
   cleanup()
+  viewport.width = 375
   auth.session = { user: { id: PEEK } }
   push.mockReset()
   back.mockReset()
@@ -329,12 +347,12 @@ describe('UserLists', () => {
     renderLists(<UserLists username="peek" />)
     expect((await screen.findByRole('link', { name: 'Wishlist' })).textContent).toContain('Wishlist')
     expect(screen.getByRole('heading', { name: 'Your Lists' }).textContent).toBe('Your Lists')
-    expect(screen.getByText('1 game · Updated 3/1/2026').textContent).toBe('1 game · Updated 3/1/2026')
+    expect(screen.getByText('1 game · Updated 2/28/2026').textContent).toBe('1 game · Updated 2/28/2026')
     expect(screen.getByText('Later.').textContent).toBe('Later.')
     expect(screen.getByRole('button', { name: 'Show: My lists' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'New list' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Unpin Wishlist' })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Like Wishlist' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Like Wishlist, 2 likes' })).toBeNull()
     fireEvent.click(screen.getByRole('link', { name: 'Wishlist' }))
     expect(push).toHaveBeenCalledWith('/user/peek/lists/' + LIST)
     expect(getLists).toHaveBeenCalledWith('peek', 'user')
@@ -363,7 +381,7 @@ describe('UserLists', () => {
     })
     expect(await screen.findByRole('link', { name: 'Ada picks' })).toBeTruthy()
     expect(screen.queryByRole('link', { name: 'Wishlist' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Like Ada picks' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Like Ada picks, 2 likes' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Pin Ada picks' })).toBeNull()
   })
 
@@ -389,8 +407,9 @@ describe('UserLists', () => {
     expect(await screen.findByRole('button', { name: 'Unpin Wishlist' })).toBeTruthy()
     const other = { ...PAGE, lists: [{ ...WISH, name: 'Other shelf' }] }
     client.setQueryData(listsQueryKey('peek', 'user', OTHER), other)
-    fireEvent.click(screen.getByRole('button', { name: 'Unpin Wishlist' }))
+    pressTwice('Unpin Wishlist')
     expect(await screen.findByRole('button', { name: 'Pin Wishlist' })).toBeTruthy()
+    expect(updateList).toHaveBeenCalledTimes(1)
     expect(updateList).toHaveBeenCalledWith(LIST, { isPinned: false })
     expect(client.getQueryData(listsQueryKey('peek', 'user', OTHER))).toEqual(other)
     rejectPin(new ApiClientError(429, 'rate_limited', 'slow down', 9))
@@ -414,6 +433,8 @@ describe('UserLists', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'Description' }), { target: { value: 'After midnight.' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create list' }))
     expect(await screen.findByRole('link', { name: 'Night runs' })).toBeTruthy()
+    const labels = screen.getAllByRole('link').map(link => link.getAttribute('aria-label'))
+    expect(labels.filter(label => label === 'Wishlist' || label === 'Night runs')).toEqual(['Wishlist', 'Night runs'])
     expect(createList).toHaveBeenCalledWith({
       name: 'Night runs',
       description: 'After midnight.',
@@ -460,7 +481,7 @@ describe('UserLists', () => {
     expect(screen.getByRole('link', { name: 'Ada picks' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'New list' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Pin Ada picks' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Like Ada picks' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Like Ada picks, 2 likes' })).toBeTruthy()
   })
 
   it('asks a signed-out player to sign up before liking', async () => {
@@ -471,13 +492,124 @@ describe('UserLists', () => {
       lists: [{ ...WISH, owner_id: OTHER, owner_username: 'ada' }],
     })
     renderLists(<UserLists username="ada" />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Like Wishlist' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Like Wishlist, 2 likes' }))
     expect(likeList).not.toHaveBeenCalled()
     expect(screen.getByText('Sign up to like a list, or to make your own.').textContent)
       .toBe('Sign up to like a list, or to make your own.')
     fireEvent.click(screen.getByRole('button', { name: 'Sign up' }))
     await waitFor(() => expect(push).toHaveBeenCalledWith('/sign-up'))
     expect(screen.queryByText('Sign up to like a list, or to make your own.')).toBeNull()
+  })
+
+  it('creates one list when Create is pressed twice', async () => {
+    getLists.mockResolvedValue(PAGE)
+    let release: () => void = () => undefined
+    createList.mockImplementation(() => new Promise<{ id: string }>((resolve) => {
+      release = () => resolve({ id: 'list-9' })
+    }))
+    renderLists(<UserLists username="peek" />)
+    expect(await screen.findByRole('link', { name: 'Wishlist' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'New list' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'List name' }), { target: { value: 'Night runs' } })
+    pressTwice('Create list')
+    await waitFor(() => expect(createList).toHaveBeenCalledTimes(1))
+    release()
+  })
+
+  it('likes once when Like is pressed twice, and both rate limits return the server label', async () => {
+    const ada = { ...WISH, id: 'list-a', name: 'Ada picks', owner_id: OTHER, owner_username: 'ada', is_pinned: false }
+    const bob = { ...WISH, id: 'list-b', name: 'Bob picks', owner_id: '66666666-6666-4666-8666-666666666666', owner_username: 'bob', is_pinned: false, like_count: 0 }
+    getLists.mockResolvedValue({
+      ...PAGE,
+      profile: { id: OTHER, username: 'ada', avatar_url: null },
+      lists: [ada, bob],
+    })
+    const rejects: ((error: unknown) => void)[] = []
+    likeList.mockImplementation(() => new Promise<void>((_resolve, reject) => {
+      rejects.push(reject)
+    }))
+    renderLists(<UserLists username="ada" />)
+    expect(await screen.findByRole('button', { name: 'Like Ada picks, 2 likes' })).toBeTruthy()
+    pressTwice('Like Ada picks, 2 likes')
+    fireEvent.click(screen.getByRole('button', { name: 'Like Bob picks, 0 likes' }))
+    await waitFor(() => expect(likeList).toHaveBeenCalledTimes(2))
+    expect(await screen.findByRole('button', { name: 'Unlike Ada picks, 3 likes' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Unlike Bob picks, 1 like' })).toBeTruthy()
+    rejects[0](new ApiClientError(429, 'rate_limited', 'slow down', 9))
+    rejects[1](new ApiClientError(429, 'rate_limited', 'slow down', 9))
+    expect(await screen.findByRole('button', { name: 'Like Ada picks, 2 likes' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Like Bob picks, 0 likes' })).toBeTruthy()
+  })
+
+  it('does not show peek’s lists while ada’s lists are still loading', async () => {
+    getLists.mockResolvedValue({ ...PAGE, lists: [{ ...WISH, name: 'Secret shelf', is_public: false }] })
+    const { rerender } = renderLists(<UserLists username="peek" />)
+    expect(await screen.findByRole('link', { name: 'Secret shelf' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Your Lists' })).toBeTruthy()
+    getLists.mockImplementation(() => new Promise(() => undefined))
+    rerender(<UserLists username="ada" />)
+    expect(screen.queryByRole('link', { name: 'Secret shelf' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Your Lists' })).toBeNull()
+    expect(screen.getByLabelText('Loading lists')).toBeTruthy()
+  })
+
+  it('drops cached lists when the player signs out', async () => {
+    getLists.mockResolvedValue({ ...PAGE, lists: [{ ...WISH, name: 'Secret shelf', is_public: false }] })
+    const { client, rerender } = renderLists(
+      <>
+        <ClearListsOnSignOut />
+        <UserLists username="peek" />
+      </>,
+    )
+    expect(await screen.findByRole('link', { name: 'Secret shelf' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Your Lists' })).toBeTruthy()
+    auth.session = null
+    getLists.mockImplementation(() => new Promise(() => undefined))
+    rerender(
+      <>
+        <ClearListsOnSignOut />
+        <UserLists username="peek" />
+      </>,
+    )
+    await waitFor(() => expect(client.getQueryData(listsQueryKey('peek', 'user', PEEK))).toBeUndefined())
+    expect(screen.queryByRole('link', { name: 'Secret shelf' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Your Lists' })).toBeNull()
+  })
+
+  it('fits five covers inside a 320-point card', async () => {
+    viewport.width = 320
+    const covers = ['a', 'b', 'c', 'd', 'e'].map(slug => ({ cover_image_url: null, slug }))
+    getLists.mockResolvedValue({
+      ...PAGE,
+      profile: { id: OTHER, username: 'ada', avatar_url: null },
+      default_list_public: null,
+      lists: [
+        { ...WISH, name: 'Ada picks', owner_id: OTHER, owner_username: 'ada', is_pinned: false, covers },
+        WISH,
+      ],
+    })
+    renderLists(<UserLists username="ada" />)
+    const title = await screen.findByRole('link', { name: 'Ada picks' })
+    const owner = screen.getByRole('link', { name: 'ada' })
+    const like = screen.getByRole('button', { name: 'Like Ada picks, 2 likes' })
+    const pin = screen.getByRole('button', { name: 'Unpin Wishlist' })
+    const wish = screen.getByRole('link', { name: 'Wishlist' })
+    expect(JSON.parse(title.getAttribute('data-style') || '{}').minHeight).toBe(hitTarget)
+    expect(JSON.parse(owner.getAttribute('data-style') || '{}').minHeight).toBe(hitTarget)
+    expect(title.contains(like)).toBe(false)
+    expect(wish.contains(pin)).toBe(false)
+    expect(like.parentElement?.contains(pin)).toBe(false)
+    expect(pin.parentElement?.contains(like)).toBe(false)
+    const coverNodes = Array.from(document.querySelectorAll('[data-style]')).filter(node => {
+      const style = JSON.parse(node.getAttribute('data-style') || '{}')
+      return style.flex === 1 && style.maxWidth === space[12] && style.height === space[16]
+    })
+    expect(coverNodes).toHaveLength(5)
+    const inner = viewport.width - space[4] * 2 - space[3] * 2
+    const gaps = space[2] * 4
+    const coverWidth = Math.min(space[12], (inner - gaps) / 5)
+    expect(coverWidth * 5 + gaps).toBeLessThanOrEqual(inner)
+    expect(coverWidth).toBeLessThan(space[12])
   })
 })
 
@@ -487,13 +619,14 @@ describe('ListDetail', () => {
     renderLists(<ListDetail username="peek" listId={LIST} />)
     expect((await screen.findByRole('heading', { name: 'Night runs' })).textContent).toBe('Night runs')
     expect(screen.getByText('After midnight.').textContent).toBe('After midnight.')
-    expect(screen.getByText(/1 game/).textContent).toContain('Updated 3/1/2026')
+    expect(screen.getByText(/1 game/).textContent).toContain('Updated 2/28/2026')
     expect(screen.getByRole('link', { name: 'peek' })).toBeTruthy()
     const remove = screen.getByRole('button', { name: 'Remove Hades' })
     expect(JSON.parse(remove.getAttribute('data-style') || '{}').minHeight).toBe(hitTarget)
     expect(JSON.parse(remove.getAttribute('data-style') || '{}').minWidth).toBe(hitTarget)
     const cell = screen.getByRole('link', { name: 'Hades' }).parentElement
-    expect(JSON.parse(cell?.getAttribute('data-style') || '{}').width).toBe((375 - space[4] * 2 - space[3]) / 2)
+    const pad = viewport.width <= 375 ? space[4] : space[6]
+    expect(JSON.parse(cell?.getAttribute('data-style') || '{}').width).toBe((viewport.width - pad * 2 - space[3]) / 2)
     fireEvent.click(remove)
     expect(push).not.toHaveBeenCalled()
     expect(screen.getByRole('dialog', { name: 'Remove Hades?' })).toBeTruthy()
@@ -514,8 +647,9 @@ describe('ListDetail', () => {
     client.setQueryData(['game', 'hades', OTHER], gamePage([LIST]))
     client.setQueryData(['game', 'hades', 'reviews', PEEK, 1, 'date', 'desc'], { reviews: ['kept'] })
     fireEvent.click(screen.getByRole('button', { name: 'Remove Hades' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
+    pressTwice('Remove')
     await waitFor(() => expect(screen.queryByRole('link', { name: 'Hades' })).toBeNull())
+    expect(removeGame).toHaveBeenCalledTimes(1)
     expect(removeGame).toHaveBeenCalledWith(LIST, HADES)
     expect(client.getQueryData<GamePageData>(['game', 'hades', PEEK])?.viewer?.listIdsGameIsIn).toEqual([])
     expect(client.getQueryData<GamePageData>(['game', 'hades', OTHER])?.viewer?.listIdsGameIsIn).toEqual([LIST])
@@ -592,13 +726,52 @@ describe('ListDetail', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'Search games' }), { target: { value: 'cel' } })
     fireEvent.click(screen.getByRole('button', { name: 'Search' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Celeste' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Save games' }))
+    pressTwice('Save games')
     expect(await screen.findByRole('link', { name: 'Celeste' })).toBeTruthy()
+    expect(syncGames).toHaveBeenCalledTimes(1)
     expect(screen.getByRole('link', { name: 'Hades' })).toBeTruthy()
     expect(syncGames).toHaveBeenCalledWith(LIST, { toAdd: [{ id: CELESTE }], toRemove: [] })
     expect(searchGames).toHaveBeenCalledWith('cel')
     release()
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add games' })).toBeNull())
+  })
+
+  it('shows the later search when the earlier one resolves last', async () => {
+    getList.mockResolvedValue(DETAIL)
+    let resolveHades: (value: unknown) => void = () => undefined
+    let resolveCeleste: (value: unknown) => void = () => undefined
+    searchGames.mockImplementation((query: string) => new Promise((resolve) => {
+      if (query === 'hades') resolveHades = resolve
+      else resolveCeleste = resolve
+    }))
+    renderLists(<ListDetail username="peek" listId={LIST} />)
+    expect(await screen.findByRole('link', { name: 'Hades' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Add games' }))
+    const field = screen.getByRole('textbox', { name: 'Search games' })
+    fireEvent.change(field, { target: { value: 'hades' } })
+    pressTwice('Search')
+    fireEvent.change(field, { target: { value: 'celeste' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Searching…' }))
+    resolveCeleste({
+      games: [{ id: CELESTE, name: 'Celeste', slug: 'celeste', cover_image_url: null, released: '2018-01-25', avg_rating: 9 }],
+    })
+    expect(await screen.findByRole('button', { name: 'Celeste' })).toBeTruthy()
+    resolveHades({
+      games: [{ id: HADES, name: 'Hades II', slug: 'hades-ii', cover_image_url: null, released: '2024-01-01', avg_rating: 9 }],
+    })
+    await waitFor(() => expect(searchGames).toHaveBeenCalledTimes(2))
+    expect(screen.getByRole('button', { name: 'Celeste' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Hades II' })).toBeNull()
+  })
+
+  it('does not keep the previous list while the next list loads', async () => {
+    getList.mockResolvedValue(DETAIL)
+    const { rerender } = renderLists(<ListDetail username="peek" listId={LIST} />)
+    expect(await screen.findByRole('heading', { name: 'Night runs' })).toBeTruthy()
+    getList.mockImplementation(() => new Promise(() => undefined))
+    rerender(<ListDetail username="peek" listId={CELESTE} />)
+    expect(screen.queryByRole('heading', { name: 'Night runs' })).toBeNull()
+    expect(screen.getByLabelText('Loading list')).toBeTruthy()
   })
 
   it('reloads when the game page invalidates lists', async () => {

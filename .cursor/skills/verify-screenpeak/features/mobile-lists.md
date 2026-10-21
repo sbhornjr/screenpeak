@@ -12,7 +12,7 @@ The phone lists index opens from the Profile hub's Lists row. Your own user tab 
 - `empty` shows This list is empty on the Wishlist, and Edit has no Delete list.
 - `create` opens the New list sheet, creates Drive shelf, then deletes it after Delete this list?
 - `other-index` shows ada's lists and Ada's picks. It hides Ada hidden and has no New list.
-- `other-detail` shows Ada's picks and Like, without Edit, Add games, or Remove.
+- `other-detail` shows Ada's picks and a like button named Like Ada's picks, 0 likes, without Edit, Add games, or Remove.
 - `private-url` says Not found for Ada hidden and does not show the title.
 
 ## How to get to it (user POV)
@@ -41,7 +41,7 @@ Preconditions:
 - **Open the empty Wishlist.** Go Back and tap Wishlist. The screen says This list is empty and Add a few games to get it started. Check that at both widths. Edit has no Delete list. Close it.
 - **Create and delete.** Tap New list. The sheet says List name and Create list. Check that at both widths. Type Drive shelf and Temporary., then tap Create list. The index shows Drive shelf and Postgres has one row with that name. Open it, tap Edit, tap Delete list, confirm Delete this list? and This cannot be undone., then tap Delete list. The index no longer shows Drive shelf and the row is gone.
 - **Open another player's lists.** Open `/user/ada` and tap Lists. The screen says ada's Lists, Ada's picks, and Show: ada's lists. It does not say Ada hidden or New list. Check that at both widths.
-- **Open that public list.** Tap Ada's picks. Public picks. and the game are visible. Like is there. Edit, Add games, and Remove are not. Check that at both widths.
+- **Open that public list.** Tap Ada's picks. Public picks. and the game are visible. The like button is named Like Ada's picks, 0 likes. Edit, Add games, and Remove are not. Check that at both widths.
 - **Open the private URL.** Open `/user/ada/lists/` plus Ada hidden's id. The screen says Couldn't load this screen and Not found. It does not show Ada hidden.
 - **Proof.** The drive writes `/tmp/screenpeak-verify/evidence/mobile-lists/`. The png files are the index, Night runs, the edit sheet, the empty Wishlist, the New list sheet, ada's index, and Ada's picks at both sizes. `result.json` records the paths and cell widths. `postgres.txt` records the deleted Drive shelf.
 

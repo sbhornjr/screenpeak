@@ -4,7 +4,8 @@ import type { GameSearchHit } from '@screenpeak/shared/api/search'
 import type { ListGameSync, ListWrite } from '@screenpeak/shared/api/writes'
 import type { QueryClient } from '@tanstack/react-query'
 
-import { parseDbTimestamp, withListMembership } from '@/lib/game-page'
+import { withListMembership } from '@/lib/game-page'
+import { calendarLabel } from '@/lib/profile-hub'
 
 /** The game page invalidates `['lists']`. Detail uses that prefix so it reloads too. */
 export function listsQueryKey(username: string, tab: ListsTab, viewerId: string | null) {
@@ -15,13 +16,22 @@ export function listDetailQueryKey(username: string, listId: string, viewerId: s
   return ['lists', username, 'detail', listId, viewerId] as const
 }
 
-/** Keep the previous page while the next one loads, and only for this viewer. */
+/**
+ * Keep the previous page while the next one loads, for this viewer, this
+ * username, and (on a detail key) this list. A viewer id alone is shared
+ * across every profile that player opens.
+ */
 export function sameViewerPlaceholder<T>(
   previous: T | undefined,
   previousQuery: { queryKey: readonly unknown[] } | undefined,
   viewerId: string | null,
+  username: string,
+  listId?: string,
 ): T | undefined {
-  if (previousQuery?.queryKey.at(-1) !== viewerId) return undefined
+  const key = previousQuery?.queryKey
+  if (!key || key.at(-1) !== viewerId) return undefined
+  if (key[1] !== username) return undefined
+  if (listId != null && key[3] !== listId) return undefined
   return previous
 }
 
@@ -37,10 +47,8 @@ export function listShowChoices(owner: boolean, username: string): { tab: ListsT
 }
 
 export function updatedLabel(value: string): string {
-  if (!value) return ''
-  const date = parseDbTimestamp(value)
-  if (!Number.isFinite(date.getTime())) return ''
-  return `Updated ${date.getUTCMonth() + 1}/${date.getUTCDate()}/${date.getUTCFullYear()}`
+  const day = calendarLabel(value)
+  return day ? `Updated ${day}` : ''
 }
 
 export function gamesLabel(count: number): string {
@@ -50,6 +58,12 @@ export function gamesLabel(count: number): string {
 export function likeLabel(liked: boolean, count: number): string {
   if (liked) return count > 0 ? `Liked · ${count}` : 'Liked'
   return count > 0 ? `Like · ${count}` : 'Like'
+}
+
+export function likeActionLabel(liked: boolean, name: string, count: number): string {
+  const verb = liked ? 'Unlike' : 'Like'
+  const likes = count === 1 ? '1 like' : `${count} likes`
+  return `${verb} ${name}, ${likes}`
 }
 
 export function withNewList(page: ListsPageData, id: string, fields: ListWrite): ListsPageData {
@@ -69,7 +83,9 @@ export function withNewList(page: ListsPageData, id: string, fields: ListWrite):
     like_count: 0,
     viewer_has_liked: false,
   }
-  return { ...page, lists: [card, ...page.lists] }
+  const defaults = page.lists.filter(list => list.is_default)
+  const rest = page.lists.filter(list => !list.is_default)
+  return { ...page, lists: [...defaults, card, ...rest] }
 }
 
 export function withListEdits(page: ListsPageData, listId: string, fields: ListWrite): ListsPageData {
@@ -186,18 +202,21 @@ export function withViewerListOption(data: GamePageData, option: { id: string, n
  * parts, and another viewer's key ends with their id, so both stay put.
  * Returns a restore for a failed write.
  */
-export function patchViewerGames(
+export async function patchViewerGames(
   client: QueryClient,
   viewerId: string | null,
   update: (data: GamePageData) => GamePageData,
-): () => void {
+): Promise<() => void> {
   if (!viewerId) return () => undefined
-  const snapshots: { key: readonly unknown[], data: unknown }[] = []
-  for (const cached of client.getQueryCache().findAll({ queryKey: ['game'] })) {
-    if (cached.queryKey.length !== 3 || cached.queryKey[2] !== viewerId) continue
-    snapshots.push({ key: cached.queryKey, data: cached.state.data })
-    const data = cached.state.data as GamePageData | undefined
-    if (data) client.setQueryData(cached.queryKey, update(data))
+  const keys = client.getQueryCache().findAll({ queryKey: ['game'] })
+    .map(cached => cached.queryKey)
+    .filter(queryKey => queryKey.length === 3 && queryKey[2] === viewerId)
+  await Promise.all(keys.map(queryKey => client.cancelQueries({ queryKey, exact: true })))
+  const snapshots: { key: readonly unknown[], data: GamePageData | undefined }[] = []
+  for (const queryKey of keys) {
+    const data = client.getQueryData<GamePageData>(queryKey)
+    snapshots.push({ key: queryKey, data })
+    if (data) client.setQueryData(queryKey, update(data))
   }
   return () => {
     for (const shot of snapshots) client.setQueryData(shot.key, shot.data)

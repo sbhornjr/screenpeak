@@ -4020,7 +4020,7 @@ async function driveMobileLists() {
         if (await hasControl('Edit list') !== 'no') problems.push("someone else's list shows Edit")
         if (await hasControl('Add games') !== 'no') problems.push("someone else's list shows Add games")
         if (await hasControl(`Remove ${game.name}`) !== 'no') problems.push("someone else's list shows Remove")
-        if (await hasControl("Like Ada's picks") !== 'yes') problems.push("someone else's list is missing Like")
+        if (await hasControl("Like Ada's picks, 0 likes") !== 'yes') problems.push("someone else's list is missing Like")
         await shot('other-375.png')
         await page.setViewport(320, 568)
         await page.waitForText('Public picks.')

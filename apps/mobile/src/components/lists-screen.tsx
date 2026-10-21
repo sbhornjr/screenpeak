@@ -7,7 +7,8 @@ import { FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View } from
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { igdbImageUri } from '@/lib/catalog-image'
-import { gamesLabel, likeLabel, updatedLabel } from '@/lib/lists-page'
+import { gamesLabel, likeActionLabel, likeLabel, updatedLabel } from '@/lib/lists-page'
+import { useSingleFlight } from '@/lib/single-flight'
 import { listHref, profileHref } from '@/lib/routes'
 import { colors, face, hitTarget, radius, space, typeScale } from '@/theme'
 
@@ -90,6 +91,7 @@ function ListCardRow({
 }) {
   const mine = viewerId != null && list.owner_id === viewerId
   const updated = updatedLabel(list.last_activity)
+  const flight = useSingleFlight()
   return (
     <View style={styles.card}>
       {list.covers.length > 0 ? (
@@ -108,6 +110,7 @@ function ListCardRow({
         accessibilityRole="link"
         accessibilityLabel={list.name}
         onPress={() => onOpen(listHref(list.owner_username || username, list.id))}
+        style={styles.cardTitlePress}
       >
         <Text numberOfLines={2} style={styles.cardTitle}>{list.name}</Text>
       </Pressable>
@@ -122,6 +125,7 @@ function ListCardRow({
           accessibilityRole="link"
           accessibilityLabel={list.owner_username}
           onPress={() => onOpen(profileHref(list.owner_username))}
+          style={styles.ownerLink}
         >
           <Text style={styles.owner}>{list.owner_username}</Text>
         </Pressable>
@@ -130,13 +134,16 @@ function ListCardRow({
         {!mine ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={list.viewer_has_liked ? `Unlike ${list.name}` : `Like ${list.name}`}
+            accessibilityLabel={likeActionLabel(list.viewer_has_liked, list.name, list.like_count)}
             onPress={() => {
               if (!viewerId) {
                 onNeedAccount()
                 return
               }
-              void onLike?.(list.id, !list.viewer_has_liked)?.then(message => onActionError(message))
+              void flight(async () => {
+                const message = await onLike?.(list.id, !list.viewer_has_liked)
+                onActionError(message ?? null)
+              })
             }}
             style={styles.action}
           >
@@ -150,7 +157,12 @@ function ListCardRow({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={list.is_pinned ? `Unpin ${list.name}` : `Pin ${list.name}`}
-            onPress={() => { void onPin?.(list.id, !list.is_pinned)?.then(message => onActionError(message)) }}
+            onPress={() => {
+              void flight(async () => {
+                const message = await onPin?.(list.id, !list.is_pinned)
+                onActionError(message ?? null)
+              })
+            }}
             style={styles.action}
           >
             <Pin size={16} color={list.is_pinned ? colors.accent : colors.muted} />
@@ -194,22 +206,28 @@ export function ListsScreen({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const flight = useSingleFlight()
   const emptyTitle = show.tab === 'liked' ? 'No liked lists yet.' : 'No lists yet.'
   const emptyDescription = show.tab === 'liked'
     ? (canCreate ? 'Lists you like show up here.' : undefined)
     : (canCreate ? 'Create one to start collecting games.' : undefined)
 
-  async function create(values: ListFormValues) {
-    if (!onCreate) return
-    setBusy(true)
-    setError(null)
-    const next = await onCreate(values)
-    setBusy(false)
-    if (next) {
-      setError(next)
-      return
-    }
-    setCreating(false)
+  function create(values: ListFormValues) {
+    void flight(async () => {
+      if (!onCreate) return
+      setBusy(true)
+      setError(null)
+      try {
+        const next = await onCreate(values)
+        if (next) {
+          setError(next)
+          return
+        }
+        setCreating(false)
+      } finally {
+        setBusy(false)
+      }
+    })
   }
 
   const header = (
@@ -338,11 +356,13 @@ const styles = StyleSheet.create({
   },
   covers: { flexDirection: 'row', gap: space[2] },
   cover: {
-    width: space[12],
+    flex: 1,
+    maxWidth: space[12],
     height: space[16],
     borderRadius: radius.base,
     backgroundColor: colors.surfaceLight,
   },
+  cardTitlePress: { minHeight: hitTarget, justifyContent: 'center' },
   cardTitle: {
     fontFamily: face.display[600],
     fontSize: typeScale.xl.size,
@@ -361,6 +381,7 @@ const styles = StyleSheet.create({
     lineHeight: typeScale.base.line,
     color: colors.text,
   },
+  ownerLink: { minHeight: hitTarget, justifyContent: 'center' },
   owner: {
     fontFamily: face.body[600],
     fontSize: typeScale.sm.size,

@@ -129,6 +129,17 @@ it('returns 404 for another player\'s list and library row and leaves them uncha
     expect(entry).toMatchObject({ status: 'playing', hours: '12.5', play_count: 4, completed_all_achievements: true })
 })
 
+it('returns 404 when deleting the default list and leaves the row', async () => {
+    const [list] = await client`select id from lists where user_id = ${A} and is_default = true`
+    const removed = await deleteListRoute(
+        jsonRequest('DELETE', `http://localhost/api/v1/lists/${list.id}`),
+        { params: Promise.resolve({ listId: list.id }) },
+    )
+    expect(removed.status).toBe(404)
+    const [row] = await client`select name, is_default from lists where id = ${list.id}`
+    expect(row).toEqual({ name: 'Wishlist', is_default: true })
+})
+
 it('does not change another player\'s review when A rates the same game', async () => {
     // The review route is the bearer user's row for that game. It cannot address B's review id, so it cannot 404 for it.
     const res = await putReviewRoute(
