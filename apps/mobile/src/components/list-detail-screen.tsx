@@ -1,14 +1,13 @@
 import type { GameCardData } from '@screenpeak/shared/api/games'
 import type { GameSearchHit } from '@screenpeak/shared/api/search'
 import type { ListGameSync, ListWrite } from '@screenpeak/shared/api/writes'
-import { Heart, X } from 'lucide-react-native'
+import { X } from 'lucide-react-native'
 import { useEffect, useRef, useState } from 'react'
 import { FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { actionFailure } from '@/lib/game-page'
 import { libraryColumnWidth } from '@/lib/library-page'
-import { gamesLabel, likeActionLabel, likeLabel } from '@/lib/lists-page'
 import { useSingleFlight } from '@/lib/single-flight'
 import { gameHref, profileHref } from '@/lib/routes'
 import { colors, face, hitTarget, radius, space, typeScale } from '@/theme'
@@ -18,8 +17,9 @@ import { Avatar } from './avatar'
 import { Button } from './button'
 import { EmptyState } from './empty-state'
 import { GameCard } from './game-card'
+import { ListLike, ListMeta } from './list-chrome'
 import { ListFormSheet, type ListFormValues } from './list-form-sheet'
-import { Sheet, useSheetDismiss } from './sheet'
+import { Sheet } from './sheet'
 import { TextField } from './text-field'
 
 export type ListDetailScreenProps = {
@@ -28,7 +28,7 @@ export type ListDetailScreenProps = {
   username?: string
   avatarUrl?: string | null
   gameCount?: number
-  updatedLabel?: string
+  updatedAt?: string
   likeCount?: number
   liked?: boolean
   canEdit?: boolean
@@ -49,17 +49,6 @@ export type ListDetailScreenProps = {
   onRemoveGame?: (gameId: string) => Promise<string | null>
   onRefresh?: () => void
   onRetry?: () => void
-}
-
-function AccountActions({ onOpen }: { onOpen: (href: string) => void }) {
-  const dismiss = useSheetDismiss()
-  return (
-    <>
-      <Text style={styles.body}>Sign up to like a list, or to make your own.</Text>
-      <Button label="Sign up" onPress={() => dismiss(() => onOpen('/sign-up'))} />
-      <Button label="Log in" variant="secondary" onPress={() => dismiss(() => onOpen('/sign-in'))} />
-    </>
-  )
 }
 
 function ListGameCell({
@@ -112,7 +101,7 @@ export function ListDetailScreen({
   username = '',
   avatarUrl = null,
   gameCount,
-  updatedLabel = '',
+  updatedAt = '',
   likeCount = 0,
   liked = false,
   canEdit = false,
@@ -140,7 +129,6 @@ export function ListDetailScreen({
   const [editing, setEditing] = useState(false)
   const [adding, setAdding] = useState(false)
   const [removing, setRemoving] = useState<GameCardData | null>(null)
-  const [account, setAccount] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -203,31 +191,22 @@ export function ListDetailScreen({
           <Text style={styles.owner}>{username}</Text>
         </Pressable>
       ) : null}
-      <Text style={styles.meta}>
-        {gamesLabel(count)}
-        {canEdit && !isPublic ? ' · Private' : ''}
-        {updatedLabel ? ` · ${updatedLabel}` : ''}
-      </Text>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={likeActionLabel(liked, name, likeCount)}
-        onPress={() => {
-          if (!signedIn) {
-            setAccount(true)
-            return
-          }
-          void likeFlight(async () => {
-            const message = await onLike?.(!liked)
-            setActionError(message ?? null)
-          })
-        }}
-        style={styles.action}
-      >
-        <Heart size={16} color={liked ? colors.accent : colors.muted} />
-        <Text accessibilityElementsHidden importantForAccessibility="no" style={styles.actionText}>
-          {likeLabel(liked, likeCount)}
-        </Text>
-      </Pressable>
+      <View style={styles.statRow}>
+        <View style={styles.statMeta}>
+          <ListMeta gameCount={count} isPrivate={canEdit && !isPublic} updatedAt={updatedAt} />
+        </View>
+        <ListLike
+          count={likeCount}
+          liked={liked}
+          interactive={signedIn && !canEdit}
+          onPress={() => {
+            void likeFlight(async () => {
+              const message = await onLike?.(!liked)
+              setActionError(message ?? null)
+            })
+          }}
+        />
+      </View>
       {description ? <Text style={styles.body}>{description}</Text> : null}
       {canEdit ? (
         <View style={styles.ownerActions}>
@@ -317,9 +296,6 @@ export function ListDetailScreen({
         {actionError ? <Text accessibilityLiveRegion="polite" style={styles.error}>{actionError}</Text> : null}
         <Button label={busy ? 'Removing…' : 'Remove'} variant="secondary" disabled={busy} onPress={() => { void confirmRemove() }} />
         <Button label="Keep" variant="ghost" onPress={() => setRemoving(null)} />
-      </Sheet>
-      <Sheet visible={account} title="Sign up" onClose={() => setAccount(false)}>
-        <AccountActions onOpen={onOpen} />
       </Sheet>
     </SafeAreaView>
   )
@@ -500,25 +476,13 @@ const styles = StyleSheet.create({
     lineHeight: typeScale.base.line,
     color: colors.text,
   },
-  action: {
-    minHeight: hitTarget,
-    minWidth: hitTarget,
+  statRow: {
     flexDirection: 'row',
+    flexWrap: 'nowrap',
     alignItems: 'center',
-    alignSelf: 'flex-start',
     gap: space[2],
-    paddingHorizontal: space[3],
-    borderRadius: radius.base,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
   },
-  actionText: {
-    fontFamily: face.display[600],
-    fontSize: typeScale.sm.size,
-    lineHeight: typeScale.sm.line,
-    color: colors.text,
-  },
+  statMeta: { flex: 1, minWidth: 0 },
   ownerActions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[2] },
   columns: { gap: space[3] },
   cell: { position: 'relative', marginBottom: space[3] },

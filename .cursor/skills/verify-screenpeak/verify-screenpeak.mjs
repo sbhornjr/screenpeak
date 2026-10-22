@@ -2977,7 +2977,7 @@ async function driveMobileGame() {
             await page.waitUntil(`(() => {
                 const node = [...document.querySelectorAll('button, [role="button"]')].find((item) => {
                     const text = item.textContent || ''
-                    return text.includes(${JSON.stringify(wishlistName)}) && text.includes('On this list')
+                    return text.includes(${JSON.stringify(wishlistName)}) && text.includes('In this list')
                 })
                 return node ? 'ok' : 'waiting'
             })()`)
@@ -3853,6 +3853,33 @@ async function driveMobileLists() {
             })()`)
         }
 
+        async function hasLabel(name) {
+            return page.evaluate(`(() => {
+                const want = ${JSON.stringify(name)}
+                const nodes = [...document.querySelectorAll('[aria-label]')]
+                return nodes.some((item) => item.getClientRects().length > 0 && (item.getAttribute('aria-label') || '').trim() === want) ? 'yes' : 'no'
+            })()`)
+        }
+
+        async function hasLikeAction() {
+            return page.evaluate(`(() => {
+                const nodes = [...document.querySelectorAll('button, [role="button"]')]
+                return nodes.some((item) => {
+                    if (!item.getClientRects().length) return false
+                    return /^(Like|Unlike) list,/.test((item.getAttribute('aria-label') || '').trim())
+                }) ? 'yes' : 'no'
+            })()`)
+        }
+
+        async function privateMetaHeight() {
+            return page.evaluate(`(() => {
+                const lock = [...document.querySelectorAll('[aria-label="Private"]')].find((item) => item.getClientRects().length > 0)
+                if (!lock || !lock.parentElement) return null
+                const rect = lock.parentElement.getBoundingClientRect()
+                return { height: Math.round(rect.height * 10) / 10 }
+            })()`)
+        }
+
         await page.navigate(`${expoOrigin}/sign-in`)
         await page.waitForText('Log in', 180_000)
         await page.fillPlaceholder('Email', peekEmail)
@@ -3878,7 +3905,7 @@ async function driveMobileLists() {
         const indexPath = await page.evaluate('location.pathname')
         if (indexPath !== `/user/${peekUsername}/lists`) problems.push(`profile Lists opened ${indexPath}`)
         const ownIndex = await page.bodyText()
-        if (!ownIndex.includes('Private')) problems.push('own lists index hides the private list')
+        if (await hasLabel('Private') !== 'yes') problems.push('own lists index hides the private list')
         if (!ownIndex.includes('Wishlist')) problems.push('own lists index is missing Wishlist')
         await expectCentered('index-375')
         await shot('index-375.png')
@@ -3889,7 +3916,38 @@ async function driveMobileLists() {
         await page.setViewport(320, 568)
         await page.waitForText('Show: My lists')
         await expectCentered('index-320')
+        const meta320 = await privateMetaHeight()
+        marks['private-meta-320'] = meta320
+        if (!meta320) problems.push('private list meta is missing at 320')
+        else if (meta320.height > 28) problems.push(`private list meta is ${meta320.height}px tall at 320`)
         await shot('index-320.png')
+        const usernameHit = await page.evaluate(`(() => {
+            const links = [...document.querySelectorAll('a, [role="link"]')].filter((item) => (item.getAttribute('aria-label') || '').trim() === 'peek' && item.getClientRects().length > 0)
+            const link = links[0]
+            if (!link) return null
+            const rect = link.getBoundingClientRect()
+            const onName = document.elementFromPoint(rect.left + Math.min(4, rect.width / 2), rect.top + rect.height / 2)
+            const beside = document.elementFromPoint(Math.min(rect.right + 16, window.innerWidth - 2), rect.top + rect.height / 2)
+            return {
+                nameHit: !!(onName && (onName === link || link.contains(onName))),
+                besideHit: !!(beside && (beside === link || link.contains(beside))),
+                width: Math.round(rect.width * 10) / 10,
+            }
+        })()`)
+        marks['username-hit-320'] = usernameHit
+        if (!usernameHit) problems.push('username link is missing at 320')
+        else {
+            if (!usernameHit.nameHit) problems.push('username text does not receive the tap')
+            if (usernameHit.besideHit) problems.push('username link extends past the text')
+            if (usernameHit.width > 96) problems.push(`username link is ${usernameHit.width}px wide`)
+        }
+        await page.clickLabel('Secret shelf')
+        await page.waitForText('Just for peek.')
+        if (await hasLikeAction() === 'yes') problems.push('own private list offers Like')
+        if (await hasLabel('0 likes') !== 'yes') problems.push('own private list hides the like count')
+        await shot('private-320.png')
+        await page.clickControl('Back')
+        await page.waitForText('Your Lists')
 
         await page.setViewport(375, 667)
         await page.clickLabel('Night runs')
@@ -3900,6 +3958,8 @@ async function driveMobileLists() {
         if (ownPath !== `/user/${peekUsername}/lists/${nightId}`) problems.push(`Night runs opened ${ownPath}`)
         if (await hasControl('Edit list') !== 'yes') problems.push('own list is missing Edit')
         if (await hasControl(`Remove ${game.name}`) !== 'yes') problems.push('own list is missing Remove')
+        if (await hasLikeAction() === 'yes') problems.push('own list offers Like')
+        if (await hasLabel('0 likes') !== 'yes') problems.push('own list hides the like count')
         await shot('own-375.png')
         const wideCell = await gameCellWidth()
         marks['cell-375'] = wideCell
@@ -4020,11 +4080,24 @@ async function driveMobileLists() {
         if (await hasControl('Edit list') !== 'no') problems.push("someone else's list shows Edit")
         if (await hasControl('Add games') !== 'no') problems.push("someone else's list shows Add games")
         if (await hasControl(`Remove ${game.name}`) !== 'no') problems.push("someone else's list shows Remove")
-        if (await hasControl("Like Ada's picks, 0 likes") !== 'yes') problems.push("someone else's list is missing Like")
+        if (await hasControl('Like list, 0 likes') !== 'yes') problems.push("someone else's list is missing Like")
         await shot('other-375.png')
         await page.setViewport(320, 568)
         await page.waitForText('Public picks.')
         await shot('other-320.png')
+        await page.clickLabel('Like list, 0 likes')
+        await page.waitUntil(`(() => {
+            const nodes = [...document.querySelectorAll('button, [role="button"]')]
+            return nodes.some((item) => item.getClientRects().length > 0 && (item.getAttribute('aria-label') || '').trim() === 'Unlike list, 1 like') ? 'ok' : 'waiting'
+        })()`)
+        await shot('other-liked-320.png')
+        await page.clickControl('Back')
+        await page.waitForText("ada's Lists")
+        await page.waitUntil(`(() => {
+            const nodes = [...document.querySelectorAll('button, [role="button"]')]
+            return nodes.some((item) => item.getClientRects().length > 0 && (item.getAttribute('aria-label') || '').trim() === 'Unlike list, 1 like') ? 'ok' : 'waiting'
+        })()`)
+        await shot('other-index-liked-320.png')
 
         await page.setViewport(375, 667)
         await page.navigate(`${expoOrigin}/user/${adaUsername}/lists/${adaHiddenId}`)

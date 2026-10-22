@@ -57,6 +57,7 @@ export function writeErrorText(error: unknown): string {
 export function assertWriteOk(error: string | null | undefined): void {
     if (!error) return
     if (error === 'List not found') throw new ApiError(404, 'not_found', 'Not found.')
+    if (error === 'Cannot like your own list') throw new ApiError(400, 'invalid_request', "You can't like your own list.")
     if (/foreign key/i.test(error)) throw new ApiError(400, 'invalid_request', 'Unknown game.')
     if (/unique|duplicate key/i.test(error)) throw new ApiError(400, 'invalid_request', 'That value is already taken.')
     throw new Error(error)

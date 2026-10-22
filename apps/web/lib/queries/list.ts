@@ -281,6 +281,7 @@ export async function likeList(listId: string, userId: string) {
         const row = list[0]
         // Someone else's private list is the same answer as a missing list, and no like row is written.
         if (!row || (!row.isPublic && row.userId !== userId)) return { error: 'List not found' }
+        if (row.userId === userId) return { error: 'Cannot like your own list' }
         // A retry must stay liked. The primary key makes a second insert a no-op.
         await db.insert(listLikes).values({ listId, userId }).onConflictDoNothing()
         return { error: null }

@@ -12,6 +12,7 @@ export const Crosshair = Icon
 export const Heart = Icon
 export const Library = Icon
 export const List = Icon
+export const Lock = Icon
 export const Pencil = Icon
 export const Pin = Icon
 export const Plus = Icon

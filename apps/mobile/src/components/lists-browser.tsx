@@ -19,7 +19,6 @@ import {
   membershipPatch,
   patchViewerGames,
   sameViewerPlaceholder,
-  updatedLabel,
   withDetailEdits,
   withDetailLike,
   withListEdits,
@@ -285,7 +284,7 @@ export function ListDetail({ username, listId }: { username: string, listId: str
       username={page.profile.username}
       avatarUrl={page.profile.avatar_url}
       gameCount={page.list.game_count}
-      updatedLabel={updatedLabel(page.list.updated_at)}
+      updatedAt={page.list.updated_at}
       likeCount={page.like_count}
       liked={page.viewer?.has_liked ?? false}
       canEdit={owner}

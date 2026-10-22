@@ -75,7 +75,7 @@ node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-lists
 
 `drive mobile-library` starts the same Expo web server. Signed in as peek, it screenshots the Library header, the open Status dropdown, the cover edit overlay, the filters sheet with a facet search, an empty search, and ada's private library at 375×667 and 320×568, plus the centered wordmark on the feed at both widths. It opens one game and the owner's library sheet, then closes both without saving. The edit press stays on the library. It deletes `ada` and stops Expo before it exits. Port 8081 must be free. Do not run it at the same time as another Expo drive.
 
-`drive mobile-lists` starts the same Expo web server. It inserts peek's public list Night runs (one library game), peek's private Secret shelf, ada's public Ada's picks, and ada's private Ada hidden. Wishlist stays empty. Signed in as peek, it opens Lists from the Profile hub and screenshots the index, Night runs, the edit sheet, the empty Wishlist, the New list sheet, ada's index, and Ada's picks at 375×667 and 320×568. Remove stays on the list. The default Wishlist has no Delete. It creates Drive shelf and deletes it. Ada's index hides Ada hidden and has no New list. The private list URL says Not found. It deletes those lists and `ada`, and stops Expo before it exits. Port 8081 must be free. Do not run it at the same time as another Expo drive.
+`drive mobile-lists` starts the same Expo web server. It inserts peek's public list Night runs (one library game), peek's private Secret shelf, ada's public Ada's picks, and ada's private Ada hidden. Wishlist stays empty. Signed in as peek, it opens Lists from the Profile hub and screenshots the index, Secret shelf, Night runs, the edit sheet, the empty Wishlist, the New list sheet, ada's index, Ada's picks, the liked detail, and the liked preview. The index, Night runs, the edit sheet, the empty Wishlist, the New list sheet, and ada's screens are checked at 375×667 and 320×568. Secret shelf, the liked detail, and the liked preview are 320. Remove stays on the list. The default Wishlist has no Delete. It creates Drive shelf and deletes it. Ada's index hides Ada hidden and has no New list. The private list URL says Not found. It likes Ada's picks, then deletes those lists and `ada`, and stops Expo before it exits. Port 8081 must be free. Do not run it at the same time as another Expo drive.
 
 `drive mobile-profile` starts the same Expo web server. It dresses peek's display name, bio, title, read-out, one favorite, and one written review, then restores those columns. It inserts `nova`, whose library and loadout are public, and `ada`, whose library and loadout are private. Signed in as peek, it screenshots the Profile tab, nova, and ada at 375×667 and 320×568. It opens the Settings stub and the ratings stub, opens the Library tab from peek's preview, follows and unfollows nova by user id, and opens nova's library. It deletes `nova` and `ada`, restores peek, and stops Expo before it exits. Port 8081 must be free. Do not run it at the same time as another Expo drive.
 
@@ -228,13 +228,16 @@ A passing mobile-library proof shows ScreenPeak on each screenshot, a game on th
 `drive mobile-lists` writes `/tmp/screenpeak-verify/evidence/mobile-lists/`:
 
 - `index-375.png` and `index-320.png` — Your Lists, Show: My lists, New list, and the private list
+- `private-320.png` — Secret shelf, the lock, and the like count, without a Like button
 - `own-375.png` and `own-320.png` — Night runs, its game, and the remove control
 - `edit-375.png` and `edit-320.png` — the edit sheet, including Delete list
 - `empty-375.png` and `empty-320.png` — the empty Wishlist
 - `create-375.png` and `create-320.png` — the New list sheet
 - `other-index-375.png` and `other-index-320.png` — ada's lists, without the private list or New list
-- `other-375.png` and `other-320.png` — Ada's picks, without Edit, Add games, or Remove
-- `result.json` — the paths, the cell widths, and an empty `problems` list
+- `other-375.png` and `other-320.png` — Ada's picks, unliked, without Edit, Add games, or Remove
+- `other-liked-320.png` — Ada's picks after Like
+- `other-index-liked-320.png` — ada's lists after that like
+- `result.json` — the paths, the cell widths, the private meta height, the username hit, and an empty `problems` list
 - `postgres.txt` — Drive shelf gone, and the Wishlist id
 
 A passing mobile-lists proof shows ScreenPeak on each screenshot, Show: My lists, Night runs with its description, List name on the create and edit sheets, This list is empty on the Wishlist, ada's public list, and no Ada hidden on ada's index. `result.json` has an empty `problems` list. After the drive, Drive shelf, Night runs, Secret shelf, Ada's picks, and Ada hidden are gone, and ada is gone. Wishlist is still peek's default list.

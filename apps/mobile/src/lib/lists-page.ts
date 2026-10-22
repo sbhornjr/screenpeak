@@ -46,24 +46,21 @@ export function listShowChoices(owner: boolean, username: string): { tab: ListsT
   ]
 }
 
-export function updatedLabel(value: string): string {
-  const day = calendarLabel(value)
-  return day ? `Updated ${day}` : ''
-}
-
 export function gamesLabel(count: number): string {
   return count === 1 ? '1 game' : `${count} games`
 }
 
-export function likeLabel(liked: boolean, count: number): string {
-  if (liked) return count > 0 ? `Liked · ${count}` : 'Liked'
-  return count > 0 ? `Like · ${count}` : 'Like'
+export function likesCountLabel(count: number): string {
+  return count === 1 ? '1 like' : `${count} likes`
 }
 
-export function likeActionLabel(liked: boolean, name: string, count: number): string {
-  const verb = liked ? 'Unlike' : 'Like'
-  const likes = count === 1 ? '1 like' : `${count} likes`
-  return `${verb} ${name}, ${likes}`
+/** Screen-reader name for the like control. The list name stays on the card link. */
+export function likeActionLabel(liked: boolean, count: number): string {
+  return `${liked ? 'Unlike' : 'Like'} list, ${likesCountLabel(count)}`
+}
+
+export function updatedDay(value: string): string {
+  return calendarLabel(value) ?? ''
 }
 
 export function withNewList(page: ListsPageData, id: string, fields: ListWrite): ListsPageData {

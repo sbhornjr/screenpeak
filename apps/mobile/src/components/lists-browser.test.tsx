@@ -2,7 +2,7 @@
 import type { GamePageData } from '@screenpeak/shared/api/games'
 import type { ListCard, ListPageData, ListsPageData } from '@screenpeak/shared/api/lists'
 import { ApiClientError } from '@screenpeak/shared/api/client'
-import { hitTarget, space } from '@screenpeak/shared/tokens'
+import { colors, hitTarget, space } from '@screenpeak/shared/tokens'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import React from 'react'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -80,10 +80,15 @@ vi.mock('expo-image', () => ({
 }))
 
 vi.mock('lucide-react-native', () => {
-  function Icon() {
-    return React.createElement('span', { 'aria-hidden': 'true' })
+  function Icon(props: { color?: string, fill?: string, size?: number }) {
+    return React.createElement('span', {
+      'aria-hidden': 'true',
+      'data-color': props.color,
+      'data-fill': props.fill,
+      'data-size': props.size,
+    })
   }
-  return { ChevronDown: Icon, Heart: Icon, Pin: Icon, X: Icon }
+  return { ChevronDown: Icon, Heart: Icon, Lock: Icon, Pin: Icon, X: Icon }
 })
 
 vi.mock('react-native-safe-area-context', () => ({
@@ -108,7 +113,9 @@ vi.mock('react-native', () => ({
     accessibilityLabel,
     accessibilityRole,
     accessibilityState,
+    accessibilityElementsHidden,
     disabled,
+    hitSlop,
     style,
   }: {
     onPress?: () => void
@@ -116,7 +123,9 @@ vi.mock('react-native', () => ({
     accessibilityLabel?: string
     accessibilityRole?: string
     accessibilityState?: { selected?: boolean, checked?: boolean }
+    accessibilityElementsHidden?: boolean
     disabled?: boolean
+    hitSlop?: number | { top?: number, right?: number, bottom?: number, left?: number }
     style?: unknown
   }) => React.createElement(
     'button',
@@ -127,10 +136,14 @@ vi.mock('react-native', () => ({
         if (node && onPress) node.press = onPress
       },
       'aria-label': accessibilityLabel,
+      'aria-hidden': accessibilityElementsHidden ? 'true' : undefined,
       role: accessibilityRole ?? 'button',
       'aria-selected': accessibilityState?.selected ? 'true' : undefined,
       'aria-checked': accessibilityState?.checked === undefined ? undefined : String(accessibilityState.checked),
       disabled,
+      'data-hit-slop': hitSlop == null ? undefined : JSON.stringify(typeof hitSlop === 'number'
+        ? { top: hitSlop, right: hitSlop, bottom: hitSlop, left: hitSlop }
+        : hitSlop),
       'data-style': JSON.stringify(flatStyle(style)),
     },
     typeof children === 'function' ? children({ pressed: false }) : children,
@@ -138,15 +151,18 @@ vi.mock('react-native', () => ({
   View: ({
     children,
     accessibilityLabel,
+    accessibilityElementsHidden,
     role,
     style,
   }: {
     children?: React.ReactNode
     accessibilityLabel?: string
+    accessibilityElementsHidden?: boolean
     role?: string
     style?: unknown
   }) => React.createElement('div', {
     'aria-label': accessibilityLabel,
+    'aria-hidden': accessibilityElementsHidden ? 'true' : undefined,
     role,
     'data-style': JSON.stringify(flatStyle(style)),
   }, children),
@@ -154,13 +170,22 @@ vi.mock('react-native', () => ({
     children,
     accessibilityLiveRegion,
     accessibilityRole,
+    accessibilityLabel,
+    numberOfLines,
+    style,
   }: {
     children?: React.ReactNode
     accessibilityLiveRegion?: string
     accessibilityRole?: string
+    accessibilityLabel?: string
+    numberOfLines?: number
+    style?: unknown
   }) => React.createElement('span', {
     role: accessibilityRole === 'header' ? 'heading' : undefined,
     'aria-live': accessibilityLiveRegion,
+    'aria-label': accessibilityLabel,
+    'data-lines': numberOfLines,
+    'data-style': JSON.stringify(flatStyle(style)),
   }, children),
   FlatList: ({
     data,
@@ -347,12 +372,14 @@ describe('UserLists', () => {
     renderLists(<UserLists username="peek" />)
     expect((await screen.findByRole('link', { name: 'Wishlist' })).textContent).toContain('Wishlist')
     expect(screen.getByRole('heading', { name: 'Your Lists' }).textContent).toBe('Your Lists')
-    expect(screen.getByText('1 game · Updated 2/28/2026').textContent).toBe('1 game · Updated 2/28/2026')
+    expect(screen.getByText('1 game').textContent).toBe('1 game')
+    expect(screen.getByLabelText('Updated 2/28/2026').textContent).toBe('2/28/2026')
     expect(screen.getByText('Later.').textContent).toBe('Later.')
     expect(screen.getByRole('button', { name: 'Show: My lists' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'New list' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Unpin Wishlist' })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Like Wishlist, 2 likes' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Like list, 2 likes' })).toBeNull()
+    expect(screen.getByLabelText('2 likes').textContent).toBe('2')
     fireEvent.click(screen.getByRole('link', { name: 'Wishlist' }))
     expect(push).toHaveBeenCalledWith('/user/peek/lists/' + LIST)
     expect(getLists).toHaveBeenCalledWith('peek', 'user')
@@ -381,7 +408,7 @@ describe('UserLists', () => {
     })
     expect(await screen.findByRole('link', { name: 'Ada picks' })).toBeTruthy()
     expect(screen.queryByRole('link', { name: 'Wishlist' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Like Ada picks, 2 likes' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Like list, 2 likes' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Pin Ada picks' })).toBeNull()
   })
 
@@ -389,7 +416,11 @@ describe('UserLists', () => {
     getLists.mockResolvedValue({ ...PAGE, lists: [{ ...WISH, name: 'Secret shelf', is_public: false }] })
     const { rerender } = renderLists(<UserLists username="peek" />)
     expect(await screen.findByRole('link', { name: 'Secret shelf' })).toBeTruthy()
-    expect(screen.getByText(/Private/).textContent).toContain('Private')
+    expect(screen.getByLabelText('Private')).toBeTruthy()
+    expect(screen.queryByText(/Private/)).toBeNull()
+    const meta = screen.getByText('1 game').parentElement
+    expect(JSON.parse(meta?.getAttribute('data-style') || '{}').flexWrap).toBe('nowrap')
+    expect(screen.getByText('2/28/2026').getAttribute('data-lines')).toBe('1')
     getLists.mockImplementation(() => new Promise(() => undefined))
     auth.session = { user: { id: OTHER } }
     rerender(<UserLists username="peek" />)
@@ -481,10 +512,10 @@ describe('UserLists', () => {
     expect(screen.getByRole('link', { name: 'Ada picks' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'New list' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Pin Ada picks' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Like Ada picks, 2 likes' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Like list, 2 likes' })).toBeTruthy()
   })
 
-  it('asks a signed-out player to sign up before liking', async () => {
+  it('shows the like count without a like button when signed out', async () => {
     auth.session = null
     getLists.mockResolvedValue({
       ...PAGE,
@@ -492,12 +523,12 @@ describe('UserLists', () => {
       lists: [{ ...WISH, owner_id: OTHER, owner_username: 'ada' }],
     })
     renderLists(<UserLists username="ada" />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Like Wishlist, 2 likes' }))
+    const count = await screen.findByLabelText('2 likes')
+    expect(count.textContent).toBe('2')
+    expect(count.getAttribute('role')).toBeNull()
+    fireEvent.click(count)
     expect(likeList).not.toHaveBeenCalled()
-    expect(screen.getByText('Sign up to like a list, or to make your own.').textContent)
-      .toBe('Sign up to like a list, or to make your own.')
-    fireEvent.click(screen.getByRole('button', { name: 'Sign up' }))
-    await waitFor(() => expect(push).toHaveBeenCalledWith('/sign-up'))
+    expect(screen.queryByRole('button', { name: 'Like list, 2 likes' })).toBeNull()
     expect(screen.queryByText('Sign up to like a list, or to make your own.')).toBeNull()
   })
 
@@ -529,16 +560,20 @@ describe('UserLists', () => {
       rejects.push(reject)
     }))
     renderLists(<UserLists username="ada" />)
-    expect(await screen.findByRole('button', { name: 'Like Ada picks, 2 likes' })).toBeTruthy()
-    pressTwice('Like Ada picks, 2 likes')
-    fireEvent.click(screen.getByRole('button', { name: 'Like Bob picks, 0 likes' }))
+    expect(await screen.findByRole('button', { name: 'Like list, 2 likes' })).toBeTruthy()
+    pressTwice('Like list, 2 likes')
+    fireEvent.click(screen.getByRole('button', { name: 'Like list, 0 likes' }))
     await waitFor(() => expect(likeList).toHaveBeenCalledTimes(2))
-    expect(await screen.findByRole('button', { name: 'Unlike Ada picks, 3 likes' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Unlike Bob picks, 1 like' })).toBeTruthy()
+    const likedAda = await screen.findByRole('button', { name: 'Unlike list, 3 likes' })
+    expect(likedAda.textContent).toBe('3')
+    expect(likedAda.querySelector('[data-fill]')?.getAttribute('data-fill')).toBe(colors.accent)
+    expect(JSON.parse(likedAda.querySelector('span[data-style]')?.getAttribute('data-style') || '{}').color).toBe(colors.bg)
+    const likedBob = screen.getByRole('button', { name: 'Unlike list, 1 like' })
+    expect(likedBob.textContent).toBe('1')
     rejects[0](new ApiClientError(429, 'rate_limited', 'slow down', 9))
     rejects[1](new ApiClientError(429, 'rate_limited', 'slow down', 9))
-    expect(await screen.findByRole('button', { name: 'Like Ada picks, 2 likes' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Like Bob picks, 0 likes' })).toBeTruthy()
+    expect(await screen.findByRole('button', { name: 'Like list, 2 likes' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Like list, 0 likes' })).toBeTruthy()
   })
 
   it('does not show peek’s lists while ada’s lists are still loading', async () => {
@@ -591,11 +626,36 @@ describe('UserLists', () => {
     renderLists(<UserLists username="ada" />)
     const title = await screen.findByRole('link', { name: 'Ada picks' })
     const owner = screen.getByRole('link', { name: 'ada' })
-    const like = screen.getByRole('button', { name: 'Like Ada picks, 2 likes' })
+    const like = screen.getByRole('button', { name: 'Like list, 2 likes' })
     const pin = screen.getByRole('button', { name: 'Unpin Wishlist' })
     const wish = screen.getByRole('link', { name: 'Wishlist' })
+    const ownerStyle = JSON.parse(owner.getAttribute('data-style') || '{}')
     expect(JSON.parse(title.getAttribute('data-style') || '{}').minHeight).toBe(hitTarget)
-    expect(JSON.parse(owner.getAttribute('data-style') || '{}').minHeight).toBe(hitTarget)
+    expect(ownerStyle.minHeight).toBeUndefined()
+    expect(ownerStyle.alignSelf).toBe('flex-start')
+    expect(ownerStyle.flex).toBeUndefined()
+    fireEvent.click(owner)
+    expect(push).toHaveBeenCalledTimes(1)
+    expect(push).toHaveBeenCalledWith('/user/ada')
+    push.mockClear()
+    const rest = owner.parentElement?.querySelector('button[aria-hidden="true"]')
+    expect(rest).toBeTruthy()
+    fireEvent.click(rest!)
+    expect(push).toHaveBeenCalledWith(`/user/ada/lists/${LIST}`)
+    expect(push).not.toHaveBeenCalledWith('/user/ada')
+    const likeStyle = JSON.parse(like.getAttribute('data-style') || '{}')
+    const slop = JSON.parse(like.getAttribute('data-hit-slop') || '{}') as { top: number, bottom: number }
+    const heartSize = Number(like.querySelector('[data-size]')?.getAttribute('data-size'))
+    expect(likeStyle.minHeight).toBeUndefined()
+    expect(likeStyle.borderWidth).toBeUndefined()
+    expect(slop.top + heartSize + slop.bottom).toBeGreaterThanOrEqual(hitTarget)
+    expect(like.querySelector('[data-color]')?.getAttribute('data-color')).toBe(colors.accent)
+    expect(like.querySelector('[data-fill]')?.getAttribute('data-fill')).toBe('transparent')
+    expect(like.textContent).toBe('2')
+    expect(JSON.parse(like.querySelector('span[data-style]')?.getAttribute('data-style') || '{}').color).toBe(colors.accent)
+    const ownCount = screen.getByLabelText('2 likes')
+    expect(ownCount.textContent).toBe('2')
+    expect(wish.contains(ownCount)).toBe(false)
     expect(title.contains(like)).toBe(false)
     expect(wish.contains(pin)).toBe(false)
     expect(like.parentElement?.contains(pin)).toBe(false)
@@ -611,6 +671,20 @@ describe('UserLists', () => {
     expect(coverWidth * 5 + gaps).toBeLessThanOrEqual(inner)
     expect(coverWidth).toBeLessThan(space[12])
   })
+
+  it('places a hundred likes beside the heart', async () => {
+    getLists.mockResolvedValue({
+      ...PAGE,
+      profile: { id: OTHER, username: 'ada', avatar_url: null },
+      lists: [{ ...WISH, name: 'Ada picks', owner_id: OTHER, owner_username: 'ada', is_pinned: false, like_count: 100 }],
+    })
+    renderLists(<UserLists username="ada" />)
+    const like = await screen.findByRole('button', { name: 'Like list, 100 likes' })
+    expect(like.textContent).toBe('100')
+    expect(like.querySelector('[data-size]')?.getAttribute('data-size')).toBe('16')
+    expect(like.querySelector('[data-fill]')?.getAttribute('data-fill')).toBe('transparent')
+    expect(JSON.parse(like.querySelector('span[data-style]')?.getAttribute('data-style') || '{}').color).toBe(colors.accent)
+  })
 })
 
 describe('ListDetail', () => {
@@ -619,7 +693,10 @@ describe('ListDetail', () => {
     renderLists(<ListDetail username="peek" listId={LIST} />)
     expect((await screen.findByRole('heading', { name: 'Night runs' })).textContent).toBe('Night runs')
     expect(screen.getByText('After midnight.').textContent).toBe('After midnight.')
-    expect(screen.getByText(/1 game/).textContent).toContain('Updated 2/28/2026')
+    expect(screen.getByText('1 game').textContent).toBe('1 game')
+    expect(screen.getByLabelText('Updated 2/28/2026').textContent).toBe('2/28/2026')
+    expect(screen.getByLabelText('0 likes').textContent).toBe('0')
+    expect(screen.queryByRole('button', { name: 'Like list, 0 likes' })).toBeNull()
     expect(screen.getByRole('link', { name: 'peek' })).toBeTruthy()
     const remove = screen.getByRole('button', { name: 'Remove Hades' })
     expect(JSON.parse(remove.getAttribute('data-style') || '{}').minHeight).toBe(hitTarget)
@@ -796,6 +873,19 @@ describe('ListDetail', () => {
       .toBe("The owner hasn't added any games yet.")
     expect(screen.queryByRole('button', { name: 'Edit list' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Add games' })).toBeNull()
+    const like = screen.getByRole('button', { name: 'Like list, 0 likes' })
+    expect(like.querySelector('[data-fill]')?.getAttribute('data-fill')).toBe('transparent')
+    expect(like.textContent).toBe('0')
+    let release: () => void = () => undefined
+    likeList.mockImplementation(() => new Promise<void>((resolve) => {
+      release = resolve
+    }))
+    fireEvent.click(like)
+    const liked = await screen.findByRole('button', { name: 'Unlike list, 1 like' })
+    expect(liked.textContent).toBe('1')
+    expect(liked.querySelector('[data-fill]')?.getAttribute('data-fill')).toBe(colors.accent)
+    expect(JSON.parse(liked.querySelector('span[data-style]')?.getAttribute('data-style') || '{}').color).toBe(colors.bg)
+    release()
   })
 
   it('tells the owner an empty list can be filled', async () => {
@@ -807,5 +897,21 @@ describe('ListDetail', () => {
     renderLists(<ListDetail username="peek" listId={LIST} />)
     expect((await screen.findByText('This list is empty')).textContent).toBe('This list is empty')
     expect(screen.getByText('Add a few games to get it started.').textContent).toBe('Add a few games to get it started.')
+  })
+
+  it('shows a private list on one line and keeps the like count off a button', async () => {
+    getList.mockResolvedValue({
+      ...DETAIL,
+      list: { ...DETAIL.list, is_public: false, name: 'Secret shelf' },
+      like_count: 4,
+    })
+    renderLists(<ListDetail username="peek" listId={LIST} />)
+    expect(await screen.findByRole('heading', { name: 'Secret shelf' })).toBeTruthy()
+    expect(screen.getByLabelText('Private')).toBeTruthy()
+    expect(screen.queryByText(/Private/)).toBeNull()
+    expect(screen.getByLabelText('4 likes').textContent).toBe('4')
+    expect(screen.queryByRole('button', { name: 'Like list, 4 likes' })).toBeNull()
+    const row = screen.getByText('1 game').parentElement
+    expect(JSON.parse(row?.getAttribute('data-style') || '{}').flexWrap).toBe('nowrap')
   })
 })

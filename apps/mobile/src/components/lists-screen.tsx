@@ -1,22 +1,22 @@
 import type { ListCard, ListsTab } from '@screenpeak/shared/api/lists'
 import type { ListWrite } from '@screenpeak/shared/api/writes'
 import { Image } from 'expo-image'
-import { ChevronDown, Heart, Pin } from 'lucide-react-native'
+import { ChevronDown, Pin } from 'lucide-react-native'
 import { useState } from 'react'
 import { FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { igdbImageUri } from '@/lib/catalog-image'
-import { gamesLabel, likeActionLabel, likeLabel, updatedLabel } from '@/lib/lists-page'
-import { useSingleFlight } from '@/lib/single-flight'
 import { listHref, profileHref } from '@/lib/routes'
+import { useSingleFlight } from '@/lib/single-flight'
 import { colors, face, hitTarget, radius, space, typeScale } from '@/theme'
 
 import { AppHeader } from './app-header'
 import { Button } from './button'
 import { EmptyState } from './empty-state'
+import { ListLike, ListMeta } from './list-chrome'
 import { ListFormSheet, type ListFormValues } from './list-form-sheet'
-import { Sheet, useSheetDismiss } from './sheet'
+import { Sheet } from './sheet'
 
 const EMPTY_FORM: ListFormValues = { name: '', description: '', isPublic: true, isPinned: false }
 
@@ -51,25 +51,6 @@ function MenuTrigger({ label, onPress }: { label: string, onPress: () => void })
   )
 }
 
-function AccountSheet({ visible, onClose, onOpen }: { visible: boolean, onClose: () => void, onOpen: (href: string) => void }) {
-  return (
-    <Sheet visible={visible} title="Sign up" onClose={onClose}>
-      <AccountActions onOpen={onOpen} />
-    </Sheet>
-  )
-}
-
-function AccountActions({ onOpen }: { onOpen: (href: string) => void }) {
-  const dismiss = useSheetDismiss()
-  return (
-    <>
-      <Text style={styles.body}>Sign up to like a list, or to make your own.</Text>
-      <Button label="Sign up" onPress={() => dismiss(() => onOpen('/sign-up'))} />
-      <Button label="Log in" variant="secondary" onPress={() => dismiss(() => onOpen('/sign-in'))} />
-    </>
-  )
-}
-
 function ListCardRow({
   list,
   username,
@@ -77,7 +58,6 @@ function ListCardRow({
   onOpen,
   onLike,
   onPin,
-  onNeedAccount,
   onActionError,
 }: {
   list: ListCard
@@ -86,91 +66,81 @@ function ListCardRow({
   onOpen: (href: string) => void
   onLike?: (listId: string, liked: boolean) => Promise<string | null>
   onPin?: (listId: string, pinned: boolean) => Promise<string | null>
-  onNeedAccount: () => void
   onActionError: (message: string | null) => void
 }) {
   const mine = viewerId != null && list.owner_id === viewerId
-  const updated = updatedLabel(list.last_activity)
   const flight = useSingleFlight()
+  const openList = () => onOpen(listHref(list.owner_username || username, list.id))
   return (
     <View style={styles.card}>
-      {list.covers.length > 0 ? (
-        <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.covers}>
-          {list.covers.slice(0, 5).map(cover => {
-            const uri = igdbImageUri(cover.cover_image_url)
-            return uri ? (
-              <Image key={cover.slug ?? uri} source={uri} style={styles.cover} contentFit="cover" />
-            ) : (
-              <View key={cover.slug ?? 'empty'} style={styles.cover} />
-            )
-          })}
-        </View>
-      ) : null}
       <Pressable
         accessibilityRole="link"
         accessibilityLabel={list.name}
-        onPress={() => onOpen(listHref(list.owner_username || username, list.id))}
-        style={styles.cardTitlePress}
+        onPress={openList}
+        style={styles.cardBody}
       >
+        {list.covers.length > 0 ? (
+          <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.covers}>
+            {list.covers.slice(0, 5).map(cover => {
+              const uri = igdbImageUri(cover.cover_image_url)
+              return uri ? (
+                <Image key={cover.slug ?? uri} source={uri} style={styles.cover} contentFit="cover" />
+              ) : (
+                <View key={cover.slug ?? 'empty'} style={styles.cover} />
+              )
+            })}
+          </View>
+        ) : null}
         <Text numberOfLines={2} style={styles.cardTitle}>{list.name}</Text>
+        <ListMeta gameCount={list.game_count} isPrivate={!list.is_public} updatedAt={list.last_activity} />
+        {list.description ? <Text numberOfLines={3} style={styles.body}>{list.description}</Text> : null}
       </Pressable>
-      <Text style={styles.meta}>
-        {gamesLabel(list.game_count)}
-        {list.is_public ? '' : ' · Private'}
-        {updated ? ` · ${updated}` : ''}
-      </Text>
-      {list.description ? <Text numberOfLines={3} style={styles.body}>{list.description}</Text> : null}
-      {list.owner_username ? (
+      <View style={styles.footer}>
         <Pressable
-          accessibilityRole="link"
-          accessibilityLabel={list.owner_username}
-          onPress={() => onOpen(profileHref(list.owner_username))}
-          style={styles.ownerLink}
-        >
-          <Text style={styles.owner}>{list.owner_username}</Text>
-        </Pressable>
-      ) : null}
-      <View style={styles.actions}>
-        {!mine ? (
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          onPress={openList}
+          style={styles.footerFill}
+        />
+        {list.owner_username ? (
           <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={likeActionLabel(list.viewer_has_liked, list.name, list.like_count)}
+            accessibilityRole="link"
+            accessibilityLabel={list.owner_username}
+            onPress={() => onOpen(profileHref(list.owner_username))}
+            style={styles.ownerLink}
+          >
+            <Text numberOfLines={1} style={styles.owner}>{list.owner_username}</Text>
+          </Pressable>
+        ) : null}
+        <View style={styles.footerEnd}>
+          <ListLike
+            count={list.like_count}
+            liked={list.viewer_has_liked}
+            interactive={viewerId != null && !mine}
             onPress={() => {
-              if (!viewerId) {
-                onNeedAccount()
-                return
-              }
               void flight(async () => {
                 const message = await onLike?.(list.id, !list.viewer_has_liked)
                 onActionError(message ?? null)
               })
             }}
-            style={styles.action}
-          >
-            <Heart size={16} color={list.viewer_has_liked ? colors.accent : colors.muted} />
-            <Text accessibilityElementsHidden importantForAccessibility="no" style={styles.actionText}>
-              {likeLabel(list.viewer_has_liked, list.like_count)}
-            </Text>
-          </Pressable>
-        ) : null}
-        {mine ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={list.is_pinned ? `Unpin ${list.name}` : `Pin ${list.name}`}
-            onPress={() => {
-              void flight(async () => {
-                const message = await onPin?.(list.id, !list.is_pinned)
-                onActionError(message ?? null)
-              })
-            }}
-            style={styles.action}
-          >
-            <Pin size={16} color={list.is_pinned ? colors.accent : colors.muted} />
-            <Text accessibilityElementsHidden importantForAccessibility="no" style={styles.actionText}>
-              {list.is_pinned ? 'Pinned' : 'Pin'}
-            </Text>
-          </Pressable>
-        ) : null}
+          />
+          {mine ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={list.is_pinned ? `Unpin ${list.name}` : `Pin ${list.name}`}
+              hitSlop={{ top: 13, right: 13, bottom: 13, left: 13 }}
+              onPress={() => {
+                void flight(async () => {
+                  const message = await onPin?.(list.id, !list.is_pinned)
+                  onActionError(message ?? null)
+                })
+              }}
+              style={styles.pin}
+            >
+              <Pin size={18} color={list.is_pinned ? colors.accent : colors.muted} />
+            </Pressable>
+          ) : null}
+        </View>
       </View>
     </View>
   )
@@ -202,7 +172,6 @@ export function ListsScreen({
   const compact = width <= 375
   const [menu, setMenu] = useState(false)
   const [creating, setCreating] = useState(false)
-  const [account, setAccount] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -268,7 +237,6 @@ export function ListsScreen({
             onOpen={onOpen}
             onLike={onLike}
             onPin={onPin}
-            onNeedAccount={() => setAccount(true)}
             onActionError={setActionError}
           />
         )}
@@ -298,7 +266,6 @@ export function ListsScreen({
         onClose={() => setCreating(false)}
         onSubmit={(values) => { void create(values) }}
       />
-      <AccountSheet visible={account} onClose={() => setAccount(false)} onOpen={onOpen} />
     </SafeAreaView>
   )
 }
@@ -362,18 +329,12 @@ const styles = StyleSheet.create({
     borderRadius: radius.base,
     backgroundColor: colors.surfaceLight,
   },
-  cardTitlePress: { minHeight: hitTarget, justifyContent: 'center' },
+  cardBody: { gap: space[2], minHeight: hitTarget },
   cardTitle: {
     fontFamily: face.display[600],
     fontSize: typeScale.xl.size,
     lineHeight: typeScale.xl.line,
     color: colors.text,
-  },
-  meta: {
-    fontFamily: face.mono[400],
-    fontSize: typeScale.sm.size,
-    lineHeight: typeScale.sm.line,
-    color: colors.muted,
   },
   body: {
     fontFamily: face.body[400],
@@ -381,32 +342,28 @@ const styles = StyleSheet.create({
     lineHeight: typeScale.base.line,
     color: colors.text,
   },
-  ownerLink: { minHeight: hitTarget, justifyContent: 'center' },
+  footer: {
+    position: 'relative',
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: hitTarget,
+  },
+  footerFill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+  footerEnd: {
+    marginLeft: 'auto',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space[2],
+    zIndex: 1,
+  },
+  ownerLink: { alignSelf: 'flex-start', flexShrink: 1, zIndex: 1 },
   owner: {
     fontFamily: face.body[600],
     fontSize: typeScale.sm.size,
     lineHeight: typeScale.sm.line,
     color: colors.accent,
   },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
-  action: {
-    minHeight: hitTarget,
-    minWidth: hitTarget,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space[2],
-    paddingHorizontal: space[3],
-    borderRadius: radius.base,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.bg,
-  },
-  actionText: {
-    fontFamily: face.display[600],
-    fontSize: typeScale.sm.size,
-    lineHeight: typeScale.sm.line,
-    color: colors.text,
-  },
+  pin: { alignItems: 'center', justifyContent: 'center', zIndex: 1 },
   stack: { gap: space[2] },
   error: {
     fontFamily: face.body[400],
