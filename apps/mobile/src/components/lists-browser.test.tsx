@@ -567,7 +567,8 @@ describe('UserLists', () => {
     const likedAda = await screen.findByRole('button', { name: 'Unlike list, 3 likes' })
     expect(likedAda.textContent).toBe('3')
     expect(likedAda.querySelector('[data-fill]')?.getAttribute('data-fill')).toBe(colors.accent)
-    expect(JSON.parse(likedAda.querySelector('span[data-style]')?.getAttribute('data-style') || '{}').color).toBe(colors.bg)
+    expect(JSON.parse(likedAda.querySelector('span[data-style]')?.getAttribute('data-style') || '{}').color).toBe(colors.accent)
+    expect(JSON.parse(likedAda.querySelector('span[data-style]')?.getAttribute('data-style') || '{}').position).toBeUndefined()
     const likedBob = screen.getByRole('button', { name: 'Unlike list, 1 like' })
     expect(likedBob.textContent).toBe('1')
     rejects[0](new ApiClientError(429, 'rate_limited', 'slow down', 9))
@@ -645,14 +646,21 @@ describe('UserLists', () => {
     expect(push).not.toHaveBeenCalledWith('/user/ada')
     const likeStyle = JSON.parse(like.getAttribute('data-style') || '{}')
     const slop = JSON.parse(like.getAttribute('data-hit-slop') || '{}') as { top: number, bottom: number }
-    const heartSize = Number(like.querySelector('[data-size]')?.getAttribute('data-size'))
+    const heart = like.querySelector('[data-size]')
+    const heartSize = Number(heart?.getAttribute('data-size'))
+    const rowStyle = JSON.parse(heart?.parentElement?.getAttribute('data-style') || '{}')
+    const countStyle = JSON.parse(like.querySelector('span[data-style]')?.getAttribute('data-style') || '{}')
     expect(likeStyle.minHeight).toBeUndefined()
     expect(likeStyle.borderWidth).toBeUndefined()
+    expect(heartSize).toBe(16)
     expect(slop.top + heartSize + slop.bottom).toBeGreaterThanOrEqual(hitTarget)
+    expect(rowStyle.flexDirection).toBe('row')
+    expect(rowStyle.alignItems).toBe('center')
     expect(like.querySelector('[data-color]')?.getAttribute('data-color')).toBe(colors.accent)
     expect(like.querySelector('[data-fill]')?.getAttribute('data-fill')).toBe('transparent')
     expect(like.textContent).toBe('2')
-    expect(JSON.parse(like.querySelector('span[data-style]')?.getAttribute('data-style') || '{}').color).toBe(colors.accent)
+    expect(countStyle.color).toBe(colors.accent)
+    expect(countStyle.position).toBeUndefined()
     const ownCount = screen.getByLabelText('2 likes')
     expect(ownCount.textContent).toBe('2')
     expect(wish.contains(ownCount)).toBe(false)
@@ -672,18 +680,24 @@ describe('UserLists', () => {
     expect(coverWidth).toBeLessThan(space[12])
   })
 
-  it('places a hundred likes beside the heart', async () => {
+  it('keeps a three-digit count beside the heart', async () => {
     getLists.mockResolvedValue({
       ...PAGE,
       profile: { id: OTHER, username: 'ada', avatar_url: null },
-      lists: [{ ...WISH, name: 'Ada picks', owner_id: OTHER, owner_username: 'ada', is_pinned: false, like_count: 100 }],
+      lists: [{ ...WISH, name: 'Ada picks', owner_id: OTHER, owner_username: 'ada', is_pinned: false, like_count: 100, viewer_has_liked: true }],
     })
     renderLists(<UserLists username="ada" />)
-    const like = await screen.findByRole('button', { name: 'Like list, 100 likes' })
+    const like = await screen.findByRole('button', { name: 'Unlike list, 100 likes' })
+    const heart = like.querySelector('[data-size]')
+    const rowStyle = JSON.parse(heart?.parentElement?.getAttribute('data-style') || '{}')
+    const countStyle = JSON.parse(like.querySelector('span[data-style]')?.getAttribute('data-style') || '{}')
     expect(like.textContent).toBe('100')
-    expect(like.querySelector('[data-size]')?.getAttribute('data-size')).toBe('16')
-    expect(like.querySelector('[data-fill]')?.getAttribute('data-fill')).toBe('transparent')
-    expect(JSON.parse(like.querySelector('span[data-style]')?.getAttribute('data-style') || '{}').color).toBe(colors.accent)
+    expect(heart?.getAttribute('data-size')).toBe('16')
+    expect(heart?.getAttribute('data-fill')).toBe(colors.accent)
+    expect(rowStyle.flexDirection).toBe('row')
+    expect(rowStyle.alignItems).toBe('center')
+    expect(countStyle.color).toBe(colors.accent)
+    expect(countStyle.position).toBeUndefined()
   })
 })
 
@@ -884,7 +898,8 @@ describe('ListDetail', () => {
     const liked = await screen.findByRole('button', { name: 'Unlike list, 1 like' })
     expect(liked.textContent).toBe('1')
     expect(liked.querySelector('[data-fill]')?.getAttribute('data-fill')).toBe(colors.accent)
-    expect(JSON.parse(liked.querySelector('span[data-style]')?.getAttribute('data-style') || '{}').color).toBe(colors.bg)
+    expect(JSON.parse(liked.querySelector('span[data-style]')?.getAttribute('data-style') || '{}').color).toBe(colors.accent)
+    expect(liked.querySelector('[data-size]')?.getAttribute('data-size')).toBe('16')
     release()
   })
 

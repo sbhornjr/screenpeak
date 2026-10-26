@@ -4,14 +4,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { gamesLabel, likeActionLabel, likesCountLabel, updatedDay } from '@/lib/lists-page'
 import { colors, face, hitTarget, space, typeScale } from '@/theme'
 
-const HEART_INSIDE = 32
-const HEART_BESIDE = 16
+const HEART = 16
 
-/**
- * Count drawn on a filled accent heart uses the same ink as an accent button
- * (`colors.bg`). There is no white token, and `colors.text` fails contrast on
- * the accent.
- */
 export function ListLike({
   count,
   liked,
@@ -23,29 +17,19 @@ export function ListLike({
   interactive: boolean
   onPress?: () => void
 }) {
-  const inside = count < 100
-  const size = inside ? HEART_INSIDE : HEART_BESIDE
-  const slop = Math.ceil((hitTarget - size) / 2)
+  const slop = Math.ceil((hitTarget - HEART) / 2)
   const visual = (
     <View
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
-      style={inside ? styles.stack : styles.beside}
+      style={styles.beside}
     >
       <Heart
-        size={size}
+        size={HEART}
         color={colors.accent}
         fill={liked ? colors.accent : 'transparent'}
-        strokeWidth={inside ? 1.75 : 2}
       />
-      <Text
-        numberOfLines={1}
-        style={inside
-          ? [styles.countIn, { color: liked ? colors.bg : colors.accent }]
-          : styles.countBeside}
-      >
-        {count}
-      </Text>
+      <Text numberOfLines={1} style={styles.count}>{count}</Text>
     </View>
   )
   if (!interactive) {
@@ -97,28 +81,12 @@ export function ListMeta({
 const styles = StyleSheet.create({
   display: { alignSelf: 'flex-start' },
   hit: { alignSelf: 'flex-start' },
-  stack: {
-    width: HEART_INSIDE,
-    height: HEART_INSIDE,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  countIn: {
-    position: 'absolute',
-    top: 6,
-    left: 0,
-    right: 0,
-    textAlign: 'center',
-    fontFamily: face.mono[600],
-    fontSize: typeScale.eyebrow.size,
-    lineHeight: 14,
-  },
   beside: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space[1],
   },
-  countBeside: {
+  count: {
     fontFamily: face.mono[600],
     fontSize: typeScale.sm.size,
     lineHeight: typeScale.sm.line,

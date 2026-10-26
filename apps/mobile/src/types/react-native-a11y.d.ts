@@ -13,12 +13,11 @@ declare module 'react-native' {
 }
 
 // react-native-svg 15.16's SvgProps drops `color` under the strict React Native
-// types, and it does not put `fill` or `strokeWidth` on the component props.
-// Lucide still paints them. The list heart passes both.
+// types, and it does not put `fill` on the component props. Lucide still paints
+// both. The list heart passes `fill`.
 declare module 'lucide-react-native' {
   interface LucideProps {
     color?: string;
     fill?: string;
-    strokeWidth?: number;
   }
 }
