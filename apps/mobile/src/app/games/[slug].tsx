@@ -9,7 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { GameDetail, GameDetailSkeleton } from '@/components/game-detail'
 import { ScreenMessage } from '@/components/screen-state'
 import { api, apiConfigured } from '@/lib/api'
-import { actionFailure, withLibraryWrite, withListMembership, withViewerReview, withoutLibraryEntry, type ReviewListQuery } from '@/lib/game-page'
+import { actionFailure, withCreatedList, withLibraryWrite, withListMembership, withViewerReview, withoutLibraryEntry, type ReviewListQuery } from '@/lib/game-page'
 import { useAuth } from '@/lib/auth'
 import { back, go } from '@/lib/go'
 import { catalogueHref, profileHref } from '@/lib/routes'
@@ -47,13 +47,15 @@ export default function GameScreen() {
     run: () => Promise<unknown>,
     optimistic?: (data: GamePageData) => GamePageData,
   ): Promise<string | null> {
-    await queryClient.cancelQueries({ queryKey: gameKey })
+    await queryClient.cancelQueries({ queryKey: gameKey, exact: true })
     const previous = queryClient.getQueryData<GamePageData>(gameKey)
     const next = optimistic && previous ? optimistic(previous) : undefined
     const owned = next ? queryClient.setQueryData(gameKey, next) : previous
     try {
       await run()
-      await Promise.all([
+      // The sheet reads the promise. A hung refetch must not keep Create list spinning
+      // after the new list is already in the cache. Cancel still happens before that write.
+      void Promise.all([
         queryClient.invalidateQueries({ queryKey: ['game', slug] }),
         queryClient.invalidateQueries({ queryKey: ['library'] }),
         queryClient.invalidateQueries({ queryKey: ['lists'] }),
@@ -128,7 +130,13 @@ export default function GameScreen() {
             () => api.lists.removeGame(listId, gameId),
             data => withListMembership(data, listId, false),
           ) : undefined}
-          onCreateList={signedIn ? (input) => commit(() => api.lists.create({ ...input, gameId })) : undefined}
+          onCreateList={signedIn ? (input) => commit(async () => {
+            const created = await api.lists.create({ ...input, gameId })
+            await queryClient.cancelQueries({ queryKey: gameKey, exact: true })
+            queryClient.setQueryData<GamePageData>(gameKey, current =>
+              current ? withCreatedList(current, { id: created.id, name: input.name.trim() }) : current,
+            )
+          }) : undefined}
         />
       ) : null}
     </SafeAreaView>

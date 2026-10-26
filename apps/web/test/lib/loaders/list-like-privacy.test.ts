@@ -48,10 +48,19 @@ describe('likeList privacy', () => {
         expect(state.inserted).toBe(0)
     })
 
-    it('lets the owner like their own private list', async () => {
+    it('rejects the owner liking their own list and writes no like', async () => {
         state.rows = [{ id: LIST, isPublic: false, userId: OWNER }]
 
         const result = await likeList(LIST, OWNER)
+
+        expect(result).toEqual({ error: 'Cannot like your own list' })
+        expect(state.inserted).toBe(0)
+    })
+
+    it('lets someone else like a public list', async () => {
+        state.rows = [{ id: LIST, isPublic: true, userId: OWNER }]
+
+        const result = await likeList(LIST, VIEWER)
 
         expect(result).toEqual({ error: null })
         expect(state.inserted).toBe(1)

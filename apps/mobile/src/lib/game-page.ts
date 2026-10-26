@@ -216,6 +216,18 @@ export function withListMembership(data: GamePageData, listId: string, listed: b
   return { ...data, viewer: { ...data.viewer, listIdsGameIsIn: ids } }
 }
 
+/** A list created from this game is on the sheet before the page reloads. */
+export function withCreatedList(data: GamePageData, created: { id: string, name: string }): GamePageData {
+  if (!data.viewer) return data
+  const lists = data.viewer.lists.some(list => list.id === created.id)
+    ? data.viewer.lists
+    : [...data.viewer.lists, { id: created.id, name: created.name, game_count: 1 }]
+  const listIdsGameIsIn = data.viewer.listIdsGameIsIn.includes(created.id)
+    ? data.viewer.listIdsGameIsIn
+    : [...data.viewer.listIdsGameIsIn, created.id]
+  return { ...data, viewer: { ...data.viewer, lists, listIdsGameIsIn } }
+}
+
 export function withoutLibraryEntry(data: GamePageData): GamePageData {
   if (!data.viewer) return data
   return { ...data, viewer: { ...data.viewer, libraryEntry: null } }

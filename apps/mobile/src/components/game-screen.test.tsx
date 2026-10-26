@@ -8,10 +8,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import GameScreen from '@/app/games/[slug]'
 
-const { getGame, getReviews, putReview } = vi.hoisted(() => ({
+const { getGame, getReviews, putReview, createList } = vi.hoisted(() => ({
   getGame: vi.fn(),
   getReviews: vi.fn(),
   putReview: vi.fn(),
+  createList: vi.fn(),
 }))
 
 vi.mock('expo-router', () => ({
@@ -29,7 +30,7 @@ vi.mock('@/lib/api', () => ({
   api: {
     games: { get: getGame, reviews: getReviews, putReview },
     me: { library: { put: vi.fn(), delete: vi.fn() } },
-    lists: { addGame: vi.fn(), removeGame: vi.fn(), create: vi.fn() },
+    lists: { addGame: vi.fn(), removeGame: vi.fn(), create: createList },
   },
 }))
 
@@ -148,6 +149,7 @@ afterEach(() => {
   getGame.mockReset()
   getReviews.mockReset()
   putReview.mockReset()
+  createList.mockReset()
 })
 
 describe('Game screen writes', () => {
@@ -208,5 +210,65 @@ describe('Game screen writes', () => {
     expect(await screen.findByText('“Kept.”')).toBeTruthy()
     expect(screen.queryByText('“Sharp.”')).toBeNull()
     expect(screen.queryByText('“again”')).toBeNull()
+  })
+
+  it('shows a new list on the sheet before the game reloads', async () => {
+    getGame.mockResolvedValueOnce(PAGE)
+    getGame.mockImplementation(() => new Promise(() => undefined))
+    getReviews.mockResolvedValue(REVIEWS)
+    createList.mockResolvedValue({ id: 'list-9' })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <GameScreen />
+      </QueryClientProvider>,
+    )
+
+    expect(await screen.findByRole('button', { name: 'Add to list' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Add to list' }))
+    fireEvent.click(screen.getByRole('button', { name: 'New list' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'New list name' }), { target: { value: 'Night runs' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create list' }))
+
+    expect(await screen.findByRole('button', { name: 'Remove from Night runs' })).toBeTruthy()
+    expect(createList).toHaveBeenCalledWith({
+      name: 'Night runs',
+      description: '',
+      isPublic: true,
+      isPinned: false,
+      gameId: PAGE.game.id,
+    })
+  })
+
+  it('keeps a new list when an older refetch resolves after create', async () => {
+    let releaseOld: ((page: GamePageData) => void) | undefined
+    let fetches = 0
+    getGame.mockImplementation(() => {
+      fetches += 1
+      if (fetches === 1) return Promise.resolve(PAGE)
+      if (fetches === 2) return new Promise<GamePageData>((resolve) => { releaseOld = resolve })
+      return new Promise(() => undefined)
+    })
+    getReviews.mockResolvedValue(REVIEWS)
+    createList.mockResolvedValue({ id: 'list-9' })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <GameScreen />
+      </QueryClientProvider>,
+    )
+
+    expect(await screen.findByRole('button', { name: 'Add to list' })).toBeTruthy()
+    const pending = client.refetchQueries({ queryKey: ['game', 'hades', 'viewer'], exact: true })
+    pending.catch(() => undefined)
+    await waitFor(() => expect(fetches).toBe(2))
+    fireEvent.click(screen.getByRole('button', { name: 'Add to list' }))
+    fireEvent.click(screen.getByRole('button', { name: 'New list' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'New list name' }), { target: { value: 'Night runs' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create list' }))
+    expect(await screen.findByRole('button', { name: 'Remove from Night runs' })).toBeTruthy()
+    releaseOld?.(PAGE)
+    await pending.catch(() => undefined)
+    expect(screen.getByRole('button', { name: 'Remove from Night runs' })).toBeTruthy()
   })
 })

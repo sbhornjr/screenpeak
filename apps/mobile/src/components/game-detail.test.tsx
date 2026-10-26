@@ -620,7 +620,7 @@ describe('GameDetail', () => {
     accent.style.color = colors.accent
     expect(newer.style.backgroundColor).toBe(accent.style.backgroundColor)
     const listed = screen.getByRole('button', { name: 'Remove from Backlog' })
-    expect(listed.textContent).toBe('Backlog · On this list')
+    expect(listed.textContent).toBe('Backlog · In this list')
     expect(listed.getAttribute('aria-selected')).toBe('true')
     expect(listed.style.borderColor).toBe(accent.style.color)
   })

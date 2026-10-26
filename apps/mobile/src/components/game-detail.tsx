@@ -488,7 +488,7 @@ export function GameDetail({
               return (
                 <Button
                   key={list.id}
-                  label={listed ? `${list.name} · On this list` : list.name}
+                  label={listed ? `${list.name} · In this list` : list.name}
                   accessibilityLabel={listed ? `Remove from ${list.name}` : `Add to ${list.name}`}
                   selected={listed}
                   variant="secondary"

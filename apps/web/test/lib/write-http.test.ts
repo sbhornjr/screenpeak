@@ -17,4 +17,17 @@ describe('assertWriteOk', () => {
             expect(api.message).not.toContain('library_entries_game_id_fkey')
         }
     })
+
+    it('maps liking your own list to a request error', () => {
+        expect(() => assertWriteOk('Cannot like your own list')).toThrow(ApiError)
+        try {
+            assertWriteOk('Cannot like your own list')
+        } catch (error) {
+            expect(error).toBeInstanceOf(ApiError)
+            const api = error as ApiError
+            expect(api.status).toBe(400)
+            expect(api.code).toBe('invalid_request')
+            expect(api.message).toBe("You can't like your own list.")
+        }
+    })
 })

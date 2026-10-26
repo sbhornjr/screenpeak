@@ -64,12 +64,16 @@ vi.mock('lucide-react-native', () => {
     ArrowUpNarrowWide: Icon,
     ChevronDown: Icon,
     Clock: Icon,
+    Heart: Icon,
     Library: Icon,
     List: Icon,
+    Lock: Icon,
     Pencil: Icon,
+    Pin: Icon,
     Repeat: Icon,
     SlidersHorizontal: Icon,
     Trophy: Icon,
+    X: Icon,
     Crosshair: Icon,
   }
 })
@@ -648,7 +652,21 @@ describe('stack screens', () => {
 
   it('opens a list and its game', () => {
     const onOpen = vi.fn()
-    render(<ListsScreen username="peek" lists={[{ id: 'list-1', name: 'Wishlist', game_count: 2 }]} onOpen={onOpen} />)
+    render(<ListsScreen username="peek" lists={[{
+      id: 'list-1',
+      name: 'Wishlist',
+      description: '',
+      is_public: true,
+      is_pinned: true,
+      is_default: true,
+      last_activity: '',
+      game_count: 2,
+      owner_username: 'peek',
+      owner_id: 'viewer-1',
+      covers: [],
+      like_count: 0,
+      viewer_has_liked: false,
+    }]} onOpen={onOpen} />)
     fireEvent.click(screen.getByRole('link', { name: 'Wishlist' }))
     expect(onOpen).toHaveBeenCalledWith('/user/peek/lists/list-1')
     cleanup()
@@ -656,7 +674,16 @@ describe('stack screens', () => {
       <ListDetailScreen
         name="Wishlist"
         description="Later."
-        games={[{ slug: 'hades', name: 'Hades' }]}
+        games={[{
+          id: 'g1',
+          name: 'Hades',
+          slug: 'hades',
+          cover_image_url: null,
+          released: null,
+          developer: null,
+          avg_rating: null,
+          user_rating: null,
+        }]}
         onOpen={onOpen}
       />,
     )
