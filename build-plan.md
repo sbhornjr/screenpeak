@@ -542,6 +542,8 @@ behaving on localhost exactly as it did before the move.
    > `expo-router`. If `npx expo-doctor` reports duplicates after an upgrade,
    > delete the stale `package-lock.json` entries for those packages and reinstall.
    > Root scripts end in ` --` so flags pass through: `npm run mobile -- --clear`.
+   >
+   > **SDK 58** — Expo Go requires it. From `apps/mobile`, `npx expo install expo@^58.0.0 --fix`, then `npm install` at the root. React is `19.3.0` in both apps and the root overrides; `react-native` is overridden to `0.88.0` and `react-native-svg` to `15.16.0` so a stale SDK 57 copy cannot sit beside them. Native tabs import `expo-router/native-tabs`, and `expo-symbols` is a direct dependency for the Android `md` icons. Web routes stay synchronous (`asyncRoutes.web: false`) and `web.output` stays `"single"`.
 4. **Create `packages/shared`**: move `types/`, `lib/schemas.ts`, and
    `FEED_PAGE_SIZE` in; add `tokens.ts` (hand-copy the values from
    `globals.css` — it's ~20 values). Import from both apps to prove the wiring.
@@ -1046,8 +1048,8 @@ git switch -c mobile/monorepo
 # 2. Baseline, move, re-verify — follow Appendix A top to bottom.
 
 # 3. Create the Expo app and install from the root
-#    (done on SDK 57 — see Phase 0 step 3; use the current SDK and --no-install)
-npx create-expo-app@latest --template default@sdk-57 apps/mobile --no-install
+#    (on SDK 58 — see Phase 0 step 3; use the current SDK and --no-install)
+npx create-expo-app@latest --template default@sdk-58 apps/mobile --no-install
 npm install
 
 # 4. Run it — install "Expo Go" on your phone and scan the QR code

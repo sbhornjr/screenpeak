@@ -1,13 +1,13 @@
 // The website Modal, presented as a bottom sheet.
 import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
-import { Keyboard, Platform, Pressable, Modal, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { Keyboard, Platform, Pressable, Modal, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View, type HostInstance, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, face, overlays, radius, space, typeScale } from '@/theme';
 
 import { Button } from './button';
 
-type FocusedField = {
+type FocusedField = HostInstance & {
   scrollIntoView?: (options: { block?: 'center' | 'nearest' }) => void;
 };
 
@@ -27,7 +27,7 @@ export function useSheetDismiss(): SheetDismiss {
  * Native measurement goes through the scroll view's inner host. Passing findNodeHandle's
  * number into measureLayout warns: "ref.measureLayout must be called with a ref to a native component".
  */
-function revealFocusedField(scroll: ScrollView | null) {
+function revealFocusedField(scroll: ScrollViewInstance | null) {
   const input = TextInput.State?.currentlyFocusedInput?.() as FocusedField | null;
   if (!input || !scroll) return;
   if (typeof input.scrollIntoView === 'function') {
@@ -50,7 +50,7 @@ export function Sheet({
 }) {
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<ScrollViewInstance>(null);
   const pending = useRef<(() => void) | null>(null);
   const native = Platform.OS === 'ios' || Platform.OS === 'android';
 

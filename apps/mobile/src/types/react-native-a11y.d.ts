@@ -1,15 +1,21 @@
-import 'react-native/Libraries/Components/View/ViewAccessibility';
-import 'react-native/Libraries/Components/Pressable/Pressable';
+import 'lucide-react-native';
+import 'react-native';
 
-// React Native Web reads these. The 0.86 native types omit them.
-declare module 'react-native/Libraries/Components/View/ViewAccessibility' {
+// React Native Web reads these. The strict React Native types omit them.
+declare module 'react-native' {
   interface AccessibilityProps {
     accessibilityLevel?: number | undefined;
   }
-}
 
-declare module 'react-native/Libraries/Components/Pressable/Pressable' {
   interface PressableStateCallbackType {
     readonly focused?: boolean;
+  }
+}
+
+// react-native-svg 15.16's SvgProps drops `color` under the strict React Native
+// types, so LucideProps no longer exposes the prop its runtime still paints with.
+declare module 'lucide-react-native' {
+  interface LucideProps {
+    color?: string;
   }
 }
