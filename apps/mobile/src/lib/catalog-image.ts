@@ -1,4 +1,4 @@
-// Expo Image on SDK 57 has no remote-host allowlist. Refuse anything that is
+// Expo Image has no remote-host allowlist. Refuse anything that is
 // not an IGDB CDN url so a leftover RAWG cover is not requested on device.
 // Rendition choice lives in @screenpeak/shared/images; this keeps the stored
 // rendition and only canonicalises a URL the shared parser accepts.
