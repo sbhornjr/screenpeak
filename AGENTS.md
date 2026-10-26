@@ -22,7 +22,7 @@ npm workspaces (`"workspaces": ["apps/*", "packages/*"]` in the root `package.js
 - `apps/web/` — the Next.js site (`@screenpeak/web`). Every tool config
   (`next.config.ts`, `tsconfig.json`, ESLint, PostCSS, Vitest, Drizzle, Sentry)
   and `.env.local` live here, next to its `package.json`.
-- `apps/mobile/` — the Expo app (`@screenpeak/mobile`, Expo SDK 57, Expo Router).
+- `apps/mobile/` — the Expo app (`@screenpeak/mobile`, Expo SDK 58, Expo Router).
   Its own `AGENTS.md` covers Expo rules. Screens in `src/app/`, the tab bar in
   `src/components/app-tabs.tsx`, and `@/` there means `apps/mobile/src/`.
   **Styling is `StyleSheet` + tokens** (NativeWind was rejected in the Phase 0

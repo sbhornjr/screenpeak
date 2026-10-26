@@ -20,7 +20,7 @@ import { WelcomeScreen } from './welcome-screen'
 import { screenGate } from './screen-state'
 import { loadProfileHub, profileHubModel } from '@/lib/profile-hub'
 
-vi.mock('expo-router/unstable-native-tabs', () => {
+vi.mock('expo-router/native-tabs', () => {
   function Label({ children }: { children?: React.ReactNode }) {
     return React.createElement('span', null, children)
   }
