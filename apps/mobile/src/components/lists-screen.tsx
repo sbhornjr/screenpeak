@@ -9,7 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { igdbImageUri } from '@/lib/catalog-image'
 import { listHref, profileHref } from '@/lib/routes'
 import { useSingleFlight } from '@/lib/single-flight'
-import { colors, face, hitTarget, radius, space, typeScale } from '@/theme'
+import { colors, face, hitTarget, radius, space, text, typeScale } from '@/theme'
 
 import { AppHeader } from './app-header'
 import { Button } from './button'
@@ -93,7 +93,7 @@ function ListCardRow({
         ) : null}
         <Text numberOfLines={2} style={styles.cardTitle}>{list.name}</Text>
         <ListMeta gameCount={list.game_count} isPrivate={!list.is_public} updatedAt={list.last_activity} />
-        {list.description ? <Text numberOfLines={3} style={styles.body}>{list.description}</Text> : null}
+        {list.description ? <Text numberOfLines={3} style={text.body}>{list.description}</Text> : null}
       </Pressable>
       <View style={styles.footer}>
         <Pressable
@@ -206,10 +206,10 @@ export function ListsScreen({
         <MenuTrigger label={`Show: ${show.label}`} onPress={() => setMenu(true)} />
       ) : null}
       {canCreate ? <Button label="New list" onPress={() => { setError(null); setCreating(true) }} /> : null}
-      {actionError ? <Text accessibilityLiveRegion="polite" style={styles.error}>{actionError}</Text> : null}
+      {actionError ? <Text accessibilityLiveRegion="polite" style={text.error}>{actionError}</Text> : null}
       {loadError ? (
         <View style={styles.stack}>
-          <Text accessibilityLiveRegion="polite" style={styles.error}>{loadError}</Text>
+          <Text accessibilityLiveRegion="polite" style={text.error}>{loadError}</Text>
           {onRetry ? <Button label="Retry" variant="secondary" onPress={onRetry} /> : null}
         </View>
       ) : null}
@@ -336,12 +336,6 @@ const styles = StyleSheet.create({
     lineHeight: typeScale.xl.line,
     color: colors.text,
   },
-  body: {
-    fontFamily: face.body[400],
-    fontSize: typeScale.base.size,
-    lineHeight: typeScale.base.line,
-    color: colors.text,
-  },
   footer: {
     position: 'relative',
     flexDirection: 'row',
@@ -365,12 +359,6 @@ const styles = StyleSheet.create({
   },
   pin: { alignItems: 'center', justifyContent: 'center', zIndex: 1 },
   stack: { gap: space[2] },
-  error: {
-    fontFamily: face.body[400],
-    fontSize: typeScale.sm.size,
-    lineHeight: typeScale.sm.line,
-    color: colors.bad,
-  },
   bone: { height: 28, width: '55%', backgroundColor: colors.surfaceLight, borderRadius: radius.base },
   boneShort: { height: 120, backgroundColor: colors.surfaceLight, borderRadius: radius.base },
 })

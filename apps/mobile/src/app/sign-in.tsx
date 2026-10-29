@@ -1,13 +1,14 @@
 import { useRouter } from 'expo-router'
 import { useState } from 'react'
+import { Text } from 'react-native'
 
-import { AuthScaffold, authText } from '@/components/auth-scaffold'
+import { AuthScaffold } from '@/components/auth-scaffold'
 import { Button } from '@/components/button'
 import { TextField } from '@/components/text-field'
 import { authConfigError } from '@/lib/auth-config'
 import { useAuth } from '@/lib/auth'
 import { backOrHome } from '@/lib/go'
-import { Text } from 'react-native'
+import { text } from '@/theme'
 
 export default function SignInScreen() {
   const router = useRouter()
@@ -32,7 +33,7 @@ export default function SignInScreen() {
 
   return (
     <AuthScaffold title="Log in">
-      {configured ? null : <Text style={authText.error}>{authConfigError()}</Text>}
+      {configured ? null : <Text style={text.error}>{authConfigError()}</Text>}
       <TextField
         label="Email"
         placeholder="Email"
@@ -51,7 +52,7 @@ export default function SignInScreen() {
         value={password}
         onChangeText={setPassword}
       />
-      {error ? <Text style={authText.error}>{error}</Text> : null}
+      {error ? <Text style={text.error}>{error}</Text> : null}
       <Button label={pending ? 'Logging in' : 'Log in'} accessibilityLabel="Log in" disabled={pending || !configured} onPress={() => { void submit() }} />
       <Button label="Forgot password?" variant="ghost" onPress={() => router.push('/forgot-password')} />
       <Button label="Create an account" variant="ghost" onPress={() => router.replace('/sign-up')} />

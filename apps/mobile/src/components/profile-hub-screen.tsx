@@ -1,15 +1,17 @@
-import { useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
-import { actionFailure } from '@/lib/game-page'
+import { useCachedWrite } from '@/lib/cached-write'
 import { back, go } from '@/lib/go'
 import { loadProfileHub, withFollowing, type ProfileHubModel } from '@/lib/profile-hub'
+import { queryKeys, scopes } from '@/lib/query-keys'
+import { useSingleFlight } from '@/lib/single-flight'
+import { useRefresh } from '@/lib/use-refresh'
 import { useRemote } from '@/lib/use-remote'
 
 import { ProfileHub, ProfileHubSkeleton } from './profile-hub'
-import { ScreenMessage } from './screen-state'
+import { API_MISSING, ScreenMessage } from './screen-state'
 
 export function ProfileHubScreen({ username, showBack }: { username: string, showBack?: boolean }) {
   const { session } = useAuth()
@@ -18,56 +20,33 @@ export function ProfileHubScreen({ username, showBack }: { username: string, sho
 }
 
 function ProfileFollowSession({ username, showBack }: { username: string, showBack?: boolean }) {
-  const queryClient = useQueryClient()
-  const remote = useRemote(['profile', username], () => loadProfileHub(api, username), username.length > 0)
+  const remote = useRemote(viewer => queryKeys.profile(username, viewer), () => loadProfileHub(api, username), username.length > 0)
+  const viewerId = remote.session?.user.id ?? null
+  const commit = useCachedWrite<ProfileHubModel>(queryKeys.profile(username, viewerId), {
+    viewerId,
+    invalidate: [scopes.profile],
+  })
+  const flight = useSingleFlight()
+  const { refreshing, refresh } = useRefresh(remote.query.refetch)
   const [followNote, setFollowNote] = useState<string | null>(null)
   const [followBusy, setFollowBusy] = useState(false)
-  const [refreshing, setRefreshing] = useState(false)
-  const pending = useRef(false)
-  const alive = useRef(true)
-  const viewerId = remote.session?.user.id ?? null
-  const profileKey = ['profile', username, viewerId] as const
 
-  useEffect(() => () => { alive.current = false }, [])
-
-  async function changeFollow(following: boolean) {
+  function changeFollow(following: boolean) {
     const current = remote.query.data
-    if (!current || current.following == null || pending.current) return
-    pending.current = true
-    setFollowBusy(true)
-    setFollowNote(null)
-    await queryClient.cancelQueries({ queryKey: profileKey })
-    const previous = queryClient.getQueryData<ProfileHubModel>(profileKey)
-    queryClient.setQueryData<ProfileHubModel>(profileKey, (row) =>
-      row ? withFollowing(row, following) : row)
-    try {
-      if (following) await api.users.follow(current.userId)
-      else await api.users.unfollow(current.userId)
-      if (!alive.current) return
-      await queryClient.invalidateQueries({ queryKey: ['profile'] })
-    } catch (error) {
-      if (!alive.current) return
-      queryClient.setQueryData(profileKey, previous)
-      setFollowNote(actionFailure(error))
-    } finally {
-      if (!alive.current) return
-      pending.current = false
+    if (!current || current.following == null) return
+    void flight(async () => {
+      setFollowBusy(true)
+      setFollowNote(null)
+      const note = await commit(
+        () => following ? api.users.follow(current.userId) : api.users.unfollow(current.userId),
+        row => withFollowing(row, following),
+      )
+      setFollowNote(note)
       setFollowBusy(false)
-    }
+    })
   }
 
-  async function refresh() {
-    setRefreshing(true)
-    try {
-      await remote.query.refetch()
-    } finally {
-      setRefreshing(false)
-    }
-  }
-
-  if (remote.gate?.title === 'API URL missing') {
-    return <ScreenMessage title={remote.gate.title} body={remote.gate.body} />
-  }
+  if (!remote.configured) return <ScreenMessage {...API_MISSING} />
   if (remote.gate?.retry) {
     return (
       <ScreenMessage
@@ -84,12 +63,12 @@ function ProfileFollowSession({ username, showBack }: { username: string, showBa
       model={model}
       onOpen={go}
       onBack={showBack ? back : undefined}
-      onFollow={model.following == null ? undefined : () => { void changeFollow(true) }}
-      onUnfollow={model.following == null ? undefined : () => { void changeFollow(false) }}
+      onFollow={model.following == null ? undefined : () => changeFollow(true)}
+      onUnfollow={model.following == null ? undefined : () => changeFollow(false)}
       followBusy={followBusy}
       followNote={followNote}
       refreshing={refreshing}
-      onRefresh={() => { void refresh() }}
+      onRefresh={refresh}
     />
   )
 }

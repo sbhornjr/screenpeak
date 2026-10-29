@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Text } from 'react-native'
 
-import { AuthScaffold, authText } from '@/components/auth-scaffold'
+import { AuthScaffold } from '@/components/auth-scaffold'
 import { Button } from '@/components/button'
 import { TextField } from '@/components/text-field'
 import { authConfigError } from '@/lib/auth-config'
 import { useAuth } from '@/lib/auth'
 import { resetCooldownRemaining } from '@/lib/password-reset'
+import { text } from '@/theme'
 
 export default function ForgotPasswordScreen() {
   const { requestPasswordReset, configured, resetSentAt } = useAuth()
@@ -43,7 +44,7 @@ export default function ForgotPasswordScreen() {
 
   return (
     <AuthScaffold title="Reset password">
-      {configured ? null : <Text style={authText.error}>{authConfigError()}</Text>}
+      {configured ? null : <Text style={text.error}>{authConfigError()}</Text>}
       <TextField
         label="Email"
         placeholder="Email"
@@ -53,8 +54,8 @@ export default function ForgotPasswordScreen() {
         value={email}
         onChangeText={setEmail}
       />
-      {confirmation ? <Text style={authText.notice}>{confirmation}</Text> : null}
-      {error ? <Text style={authText.error}>{error}</Text> : null}
+      {confirmation ? <Text style={text.notice}>{confirmation}</Text> : null}
+      {error ? <Text style={text.error}>{error}</Text> : null}
       <Button
         label={pending ? 'Sending…' : 'Send reset link'}
         accessibilityLabel="Send reset link"

@@ -1,9 +1,7 @@
 import type { GamePageData } from '@screenpeak/shared/api/games'
 import { describe, expect, it } from 'vitest'
 
-import { ApiClientError } from './api/client'
 import {
-  actionFailure,
   libraryWrite,
   ratingLabel,
   relTime,
@@ -128,21 +126,6 @@ describe('libraryWrite', () => {
       hours: '12.5',
       playCount: 4,
     })).toEqual({ ok: true, write: null })
-  })
-})
-
-describe('actionFailure', () => {
-  it('names the wait when the write is rate limited', () => {
-    expect(actionFailure(new ApiClientError(429, 'rate_limited', 'Too many requests. Try again soon.', 8)))
-      .toBe('Too many requests. Try again in 8 seconds.')
-    expect(actionFailure(new ApiClientError(429, 'rate_limited', 'Too many requests. Try again soon.', null)))
-      .toBe('Too many requests. Try again soon.')
-  })
-
-  it('shows the server message for any other failure', () => {
-    expect(actionFailure(new ApiClientError(400, 'invalid_request', 'Give the list a name.')))
-      .toBe('Give the list a name.')
-    expect(actionFailure('nope')).toBe('Something went wrong.')
   })
 })
 

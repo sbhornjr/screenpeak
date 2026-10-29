@@ -19,21 +19,6 @@ export function AuthScaffold({ title, children }: { title: string, children: Rea
   )
 }
 
-export const authText = StyleSheet.create({
-  notice: {
-    fontFamily: face.body[400],
-    fontSize: typeScale.sm.size,
-    lineHeight: typeScale.sm.line,
-    color: colors.text,
-  },
-  error: {
-    fontFamily: face.body[400],
-    fontSize: typeScale.sm.size,
-    lineHeight: typeScale.sm.line,
-    color: colors.bad,
-  },
-})
-
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: space[6], paddingTop: space[8], gap: space[3] },

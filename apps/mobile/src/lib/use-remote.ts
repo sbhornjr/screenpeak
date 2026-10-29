@@ -1,14 +1,15 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, type QueryKey } from '@tanstack/react-query'
 
 import { apiConfigured } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { screenGate } from '@/components/screen-state'
 
-export function useRemote<T>(key: readonly unknown[], queryFn: () => Promise<T>, enabled = true) {
+/** `key` gets the viewer id, so every key is built by `queryKeys` with the viewer last. */
+export function useRemote<T>(key: (viewer: string | null) => QueryKey, queryFn: () => Promise<T>, enabled = true) {
   const { ready, session } = useAuth()
   const configured = apiConfigured()
   const query = useQuery({
-    queryKey: [...key, session?.user.id ?? null],
+    queryKey: key(session?.user.id ?? null),
     queryFn,
     enabled: enabled && ready && configured,
   })

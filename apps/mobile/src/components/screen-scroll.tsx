@@ -61,27 +61,6 @@ export function PanelRow({
   )
 }
 
-export const screenStyles = StyleSheet.create({
-  body: {
-    fontFamily: face.body[400],
-    fontSize: typeScale.base.size,
-    lineHeight: typeScale.base.line,
-    color: colors.text,
-  },
-  muted: {
-    fontFamily: face.body[400],
-    fontSize: typeScale.base.size,
-    lineHeight: typeScale.base.line,
-    color: colors.muted,
-  },
-  detail: {
-    fontFamily: face.mono[400],
-    fontSize: typeScale.sm.size,
-    lineHeight: typeScale.sm.line,
-    color: colors.muted,
-  },
-})
-
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: space[6], paddingTop: space[6], paddingBottom: space[10], gap: space[3] },

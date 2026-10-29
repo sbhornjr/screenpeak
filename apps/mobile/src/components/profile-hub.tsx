@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import type { ProfileHubModel } from '@/lib/profile-hub'
 import { averageText, reviewDateLabel } from '@/lib/profile-hub'
 import { gameHref } from '@/lib/routes'
-import { colors, face, hitTarget, radius, seam, space, tierColor, tracking, trackingPx, typeScale } from '@/theme'
+import { colors, face, hitTarget, radius, seam, space, text, tierColor, tracking, trackingPx, typeScale } from '@/theme'
 
 import { Avatar } from './avatar'
 import { Button } from './button'
@@ -14,7 +14,7 @@ import { EmptyState } from './empty-state'
 import { GameCard } from './game-card'
 import { Panel } from './panel'
 import { AppHeader } from './app-header'
-import { screenStyles, PanelRow } from './screen-scroll'
+import { PanelRow } from './screen-scroll'
 import { SectionHead } from './section-head'
 
 function libraryCopy(library: NonNullable<ProfileHubModel['library']>): { label: string, text: string } {
@@ -34,12 +34,12 @@ function countLine(followers: number, following: number): string {
 
 function HubRow({
   label,
-  text,
+  title,
   icon,
   onPress,
 }: {
   label: string
-  text: string
+  title: string
   icon: ReactNode
   onPress: () => void
 }) {
@@ -47,7 +47,7 @@ function HubRow({
     <PanelRow accessibilityRole="button" accessibilityLabel={label} onPress={onPress}>
       <View style={styles.hubRow}>
         {icon}
-        <Text style={screenStyles.body}>{text}</Text>
+        <Text style={text.body}>{title}</Text>
       </View>
     </PanelRow>
   )
@@ -113,8 +113,8 @@ export function ProfileHub({
             <Text role="heading" accessibilityRole="header" accessibilityLevel={1} style={styles.name}>{model.displayName}</Text>
             <Text style={styles.handle}>@{model.username}</Text>
             <Text style={styles.titleLine}>{model.title}</Text>
-            {model.memberSince ? <Text style={styles.meta}>{model.memberSince}</Text> : null}
-            <Text style={styles.meta}>{countLine(model.followerCount, model.followingCount)}</Text>
+            {model.memberSince ? <Text style={text.meta}>{model.memberSince}</Text> : null}
+            <Text style={text.meta}>{countLine(model.followerCount, model.followingCount)}</Text>
           </View>
         </View>
         <View style={styles.actionRow}>
@@ -140,28 +140,28 @@ export function ProfileHub({
           ) : null}
         </View>
         {followNote ? <Text accessibilityLiveRegion="polite" style={styles.note}>{followNote}</Text> : null}
-        <Text style={model.bio ? screenStyles.body : screenStyles.muted}>
+        <Text style={model.bio ? text.body : text.muted}>
           {model.bio ?? (model.isOwner ? "You haven't written a bio yet." : 'No bio yet.')}
         </Text>
 
         {model.loadoutHref ? (
           <HubRow
             label="Loadout"
-            text="Loadout"
+            title="Loadout"
             icon={<Crosshair size={18} color={colors.accent} />}
             onPress={() => { if (model.loadoutHref) onOpen(model.loadoutHref) }}
           />
         ) : null}
         <HubRow
           label="Lists"
-          text="Lists"
+          title="Lists"
           icon={<List size={18} color={colors.accent} />}
           onPress={() => onOpen(model.listsHref)}
         />
         {model.library && library ? (
           <HubRow
             label={library.label}
-            text={library.text}
+            title={library.text}
             icon={<Library size={18} color={colors.accent} />}
             onPress={() => { if (model.library) onOpen(model.library.href) }}
           />
@@ -219,8 +219,8 @@ export function ProfileHub({
               </Pressable>
               <Text style={[styles.score, { color: tierColor(review.rating) }]}>{review.rating} / 10</Text>
             </View>
-            {reviewDateLabel(review.created_at) ? <Text style={styles.meta}>{reviewDateLabel(review.created_at)}</Text> : null}
-            {review.review ? <Text style={screenStyles.body}>{review.review}</Text> : null}
+            {reviewDateLabel(review.created_at) ? <Text style={text.meta}>{reviewDateLabel(review.created_at)}</Text> : null}
+            {review.review ? <Text style={text.body}>{review.review}</Text> : null}
           </Panel>
         )) : (
           <EmptyState dense title={reviewEmpty.title} description={reviewEmpty.description} />
@@ -275,12 +275,6 @@ const styles = StyleSheet.create({
     fontSize: typeScale.lg.size,
     lineHeight: typeScale.lg.line,
     color: colors.text,
-  },
-  meta: {
-    fontFamily: face.mono[400],
-    fontSize: typeScale.sm.size,
-    lineHeight: typeScale.sm.line,
-    color: colors.muted,
   },
   actionRow: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
   follow: { flexGrow: 1 },

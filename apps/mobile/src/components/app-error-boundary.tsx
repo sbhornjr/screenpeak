@@ -2,7 +2,7 @@ import { Component, useEffect, type ErrorInfo, type ReactNode } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 
 import { reportAppError } from '@/lib/sentry'
-import { colors, face, space, typeScale } from '@/theme'
+import { colors, face, space, text, typeScale } from '@/theme'
 
 import { Button } from './button'
 
@@ -10,7 +10,7 @@ export function AppErrorFallback({ onRetry }: { onRetry: () => void }) {
   return (
     <View style={styles.notice}>
       <Text style={styles.title}>Something went wrong</Text>
-      <Text style={styles.body}>An unexpected error occurred.</Text>
+      <Text style={text.muted}>An unexpected error occurred.</Text>
       <Button label="Try again" onPress={onRetry} />
     </View>
   )
@@ -56,11 +56,5 @@ const styles = StyleSheet.create({
     fontSize: typeScale['3xl'].size,
     lineHeight: typeScale['3xl'].line,
     color: colors.text,
-  },
-  body: {
-    fontFamily: face.body[400],
-    fontSize: typeScale.base.size,
-    lineHeight: typeScale.base.line,
-    color: colors.muted,
   },
 })

@@ -4,12 +4,13 @@ import { Text } from 'react-native'
 
 import { parseOrError, usernameSchema } from '@screenpeak/shared/schemas'
 
-import { AuthScaffold, authText } from '@/components/auth-scaffold'
+import { AuthScaffold } from '@/components/auth-scaffold'
 import { Button } from '@/components/button'
 import { TextField } from '@/components/text-field'
 import { authConfigError } from '@/lib/auth-config'
 import { useAuth } from '@/lib/auth'
 import { backOrHome } from '@/lib/go'
+import { text } from '@/theme'
 
 export default function SignUpScreen() {
   const router = useRouter()
@@ -43,7 +44,7 @@ export default function SignUpScreen() {
 
   return (
     <AuthScaffold title="Sign up">
-      {configured ? null : <Text style={authText.error}>{authConfigError('Sign-up')}</Text>}
+      {configured ? null : <Text style={text.error}>{authConfigError('Sign-up')}</Text>}
       <TextField
         label="Email"
         placeholder="Email"
@@ -70,8 +71,8 @@ export default function SignUpScreen() {
         value={password}
         onChangeText={setPassword}
       />
-      {notice ? <Text style={authText.notice}>{notice}</Text> : null}
-      {error ? <Text style={authText.error}>{error}</Text> : null}
+      {notice ? <Text style={text.notice}>{notice}</Text> : null}
+      {error ? <Text style={text.error}>{error}</Text> : null}
       <Button label={pending ? 'Creating account' : 'Sign up'} accessibilityLabel="Sign up" disabled={pending || !configured} onPress={() => { void submit() }} />
       <Button label="Log in" variant="ghost" onPress={() => router.replace('/sign-in')} />
     </AuthScaffold>

@@ -5,11 +5,12 @@ import { useState } from 'react'
 import { Text } from 'react-native'
 
 import { catalogueHref, gameHref, listHref, profileHref } from '@/lib/routes'
+import { text } from '@/theme'
 
 import { Button } from './button'
 import { EmptyState } from './empty-state'
 import { SectionHead } from './section-head'
-import { ScreenScroll, screenStyles, PanelRow, SignupButtons } from './screen-scroll'
+import { ScreenScroll, PanelRow, SignupButtons } from './screen-scroll'
 import { TextField } from './text-field'
 
 const RANGES: { id: ExploreRange, label: string }[] = [
@@ -64,18 +65,18 @@ export function ExploreScreen({
         onSubmitEditing={submit}
       />
       <Button label="Search" onPress={submit} />
-      {hint ? <Text style={screenStyles.muted}>{hint}</Text> : null}
-      {searching ? <Text style={screenStyles.muted}>Searching</Text> : null}
-      {searchError ? <Text style={screenStyles.muted}>{searchError}</Text> : null}
+      {hint ? <Text style={text.muted}>{hint}</Text> : null}
+      {searching ? <Text style={text.muted}>Searching</Text> : null}
+      {searchError ? <Text style={text.muted}>{searchError}</Text> : null}
       {results ? (
         results.length === 0 ? <EmptyState dense title="No games match." /> : results.map(game => (
           <PanelRow key={game.id} accessibilityRole="link" accessibilityLabel={game.name} onPress={() => onOpen(gameHref(game.slug))}>
-            <Text style={screenStyles.body}>{game.name}</Text>
+            <Text style={text.body}>{game.name}</Text>
           </PanelRow>
         ))
       ) : null}
 
-      <Text style={screenStyles.muted}>Range: {rangeLabel}</Text>
+      <Text style={text.muted}>Range: {rangeLabel}</Text>
       {RANGES.map(range => (
         <Button key={range.id} label={range.label} variant="secondary" onPress={() => onRange(range.id)} />
       ))}
@@ -86,19 +87,19 @@ export function ExploreScreen({
       ) : null}
       {data.trending_games.map(game => (
         <PanelRow key={game.id} accessibilityRole="link" accessibilityLabel={game.name} onPress={() => onOpen(gameHref(game.slug))}>
-          <Text style={screenStyles.body}>{game.name}</Text>
+          <Text style={text.body}>{game.name}</Text>
         </PanelRow>
       ))}
       {data.trending_lists.map(list => (
         <PanelRow key={list.id} accessibilityRole="link" accessibilityLabel={list.name} onPress={() => onOpen(listHref(list.owner_username, list.id))}>
-          <Text style={screenStyles.body}>{list.name}</Text>
+          <Text style={text.body}>{list.name}</Text>
         </PanelRow>
       ))}
 
       <SectionHead>Friends&apos; activity</SectionHead>
       {data.recommendations == null ? (
         <>
-          <Text style={screenStyles.muted}>Sign up to see what people you follow are playing.</Text>
+          <Text style={text.muted}>Sign up to see what people you follow are playing.</Text>
           <SignupButtons onOpen={onOpen} />
         </>
       ) : data.recommendations.games.length === 0 ? (
@@ -110,15 +111,15 @@ export function ExploreScreen({
           accessibilityLabel={`${game.name}, ${game.follower_count ?? 0} followers completed`}
           onPress={() => onOpen(gameHref(game.slug))}
         >
-          <Text style={screenStyles.body}>{game.name}</Text>
-          <Text style={screenStyles.detail}>{game.follower_count ?? 0} followers completed</Text>
+          <Text style={text.body}>{game.name}</Text>
+          <Text style={text.meta}>{game.follower_count ?? 0} followers completed</Text>
         </PanelRow>
       ))}
 
       <SectionHead>Recommendations</SectionHead>
       {data.recommendations == null ? (
         <>
-          <Text style={screenStyles.muted}>Sign up to get recommendations.</Text>
+          <Text style={text.muted}>Sign up to get recommendations.</Text>
           <SignupButtons onOpen={onOpen} />
         </>
       ) : (
@@ -128,12 +129,12 @@ export function ExploreScreen({
           ) : null}
           {data.recommendations.lists.map(list => (
             <PanelRow key={list.id} accessibilityRole="link" accessibilityLabel={list.name} onPress={() => onOpen(listHref(list.owner_username, list.id))}>
-              <Text style={screenStyles.body}>{list.name}</Text>
+              <Text style={text.body}>{list.name}</Text>
             </PanelRow>
           ))}
           {data.recommendations.users.map(user => (
             <PanelRow key={user.id} accessibilityRole="link" accessibilityLabel={user.username} onPress={() => onOpen(profileHref(user.username))}>
-              <Text style={screenStyles.body}>{user.username}</Text>
+              <Text style={text.body}>{user.username}</Text>
             </PanelRow>
           ))}
         </>

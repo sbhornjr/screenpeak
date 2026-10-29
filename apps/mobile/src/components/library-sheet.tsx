@@ -1,11 +1,14 @@
 import type { ViewerLibraryEntry } from '@screenpeak/shared/api/games'
 import type { LibraryWrite } from '@screenpeak/shared/api/writes'
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 
 import { LIBRARY_CHOICES, libraryForm, libraryWrite, type LibraryForm } from '@/lib/game-page'
-import { colors, face, radius, space, typeScale } from '@/theme'
+import { useAction } from '@/lib/use-action'
+import { useOnOpen } from '@/lib/use-on-open'
+import { colors, face, radius, space, text, typeScale } from '@/theme'
 
+import { ActionError } from './action-error'
 import { Button } from './button'
 import { Sheet } from './sheet'
 import { TextField } from './text-field'
@@ -26,56 +29,26 @@ export function LibrarySheet({
 }) {
   const [form, setForm] = useState<LibraryForm>(() => libraryForm(entry))
   const [details, setDetails] = useState(false)
-  const [actionError, setActionError] = useState<string | null>(null)
-  const [canRetry, setCanRetry] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const pending = useRef(false)
-  const last = useRef<(() => Promise<string | null>) | null>(null)
-  const open = useRef(false)
+  const action = useAction()
 
-  useEffect(() => {
-    if (visible && !open.current) {
-      setForm(libraryForm(entry))
-      setDetails(false)
-      setActionError(null)
-      setCanRetry(false)
-    }
-    open.current = visible
-  }, [visible, entry])
+  useOnOpen(visible, () => {
+    setForm(libraryForm(entry))
+    setDetails(false)
+    action.clear()
+  })
 
-  async function run(action: () => Promise<string | null>) {
-    if (pending.current) return
-    pending.current = true
-    last.current = action
-    setCanRetry(false)
-    setActionError(null)
-    setBusy(true)
-    try {
-      const error = await action()
-      setActionError(error)
-      setCanRetry(error != null)
-      if (!error) onClose()
-    } finally {
-      pending.current = false
-      setBusy(false)
-    }
-  }
-
-  async function submit() {
+  function submit() {
     const result = libraryWrite(entry, form)
     if (!result.ok) {
-      setCanRetry(false)
-      setActionError(result.message)
+      action.fail(result.message)
       return
     }
     if (!result.write) {
-      setCanRetry(false)
-      setActionError('Nothing to update.')
+      action.fail('Nothing to update.')
       return
     }
-    if (!onSave) return
     const write = result.write
-    await run(() => onSave(write))
+    if (onSave) void action.run(() => onSave(write), onClose)
   }
 
   return (
@@ -92,7 +65,7 @@ export function LibrarySheet({
             style={[styles.statusRow, selected && styles.statusSelected]}
           >
             <Text style={styles.statusTitle}>{choice.label}</Text>
-            <Text style={styles.meta}>{choice.description}</Text>
+            <Text style={text.caption}>{choice.description}</Text>
           </Pressable>
         )
       })}
@@ -110,8 +83,8 @@ export function LibrarySheet({
             onPress={() => setForm(current => ({ ...current, completed: !current.completed }))}
             style={[styles.statusRow, form.completed && styles.statusSelected]}
           >
-            <Text style={styles.body}>100% achievements completed</Text>
-            <Text style={styles.meta}>{form.completed ? 'On' : 'Off'}</Text>
+            <Text style={text.body}>100% achievements completed</Text>
+            <Text style={text.caption}>{form.completed ? 'On' : 'Off'}</Text>
           </Pressable>
           <TextField
             label="Hours played"
@@ -137,15 +110,19 @@ export function LibrarySheet({
           </View>
         </View>
       ) : null}
-      {actionError ? <Text accessibilityLiveRegion="polite" style={styles.error}>{actionError}</Text> : null}
-      {canRetry ? <Button label="Retry" variant="secondary" onPress={() => { if (last.current) void run(last.current) }} /> : null}
+      <ActionError error={action.error} onRetry={action.canRetry ? action.retry : undefined} />
       <Button
-        label={busy ? 'Saving…' : (entry ? 'Update library entry' : 'Save game')}
-        disabled={busy}
-        onPress={() => { void submit() }}
+        label={action.busy ? 'Saving…' : (entry ? 'Update library entry' : 'Save game')}
+        disabled={action.busy}
+        onPress={submit}
       />
       {entry && onRemove ? (
-        <Button label="Remove from library" variant="secondary" disabled={busy} onPress={() => { void run(() => onRemove()) }} />
+        <Button
+          label="Remove from library"
+          variant="secondary"
+          disabled={action.busy}
+          onPress={() => { void action.run(onRemove, onClose) }}
+        />
       ) : null}
     </Sheet>
   )
@@ -170,9 +147,6 @@ const styles = StyleSheet.create({
     fontSize: typeScale.eyebrow.size,
     color: colors.muted,
   },
-  meta: { fontFamily: face.mono[400], fontSize: typeScale.xs.size, color: colors.muted },
-  body: { fontFamily: face.body[400], fontSize: typeScale.base.size, lineHeight: typeScale.base.line, color: colors.text },
-  error: { fontFamily: face.body[400], fontSize: typeScale.sm.size, lineHeight: typeScale.sm.line, color: colors.bad },
   playCount: {
     minWidth: 32,
     fontFamily: face.mono[600],

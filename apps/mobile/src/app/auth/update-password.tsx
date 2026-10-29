@@ -2,13 +2,14 @@ import { useRouter } from 'expo-router'
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Text } from 'react-native'
 
-import { AuthScaffold, authText } from '@/components/auth-scaffold'
+import { AuthScaffold } from '@/components/auth-scaffold'
 import { Button } from '@/components/button'
 import { TextField } from '@/components/text-field'
 import { authConfigError } from '@/lib/auth-config'
 import { useAuth } from '@/lib/auth'
 import { leavePasswordScreen, updatePasswordView } from '@/lib/password-reset'
 import { readRecovery, subscribeRecovery } from '@/lib/recovery-session'
+import { text } from '@/theme'
 
 export default function UpdatePasswordScreen() {
   const router = useRouter()
@@ -71,8 +72,8 @@ export default function UpdatePasswordScreen() {
 
   return (
     <AuthScaffold title="Set a new password">
-      {configured ? null : <Text style={authText.error}>{authConfigError()}</Text>}
-      {!view.form ? <Text style={authText.notice}>{view.message}</Text> : null}
+      {configured ? null : <Text style={text.error}>{authConfigError()}</Text>}
+      {!view.form ? <Text style={text.notice}>{view.message}</Text> : null}
       {!view.form && !done ? (
         <Button label="Request a new link" variant="ghost" onPress={() => router.push('/forgot-password')} />
       ) : null}
@@ -96,7 +97,7 @@ export default function UpdatePasswordScreen() {
             value={again}
             onChangeText={setAgain}
           />
-          {error ? <Text style={authText.error}>{error}</Text> : null}
+          {error ? <Text style={text.error}>{error}</Text> : null}
           <Button
             label={pending ? 'Saving…' : 'Update password'}
             accessibilityLabel="Update password"

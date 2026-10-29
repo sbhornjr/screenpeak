@@ -68,24 +68,6 @@ export function libraryRowLayout(columnWidth: number, canEdit: boolean, headerHe
   }
 }
 
-/** Cache parts for one filtered library. `useRemote` appends the viewer id. */
-export function libraryCacheParts(username: string, query: LibraryQuery): readonly unknown[] {
-  return [
-    'library',
-    username,
-    query.status,
-    query.is100 ? '100' : '',
-    query.sort,
-    query.order,
-    query.q ?? '',
-    query.genre ?? '',
-    query.platform ?? '',
-    query.developer ?? '',
-    query.publisher ?? '',
-    query.esrb ?? '',
-  ]
-}
-
 export function cardEntry(game: LibraryGameCard): ViewerLibraryEntry {
   return {
     id: game.id,

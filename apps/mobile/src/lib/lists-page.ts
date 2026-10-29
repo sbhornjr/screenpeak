@@ -2,38 +2,9 @@ import type { GameCardData, GamePageData } from '@screenpeak/shared/api/games'
 import type { ListCard, ListPageData, ListsPageData, ListsTab } from '@screenpeak/shared/api/lists'
 import type { GameSearchHit } from '@screenpeak/shared/api/search'
 import type { ListGameSync, ListWrite } from '@screenpeak/shared/api/writes'
-import type { QueryClient } from '@tanstack/react-query'
 
 import { withListMembership } from '@/lib/game-page'
 import { calendarLabel } from '@/lib/profile-hub'
-
-/** The game page invalidates `['lists']`. Detail uses that prefix so it reloads too. */
-export function listsQueryKey(username: string, tab: ListsTab, viewerId: string | null) {
-  return ['lists', username, tab, viewerId] as const
-}
-
-export function listDetailQueryKey(username: string, listId: string, viewerId: string | null) {
-  return ['lists', username, 'detail', listId, viewerId] as const
-}
-
-/**
- * Keep the previous page while the next one loads, for this viewer, this
- * username, and (on a detail key) this list. A viewer id alone is shared
- * across every profile that player opens.
- */
-export function sameViewerPlaceholder<T>(
-  previous: T | undefined,
-  previousQuery: { queryKey: readonly unknown[] } | undefined,
-  viewerId: string | null,
-  username: string,
-  listId?: string,
-): T | undefined {
-  const key = previousQuery?.queryKey
-  if (!key || key.at(-1) !== viewerId) return undefined
-  if (key[1] !== username) return undefined
-  if (listId != null && key[3] !== listId) return undefined
-  return previous
-}
 
 export function listsHeading(owner: boolean, username: string): string {
   return owner ? 'Your Lists' : `${username}'s Lists`
@@ -192,32 +163,6 @@ export function withoutViewerList(data: GamePageData, listId: string): GamePageD
 export function withViewerListOption(data: GamePageData, option: { id: string, name: string, game_count: number }): GamePageData {
   if (!data.viewer || data.viewer.lists.some(list => list.id === option.id)) return data
   return { ...data, viewer: { ...data.viewer, lists: [...data.viewer.lists, option] } }
-}
-
-/**
- * Patch game pages for this viewer only. A review query is longer than three
- * parts, and another viewer's key ends with their id, so both stay put.
- * Returns a restore for a failed write.
- */
-export async function patchViewerGames(
-  client: QueryClient,
-  viewerId: string | null,
-  update: (data: GamePageData) => GamePageData,
-): Promise<() => void> {
-  if (!viewerId) return () => undefined
-  const keys = client.getQueryCache().findAll({ queryKey: ['game'] })
-    .map(cached => cached.queryKey)
-    .filter(queryKey => queryKey.length === 3 && queryKey[2] === viewerId)
-  await Promise.all(keys.map(queryKey => client.cancelQueries({ queryKey, exact: true })))
-  const snapshots: { key: readonly unknown[], data: GamePageData | undefined }[] = []
-  for (const queryKey of keys) {
-    const data = client.getQueryData<GamePageData>(queryKey)
-    snapshots.push({ key: queryKey, data })
-    if (data) client.setQueryData(queryKey, update(data))
-  }
-  return () => {
-    for (const shot of snapshots) client.setQueryData(shot.key, shot.data)
-  }
 }
 
 export function membershipPatch(listId: string, gameId: string, listed: boolean) {

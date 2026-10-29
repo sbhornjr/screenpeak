@@ -2,9 +2,10 @@ import type { FeedItem } from '@screenpeak/shared/types'
 import { Text } from 'react-native'
 
 import { gameHref, listHref, profileHref } from '@/lib/routes'
+import { text } from '@/theme'
 
 import { EmptyState } from './empty-state'
-import { PanelRow, ScreenScroll, screenStyles } from './screen-scroll'
+import { PanelRow, ScreenScroll} from './screen-scroll'
 import { WelcomeScreen } from './welcome-screen'
 
 export function feedActivityText(item: FeedItem): string {
@@ -57,7 +58,7 @@ export function FeedScreen({
             accessibilityLabel={label}
             onPress={() => onOpen(feedHref(item))}
           >
-            <Text style={screenStyles.body}>{label}</Text>
+            <Text style={text.body}>{label}</Text>
           </PanelRow>
         )
       })}

@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { cardEntry, EMPTY_FACETS, LIBRARY_QUERY, libraryColumnWidth, libraryFiltersActive, libraryRowLayout, orderForSort } from '@/lib/library-page'
 import { gameHref } from '@/lib/routes'
-import { colors, face, hitTarget, radius, space, typeScale } from '@/theme'
+import { colors, face, hitTarget, radius, space, text, typeScale } from '@/theme'
 
 import { AppHeader } from './app-header'
 import { Button } from './button'
@@ -16,7 +16,7 @@ import { GameCard } from './game-card'
 import { LibrarySheet } from './library-sheet'
 import { LibraryStatRow } from './library-stat-row'
 import { Sheet } from './sheet'
-import { SignupButtons, screenStyles } from './screen-scroll'
+import { SignupButtons } from './screen-scroll'
 import { TextField } from './text-field'
 
 const STATUS_TABS: { status: LibraryQuery['status'], label: string }[] = [
@@ -263,7 +263,7 @@ export function LibraryScreen({
       </View>
       {loadError ? (
         <View style={styles.stack}>
-          <Text accessibilityLiveRegion="polite" style={styles.error}>{loadError}</Text>
+          <Text accessibilityLiveRegion="polite" style={text.error}>{loadError}</Text>
           {onRetry ? <Button label="Retry" variant="secondary" onPress={onRetry} /> : null}
         </View>
       ) : null}
@@ -287,7 +287,7 @@ export function LibraryScreen({
         style={styles.filterButton}
       >
         <SlidersHorizontal size={18} color={colors.accent} />
-        <Text style={screenStyles.body}>Filters</Text>
+        <Text style={text.body}>Filters</Text>
       </Pressable>
     </View>
   )
@@ -449,7 +449,6 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
-  error: { fontFamily: face.body[400], fontSize: typeScale.sm.size, lineHeight: typeScale.sm.line, color: colors.bad },
   edit: {
     position: 'absolute',
     right: space[2],

@@ -2,15 +2,16 @@ import type { GameCardData } from '@screenpeak/shared/api/games'
 import type { GameSearchHit } from '@screenpeak/shared/api/search'
 import type { ListGameSync, ListWrite } from '@screenpeak/shared/api/writes'
 import { X } from 'lucide-react-native'
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
-import { actionFailure } from '@/lib/game-page'
+import { actionFailure } from '@/lib/failure'
 import { libraryColumnWidth } from '@/lib/library-page'
 import { useSingleFlight } from '@/lib/single-flight'
+import { useOnOpen } from '@/lib/use-on-open'
 import { gameHref, profileHref } from '@/lib/routes'
-import { colors, face, hitTarget, radius, space, typeScale } from '@/theme'
+import { colors, face, hitTarget, radius, space, text, typeScale } from '@/theme'
 
 import { AppHeader } from './app-header'
 import { Avatar } from './avatar'
@@ -207,7 +208,7 @@ export function ListDetailScreen({
           }}
         />
       </View>
-      {description ? <Text style={styles.body}>{description}</Text> : null}
+      {description ? <Text style={text.body}>{description}</Text> : null}
       {canEdit ? (
         <View style={styles.ownerActions}>
           <Button label="Edit" variant="ghost" accessibilityLabel="Edit list" onPress={() => { setError(null); setEditing(true) }} />
@@ -216,12 +217,12 @@ export function ListDetailScreen({
       ) : null}
       {loadError ? (
         <View style={styles.stack}>
-          <Text accessibilityLiveRegion="polite" style={styles.error}>{loadError}</Text>
+          <Text accessibilityLiveRegion="polite" style={text.error}>{loadError}</Text>
           {onRetry ? <Button label="Retry" variant="secondary" onPress={onRetry} /> : null}
         </View>
       ) : null}
       {actionError && !removing && !adding ? (
-        <Text accessibilityLiveRegion="polite" style={styles.error}>{actionError}</Text>
+        <Text accessibilityLiveRegion="polite" style={text.error}>{actionError}</Text>
       ) : null}
     </View>
   )
@@ -292,8 +293,8 @@ export function ListDetailScreen({
         title={removing ? `Remove ${removing.name}?` : 'Remove game'}
         onClose={() => setRemoving(null)}
       >
-        <Text style={styles.body}>It leaves this list. The game stays in the catalogue.</Text>
-        {actionError ? <Text accessibilityLiveRegion="polite" style={styles.error}>{actionError}</Text> : null}
+        <Text style={text.body}>It leaves this list. The game stays in the catalogue.</Text>
+        {actionError ? <Text accessibilityLiveRegion="polite" style={text.error}>{actionError}</Text> : null}
         <Button label={busy ? 'Removing…' : 'Remove'} variant="secondary" disabled={busy} onPress={() => { void confirmRemove() }} />
         <Button label="Keep" variant="ghost" onPress={() => setRemoving(null)} />
       </Sheet>
@@ -323,21 +324,16 @@ function AddGamesSheet({
   const [selected, setSelected] = useState<string[]>([])
   const [searchError, setSearchError] = useState<string | null>(null)
   const [searching, setSearching] = useState(false)
-  const open = useRef(false)
   const generation = useRef(0)
   const searchFlight = useSingleFlight()
   const saveFlight = useSingleFlight()
-  const gameKey = games.map(game => game.id).join('\0')
 
-  useEffect(() => {
-    if (visible && !open.current) {
-      setQuery('')
-      setHits([])
-      setSelected(games.map(game => game.id))
-      setSearchError(null)
-    }
-    open.current = visible
-  }, [visible, gameKey, games])
+  useOnOpen(visible, () => {
+    setQuery('')
+    setHits([])
+    setSelected(games.map(game => game.id))
+    setSearchError(null)
+  })
 
   function search() {
     const needle = query.trim()
@@ -387,8 +383,8 @@ function AddGamesSheet({
         </View>
         <Button label={searching ? 'Searching…' : 'Search'} onPress={search} />
       </View>
-      {searchError ? <Text accessibilityLiveRegion="polite" style={styles.error}>{searchError}</Text> : null}
-      {already.length > 0 ? <Text style={styles.meta}>On this list</Text> : null}
+      {searchError ? <Text accessibilityLiveRegion="polite" style={text.error}>{searchError}</Text> : null}
+      {already.length > 0 ? <Text style={text.meta}>On this list</Text> : null}
       {already.map(game => (
         <Button
           key={game.id}
@@ -399,7 +395,7 @@ function AddGamesSheet({
           onPress={() => toggle(game.id)}
         />
       ))}
-      {hits.length > 0 ? <Text style={styles.meta}>Results</Text> : null}
+      {hits.length > 0 ? <Text style={text.meta}>Results</Text> : null}
       {hits.map(hit => (
         <Button
           key={hit.id}
@@ -410,7 +406,7 @@ function AddGamesSheet({
           onPress={() => toggle(hit.id)}
         />
       ))}
-      {error ? <Text accessibilityLiveRegion="polite" style={styles.error}>{error}</Text> : null}
+      {error ? <Text accessibilityLiveRegion="polite" style={text.error}>{error}</Text> : null}
       <Button
         label={busy ? 'Saving…' : 'Save games'}
         disabled={busy}
@@ -464,18 +460,6 @@ const styles = StyleSheet.create({
     lineHeight: typeScale.base.line,
     color: colors.text,
   },
-  meta: {
-    fontFamily: face.mono[400],
-    fontSize: typeScale.sm.size,
-    lineHeight: typeScale.sm.line,
-    color: colors.muted,
-  },
-  body: {
-    fontFamily: face.body[400],
-    fontSize: typeScale.base.size,
-    lineHeight: typeScale.base.line,
-    color: colors.text,
-  },
   statRow: {
     flexDirection: 'row',
     flexWrap: 'nowrap',
@@ -504,12 +488,6 @@ const styles = StyleSheet.create({
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
   searchField: { flex: 1 },
   stack: { gap: space[2] },
-  error: {
-    fontFamily: face.body[400],
-    fontSize: typeScale.sm.size,
-    lineHeight: typeScale.sm.line,
-    color: colors.bad,
-  },
   bone: { height: 28, width: '55%', backgroundColor: colors.surfaceLight, borderRadius: radius.base },
   boneShort: { height: 160, backgroundColor: colors.surfaceLight, borderRadius: radius.base },
 })

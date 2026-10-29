@@ -7,12 +7,16 @@ import { StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { GameDetail, GameDetailSkeleton } from '@/components/game-detail'
-import { ScreenMessage } from '@/components/screen-state'
+import { API_MISSING, ScreenMessage } from '@/components/screen-state'
 import { api, apiConfigured } from '@/lib/api'
-import { actionFailure, withCreatedList, withLibraryWrite, withListMembership, withViewerReview, withoutLibraryEntry, type ReviewListQuery } from '@/lib/game-page'
+import { useCachedWrite } from '@/lib/cached-write'
+import { withCreatedList, withLibraryWrite, withListMembership, withViewerReview, withoutLibraryEntry, type ReviewListQuery } from '@/lib/game-page'
 import { useAuth } from '@/lib/auth'
+import { actionFailure } from '@/lib/failure'
 import { back, go } from '@/lib/go'
+import { gameScope, queryKeys, scopes } from '@/lib/query-keys'
 import { catalogueHref, profileHref } from '@/lib/routes'
+import { useRefresh } from '@/lib/use-refresh'
 import { colors } from '@/theme'
 
 const FIRST_PAGE: ReviewListQuery = { page: 1, sort: 'date', order: 'desc' }
@@ -27,56 +31,27 @@ export default function GameScreen() {
   const configured = apiConfigured()
   const [reviewState, setReviewState] = useState({ slug, query: FIRST_PAGE })
   const reviewsQuery = reviewState.slug === slug ? reviewState.query : FIRST_PAGE
-  const [refreshing, setRefreshing] = useState(false)
 
+  const gameKey = queryKeys.game(slug, viewerId)
   const game = useQuery({
-    queryKey: ['game', slug, viewerId],
+    queryKey: gameKey,
     queryFn: () => api.games.get(slug),
     enabled: ready && configured && slug.length > 0,
   })
   const reviews = useQuery({
-    queryKey: ['game', slug, 'reviews', viewerId, reviewsQuery.page, reviewsQuery.sort, reviewsQuery.order],
+    queryKey: queryKeys.gameReviews(slug, reviewsQuery, viewerId),
     queryFn: () => api.games.reviews(slug, reviewsQuery),
     enabled: ready && configured && slug.length > 0 && game.isSuccess,
     placeholderData: keepPreviousData,
   })
-
-  const gameKey = ['game', slug, viewerId] as const
-
-  async function commit(
-    run: () => Promise<unknown>,
-    optimistic?: (data: GamePageData) => GamePageData,
-  ): Promise<string | null> {
-    await queryClient.cancelQueries({ queryKey: gameKey, exact: true })
-    const previous = queryClient.getQueryData<GamePageData>(gameKey)
-    const next = optimistic && previous ? optimistic(previous) : undefined
-    const owned = next ? queryClient.setQueryData(gameKey, next) : previous
-    try {
-      await run()
-      // The sheet reads the promise. A hung refetch must not keep Create list spinning
-      // after the new list is already in the cache. Cancel still happens before that write.
-      void Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['game', slug] }),
-        queryClient.invalidateQueries({ queryKey: ['library'] }),
-        queryClient.invalidateQueries({ queryKey: ['lists'] }),
-        queryClient.invalidateQueries({ queryKey: ['profile'] }),
-      ])
-      return null
-    } catch (error) {
-      const current = queryClient.getQueryData<GamePageData>(gameKey)
-      if (previous && current === owned) queryClient.setQueryData(gameKey, previous)
-      return actionFailure(error)
-    }
-  }
-
-  async function refresh() {
-    setRefreshing(true)
-    try {
-      await Promise.all([game.refetch(), reviews.refetch()])
-    } finally {
-      setRefreshing(false)
-    }
-  }
+  const commit = useCachedWrite<GamePageData>(gameKey, {
+    viewerId,
+    invalidate: [gameScope(slug), scopes.library, scopes.lists, scopes.profile],
+    // The sheets read the commit. A hung refetch must not keep Create list
+    // spinning after the new list is already in the cache.
+    background: true,
+  })
+  const { refreshing, refresh } = useRefresh(game.refetch, reviews.refetch)
 
   const signedIn = session != null
   const gameId = game.data?.game.id
@@ -86,7 +61,7 @@ export default function GameScreen() {
     <SafeAreaView style={styles.screen}>
       <Stack.Screen options={{ headerShown: false }} />
       {!configured ? (
-        <ScreenMessage title="API URL missing" body="Set EXPO_PUBLIC_API_URL to the ScreenPeak server." />
+        <ScreenMessage {...API_MISSING} />
       ) : slug.length === 0 ? (
         <ScreenMessage title="Missing game" body="This link does not include a game." />
       ) : !ready || game.isLoading ? (
@@ -102,7 +77,7 @@ export default function GameScreen() {
           reviewsQuery={reviewsQuery}
           signedIn={signedIn}
           refreshing={refreshing}
-          onRefresh={() => { void refresh() }}
+          onRefresh={refresh}
           onBack={back}
           onSignIn={() => router.push('/sign-in')}
           onSignUp={() => router.push('/sign-up')}

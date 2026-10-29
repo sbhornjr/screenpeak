@@ -21,6 +21,7 @@ vi.mock('@/theme', () => ({
   face: { display: {}, body: {} },
   space: {},
   typeScale: { '3xl': {}, base: {} },
+  text: {},
 }))
 
 vi.mock('../components/button', () => ({

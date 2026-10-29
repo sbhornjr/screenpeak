@@ -8,7 +8,7 @@ import React from 'react'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { listsQueryKey } from '@/lib/lists-page'
+import { queryKeys } from '@/lib/query-keys'
 
 import { ClearListsOnSignOut } from './clear-lists-on-sign-out'
 import { ListDetail, UserLists } from './lists-browser'
@@ -437,17 +437,17 @@ describe('UserLists', () => {
     const { client } = renderLists(<UserLists username="peek" />)
     expect(await screen.findByRole('button', { name: 'Unpin Wishlist' })).toBeTruthy()
     const other = { ...PAGE, lists: [{ ...WISH, name: 'Other shelf' }] }
-    client.setQueryData(listsQueryKey('peek', 'user', OTHER), other)
+    client.setQueryData(queryKeys.lists('peek', 'user', OTHER), other)
     pressTwice('Unpin Wishlist')
     expect(await screen.findByRole('button', { name: 'Pin Wishlist' })).toBeTruthy()
     expect(updateList).toHaveBeenCalledTimes(1)
     expect(updateList).toHaveBeenCalledWith(LIST, { isPinned: false })
-    expect(client.getQueryData(listsQueryKey('peek', 'user', OTHER))).toEqual(other)
+    expect(client.getQueryData(queryKeys.lists('peek', 'user', OTHER))).toEqual(other)
     rejectPin(new ApiClientError(429, 'rate_limited', 'slow down', 9))
     expect((await screen.findByText('Too many requests. Try again in 9 seconds.')).textContent)
       .toBe('Too many requests. Try again in 9 seconds.')
     expect(screen.getByRole('button', { name: 'Unpin Wishlist' })).toBeTruthy()
-    expect(client.getQueryData(listsQueryKey('peek', 'user', OTHER))).toEqual(other)
+    expect(client.getQueryData(queryKeys.lists('peek', 'user', OTHER))).toEqual(other)
   })
 
   it('shows a created list before the reload finishes', async () => {
@@ -607,7 +607,7 @@ describe('UserLists', () => {
         <UserLists username="peek" />
       </>,
     )
-    await waitFor(() => expect(client.getQueryData(listsQueryKey('peek', 'user', PEEK))).toBeUndefined())
+    await waitFor(() => expect(client.getQueryData(queryKeys.lists('peek', 'user', PEEK))).toBeUndefined())
     expect(screen.queryByRole('link', { name: 'Secret shelf' })).toBeNull()
     expect(screen.queryByRole('heading', { name: 'Your Lists' })).toBeNull()
   })

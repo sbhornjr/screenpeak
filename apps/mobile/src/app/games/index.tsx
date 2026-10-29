@@ -3,10 +3,11 @@ import { useState } from 'react'
 
 import { api } from '@/lib/api'
 import { back, go } from '@/lib/go'
+import { queryKeys } from '@/lib/query-keys'
 import { useRemote } from '@/lib/use-remote'
 
 import { CatalogueScreen } from '@/components/catalogue-screen'
-import { ScreenMessage } from '@/components/screen-state'
+import { RemoteGate } from '@/components/screen-state'
 
 function one(value: string | string[] | undefined): string | undefined {
   const first = Array.isArray(value) ? value[0] : value
@@ -33,7 +34,7 @@ export default function CatalogueRoute() {
     setPageState({ filterKey, page: next })
   }
   const remote = useRemote(
-    ['catalogue', genre ?? '', platform ?? '', developer ?? '', publisher ?? '', esrb ?? '', page],
+    viewer => queryKeys.catalogue({ genre, platform, developer, publisher, esrb }, page, viewer),
     () => api.games.list({
       genre: genre ?? null,
       platform: platform ?? null,
@@ -45,16 +46,7 @@ export default function CatalogueRoute() {
     }),
     true,
   )
-  if (remote.gate || !remote.query.data) {
-    const gate = remote.gate ?? { title: 'Loading', body: '', retry: false }
-    return (
-      <ScreenMessage
-        title={gate.title}
-        body={gate.body}
-        onRetry={gate.retry ? () => { void remote.query.refetch() } : undefined}
-      />
-    )
-  }
+  if (remote.gate || !remote.query.data) return <RemoteGate gate={remote.gate} onRetry={() => { void remote.query.refetch() }} />
   const data = remote.query.data
   const genreName = genre ? data.genres.find(item => item.slug === genre)?.name ?? genre : null
   const platformName = platform ? data.platforms.find(item => item.slug === platform)?.name ?? platform : null

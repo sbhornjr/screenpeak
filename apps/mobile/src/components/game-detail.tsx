@@ -1,37 +1,30 @@
-import type { GamePageData, GameReviewsPage } from '@screenpeak/shared/api/games'
+import type { GamePageData, GameReviewsPage, Taxon } from '@screenpeak/shared/api/games'
 import type { LibraryWrite, ListWrite } from '@screenpeak/shared/api/writes'
 import type { GameRatingsStats } from '@screenpeak/shared/types'
 import { LIBRARY_SECTION_TITLE, libraryEmptyLine, libraryScoreText } from '@screenpeak/shared/library-copy'
-import { createListSchema, ratingReviewSchema } from '@screenpeak/shared/schemas'
 import { Image } from 'expo-image'
-import { useRef, useState } from 'react'
-import { Linking, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
+import { useState } from 'react'
+import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 
 import { igdbImageUri } from '@/lib/catalog-image'
-import {
-  communityScore,
-  ratingLabel,
-  relTime,
-  scoreGap,
-  statusLabel,
-  yearOf,
-  type ReviewListQuery,
-} from '@/lib/game-page'
-import { colors, face, radius, space, tierColor, tracking, trackingPx, typeScale } from '@/theme'
+import { communityScore, relTime, scoreGap, statusLabel, yearOf, type ReviewListQuery } from '@/lib/game-page'
+import type { CatalogueFilter } from '@/lib/query-keys'
+import { colors, face, radius, space, text, tierColor, tracking, trackingPx, typeScale } from '@/theme'
 
 import { AppHeader } from './app-header'
 import { Avatar } from './avatar'
 import { Button } from './button'
 import { DataAttribution } from './data-attribution'
 import { EmptyState } from './empty-state'
+import { GameGallery } from './game-gallery'
 import { LibrarySheet } from './library-sheet'
 import { LibraryStatRow } from './library-stat-row'
+import { ListPickerSheet } from './list-picker-sheet'
 import { Panel } from './panel'
+import { RateSheet } from './rate-sheet'
 import { SectionHead } from './section-head'
 import { Sheet, useSheetDismiss } from './sheet'
-import { TextField } from './text-field'
 
-const SCORES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 const DEFAULT_QUERY: ReviewListQuery = { page: 1, sort: 'date', order: 'desc' }
 
 export type GameDetailProps = {
@@ -49,7 +42,7 @@ export type GameDetailProps = {
   onRetryReviews: () => void
   onReviewsQuery?: (query: ReviewListQuery) => void
   onOpenProfile?: (username: string) => void
-  onOpenCatalogue?: (filter: { genre?: string, platform?: string, developer?: string, publisher?: string, esrb?: string }) => void
+  onOpenCatalogue?: (filter: CatalogueFilter) => void
   onRate?: (rating: number, review: string) => Promise<string | null>
   onSave?: (write: LibraryWrite) => Promise<string | null>
   onRemoveLibrary?: () => Promise<string | null>
@@ -86,6 +79,71 @@ function distributionOf(stats: GameRatingsStats) {
   }))
 }
 
+/** One Credits row: a label and the taxonomy links under it. */
+function CreditTags({ label, rows, onOpen }: { label: string, rows: Taxon[], onOpen: (slug: string) => void }) {
+  return (
+    <>
+      <Text style={text.label}>{label}</Text>
+      <View style={styles.tags}>
+        {rows.length === 0 ? <Text style={text.body}>—</Text> : rows.map(row => (
+          <Button
+            key={row.id}
+            label={row.name}
+            accessibilityLabel={`Browse ${row.name}`}
+            variant="ghost"
+            onPress={() => onOpen(row.slug)}
+          />
+        ))}
+      </View>
+    </>
+  )
+}
+
+/** Six lines, with Read more only when the text runs past them. */
+function About({ description }: { description: string }) {
+  const [open, setOpen] = useState(false)
+  const [fullHeight, setFullHeight] = useState(0)
+  const [limitHeight, setLimitHeight] = useState(0)
+  const overflows = fullHeight > limitHeight + 1 && limitHeight > 0
+  return (
+    <View style={styles.about}>
+      <SectionHead>About</SectionHead>
+      <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.aboutMeasure}>
+        <Text style={text.body} onLayout={event => setFullHeight(event.nativeEvent.layout.height)}>{description}</Text>
+        <Text numberOfLines={6} style={text.body} onLayout={event => setLimitHeight(event.nativeEvent.layout.height)}>{description}</Text>
+      </View>
+      <Text numberOfLines={overflows && !open ? 6 : undefined} style={text.body}>{description}</Text>
+      {overflows ? (
+        <Button label={open ? 'Show less' : 'Read more'} variant="ghost" onPress={() => setOpen(current => !current)} />
+      ) : null}
+    </View>
+  )
+}
+
+function ReviewCard({ name, avatarUrl, date, rating, body, onOpenProfile }: {
+  name: string
+  avatarUrl: string
+  date: string
+  rating: number
+  body: string
+  onOpenProfile?: () => void
+}) {
+  const nameText = <Text style={styles.reviewName}>{name}</Text>
+  return (
+    <Panel style={styles.review}>
+      <View style={styles.reviewHead}>
+        <Avatar alt={name} src={avatarUrl || null} size="sm" />
+        {onOpenProfile ? (
+          <Pressable accessibilityRole="link" accessibilityLabel={name} onPress={onOpenProfile}>{nameText}</Pressable>
+        ) : nameText}
+        <Text style={text.caption}>{relTime(date)}</Text>
+        <Text style={[styles.reviewUser, { color: tierColor(rating) }]}>{rating} / 10</Text>
+      </View>
+      <Text style={text.body}>{body}</Text>
+    </Panel>
+  )
+}
+
 /** The native game page. Signed out, viewer is null and account actions ask you to sign up. */
 export function GameDetail({
   data,
@@ -115,6 +173,7 @@ export function GameDetail({
   const community = communityScore(stats)
   const yours = viewer?.review?.rating ?? null
   const year = yearOf(game.released)
+  const esrb = game.esrb_rating
   const cover = igdbImageUri(game.cover_image_url)
   const shots = game.screenshots.flatMap(url => {
     const uri = igdbImageUri(url)
@@ -124,127 +183,10 @@ export function GameDetail({
   const compact = width <= 375
   const [prompt, setPrompt] = useState(false)
   const [panel, setPanel] = useState<'rate' | 'save' | 'list' | null>(null)
-  const [score, setScore] = useState<number | null>(yours)
-  const [note, setNote] = useState(viewer?.review?.review ?? '')
-  const [confirmDelete, setConfirmDelete] = useState(false)
-  const [makingList, setMakingList] = useState(false)
-  const [listName, setListName] = useState('')
-  const [listDescription, setListDescription] = useState('')
-  const [listPublic, setListPublic] = useState(viewer?.defaultListPrivacy ?? true)
-  const [listPinned, setListPinned] = useState(false)
-  const [actionError, setActionError] = useState<string | null>(null)
-  const [canRetry, setCanRetry] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [lastAction, setLastAction] = useState<(() => Promise<string | null>) | null>(null)
-  const [aboutOpen, setAboutOpen] = useState(false)
-  const [aboutFullHeight, setAboutFullHeight] = useState(0)
-  const [aboutLimitHeight, setAboutLimitHeight] = useState(0)
-  const [shotIndex, setShotIndex] = useState(0)
-  const [shotOpen, setShotOpen] = useState(false)
-  const pending = useRef(false)
-
-  function fail(message: string) {
-    setCanRetry(false)
-    setActionError(message)
-  }
 
   function openAccount(next: 'rate' | 'save' | 'list') {
-    if (!signedIn) {
-      setPrompt(true)
-      return
-    }
-    setActionError(null)
-    setCanRetry(false)
-    if (panel === next) {
-      setPanel(null)
-      return
-    }
-    if (next === 'rate') {
-      setScore(viewer?.review?.rating ?? null)
-      setNote(viewer?.review?.review ?? '')
-      setConfirmDelete(false)
-    }
-    if (next === 'list') {
-      setMakingList(false)
-      setListName('')
-      setListDescription('')
-      setListPublic(viewer?.defaultListPrivacy ?? true)
-      setListPinned(false)
-    }
-    setPanel(next)
-  }
-
-  async function run(action: () => Promise<string | null>, keepOpen = false) {
-    if (pending.current) return
-    pending.current = true
-    setLastAction(() => action)
-    setCanRetry(false)
-    setActionError(null)
-    setBusy(true)
-    try {
-      const error = await action()
-      setActionError(error)
-      setCanRetry(error != null)
-      if (!error && !keepOpen) setPanel(null)
-    } finally {
-      pending.current = false
-      setBusy(false)
-    }
-  }
-
-  function retry() {
-    if (lastAction) void run(lastAction, panel === 'list')
-  }
-
-  async function submitRating() {
-    if (score == null) {
-      fail('Pick a score.')
-      return
-    }
-    const parsed = ratingReviewSchema.safeParse({ rating: score, review: note })
-    if (!parsed.success) {
-      fail(parsed.error.issues[0]?.message ?? 'Check the rating.')
-      return
-    }
-    if (!onRate) return
-    const rating = parsed.data.rating
-    const review = parsed.data.review
-    await run(() => onRate(rating, review))
-  }
-
-  async function deleteReview() {
-    const rating = viewer?.review?.rating
-    if (rating == null || !onRate) return
-    await run(() => onRate(rating, ''))
-  }
-
-  async function submitList() {
-    const parsed = createListSchema.safeParse({
-      name: listName,
-      description: listDescription,
-      isPublic: listPublic,
-      isPinned: listPinned,
-    })
-    if (!parsed.success) {
-      fail(parsed.error.issues[0]?.message ?? 'Give the list a name')
-      return
-    }
-    if (!onCreateList) return
-    const input = {
-      name: parsed.data.name,
-      description: parsed.data.description,
-      isPublic: parsed.data.isPublic,
-      isPinned: parsed.data.isPinned,
-    }
-    await run(async () => {
-      const error = await onCreateList(input)
-      if (!error) {
-        setListName('')
-        setListDescription('')
-        setMakingList(false)
-      }
-      return error
-    }, true)
+    if (!signedIn) setPrompt(true)
+    else setPanel(current => current === next ? null : next)
   }
 
   const rows = distributionOf(stats)
@@ -256,14 +198,7 @@ export function GameDetail({
     signedIn,
   })
   const inFile = !!(viewer?.review || viewer?.libraryEntry)
-  const aboutOverflows = aboutFullHeight > aboutLimitHeight + 1 && aboutLimitHeight > 0
   const titleSize = compact ? typeScale['3xl'].size : typeScale['4xl'].size
-  const shotNumber = shots.length === 0 ? 0 : Math.min(shotIndex, shots.length - 1)
-  const frame = shots.length === 0 ? null : shots[shotNumber]
-
-  function stepShot(delta: number) {
-    setShotIndex(index => (index + delta + shots.length) % shots.length)
-  }
 
   return (
     <View style={styles.screen}>
@@ -275,469 +210,289 @@ export function GameDetail({
           ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} colors={[colors.accent]} />
           : undefined}
       >
-      <View style={styles.titleRow}>
-        <View style={styles.titleSeam} />
-        <Text
-          accessibilityRole="header"
-          accessibilityLevel={1}
-          style={[styles.title, {
-            fontSize: titleSize,
-            lineHeight: Math.round(titleSize * 0.97),
-            letterSpacing: trackingPx(tracking.display, titleSize),
-          }]}
-        >
-          {game.name}
-        </Text>
-      </View>
-      <View style={styles.tags}>
-        {taxonomy.genres.map(genre => (
-          <Button
-            key={genre.id}
-            label={genre.name}
-            accessibilityLabel={`Browse ${genre.name}`}
-            variant="secondary"
-            onPress={() => onOpenCatalogue?.({ genre: genre.slug })}
-          />
-        ))}
-        {game.esrb_rating ? (
-          <Button
-            label={game.esrb_rating}
-            accessibilityLabel={`Browse games rated ${game.esrb_rating}`}
-            variant="secondary"
-            onPress={() => onOpenCatalogue?.({ esrb: game.esrb_rating ?? undefined })}
-          />
-        ) : null}
-      </View>
-
-      <View style={styles.hero}>
-        <View style={styles.cover}>
-          {cover ? (
-            <Image source={cover} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityLabel={`${game.name} cover`} />
-          ) : (
-            <Text style={styles.noCover}>No Cover</Text>
-          )}
+        <View style={styles.titleRow}>
+          <View style={styles.titleSeam} />
+          <Text
+            accessibilityRole="header"
+            accessibilityLevel={1}
+            style={[styles.title, {
+              fontSize: titleSize,
+              lineHeight: Math.round(titleSize * 0.97),
+              letterSpacing: trackingPx(tracking.display, titleSize),
+            }]}
+          >
+            {game.name}
+          </Text>
         </View>
-        <View style={styles.heroFacts}>
-          <View style={styles.heroFact}>
-            <Text style={styles.metaLabel}>Released</Text>
-            <Text style={styles.heroValue}>{year ?? '—'}</Text>
-          </View>
-          <View style={styles.heroFact}>
-            <Text style={styles.metaLabel}>Community</Text>
-            <Text style={styles.heroValue}>{community == null ? '—' : community}</Text>
-          </View>
-        </View>
-      </View>
-
-      <Panel style={styles.savePanel}>
-        <Text style={styles.metaLabel}>{LIBRARY_SECTION_TITLE}</Text>
-        {inFile ? (
-          <View style={styles.stack}>
-            <View style={styles.libraryTop}>
-              {viewer?.libraryEntry ? (
-                <View style={styles.chip}>
-                  <Text style={styles.chipText}>{statusLabel(viewer.libraryEntry.status)}</Text>
-                </View>
-              ) : null}
-              {yours != null ? (
-                <Text
-                  accessibilityLabel={`Your score ${yours} out of 10`}
-                  style={[styles.libraryScore, { color: tierColor(yours) }]}
-                >
-                  {libraryScoreText(yours)}
-                </Text>
-              ) : null}
-            </View>
-            {viewer?.libraryEntry ? (
-              <LibraryStatRow entry={viewer.libraryEntry} rowGap={space[4]} itemGap={space[1.5]} />
-            ) : null}
-            {viewer?.review?.updated_at ? <Text style={styles.meta}>Scored {relTime(viewer.review.updated_at)}</Text> : null}
-            {!viewer?.libraryEntry && yours == null ? <Text style={styles.body}>Saved, not scored yet</Text> : null}
-          </View>
-        ) : (
-          <Text style={styles.body}>{libraryEmptyLine(signedIn)}</Text>
-        )}
-      </Panel>
-
-      <SectionHead>The Scoreboard</SectionHead>
-      <Panel style={styles.scorePanel}>
-        <View style={styles.scores}>
-          <View style={styles.scoreBlock}>
-            <Text style={styles.scoreLabel}>You</Text>
-            {yours == null ? <Text style={styles.scoreEmpty}>—</Text> : (
-              <Text accessibilityLabel={`Your score ${yours} out of 10`} style={[styles.communityScore, { color: colors.you }]}>
-                {yours}
-              </Text>
-            )}
-            <Text style={styles.scoreScale}>{yours == null ? (signedIn ? 'not scored' : 'sign in to rate') : '/ 10'}</Text>
-          </View>
-          <View style={styles.scoreBlock}>
-            <Text style={styles.scoreLabel}>Community</Text>
-            {community == null ? <Text style={styles.scoreEmpty}>—</Text> : (
-              <Text
-                accessibilityLabel={`Community score ${community} out of 10`}
-                style={[styles.communityScore, { color: colors.community }]}
-              >
-                {community}
-              </Text>
-            )}
-            <Text style={styles.scoreScale}>
-              {community == null ? 'No ratings yet' : `/ 10 · ${stats.total_ratings}`}
-            </Text>
-          </View>
-        </View>
-        {gap ? <Text style={styles.gap}>{gap}</Text> : null}
-      </Panel>
-
-      <Text style={styles.scoreLabel}>Your turn</Text>
-      <View style={styles.actions}>
-        <Button
-          label={yours == null ? 'Rate' : 'Amend'}
-          accessibilityLabel="Rate"
-          variant="secondary"
-          onPress={() => openAccount('rate')}
-        />
-        <Button
-          label={viewer?.libraryEntry ? statusLabel(viewer.libraryEntry.status) : 'Save game'}
-          accessibilityLabel="Save game"
-          variant="secondary"
-          onPress={() => openAccount('save')}
-        />
-        <Button label="Add to list" variant="secondary" onPress={() => openAccount('list')} />
-      </View>
-
-      <Sheet visible={panel === 'rate'} title={yours == null ? 'Rate and review' : 'Update rating and review'} onClose={() => setPanel(null)}>
-        <View style={styles.actions}>
-          {SCORES.map(value => {
-            const selected = score === value
-            return (
-              <Pressable
-                key={value}
-                accessibilityRole="button"
-                accessibilityLabel={`Score ${value}`}
-                accessibilityState={{ selected }}
-                onPress={() => setScore(value)}
-                style={[styles.scoreKey, { borderColor: tierColor(value) }, selected && { backgroundColor: tierColor(value) }]}
-              >
-                <Text style={[styles.scoreKeyText, { color: selected ? colors.bg : tierColor(value) }]}>{value}</Text>
-              </Pressable>
-            )
-          })}
-        </View>
-        <Text style={styles.body}>{score == null ? 'Pick a score.' : ratingLabel(score)}</Text>
-        <TextField label="Review note" value={note} onChangeText={setNote} multiline />
-        {actionError ? <Text accessibilityLiveRegion="polite" style={styles.error}>{actionError}</Text> : null}
-        {canRetry ? <Button label="Retry" variant="secondary" onPress={retry} /> : null}
-        <Button label={busy ? 'Saving…' : 'Submit rating'} disabled={busy} onPress={() => { void submitRating() }} />
-        {viewer?.review?.review ? (
-          confirmDelete ? (
-            <View style={styles.stack}>
-              <Text style={styles.body}>Delete this review? Your score stays.</Text>
-              <Button label="Delete the written review" variant="secondary" disabled={busy} onPress={() => { void deleteReview() }} />
-              <Button label="Keep review" variant="ghost" onPress={() => setConfirmDelete(false)} />
-            </View>
-          ) : (
-            <Button label="Delete review" variant="ghost" onPress={() => setConfirmDelete(true)} />
-          )
-        ) : null}
-      </Sheet>
-
-      <LibrarySheet
-        visible={panel === 'save'}
-        entry={viewer?.libraryEntry ?? null}
-        onClose={() => setPanel(null)}
-        onSave={onSave}
-        onRemove={onRemoveLibrary}
-      />
-
-      <Sheet visible={panel === 'list'} title={makingList ? 'New list' : 'Add to list'} onClose={() => setPanel(null)}>
-        {makingList ? (
-          <>
-            <TextField label="New list name" value={listName} onChangeText={setListName} />
-            <TextField label="List description" value={listDescription} onChangeText={setListDescription} multiline />
-            <Pressable
-              accessibilityRole="switch"
-              accessibilityLabel="Public list"
-              accessibilityState={{ checked: listPublic }}
-              onPress={() => setListPublic(value => !value)}
-              style={[styles.statusRow, listPublic && styles.statusSelected]}
-            >
-              <Text style={styles.body}>Public</Text>
-              <Text style={styles.meta}>{listPublic ? 'On' : 'Off'}</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="switch"
-              accessibilityLabel="Pinned list"
-              accessibilityState={{ checked: listPinned }}
-              onPress={() => setListPinned(value => !value)}
-              style={[styles.statusRow, listPinned && styles.statusSelected]}
-            >
-              <Text style={styles.body}>Pinned</Text>
-              <Text style={styles.meta}>{listPinned ? 'On' : 'Off'}</Text>
-            </Pressable>
-            {actionError ? <Text accessibilityLiveRegion="polite" style={styles.error}>{actionError}</Text> : null}
-            {canRetry ? <Button label="Retry" variant="secondary" onPress={retry} /> : null}
-            <Button label={busy ? 'Saving…' : 'Create list'} disabled={busy} onPress={() => { void submitList() }} />
-            <Button label="Back to lists" variant="ghost" onPress={() => setMakingList(false)} />
-          </>
-        ) : (
-          <>
-            {(viewer?.lists ?? []).length === 0 ? <Text style={styles.body}>{"You don't have a list yet."}</Text> : null}
-            {(viewer?.lists ?? []).map(list => {
-              const listed = viewer?.listIdsGameIsIn.includes(list.id) ?? false
-              return (
-                <Button
-                  key={list.id}
-                  label={listed ? `${list.name} · In this list` : list.name}
-                  accessibilityLabel={listed ? `Remove from ${list.name}` : `Add to ${list.name}`}
-                  selected={listed}
-                  variant="secondary"
-                  disabled={busy}
-                  onPress={() => {
-                    if (listed && onRemoveFromList) void run(() => onRemoveFromList(list.id), true)
-                    if (!listed && onAddToList) void run(() => onAddToList(list.id), true)
-                  }}
-                />
-              )
-            })}
-            {actionError ? <Text accessibilityLiveRegion="polite" style={styles.error}>{actionError}</Text> : null}
-            {canRetry ? <Button label="Retry" variant="secondary" onPress={retry} /> : null}
-            <Button label="New list" variant="primary" onPress={() => { setActionError(null); setCanRetry(false); setMakingList(true) }} />
-          </>
-        )}
-      </Sheet>
-
-      <Sheet visible={prompt} title="Sign up" onClose={() => setPrompt(false)}>
-        <AccountPrompt onSignIn={onSignIn} onSignUp={onSignUp} />
-      </Sheet>
-
-      <SectionHead>Credits</SectionHead>
-      <Text style={styles.metaLabel}>Platforms</Text>
-      <View style={styles.tags}>
-        {taxonomy.platforms.length === 0 ? <Text style={styles.body}>—</Text> : taxonomy.platforms.map(row => (
-          <Button
-            key={row.id}
-            label={row.name}
-            accessibilityLabel={`Browse ${row.name}`}
-            variant="ghost"
-            onPress={() => onOpenCatalogue?.({ platform: row.slug })}
-          />
-        ))}
-      </View>
-      <Text style={styles.metaLabel}>Developed by</Text>
-      <View style={styles.tags}>
-        {taxonomy.developers.length === 0 ? <Text style={styles.body}>—</Text> : taxonomy.developers.map(row => (
-          <Button
-            key={row.id}
-            label={row.name}
-            accessibilityLabel={`Browse ${row.name}`}
-            variant="ghost"
-            onPress={() => onOpenCatalogue?.({ developer: row.slug })}
-          />
-        ))}
-      </View>
-      <Text style={styles.metaLabel}>Published by</Text>
-      <View style={styles.tags}>
-        {taxonomy.publishers.length === 0 ? <Text style={styles.body}>—</Text> : taxonomy.publishers.map(row => (
-          <Button
-            key={row.id}
-            label={row.name}
-            accessibilityLabel={`Browse ${row.name}`}
-            variant="ghost"
-            onPress={() => onOpenCatalogue?.({ publisher: row.slug })}
-          />
-        ))}
-      </View>
-
-      {game.description ? (
-        <View style={styles.about}>
-          <SectionHead>About</SectionHead>
-          <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.aboutMeasure}>
-            <Text style={styles.body} onLayout={event => setAboutFullHeight(event.nativeEvent.layout.height)}>{game.description}</Text>
-            <Text numberOfLines={6} style={styles.body} onLayout={event => setAboutLimitHeight(event.nativeEvent.layout.height)}>{game.description}</Text>
-          </View>
-          <Text numberOfLines={aboutOverflows && !aboutOpen ? 6 : undefined} style={styles.body}>{game.description}</Text>
-          {aboutOverflows ? (
-            <Button label={aboutOpen ? 'Show less' : 'Read more'} variant="ghost" onPress={() => setAboutOpen(open => !open)} />
-          ) : null}
-        </View>
-      ) : null}
-
-      {frame ? (
-        <>
-          <SectionHead>Gallery</SectionHead>
-          <View style={styles.shotFrame}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Screenshot ${shotNumber + 1} of ${shots.length}`}
-              onPress={() => setShotOpen(true)}
-              style={styles.shotHit}
-            >
-              <Image key={frame} source={frame} style={styles.shot} contentFit="cover" accessible={false} />
-            </Pressable>
-            {shots.length > 1 ? (
-              <View style={styles.shotNav}>
-                <Button
-                  label="Previous"
-                  accessibilityLabel="Previous screenshot"
-                  variant="secondary"
-                  onPress={() => stepShot(-1)}
-                />
-                <Button
-                  label="Next"
-                  accessibilityLabel="Next screenshot"
-                  variant="secondary"
-                  onPress={() => stepShot(1)}
-                />
-              </View>
-            ) : null}
-          </View>
-          <Modal visible={shotOpen} transparent animationType="fade" onRequestClose={() => setShotOpen(false)}>
-            <View style={styles.viewer}>
-              <Image source={frame} style={styles.viewerImage} contentFit="contain" accessible={false} />
-              <View style={styles.shotNav}>
-                {shots.length > 1 ? (
-                  <>
-                    <Button
-                      label="Previous"
-                      accessibilityLabel="Previous screenshot"
-                      variant="secondary"
-                      onPress={() => stepShot(-1)}
-                    />
-                    <Button
-                      label="Next"
-                      accessibilityLabel="Next screenshot"
-                      variant="secondary"
-                      onPress={() => stepShot(1)}
-                    />
-                  </>
-                ) : null}
-                <Button label="Close screenshot" variant="secondary" onPress={() => setShotOpen(false)} />
-              </View>
-            </View>
-          </Modal>
-        </>
-      ) : null}
-
-      <SectionHead count={stats.total_ratings > 0 ? `${stats.total_ratings} ${stats.total_ratings === 1 ? 'score' : 'scores'}` : 'no scores yet'}>
-        The Community
-      </SectionHead>
-      {stats.total_ratings > 0 ? (
-        <Panel style={styles.scorePanel}>
-          {rows.map(row => (
-            <View key={row.name} style={styles.barRow}>
-              <Text style={styles.barLabel}>{row.name}</Text>
-              <View style={styles.barTrack}>
-                <View style={[styles.barFill, {
-                  width: row.count > 0 ? `${(row.count / maxCount) * 100}%` : 0,
-                  minWidth: row.count > 0 ? 3 : 0,
-                  backgroundColor: colors.community,
-                }]} />
-              </View>
-              <Text style={styles.barCount}>
-                {row.count > 0 ? `${row.count} · ${Math.round((row.count / stats.total_ratings) * 100)}%` : '—'}
-              </Text>
-            </View>
+        <View style={styles.tags}>
+          {taxonomy.genres.map(genre => (
+            <Button
+              key={genre.id}
+              label={genre.name}
+              accessibilityLabel={`Browse ${genre.name}`}
+              variant="secondary"
+              onPress={() => onOpenCatalogue?.({ genre: genre.slug })}
+            />
           ))}
-        </Panel>
-      ) : (
-        <Text style={styles.body}>No one on ScreenPeak has scored {game.name} yet. Be the first to put it on the board.</Text>
-      )}
+          {esrb ? (
+            <Button
+              label={esrb}
+              accessibilityLabel={`Browse games rated ${esrb}`}
+              variant="secondary"
+              onPress={() => onOpenCatalogue?.({ esrb })}
+            />
+          ) : null}
+        </View>
 
-      <SectionHead count={stats.total_reviews}>Reviews</SectionHead>
-      {stats.total_reviews > 1 ? (
+        <View style={styles.hero}>
+          <View style={styles.cover}>
+            {cover ? (
+              <Image source={cover} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityLabel={`${game.name} cover`} />
+            ) : (
+              <Text style={styles.noCover}>No Cover</Text>
+            )}
+          </View>
+          <View style={styles.heroFacts}>
+            <View style={styles.heroFact}>
+              <Text style={text.label}>Released</Text>
+              <Text style={styles.heroValue}>{year ?? '—'}</Text>
+            </View>
+            <View style={styles.heroFact}>
+              <Text style={text.label}>Community</Text>
+              <Text style={styles.heroValue}>{community == null ? '—' : community}</Text>
+            </View>
+          </View>
+        </View>
+
+        <Panel style={styles.savePanel}>
+          <Text style={text.label}>{LIBRARY_SECTION_TITLE}</Text>
+          {inFile ? (
+            <View style={styles.stack}>
+              <View style={styles.libraryTop}>
+                {viewer?.libraryEntry ? (
+                  <View style={styles.chip}>
+                    <Text style={styles.chipText}>{statusLabel(viewer.libraryEntry.status)}</Text>
+                  </View>
+                ) : null}
+                {yours != null ? (
+                  <Text
+                    accessibilityLabel={`Your score ${yours} out of 10`}
+                    style={[styles.libraryScore, { color: tierColor(yours) }]}
+                  >
+                    {libraryScoreText(yours)}
+                  </Text>
+                ) : null}
+              </View>
+              {viewer?.libraryEntry ? (
+                <LibraryStatRow entry={viewer.libraryEntry} rowGap={space[4]} itemGap={space[1.5]} />
+              ) : null}
+              {viewer?.review?.updated_at ? <Text style={text.caption}>Scored {relTime(viewer.review.updated_at)}</Text> : null}
+              {!viewer?.libraryEntry && yours == null ? <Text style={text.body}>Saved, not scored yet</Text> : null}
+            </View>
+          ) : (
+            <Text style={text.body}>{libraryEmptyLine(signedIn)}</Text>
+          )}
+        </Panel>
+
+        <SectionHead>The Scoreboard</SectionHead>
+        <Panel style={styles.scorePanel}>
+          <View style={styles.scores}>
+            <View style={styles.scoreBlock}>
+              <Text style={styles.scoreLabel}>You</Text>
+              {yours == null ? <Text style={styles.scoreEmpty}>—</Text> : (
+                <Text accessibilityLabel={`Your score ${yours} out of 10`} style={[styles.communityScore, { color: colors.you }]}>
+                  {yours}
+                </Text>
+              )}
+              <Text style={styles.scoreScale}>{yours == null ? (signedIn ? 'not scored' : 'sign in to rate') : '/ 10'}</Text>
+            </View>
+            <View style={styles.scoreBlock}>
+              <Text style={styles.scoreLabel}>Community</Text>
+              {community == null ? <Text style={styles.scoreEmpty}>—</Text> : (
+                <Text
+                  accessibilityLabel={`Community score ${community} out of 10`}
+                  style={[styles.communityScore, { color: colors.community }]}
+                >
+                  {community}
+                </Text>
+              )}
+              <Text style={styles.scoreScale}>
+                {community == null ? 'No ratings yet' : `/ 10 · ${stats.total_ratings}`}
+              </Text>
+            </View>
+          </View>
+          {gap ? <Text style={styles.gap}>{gap}</Text> : null}
+        </Panel>
+
+        <Text style={styles.scoreLabel}>Your turn</Text>
         <View style={styles.actions}>
           <Button
-            label="Date"
-            accessibilityLabel="Sort reviews by date"
-            selected={reviewsQuery.sort === 'date'}
+            label={yours == null ? 'Rate' : 'Amend'}
+            accessibilityLabel="Rate"
             variant="secondary"
-            onPress={() => onReviewsQuery?.({ ...reviewsQuery, page: 1, sort: 'date' })}
+            onPress={() => openAccount('rate')}
           />
           <Button
-            label="Rating"
-            accessibilityLabel="Sort reviews by rating"
-            selected={reviewsQuery.sort === 'rating'}
+            label={viewer?.libraryEntry ? statusLabel(viewer.libraryEntry.status) : 'Save game'}
+            accessibilityLabel="Save game"
             variant="secondary"
-            onPress={() => onReviewsQuery?.({ ...reviewsQuery, page: 1, sort: 'rating' })}
+            onPress={() => openAccount('save')}
           />
-          <Button
-            label={reviewsQuery.order === 'desc' ? 'Sort descending' : 'Sort ascending'}
-            variant="secondary"
-            onPress={() => onReviewsQuery?.({
-              ...reviewsQuery,
-              page: 1,
-              order: reviewsQuery.order === 'desc' ? 'asc' : 'desc',
-            })}
-          />
+          <Button label="Add to list" variant="secondary" onPress={() => openAccount('list')} />
         </View>
-      ) : null}
-      {reviewsLoading ? <Text style={styles.meta}>Loading reviews</Text> : null}
-      {reviewsNote ? (
-        <View style={styles.stack}>
-          <Text style={styles.body}>{reviewsNote}</Text>
-          <Button label="Retry reviews" variant="ghost" onPress={onRetryReviews} />
-        </View>
-      ) : null}
-      {viewer?.review?.review ? (
-        <Panel style={styles.review}>
-          <View style={styles.reviewHead}>
-            <Avatar alt="You" src={viewer.review.users.avatar_url || null} size="sm" />
-            <Text style={styles.reviewName}>You</Text>
-            <Text style={styles.meta}>{relTime(viewer.review.created_at)}</Text>
-            <Text style={[styles.reviewUser, { color: tierColor(viewer.review.rating) }]}>
-              {viewer.review.rating} / 10
-            </Text>
-          </View>
-          <Text style={styles.body}>{`“${viewer.review.review}”`}</Text>
-        </Panel>
-      ) : null}
-      {reviews?.reviews.map(review => (
-        <Panel key={review.user_id} style={styles.review}>
-          <View style={styles.reviewHead}>
-            <Avatar alt={review.users.username} src={review.users.avatar_url || null} size="sm" />
-            <Pressable accessibilityRole="link" accessibilityLabel={review.users.username} onPress={() => onOpenProfile?.(review.users.username)}>
-              <Text style={styles.reviewName}>{review.users.username}</Text>
-            </Pressable>
-            <Text style={styles.meta}>{relTime(review.created_at)}</Text>
-            <Text style={[styles.reviewUser, { color: tierColor(review.rating) }]}>{review.rating} / 10</Text>
-          </View>
-          <Text style={styles.body}>{review.review ? `“${review.review}”` : 'Scored it, no note.'}</Text>
-        </Panel>
-      ))}
-      {stats.total_reviews === 0 ? <EmptyState dense title="No written reviews yet." /> : null}
-      {reviews && reviews.totalPages > 1 ? (
-        <View style={styles.actions}>
-          {reviewsQuery.page > 1 ? (
-            <Button
-              label="Previous page"
-              variant="secondary"
-              onPress={() => onReviewsQuery?.({ ...reviewsQuery, page: reviewsQuery.page - 1 })}
-            />
-          ) : null}
-          <Text style={styles.meta}>Page {reviewsQuery.page} of {reviews.totalPages}</Text>
-          {reviewsQuery.page < reviews.totalPages ? (
-            <Button
-              label="Next page"
-              variant="secondary"
-              onPress={() => onReviewsQuery?.({ ...reviewsQuery, page: reviewsQuery.page + 1 })}
-            />
-          ) : null}
-        </View>
-      ) : null}
-      <View style={styles.reviewWrite}>
-        <Button
-          label={viewer?.review?.review ? 'Edit your review' : 'Write a review'}
-          variant="secondary"
-          onPress={() => openAccount('rate')}
+
+        <RateSheet
+          visible={panel === 'rate'}
+          review={viewer?.review ?? null}
+          onClose={() => setPanel(null)}
+          onRate={onRate}
         />
-      </View>
 
-      {game.reddit_url ? (
-        <Elsewhere url={game.reddit_url} />
-      ) : null}
+        <LibrarySheet
+          visible={panel === 'save'}
+          entry={viewer?.libraryEntry ?? null}
+          onClose={() => setPanel(null)}
+          onSave={onSave}
+          onRemove={onRemoveLibrary}
+        />
 
-      <DataAttribution />
+        <ListPickerSheet
+          visible={panel === 'list'}
+          lists={viewer?.lists ?? []}
+          listIdsGameIsIn={viewer?.listIdsGameIsIn ?? []}
+          defaultPublic={viewer?.defaultListPrivacy ?? true}
+          onClose={() => setPanel(null)}
+          onAdd={onAddToList}
+          onRemove={onRemoveFromList}
+          onCreate={onCreateList}
+        />
+
+        <Sheet visible={prompt} title="Sign up" onClose={() => setPrompt(false)}>
+          <AccountPrompt onSignIn={onSignIn} onSignUp={onSignUp} />
+        </Sheet>
+
+        <SectionHead>Credits</SectionHead>
+        <CreditTags label="Platforms" rows={taxonomy.platforms} onOpen={platform => onOpenCatalogue?.({ platform })} />
+        <CreditTags label="Developed by" rows={taxonomy.developers} onOpen={developer => onOpenCatalogue?.({ developer })} />
+        <CreditTags label="Published by" rows={taxonomy.publishers} onOpen={publisher => onOpenCatalogue?.({ publisher })} />
+
+        {game.description ? <About description={game.description} /> : null}
+
+        <GameGallery shots={shots} />
+
+        <SectionHead count={stats.total_ratings > 0 ? `${stats.total_ratings} ${stats.total_ratings === 1 ? 'score' : 'scores'}` : 'no scores yet'}>
+          The Community
+        </SectionHead>
+        {stats.total_ratings > 0 ? (
+          <Panel style={styles.scorePanel}>
+            {rows.map(row => (
+              <View key={row.name} style={styles.barRow}>
+                <Text style={styles.barLabel}>{row.name}</Text>
+                <View style={styles.barTrack}>
+                  <View style={[styles.barFill, {
+                    width: row.count > 0 ? `${(row.count / maxCount) * 100}%` : 0,
+                    minWidth: row.count > 0 ? 3 : 0,
+                    backgroundColor: colors.community,
+                  }]} />
+                </View>
+                <Text style={styles.barCount}>
+                  {row.count > 0 ? `${row.count} · ${Math.round((row.count / stats.total_ratings) * 100)}%` : '—'}
+                </Text>
+              </View>
+            ))}
+          </Panel>
+        ) : (
+          <Text style={text.body}>No one on ScreenPeak has scored {game.name} yet. Be the first to put it on the board.</Text>
+        )}
+
+        <SectionHead count={stats.total_reviews}>Reviews</SectionHead>
+        {stats.total_reviews > 1 ? (
+          <View style={styles.actions}>
+            <Button
+              label="Date"
+              accessibilityLabel="Sort reviews by date"
+              selected={reviewsQuery.sort === 'date'}
+              variant="secondary"
+              onPress={() => onReviewsQuery?.({ ...reviewsQuery, page: 1, sort: 'date' })}
+            />
+            <Button
+              label="Rating"
+              accessibilityLabel="Sort reviews by rating"
+              selected={reviewsQuery.sort === 'rating'}
+              variant="secondary"
+              onPress={() => onReviewsQuery?.({ ...reviewsQuery, page: 1, sort: 'rating' })}
+            />
+            <Button
+              label={reviewsQuery.order === 'desc' ? 'Sort descending' : 'Sort ascending'}
+              variant="secondary"
+              onPress={() => onReviewsQuery?.({
+                ...reviewsQuery,
+                page: 1,
+                order: reviewsQuery.order === 'desc' ? 'asc' : 'desc',
+              })}
+            />
+          </View>
+        ) : null}
+        {reviewsLoading ? <Text style={text.caption}>Loading reviews</Text> : null}
+        {reviewsNote ? (
+          <View style={styles.stack}>
+            <Text style={text.body}>{reviewsNote}</Text>
+            <Button label="Retry reviews" variant="ghost" onPress={onRetryReviews} />
+          </View>
+        ) : null}
+        {viewer?.review?.review ? (
+          <ReviewCard
+            name="You"
+            avatarUrl={viewer.review.users.avatar_url}
+            date={viewer.review.created_at}
+            rating={viewer.review.rating}
+            body={`“${viewer.review.review}”`}
+          />
+        ) : null}
+        {reviews?.reviews.map(review => (
+          <ReviewCard
+            key={review.user_id}
+            name={review.users.username}
+            avatarUrl={review.users.avatar_url}
+            date={review.created_at}
+            rating={review.rating}
+            body={review.review ? `“${review.review}”` : 'Scored it, no note.'}
+            onOpenProfile={() => onOpenProfile?.(review.users.username)}
+          />
+        ))}
+        {stats.total_reviews === 0 ? <EmptyState dense title="No written reviews yet." /> : null}
+        {reviews && reviews.totalPages > 1 ? (
+          <View style={styles.actions}>
+            {reviewsQuery.page > 1 ? (
+              <Button
+                label="Previous page"
+                variant="secondary"
+                onPress={() => onReviewsQuery?.({ ...reviewsQuery, page: reviewsQuery.page - 1 })}
+              />
+            ) : null}
+            <Text style={text.caption}>Page {reviewsQuery.page} of {reviews.totalPages}</Text>
+            {reviewsQuery.page < reviews.totalPages ? (
+              <Button
+                label="Next page"
+                variant="secondary"
+                onPress={() => onReviewsQuery?.({ ...reviewsQuery, page: reviewsQuery.page + 1 })}
+              />
+            ) : null}
+          </View>
+        ) : null}
+        <View style={styles.reviewWrite}>
+          <Button
+            label={viewer?.review?.review ? 'Edit your review' : 'Write a review'}
+            variant="secondary"
+            onPress={() => openAccount('rate')}
+          />
+        </View>
+
+        {game.reddit_url ? (
+          <Elsewhere url={game.reddit_url} />
+        ) : null}
+
+        <DataAttribution />
       </ScrollView>
     </View>
   )
@@ -752,6 +507,17 @@ export function GameDetailSkeleton() {
         <View style={styles.boneScore} />
       </View>
     </View>
+  )
+}
+
+function AccountPrompt({ onSignIn, onSignUp }: { onSignIn: () => void, onSignUp: () => void }) {
+  const dismiss = useSheetDismiss()
+  return (
+    <>
+      <Text style={text.body}>Sign up to rate, log, or list this game.</Text>
+      <Button label="Sign up" onPress={() => dismiss(onSignUp)} />
+      <Button label="Log in" variant="secondary" onPress={() => dismiss(onSignIn)} />
+    </>
   )
 }
 
@@ -844,37 +610,6 @@ const styles = StyleSheet.create({
     paddingTop: space[2],
   },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2], alignItems: 'center' },
-  scoreKey: {
-    minWidth: 44,
-    minHeight: 44,
-    paddingHorizontal: space[2],
-    borderWidth: 1,
-    borderRadius: radius.base,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surface,
-  },
-  scoreKeyText: { fontFamily: face.mono[600], fontSize: typeScale.base.size },
-  statusRow: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.base,
-    paddingHorizontal: space[3],
-    paddingVertical: space[3],
-    gap: space[1],
-    backgroundColor: colors.surface,
-  },
-  statusSelected: { borderColor: colors.accent },
-  metaLabel: {
-    fontFamily: face.mono[400],
-    fontSize: typeScale.eyebrow.size,
-    letterSpacing: trackingPx(tracking.wide, typeScale.eyebrow.size),
-    textTransform: 'uppercase',
-    color: colors.muted,
-  },
-  meta: { fontFamily: face.mono[400], fontSize: typeScale.xs.size, color: colors.muted },
-  body: { fontFamily: face.body[400], fontSize: typeScale.base.size, lineHeight: typeScale.base.line, color: colors.text },
-  error: { fontFamily: face.body[400], fontSize: typeScale.sm.size, lineHeight: typeScale.sm.line, color: colors.bad },
   link: {
     fontFamily: face.mono[400],
     fontSize: typeScale.sm.size,
@@ -883,18 +618,6 @@ const styles = StyleSheet.create({
   },
   about: { position: 'relative', gap: space[2] },
   aboutMeasure: { position: 'absolute', opacity: 0, left: 0, right: 0, zIndex: -1 },
-  shotFrame: { gap: space[2] },
-  shotHit: { width: '100%' },
-  shot: { width: '100%', aspectRatio: 16 / 9, borderRadius: radius.base, backgroundColor: colors.surfaceLight },
-  shotNav: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2], justifyContent: 'center' },
-  viewer: {
-    flex: 1,
-    backgroundColor: colors.bg,
-    justifyContent: 'center',
-    padding: space[4],
-    gap: space[4],
-  },
-  viewerImage: { width: '100%', flex: 1 },
   reviewWrite: { alignItems: 'flex-end' },
   barRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
   barLabel: { width: 20, fontFamily: face.mono[400], fontSize: typeScale.xs.size, color: colors.text, textAlign: 'right' },
@@ -909,14 +632,3 @@ const styles = StyleSheet.create({
   boneCover: { width: 180, height: 240, backgroundColor: colors.surfaceLight, borderRadius: radius.base },
   boneScore: { height: 88, backgroundColor: colors.surfaceLight, borderRadius: radius.base },
 })
-
-function AccountPrompt({ onSignIn, onSignUp }: { onSignIn: () => void, onSignUp: () => void }) {
-  const dismiss = useSheetDismiss()
-  return (
-    <>
-      <Text style={styles.body}>Sign up to rate, log, or list this game.</Text>
-      <Button label="Sign up" onPress={() => dismiss(onSignUp)} />
-      <Button label="Log in" variant="secondary" onPress={() => dismiss(onSignIn)} />
-    </>
-  )
-}

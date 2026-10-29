@@ -1,11 +1,14 @@
 import { listFieldsSchema } from '@screenpeak/shared/schemas'
-import { useEffect, useRef, useState } from 'react'
-import { Pressable, StyleSheet, Text } from 'react-native'
+import { useState } from 'react'
+import { Text } from 'react-native'
 
-import { colors, face, hitTarget, radius, space, typeScale } from '@/theme'
+import { useOnOpen } from '@/lib/use-on-open'
+import { text } from '@/theme'
 
+import { ActionError } from './action-error'
 import { Button } from './button'
 import { Sheet } from './sheet'
+import { SwitchRow } from './switch-row'
 import { TextField } from './text-field'
 
 export type ListFormValues = {
@@ -13,6 +16,45 @@ export type ListFormValues = {
   description: string
   isPublic: boolean
   isPinned: boolean
+}
+
+/** Check the fields. The first problem is the sentence to show. */
+export function parseListForm(values: ListFormValues): { ok: true, values: ListFormValues } | { ok: false, message: string } {
+  const parsed = listFieldsSchema.safeParse(values)
+  if (parsed.success) return { ok: true, values: parsed.data }
+  return { ok: false, message: parsed.error.issues[0]?.message ?? 'Give the list a name' }
+}
+
+/** Name, description, and the public and pinned switches. */
+export function ListFields({ values, onChange, nameLabel = 'List name', descriptionLabel = 'Description' }: {
+  values: ListFormValues
+  onChange: (next: ListFormValues) => void
+  nameLabel?: string
+  descriptionLabel?: string
+}) {
+  return (
+    <>
+      <TextField label={nameLabel} value={values.name} onChangeText={name => onChange({ ...values, name })} />
+      <TextField
+        label={descriptionLabel}
+        value={values.description}
+        onChangeText={description => onChange({ ...values, description })}
+        multiline
+      />
+      <SwitchRow
+        label="Public"
+        accessibilityLabel="Public list"
+        value={values.isPublic}
+        onChange={isPublic => onChange({ ...values, isPublic })}
+      />
+      <SwitchRow
+        label="Pinned"
+        accessibilityLabel="Pinned list"
+        value={values.isPinned}
+        onChange={isPinned => onChange({ ...values, isPinned })}
+      />
+    </>
+  )
 }
 
 /** Create or edit a list. Delete is a second step in the same sheet. */
@@ -39,34 +81,24 @@ export function ListFormSheet({
   onSubmit: (values: ListFormValues) => void
   onDelete?: () => void
 }) {
-  const [name, setName] = useState(initial.name)
-  const [description, setDescription] = useState(initial.description)
-  const [isPublic, setPublic] = useState(initial.isPublic)
-  const [isPinned, setPinned] = useState(initial.isPinned)
+  const [values, setValues] = useState(initial)
   const [confirming, setConfirming] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
-  const open = useRef(false)
 
-  useEffect(() => {
-    if (visible && !open.current) {
-      setName(initial.name)
-      setDescription(initial.description)
-      setPublic(initial.isPublic)
-      setPinned(initial.isPinned)
-      setConfirming(false)
-      setLocalError(null)
-    }
-    open.current = visible
-  }, [visible, initial.name, initial.description, initial.isPublic, initial.isPinned])
+  useOnOpen(visible, () => {
+    setValues(initial)
+    setConfirming(false)
+    setLocalError(null)
+  })
 
   function submit() {
-    const parsed = listFieldsSchema.safeParse({ name, description, isPublic, isPinned })
-    if (!parsed.success) {
-      setLocalError(parsed.error.issues[0]?.message ?? 'Give the list a name')
+    const parsed = parseListForm(values)
+    if (!parsed.ok) {
+      setLocalError(parsed.message)
       return
     }
     setLocalError(null)
-    onSubmit(parsed.data)
+    onSubmit(parsed.values)
   }
 
   const shown = localError ?? error
@@ -75,36 +107,15 @@ export function ListFormSheet({
     <Sheet visible={visible} title={confirming ? 'Delete this list?' : title} onClose={onClose}>
       {confirming ? (
         <>
-          <Text style={styles.body}>This cannot be undone.</Text>
-          {shown ? <Text accessibilityLiveRegion="polite" style={styles.error}>{shown}</Text> : null}
+          <Text style={text.body}>This cannot be undone.</Text>
+          <ActionError error={shown} />
           <Button label={busy ? 'Deleting…' : 'Delete list'} variant="secondary" disabled={busy} onPress={() => onDelete?.()} />
           <Button label="Keep list" variant="ghost" onPress={() => setConfirming(false)} />
         </>
       ) : (
         <>
-          <TextField label="List name" value={name} onChangeText={setName} />
-          <TextField label="Description" value={description} onChangeText={setDescription} multiline />
-          <Pressable
-            accessibilityRole="switch"
-            accessibilityLabel="Public list"
-            accessibilityState={{ checked: isPublic }}
-            onPress={() => setPublic(value => !value)}
-            style={[styles.switchRow, isPublic && styles.switchOn]}
-          >
-            <Text style={styles.body}>Public</Text>
-            <Text style={styles.meta}>{isPublic ? 'On' : 'Off'}</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="switch"
-            accessibilityLabel="Pinned list"
-            accessibilityState={{ checked: isPinned }}
-            onPress={() => setPinned(value => !value)}
-            style={[styles.switchRow, isPinned && styles.switchOn]}
-          >
-            <Text style={styles.body}>Pinned</Text>
-            <Text style={styles.meta}>{isPinned ? 'On' : 'Off'}</Text>
-          </Pressable>
-          {shown ? <Text accessibilityLiveRegion="polite" style={styles.error}>{shown}</Text> : null}
+          <ListFields values={values} onChange={setValues} />
+          <ActionError error={shown} />
           <Button label={busy ? 'Saving…' : submitLabel} disabled={busy} onPress={submit} />
           {canDelete ? (
             <Button label="Delete list" variant="ghost" onPress={() => { setLocalError(null); setConfirming(true) }} />
@@ -114,35 +125,3 @@ export function ListFormSheet({
     </Sheet>
   )
 }
-
-const styles = StyleSheet.create({
-  body: {
-    fontFamily: face.body[400],
-    fontSize: typeScale.base.size,
-    lineHeight: typeScale.base.line,
-    color: colors.text,
-  },
-  meta: {
-    fontFamily: face.mono[400],
-    fontSize: typeScale.sm.size,
-    lineHeight: typeScale.sm.line,
-    color: colors.muted,
-  },
-  switchRow: {
-    minHeight: hitTarget,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.base,
-    paddingHorizontal: space[3],
-    paddingVertical: space[3],
-    gap: space[1],
-    backgroundColor: colors.surface,
-  },
-  switchOn: { borderColor: colors.accent },
-  error: {
-    fontFamily: face.body[400],
-    fontSize: typeScale.sm.size,
-    lineHeight: typeScale.sm.line,
-    color: colors.bad,
-  },
-})

@@ -19,3 +19,4 @@ export {
   typeScale,
 } from '@screenpeak/shared/tokens';
 export { face, fontFiles } from './fonts';
+export { text } from './text';

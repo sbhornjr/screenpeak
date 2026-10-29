@@ -3,8 +3,6 @@ import type { GameRatingsStats } from '@screenpeak/shared/types'
 import type { LibraryWrite } from '@screenpeak/shared/api/writes'
 import { libraryEntryWriteSchema } from '@screenpeak/shared/schemas'
 
-import { ApiClientError } from './api/client'
-
 export const LIBRARY_STATUSES = ['backlog', 'playing', 'completed', 'abandoned'] as const
 
 export type LibraryStatus = (typeof LIBRARY_STATUSES)[number]
@@ -102,19 +100,6 @@ export function scoreGap(input: {
   if (you != null) return null
   if (community != null) return input.signedIn ? 'Add your rating' : 'Sign in to add your rating'
   return 'Be the first to rate it'
-}
-
-export function actionFailure(error: unknown): string {
-  if (error instanceof ApiClientError && error.status === 429) {
-    const wait = error.retryAfter
-    if (wait != null && wait > 0) {
-      return `Too many requests. Try again in ${wait} ${wait === 1 ? 'second' : 'seconds'}.`
-    }
-    return 'Too many requests. Try again soon.'
-  }
-  if (error instanceof ApiClientError) return error.message
-  if (error instanceof Error && error.message) return error.message
-  return 'Something went wrong.'
 }
 
 function hoursValue(raw: string): { ok: true, value: number | null } | { ok: false, message: string } {
