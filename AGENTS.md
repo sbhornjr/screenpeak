@@ -75,6 +75,11 @@ role must be allowed to `CREATE DATABASE`. The integration config is
 `apps/web/vitest.igdb-integration.config.mts`. Unit tests do not need a database.
 See `apps/web/test/README.md` for what each suite covers.
 
+Agent skills live in `.cursor/skills/` (Cursor automations read only that folder).
+`.claude/skills/<name>` is a symlink to each one, for Claude Code. Add a skill
+there and link it; never copy it. There is no `.agents/skills/`, because Cursor
+also reads that folder and would load every skill twice.
+
 Before calling work done, run the verify-screenpeak skill and attach its evidence.
 When you add or change a user-facing feature, update verify-screenpeak's feature map using the maintain-verification-skill skill, and include the new flow's evidence in the PR.
 

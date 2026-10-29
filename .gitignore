@@ -42,7 +42,8 @@ yarn-error.log*
 next-env.d.ts
 
 # ai
-/.claude/
+/.claude/*
+!/.claude/skills/
 /.playwright-mcp/
 
 # stray screenshots from local UI review
