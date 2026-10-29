@@ -53,18 +53,24 @@ export const uuidIdSchema = z.uuid('Must be a uuid.')
 export const libraryStatusSchema = z.enum(LIBRARY_STATUSES)
 
 /** numeric(8,1): one decimal place, at most 9999999.9. */
-const hoursPlayedSchema = z.number()
+export const hoursPlayedSchema = z.number()
     .finite('Hours must be a finite number')
     .min(0, 'Hours cannot be negative')
     .max(9999999.9, 'Hours cannot exceed 9999999.9')
     .refine((value) => Math.abs(value * 10 - Math.round(value * 10)) < 1e-6, 'Hours can have at most one decimal place')
+
+/** smallint, never negative. */
+export const playCountSchema = z.number()
+    .int('Play count must be a whole number')
+    .min(0, 'Play count cannot be negative')
+    .max(32767, 'Play count cannot exceed 32767')
 
 /** PUT /api/v1/me/library/[gameId]. Status is required. Omitted fields stay as stored on an existing row. */
 export const libraryEntryWriteSchema = z.object({
     status: libraryStatusSchema,
     completed_all_achievements: z.boolean().optional(),
     hours_played: hoursPlayedSchema.nullable().optional(),
-    play_count: z.number().int('Play count must be a whole number').min(0, 'Play count cannot be negative').max(32767, 'Play count cannot exceed 32767').optional(),
+    play_count: playCountSchema.optional(),
 })
 
 /** POST /api/v1/lists. `gameId` creates the list and adds that game in one call. */

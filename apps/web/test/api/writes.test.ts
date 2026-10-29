@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import { ApiError, UnauthenticatedError } from '@/lib/api'
+import { writeErrorText } from '@/lib/write-http'
 
 const requireBearerUser = vi.fn()
 const getUserRatingReviewForGame = vi.fn()
@@ -407,7 +408,12 @@ describe('profile, avatar, steam, loadout clear', () => {
     })
 
     it('turns a taken username into invalid_request without the database text', async () => {
-        patchAccount.mockResolvedValue({ error: 'duplicate key value violates unique constraint "users_username_key"' })
+        // What patchAccount returns for Drizzle's wrapped PostgresError.
+        patchAccount.mockResolvedValue({
+            error: writeErrorText(new Error('Failed query: update "users"', {
+                cause: { code: '23505', message: 'duplicate key value violates unique constraint "users_username_key"' },
+            })),
+        })
 
         const res = await call(me.PATCH, 'http://localhost/api/v1/me', {}, jsonInit('PATCH', { username: 'ada' }))
         const body = await res.json()

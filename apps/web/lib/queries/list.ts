@@ -5,7 +5,7 @@ import { db } from '@/lib/db'
 import { lists, listGames, listLikes, games } from '@/db/schema'
 import { GameCover, ListDetail, ListGameEntry } from '@screenpeak/shared/types'
 import { listFieldsSchema, parseOrError } from '@screenpeak/shared/schemas'
-import { writeErrorText } from '@/lib/write-http'
+import { WRITE_REFUSED, writeErrorText } from '@/lib/write-http'
 
 export async function getUserLists(userId: string | null | undefined, includePrivate: boolean) {
     // A database error must reject. Returning [] makes an outage look like
@@ -138,7 +138,7 @@ export async function getGameListMembership(gameId: string, listIds: (string | n
 export async function addGameToList(listId: string, gameId: string, userId: string) {
     try {
         const owner = await db.select({ id: lists.id }).from(lists).where(and(eq(lists.id, listId), eq(lists.userId, userId))).limit(1)
-        if (owner.length === 0) return { error: 'List not found' }
+        if (owner.length === 0) return { error: WRITE_REFUSED.listNotFound }
 
         const maxPosRows = await db
             .select({ position: listGames.position })
@@ -157,7 +157,7 @@ export async function addGameToList(listId: string, gameId: string, userId: stri
 export async function removeGameFromList(listId: string, gameId: string, userId: string) {
     try {
         const owner = await db.select({ id: lists.id }).from(lists).where(and(eq(lists.id, listId), eq(lists.userId, userId))).limit(1)
-        if (owner.length === 0) return { error: 'List not found' }
+        if (owner.length === 0) return { error: WRITE_REFUSED.listNotFound }
 
         await db.delete(listGames).where(and(eq(listGames.listId, listId), eq(listGames.gameId, gameId)))
         return { error: null }
@@ -227,7 +227,7 @@ export async function updateList(listId: string, fields: ListFields, userId: str
             .set({ name: parsed.data.name, description: parsed.data.description, isPublic: parsed.data.isPublic, isPinned: parsed.data.isPinned })
             .where(and(eq(lists.id, listId), eq(lists.userId, userId)))
             .returning({ id: lists.id })
-        if (rows.length === 0) return { error: 'List not found' }
+        if (rows.length === 0) return { error: WRITE_REFUSED.listNotFound }
         return { error: null }
     } catch (error) {
         return { error: writeErrorText(error) }
@@ -241,7 +241,7 @@ export async function syncListGames(listId: string, { toAdd, toRemove }: { toAdd
     try {
         await db.transaction(async (tx) => {
             const owner = await tx.select({ id: lists.id }).from(lists).where(and(eq(lists.id, listId), eq(lists.userId, userId))).limit(1)
-            if (owner.length === 0) throw new Error('List not found')
+            if (owner.length === 0) throw new Error(WRITE_REFUSED.listNotFound)
 
             const maxPosRows = await tx
                 .select({ position: listGames.position })
@@ -280,8 +280,8 @@ export async function likeList(listId: string, userId: string) {
             .limit(1)
         const row = list[0]
         // Someone else's private list is the same answer as a missing list, and no like row is written.
-        if (!row || (!row.isPublic && row.userId !== userId)) return { error: 'List not found' }
-        if (row.userId === userId) return { error: 'Cannot like your own list' }
+        if (!row || (!row.isPublic && row.userId !== userId)) return { error: WRITE_REFUSED.listNotFound }
+        if (row.userId === userId) return { error: WRITE_REFUSED.ownList }
         // A retry must stay liked. The primary key makes a second insert a no-op.
         await db.insert(listLikes).values({ listId, userId }).onConflictDoNothing()
         return { error: null }
@@ -306,7 +306,7 @@ export async function deleteList(listId: string, userId: string) {
             .delete(lists)
             .where(and(eq(lists.id, listId), eq(lists.userId, userId), eq(lists.isDefault, false)))
             .returning({ id: lists.id })
-        if (rows.length === 0) return { error: 'List not found' }
+        if (rows.length === 0) return { error: WRITE_REFUSED.listNotFound }
         return { error: null }
     } catch (error) {
         return { error: writeErrorText(error) }
@@ -321,7 +321,7 @@ export async function setListPinned(listId: string | number, pinned: boolean, us
             .where(and(eq(lists.id, String(listId)), eq(lists.userId, userId)))
             .returning({ is_pinned: lists.isPinned })
 
-        if (rows.length === 0) return { isPinned: undefined, error: 'List not found' }
+        if (rows.length === 0) return { isPinned: undefined, error: WRITE_REFUSED.listNotFound }
         return { isPinned: rows[0]?.is_pinned, error: null }
     } catch (error) {
         return { isPinned: undefined, error: writeErrorText(error) }

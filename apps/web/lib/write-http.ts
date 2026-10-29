@@ -35,6 +35,20 @@ export function uuidParam(value: string, name: string): string {
     return result.data
 }
 
+/** Sentences the list queries return for a refused write. The API matches them
+ *  exactly, so queries and `assertWriteOk` both read them from here. */
+export const WRITE_REFUSED = {
+    listNotFound: 'List not found',
+    ownList: 'Cannot like your own list',
+} as const
+
+// Postgres SQLSTATEs, and the line `writeErrorText` adds for each. The API
+// matches the line, never Postgres's own wording.
+const PG_MARKERS: Record<string, string> = {
+    '23503': 'foreign key violation',
+    '23505': 'duplicate key',
+}
+
 /** Drizzle's `error.message` is "Failed query: …". The Postgres text, including
  *  foreign-key and unique violations, sits on `error.cause`. */
 export function writeErrorText(error: unknown): string {
@@ -46,19 +60,24 @@ export function writeErrorText(error: unknown): string {
         seen.add(current)
         const record = current as { message?: unknown, code?: unknown, cause?: unknown }
         if (typeof record.message === 'string' && record.message) parts.push(record.message)
-        if (record.code === '23503') parts.push('foreign key violation')
-        if (record.code === '23505') parts.push('duplicate key')
+        const marker = typeof record.code === 'string' ? PG_MARKERS[record.code] : undefined
+        if (marker) parts.push(marker)
         current = record.cause
     }
     return parts.join('\n')
 }
 
-/** Validation runs before the query. Anything left is not-found or a database failure. */
-export function assertWriteOk(error: string | null | undefined): void {
+/**
+ * Validation runs before the query. Anything left is not-found or a database
+ * failure. Pass the original error as `cause` when the caller still has it, so
+ * the 500 that `withAuth` logs keeps the stack and the Postgres code.
+ */
+export function assertWriteOk(error: string | null | undefined, cause?: unknown): void {
     if (!error) return
-    if (error === 'List not found') throw new ApiError(404, 'not_found', 'Not found.')
-    if (error === 'Cannot like your own list') throw new ApiError(400, 'invalid_request', "You can't like your own list.")
-    if (/foreign key/i.test(error)) throw new ApiError(400, 'invalid_request', 'Unknown game.')
-    if (/unique|duplicate key/i.test(error)) throw new ApiError(400, 'invalid_request', 'That value is already taken.')
-    throw new Error(error)
+    if (error === WRITE_REFUSED.listNotFound) throw new ApiError(404, 'not_found', 'Not found.')
+    if (error === WRITE_REFUSED.ownList) throw new ApiError(400, 'invalid_request', "You can't like your own list.")
+    const lines = error.split('\n')
+    if (lines.includes(PG_MARKERS['23503'])) throw new ApiError(400, 'invalid_request', 'Unknown game.')
+    if (lines.includes(PG_MARKERS['23505'])) throw new ApiError(400, 'invalid_request', 'That value is already taken.')
+    throw new Error(error, cause === undefined ? undefined : { cause })
 }

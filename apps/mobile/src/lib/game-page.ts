@@ -4,7 +4,7 @@ import { parseDbTimestamp } from '@screenpeak/shared/dates'
 import type { LibraryWrite } from '@screenpeak/shared/api/writes'
 import { LIBRARY_STATUSES, type LibraryStatus } from '@screenpeak/shared/constants'
 import { LIBRARY_STATUS_COPY } from '@screenpeak/shared/library-copy'
-import { libraryEntryWriteSchema } from '@screenpeak/shared/schemas'
+import { hoursPlayedSchema, parseOrError, playCountSchema } from '@screenpeak/shared/schemas'
 
 import { mergeLibraryWrite } from './library-page'
 
@@ -75,16 +75,12 @@ export function scoreGap(input: {
   return 'Be the first to rate it'
 }
 
+/** A blank field clears the hours. */
 function hoursValue(raw: string): { ok: true, value: number | null } | { ok: false, message: string } {
   const trimmed = raw.trim()
   if (trimmed === '') return { ok: true, value: null }
-  const value = Number(trimmed)
-  const parsed = libraryEntryWriteSchema.safeParse({ status: 'playing', hours_played: value })
-  if (!parsed.success) {
-    const issue = parsed.error.issues.find(item => item.path[0] === 'hours_played') ?? parsed.error.issues[0]
-    return { ok: false, message: issue?.message ?? 'Hours must be a finite number' }
-  }
-  return { ok: true, value }
+  const parsed = parseOrError(hoursPlayedSchema, Number(trimmed))
+  return parsed.success ? { ok: true, value: parsed.data } : { ok: false, message: parsed.error }
 }
 
 /**
@@ -98,11 +94,8 @@ export function libraryWrite(
   if (!form.status) return { ok: false, message: 'Pick a status.' }
   const hours = hoursValue(form.hours)
   if (!hours.ok) return hours
-  const plays = libraryEntryWriteSchema.safeParse({ status: form.status, play_count: form.playCount })
-  if (!plays.success) {
-    const issue = plays.error.issues.find(item => item.path[0] === 'play_count') ?? plays.error.issues[0]
-    return { ok: false, message: issue?.message ?? 'Play count must be a whole number' }
-  }
+  const plays = parseOrError(playCountSchema, form.playCount)
+  if (!plays.success) return { ok: false, message: plays.error }
 
   const base = {
     status: original?.status ?? null,

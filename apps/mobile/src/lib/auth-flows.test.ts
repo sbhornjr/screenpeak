@@ -73,4 +73,27 @@ describe('mobile auth flows', () => {
     expect(signup?.body?.code_challenge).toBeNull()
     expect(signup?.body?.email).toBe('other@example.com')
   })
+
+  it('keeps a sign-up that starts during a reset off PKCE', async () => {
+    const storage = memoryStorage()
+    const calls: { url: string, body: Record<string, unknown> | null }[] = []
+    let answerRecover: () => void = () => undefined
+    const recoverHeld = new Promise<void>((resolve) => { answerRecover = resolve })
+    const client = createMobileClient('http://127.0.0.1:9', 'anon-key', storage, async (input, init) => {
+      const url = String(input)
+      calls.push({ url, body: init?.body ? JSON.parse(String(init.body)) as Record<string, unknown> : null })
+      if (url.includes('/recover')) await recoverHeld
+      return new Response(JSON.stringify({}), { status: 200, headers: { 'content-type': 'application/json' } })
+    })
+    const reset = sendPasswordReset(client, 'person@example.com', redirectTo)
+    await client.auth.signUp({
+      email: 'other@example.com',
+      password: 'longpass',
+      options: { data: { username: 'other' } },
+    })
+    answerRecover()
+    await reset
+    expect(calls.find((call) => call.url.includes('/recover'))?.body?.code_challenge_method).toBe('s256')
+    expect(calls.find((call) => call.url.includes('/signup'))?.body?.code_challenge).toBeNull()
+  })
 })

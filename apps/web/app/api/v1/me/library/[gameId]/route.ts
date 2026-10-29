@@ -50,7 +50,7 @@ export const PUT = withAuth(async (req: NextRequest, ctx: RouteContext<'/api/v1/
         if (!row) throw new Error('library write returned no row')
         return jsonPrivate(toEntry(row))
     } catch (error) {
-        assertWriteOk(writeErrorText(error))
+        assertWriteOk(writeErrorText(error), error)
         throw error
     }
 })
