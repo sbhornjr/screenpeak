@@ -1,25 +1,25 @@
 // The website Modal, presented as a bottom sheet.
-import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
-import { Keyboard, Platform, Pressable, Modal, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View, type HostInstance, type ScrollViewInstance } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react'
+import { Keyboard, Platform, Pressable, Modal, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View, type HostInstance, type ScrollViewInstance } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { colors, face, overlays, radius, space, typeScale } from '@/theme';
+import { colors, face, overlays, radius, space, typeScale } from '@/theme'
 
-import { Button } from './button';
+import { Button } from './button'
 
 type FocusedField = HostInstance & {
   scrollIntoView?: (options: { block?: 'center' | 'nearest' }) => void;
-};
+}
 
-type SheetDismiss = (then?: () => void) => void;
+type SheetDismiss = (then?: () => void) => void
 
-const SheetDismissContext = createContext<SheetDismiss | null>(null);
+const SheetDismissContext = createContext<SheetDismiss | null>(null)
 
 /** Close this sheet, then run `then` after it has left the screen. */
 export function useSheetDismiss(): SheetDismiss {
-  const dismiss = useContext(SheetDismissContext);
-  if (!dismiss) throw new Error('useSheetDismiss must be used inside a Sheet');
-  return dismiss;
+  const dismiss = useContext(SheetDismissContext)
+  if (!dismiss) throw new Error('useSheetDismiss must be used inside a Sheet')
+  return dismiss
 }
 
 /**
@@ -28,13 +28,13 @@ export function useSheetDismiss(): SheetDismiss {
  * number into measureLayout warns: "ref.measureLayout must be called with a ref to a native component".
  */
 function revealFocusedField(scroll: ScrollViewInstance | null) {
-  const input = TextInput.State?.currentlyFocusedInput?.() as FocusedField | null;
-  if (!input || !scroll) return;
+  const input = TextInput.State?.currentlyFocusedInput?.() as FocusedField | null
+  if (!input || !scroll) return
   if (typeof input.scrollIntoView === 'function') {
-    input.scrollIntoView({ block: 'center' });
-    return;
+    input.scrollIntoView({ block: 'center' })
+    return
   }
-  scroll.scrollResponderScrollNativeHandleToKeyboard(input, 80, true);
+  scroll.scrollResponderScrollNativeHandleToKeyboard(input, 80, true)
 }
 
 export function Sheet({
@@ -48,42 +48,42 @@ export function Sheet({
   onClose: () => void;
   children: ReactNode;
 }) {
-  const { height } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
-  const scrollRef = useRef<ScrollViewInstance>(null);
-  const pending = useRef<(() => void) | null>(null);
-  const native = Platform.OS === 'ios' || Platform.OS === 'android';
+  const { height } = useWindowDimensions()
+  const insets = useSafeAreaInsets()
+  const scrollRef = useRef<ScrollViewInstance>(null)
+  const pending = useRef<(() => void) | null>(null)
+  const native = Platform.OS === 'ios' || Platform.OS === 'android'
 
   function runPending() {
-    const then = pending.current;
-    if (!then) return;
-    pending.current = null;
-    then();
+    const then = pending.current
+    if (!then) return
+    pending.current = null
+    then()
   }
 
   useEffect(() => {
     // iOS and web call onDismiss after the modal is gone. Android does not.
-    if (visible || !pending.current || Platform.OS !== 'android') return;
-    const frame = requestAnimationFrame(runPending);
-    return () => cancelAnimationFrame(frame);
-  }, [visible]);
+    if (visible || !pending.current || Platform.OS !== 'android') return
+    const frame = requestAnimationFrame(runPending)
+    return () => cancelAnimationFrame(frame)
+  }, [visible])
 
   function dismiss(then?: () => void) {
-    if (then) pending.current = then;
-    onClose();
+    if (then) pending.current = then
+    onClose()
   }
 
   useEffect(() => {
     const show = Keyboard.addListener('keyboardDidShow', () => {
-      requestAnimationFrame(() => revealFocusedField(scrollRef.current));
-    });
-    return () => show.remove();
-  }, []);
+      requestAnimationFrame(() => revealFocusedField(scrollRef.current))
+    })
+    return () => show.remove()
+  }, [])
 
   useEffect(() => {
-    const frame = requestAnimationFrame(() => revealFocusedField(scrollRef.current));
-    return () => cancelAnimationFrame(frame);
-  }, [height]);
+    const frame = requestAnimationFrame(() => revealFocusedField(scrollRef.current))
+    return () => cancelAnimationFrame(frame)
+  }, [height])
 
   return (
     <Modal visible={visible} transparent animationType="slide" onDismiss={runPending} onRequestClose={onClose}>
@@ -126,7 +126,7 @@ export function Sheet({
         </View>
       </View>
     </Modal>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -152,4 +152,4 @@ const styles = StyleSheet.create({
   },
   scroll: { flexShrink: 1 },
   body: { gap: space[3] },
-});
+})

@@ -1,19 +1,19 @@
-import FeedList from "@/app/components/feed/FeedList";
-import FeedReview from "@/app/components/feed/FeedReview";
-import GameCard from "@/app/components/game/GameCard";
-import Seal from "@/app/components/game/Seal";
-import Avatar from "@/app/components/user/Avatar";
-import LandingCTA from "@/app/components/util/LandingCTA";
-import EmptyState from "@/app/components/util/EmptyState";
-import StatCompare from "@/app/components/game/StatCompare";
-import Eyebrow from "@/app/components/util/Eyebrow";
-import Image from "next/image";
-import Link from "next/link";
-import { getOptionalUser } from "@/lib/auth";
-import { loadFeed } from "@/lib/loaders/feed";
-import { loadHomeLanding } from "@/lib/loaders/home";
-import { parseDbTimestamp } from "@screenpeak/shared/dates";
-import { resolveHeroVisual } from "@/lib/catalog/images";
+import FeedList from "@/app/components/feed/FeedList"
+import FeedReview from "@/app/components/feed/FeedReview"
+import GameCard from "@/app/components/game/GameCard"
+import Seal from "@/app/components/game/Seal"
+import Avatar from "@/app/components/user/Avatar"
+import LandingCTA from "@/app/components/util/LandingCTA"
+import EmptyState from "@/app/components/util/EmptyState"
+import StatCompare from "@/app/components/game/StatCompare"
+import Eyebrow from "@/app/components/util/Eyebrow"
+import Image from "next/image"
+import Link from "next/link"
+import { getOptionalUser } from "@/lib/auth"
+import { loadFeed } from "@/lib/loaders/feed"
+import { loadHomeLanding } from "@/lib/loaders/home"
+import { parseDbTimestamp } from "@screenpeak/shared/dates"
+import { resolveHeroVisual } from "@/lib/catalog/images"
 
 export default async function Home() {
 

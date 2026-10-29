@@ -1,8 +1,8 @@
 // Port of apps/web/app/components/util/SectionHead.tsx
-import type { ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import type { ReactNode } from 'react'
+import { StyleSheet, Text, View } from 'react-native'
 
-import { colors, face, seam, space, tracking, trackingPx, typeScale } from '@/theme';
+import { colors, face, seam, space, tracking, trackingPx, typeScale } from '@/theme'
 
 /** A phosphor seam, a tracked label, then a rule. */
 export function SectionHead({ children, count }: { children: ReactNode; count?: ReactNode }) {
@@ -13,7 +13,7 @@ export function SectionHead({ children, count }: { children: ReactNode; count?: 
       {count != null ? <Text style={styles.count}>{`· ${count}`}</Text> : null}
       <View style={styles.rule} />
     </View>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -42,4 +42,4 @@ const styles = StyleSheet.create({
     color: colors.muted,
   },
   rule: { flex: 1, height: 1, backgroundColor: colors.border },
-});
+})

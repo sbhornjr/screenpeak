@@ -1,9 +1,9 @@
 "use client"
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import Modal from "@/app/components/util/Modal";
-import { unlinkSteamAccountAction } from "@/app/steam-actions";
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import Modal from "@/app/components/util/Modal"
+import { unlinkSteamAccountAction } from "@/app/steam-actions"
 
 export default function UnlinkSteamAccountButton() {
     const [isUnlinkSteamAccountModalOpen, setIsUnlinkSteamAccountModalOpen] = useState(false)

@@ -1,16 +1,16 @@
-import type { Metadata } from "next";
-import { redirect } from "next/navigation";
-import AvatarUploader from "../components/user/AvatarUploader";
-import ChangeUsernameButton from "../components/settings/ChangeUsernameButton";
-import ChangeEmailButton from "../components/settings/ChangeEmailButton";
-import ChangePasswordButton from "../components/settings/ChangePasswordButton";
-import DeleteAccountButton from "../components/settings/DeleteUserButton";
-import ChangePrivacyButton from "../components/settings/ChangePrivacyButton";
-import { getOptionalUser } from "@/lib/auth";
-import { loadSettings } from "@/lib/loaders/me";
-import UnlinkSteamAccountButton from "../components/settings/UnlinkSteamAccountButton";
-import Link from "next/link";
-import Eyebrow from "@/app/components/util/Eyebrow";
+import type { Metadata } from "next"
+import { redirect } from "next/navigation"
+import AvatarUploader from "../components/user/AvatarUploader"
+import ChangeUsernameButton from "../components/settings/ChangeUsernameButton"
+import ChangeEmailButton from "../components/settings/ChangeEmailButton"
+import ChangePasswordButton from "../components/settings/ChangePasswordButton"
+import DeleteAccountButton from "../components/settings/DeleteUserButton"
+import ChangePrivacyButton from "../components/settings/ChangePrivacyButton"
+import { getOptionalUser } from "@/lib/auth"
+import { loadSettings } from "@/lib/loaders/me"
+import UnlinkSteamAccountButton from "../components/settings/UnlinkSteamAccountButton"
+import Link from "next/link"
+import Eyebrow from "@/app/components/util/Eyebrow"
 
 type SettingsPageProps = {
     searchParams: Promise<{ steam_error?: string }>

@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
+import { useState } from 'react'
+import { StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native'
 
-import { colors, face, hitTarget, radius, space, typeScale } from '@/theme';
+import { colors, face, hitTarget, radius, space, typeScale } from '@/theme'
 
 type TextFieldProps = {
   label: string;
@@ -16,7 +16,7 @@ type TextFieldProps = {
   multiline?: boolean;
   /** Keep the name for the field and the placeholder, without a caption above it. */
   hideLabel?: boolean;
-};
+}
 
 /** Website text field: a visible label, surface fill, 3px corners, accent border while focused. */
 export function TextField({
@@ -32,7 +32,7 @@ export function TextField({
   multiline = false,
   hideLabel = false,
 }: TextFieldProps) {
-  const [focused, setFocused] = useState(false);
+  const [focused, setFocused] = useState(false)
   return (
     <View style={styles.wrap}>
       {hideLabel ? null : <Text style={styles.label}>{label}</Text>}
@@ -49,18 +49,18 @@ export function TextField({
         onSubmitEditing={onSubmitEditing}
         multiline={multiline}
         onFocus={() => {
-          setFocused(true);
+          setFocused(true)
           requestAnimationFrame(() => {
-            const input = TextInput.State?.currentlyFocusedInput?.() as { scrollIntoView?: (options: { block?: 'center' }) => void } | null;
-            input?.scrollIntoView?.({ block: 'center' });
-          });
+            const input = TextInput.State?.currentlyFocusedInput?.() as { scrollIntoView?: (options: { block?: 'center' }) => void } | null
+            input?.scrollIntoView?.({ block: 'center' })
+          })
         }}
         onBlur={() => setFocused(false)}
         textAlignVertical={multiline ? 'top' : 'center'}
         style={[styles.input, multiline && styles.multiline, focused && styles.focused]}
       />
     </View>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -85,4 +85,4 @@ const styles = StyleSheet.create({
   },
   focused: { borderColor: colors.accent },
   multiline: { minHeight: 96, paddingTop: space[3] },
-});
+})

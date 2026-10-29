@@ -1,16 +1,16 @@
-import type { Metadata } from "next";
-import GameCard from "@/app/components/game/GameCard";
-import Link from "next/link";
-import { redirect } from "next/navigation";
-import LoadoutActions from "@/app/components/user/LoadoutActions";
-import DistributionChart from "@/app/components/util/DistributionChart";
-import SectionHead from "@/app/components/util/SectionHead";
-import Eyebrow from "@/app/components/util/Eyebrow";
-import { panelClass } from "@/app/components/util/Panel";
-import EmptyState from "@/app/components/util/EmptyState";
-import { getOptionalUser } from "@/lib/auth";
-import { loadLoadoutPage } from "@/lib/loaders/loadout-page";
-import { tierColor } from "@/lib/rating-tier";
+import type { Metadata } from "next"
+import GameCard from "@/app/components/game/GameCard"
+import Link from "next/link"
+import { redirect } from "next/navigation"
+import LoadoutActions from "@/app/components/user/LoadoutActions"
+import DistributionChart from "@/app/components/util/DistributionChart"
+import SectionHead from "@/app/components/util/SectionHead"
+import Eyebrow from "@/app/components/util/Eyebrow"
+import { panelClass } from "@/app/components/util/Panel"
+import EmptyState from "@/app/components/util/EmptyState"
+import { getOptionalUser } from "@/lib/auth"
+import { loadLoadoutPage } from "@/lib/loaders/loadout-page"
+import { tierColor } from "@/lib/rating-tier"
 
 type LoadoutPageProps = {
     params: Promise<{ username: string }>
@@ -25,7 +25,7 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
 }
 
 export default async function LoadoutPage({ params } : LoadoutPageProps) {
-    const { username } = await params;
+    const { username } = await params
     
     const viewer = await getOptionalUser()
     let data

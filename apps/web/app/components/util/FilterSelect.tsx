@@ -1,6 +1,6 @@
 "use client"
 
-import { ChangeEvent } from 'react';
+import { ChangeEvent } from 'react'
 import { ChevronDown } from "lucide-react"
 
 const selectClass = `

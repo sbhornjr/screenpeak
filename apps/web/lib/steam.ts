@@ -1,5 +1,5 @@
 import { SteamOwnedGames } from "@screenpeak/shared/types/steam"
-import { logger } from "./logger";
+import { logger } from "./logger"
 
 const STEAM_API_BASE = 'https://api.steampowered.com'
 const OWNED_GAMES_TIMEOUT_MS = 15_000

@@ -1,17 +1,17 @@
-import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import Link from "next/link";
-import Avatar from "@/app/components/user/Avatar";
-import GameCard from "@/app/components/game/GameCard";
-import AddToListFromListButton from "@/app/components/lists/AddToListFromListButton";
-import RemoveFromListButton from "@/app/components/lists/RemoveFromListButton";
-import LikeListButton from "@/app/components/lists/LikeListButton";
-import CreateListButton from "@/app/components/lists/CreateListButton";
-import EmptyState from "@/app/components/util/EmptyState";
-import { getOptionalUser } from "@/lib/auth";
-import { loadListPage } from "@/lib/loaders/list-page";
-import { getListById } from "@/lib/queries/list";
-import { getProfileSummaryByUsername } from "@/lib/queries/user";
+import type { Metadata } from "next"
+import { notFound } from "next/navigation"
+import Link from "next/link"
+import Avatar from "@/app/components/user/Avatar"
+import GameCard from "@/app/components/game/GameCard"
+import AddToListFromListButton from "@/app/components/lists/AddToListFromListButton"
+import RemoveFromListButton from "@/app/components/lists/RemoveFromListButton"
+import LikeListButton from "@/app/components/lists/LikeListButton"
+import CreateListButton from "@/app/components/lists/CreateListButton"
+import EmptyState from "@/app/components/util/EmptyState"
+import { getOptionalUser } from "@/lib/auth"
+import { loadListPage } from "@/lib/loaders/list-page"
+import { getListById } from "@/lib/queries/list"
+import { getProfileSummaryByUsername } from "@/lib/queries/user"
 import { ArrowLeft } from "lucide-react"
 
 type ListPageProps = {
@@ -34,7 +34,7 @@ export async function generateMetadata({ params }: ListPageProps): Promise<Metad
 }
 
 export default async function ListPage({ params }: ListPageProps) {
-    const { username, listId } = await params;
+    const { username, listId } = await params
     const viewer = await getOptionalUser()
     let data
     try {

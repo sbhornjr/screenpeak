@@ -1,6 +1,6 @@
-import { NativeTabs } from 'expo-router/native-tabs';
+import { NativeTabs } from 'expo-router/native-tabs'
 
-import { colors } from '@/theme';
+import { colors } from '@/theme'
 
 // Four tabs. No drawer. A side rail may come later for tablet and web only.
 // Games is a stack screen opened from Explore and the welcome Browse button.
@@ -9,7 +9,7 @@ const TABS = [
   { name: 'explore', label: 'Explore', sf: { default: 'magnifyingglass', selected: 'magnifyingglass' }, md: 'search' },
   { name: 'library', label: 'Library', sf: { default: 'books.vertical', selected: 'books.vertical.fill' }, md: 'menu_book' },
   { name: 'profile', label: 'Profile', sf: { default: 'person', selected: 'person.fill' }, md: 'person' },
-] as const;
+] as const
 
 export default function AppTabs() {
   return (
@@ -26,5 +26,5 @@ export default function AppTabs() {
         </NativeTabs.Trigger>
       ))}
     </NativeTabs>
-  );
+  )
 }

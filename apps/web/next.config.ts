@@ -1,4 +1,4 @@
-import { withSentryConfig } from '@sentry/nextjs/config';
+import { withSentryConfig } from '@sentry/nextjs/config'
 import type { NextConfig } from 'next'
 
 const r2PublicUrl = process.env.R2_PUBLIC_URL
@@ -75,4 +75,4 @@ export default withSentryConfig(nextConfig, {
       removeDebugLogging: true,
     },
   },
-});
+})

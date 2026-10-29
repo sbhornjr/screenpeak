@@ -26,7 +26,7 @@ export default function AuthModal({ isOpen, onClose, defaultTab = 'signin' }: Au
     const [info, setInfo] = useState("")
     const router = useRouter()
 
-    if (!isOpen) return null;
+    if (!isOpen) return null
 
     async function signIn() {
         setError("")

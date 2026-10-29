@@ -1,8 +1,8 @@
-import { Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native'
 
-import { colors, face, hitTarget, radius, space, typeScale } from '@/theme';
+import { colors, face, hitTarget, radius, space, typeScale } from '@/theme'
 
-type ButtonVariant = 'primary' | 'secondary' | 'ghost';
+type ButtonVariant = 'primary' | 'secondary' | 'ghost'
 
 /** Website button: 3px corners, display semibold, at least a 44pt hit target. */
 export function Button({
@@ -22,7 +22,7 @@ export function Button({
   selected?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
-  const name = accessibilityLabel ?? label;
+  const name = accessibilityLabel ?? label
   return (
     <Pressable
       accessibilityRole="button"
@@ -43,7 +43,7 @@ export function Button({
         {label}
       </Text>
     </Pressable>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -81,4 +81,4 @@ const styles = StyleSheet.create({
   onAccent: { color: colors.bg },
   secondaryLabel: { color: colors.text },
   ghostLabel: { color: colors.accent },
-});
+})

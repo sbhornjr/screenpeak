@@ -1,13 +1,13 @@
 // Catalog card — port of apps/web/app/components/game/GameCard.tsx (the web's
 // advancedStats row is not ported yet). Web hover → native pressed state.
-import type { Game } from '@screenpeak/shared/types';
-import { Image } from 'expo-image';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import type { Game } from '@screenpeak/shared/types'
+import { Image } from 'expo-image'
+import { Pressable, StyleSheet, Text, View } from 'react-native'
 
-import { igdbImageUri } from '@/lib/catalog-image';
-import { Seal } from './seal';
+import { igdbImageUri } from '@/lib/catalog-image'
+import { Seal } from './seal'
 
-import { alpha, colors, face, overlays, radius, space, tracking, trackingPx } from '@/theme';
+import { alpha, colors, face, overlays, radius, space, tracking, trackingPx } from '@/theme'
 
 export type GameCardProps = {
   game: Game;
@@ -18,7 +18,7 @@ export type GameCardProps = {
   userRating?: number | null;
   libraryStatus?: keyof typeof STATUS | null;
   onPress?: () => void;
-};
+}
 
 // Library status is neutral chrome, never a rating hue (same table as the web).
 const STATUS = {
@@ -26,12 +26,12 @@ const STATUS = {
   completed: { label: 'Done', color: colors.text, border: colors.border, strike: false },
   backlog: { label: 'Backlog', color: colors.muted, border: colors.border, strike: false },
   abandoned: { label: 'Dropped', color: colors.muted, border: colors.border, strike: true },
-} as const;
+} as const
 
 export function GameCard({ game, developer, spRating, userRating, libraryStatus, onPress }: GameCardProps) {
-  const status = libraryStatus ? STATUS[libraryStatus] : null;
-  const year = game.released ? game.released.slice(0, 4) : null;
-  const cover = igdbImageUri(game.cover_image_url);
+  const status = libraryStatus ? STATUS[libraryStatus] : null
+  const year = game.released ? game.released.slice(0, 4) : null
+  const cover = igdbImageUri(game.cover_image_url)
 
   return (
     <Pressable accessibilityRole="link" accessibilityLabel={game.name} onPress={onPress}>
@@ -75,7 +75,7 @@ export function GameCard({ game, developer, spRating, userRating, libraryStatus,
         </View>
       )}
     </Pressable>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -128,4 +128,4 @@ const styles = StyleSheet.create({
   },
   developer: { flexShrink: 1, fontFamily: face.body[400], fontSize: 12, color: colors.muted },
   year: { fontFamily: face.mono[400], fontSize: 12, color: colors.muted },
-});
+})

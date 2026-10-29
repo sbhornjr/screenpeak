@@ -1,14 +1,14 @@
-import type { Metadata } from "next";
-import GameCard from "@/app/components/game/GameCard";
+import type { Metadata } from "next"
+import GameCard from "@/app/components/game/GameCard"
 import { redirect } from "next/navigation"
-import LibraryFilters from "../../../components/library/LibraryFilters";
-import Link from "next/link";
-import Eyebrow from "@/app/components/util/Eyebrow";
-import { getOptionalUser } from "@/lib/auth";
-import { loadUserLibrary } from "@/lib/loaders/library-page";
-import { parseLibraryQueryLenient } from "@/lib/screen-query";
-import type { LibraryPageData } from "@screenpeak/shared/api/library";
-import EmptyState from "../../../components/util/EmptyState";
+import LibraryFilters from "../../../components/library/LibraryFilters"
+import Link from "next/link"
+import Eyebrow from "@/app/components/util/Eyebrow"
+import { getOptionalUser } from "@/lib/auth"
+import { loadUserLibrary } from "@/lib/loaders/library-page"
+import { parseLibraryQueryLenient } from "@/lib/screen-query"
+import type { LibraryPageData } from "@screenpeak/shared/api/library"
+import EmptyState from "../../../components/util/EmptyState"
 
 type LibraryPageProps = {
     params: Promise<{ username: string }>
@@ -31,8 +31,8 @@ const EMPTY_LIBRARY = (username: string): LibraryPageData => ({
 })
 
 export default async function LibraryPage({ params, searchParams } : LibraryPageProps) {
-    const raw = await searchParams;
-    const { username } = await params;
+    const raw = await searchParams
+    const { username } = await params
     const query = parseLibraryQueryLenient(raw)
     if (!query) {
         return (

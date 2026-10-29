@@ -1,13 +1,13 @@
-import { Linking, Pressable, StyleSheet, Text } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text } from 'react-native'
 
-import { colors, face, space } from '@/theme';
+import { colors, face, space } from '@/theme'
 
-export const IGDB_ATTRIBUTION = 'Game data and images from IGDB';
-export const IGDB_ATTRIBUTION_URL = 'https://www.igdb.com/';
+export const IGDB_ATTRIBUTION = 'Game data and images from IGDB'
+export const IGDB_ATTRIBUTION_URL = 'https://www.igdb.com/'
 
 /** A device can refuse the browser. The credit stays on screen either way. */
 export function openIgdbAttribution(): void {
-  void Linking.openURL(IGDB_ATTRIBUTION_URL).catch(() => undefined);
+  void Linking.openURL(IGDB_ATTRIBUTION_URL).catch(() => undefined)
 }
 
 /** Visible credit for the catalogue. Later settings work can move this to About. */
@@ -20,7 +20,7 @@ export function DataAttribution() {
       style={styles.link}>
       <Text style={styles.text}>{IGDB_ATTRIBUTION}</Text>
     </Pressable>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -32,4 +32,4 @@ const styles = StyleSheet.create({
     color: colors.accent,
     textDecorationLine: 'underline',
   },
-});
+})

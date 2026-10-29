@@ -1,21 +1,21 @@
-import { notFound } from "next/navigation";
-import TitleSelectButton from "@/app/components/user/TitleSelectButton";
-import AvatarUploader from "@/app/components/user/AvatarUploader";
-import Avatar from "@/app/components/user/Avatar";
-import FavoriteGamePicker from "@/app/components/game/FavoriteGamePicker";
-import GameCard from "@/app/components/game/GameCard";
-import Review from "@/app/components/game/Review";
-import Link from "next/link";
-import FollowButton from "@/app/components/user/FollowButton";
-import BioButton from "@/app/components/user/BioButton";
-import StatGrid from "@/app/components/util/StatGrid";
-import SectionHead from "@/app/components/util/SectionHead";
-import Eyebrow from "@/app/components/util/Eyebrow";
-import EmptyState from "@/app/components/util/EmptyState";
-import { getOptionalUser } from "@/lib/auth";
-import { loadProfilePage } from "@/lib/loaders/profile-page";
-import { getProfileSummaryByUsername } from "@/lib/queries/user";
-import { Metadata } from "next";
+import { notFound } from "next/navigation"
+import TitleSelectButton from "@/app/components/user/TitleSelectButton"
+import AvatarUploader from "@/app/components/user/AvatarUploader"
+import Avatar from "@/app/components/user/Avatar"
+import FavoriteGamePicker from "@/app/components/game/FavoriteGamePicker"
+import GameCard from "@/app/components/game/GameCard"
+import Review from "@/app/components/game/Review"
+import Link from "next/link"
+import FollowButton from "@/app/components/user/FollowButton"
+import BioButton from "@/app/components/user/BioButton"
+import StatGrid from "@/app/components/util/StatGrid"
+import SectionHead from "@/app/components/util/SectionHead"
+import Eyebrow from "@/app/components/util/Eyebrow"
+import EmptyState from "@/app/components/util/EmptyState"
+import { getOptionalUser } from "@/lib/auth"
+import { loadProfilePage } from "@/lib/loaders/profile-page"
+import { getProfileSummaryByUsername } from "@/lib/queries/user"
+import { Metadata } from "next"
 
 type ProfilePageProps = {
     params: Promise<{ username: string }>
@@ -36,7 +36,7 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
 }
 
 export default async function ProfilePage({ params }: ProfilePageProps) {
-    const { username } = await params;
+    const { username } = await params
 
     const viewer = await getOptionalUser()
     let data

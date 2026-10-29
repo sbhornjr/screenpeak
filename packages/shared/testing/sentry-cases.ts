@@ -1,8 +1,9 @@
 // One table for the website and phone Sentry inits. The values are the shapes
 // those SDKs actually send (Steam callback, PKCE bodies, cookies, breadcrumbs).
-// This module is test-only: app code imports `@screenpeak/shared/sentry`, not this file.
+// Test-only: app code imports `@screenpeak/shared/sentry`. Both apps' lint
+// rejects a `@screenpeak/shared/testing/*` import outside a test file.
 
-import { mobileSteamCodeUrl } from './api/steam'
+import { mobileSteamCodeUrl } from '../api/steam'
 
 const PKCE_CODE = 'a'.repeat(43)
 const VERIFIER = 'b'.repeat(43)

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { sentryScrubCases } from '@screenpeak/shared/sentry-cases'
+import { sentryScrubCases } from '@screenpeak/shared/testing/sentry-cases'
 
 const init = vi.hoisted(() => vi.fn())
 const captureException = vi.hoisted(() => vi.fn())

@@ -1,13 +1,13 @@
-import type { Metadata } from "next";
-import GameCard from "../components/game/GameCard";
-import GameFilters from "../components/game/GameFilters";
-import Link from "next/link";
-import Pagination from "../components/util/Pagination";
-import EmptyState from "../components/util/EmptyState";
-import { getOptionalUser } from "@/lib/auth";
-import { loadGamesPage } from "@/lib/loaders/games-page";
-import { parseGamesListQueryLenient } from "@/lib/screen-query";
-import type { GamesListPage } from "@screenpeak/shared/api/games";
+import type { Metadata } from "next"
+import GameCard from "../components/game/GameCard"
+import GameFilters from "../components/game/GameFilters"
+import Link from "next/link"
+import Pagination from "../components/util/Pagination"
+import EmptyState from "../components/util/EmptyState"
+import { getOptionalUser } from "@/lib/auth"
+import { loadGamesPage } from "@/lib/loaders/games-page"
+import { parseGamesListQueryLenient } from "@/lib/screen-query"
+import type { GamesListPage } from "@screenpeak/shared/api/games"
 
 type SearchPageProps = {
     searchParams: Promise<{ q?: string, genre?: string, platform?: string, developer?: string, publisher?: string, esrb?: string, page?: string, pageSize?: string, sort?: string, order?: string }>

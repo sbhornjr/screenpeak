@@ -1,5 +1,5 @@
-import 'lucide-react-native';
-import 'react-native';
+import 'lucide-react-native'
+import 'react-native'
 
 // React Native Web reads these. The strict React Native types omit them.
 declare module 'react-native' {

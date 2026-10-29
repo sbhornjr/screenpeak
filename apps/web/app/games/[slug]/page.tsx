@@ -1,28 +1,28 @@
-import { notFound } from "next/navigation";
+import { notFound } from "next/navigation"
 import Image from 'next/image'
 import Link from 'next/link'
-import ScreenshotCarousel from "@/app/components/game/ScreenshotCarousel";
-import LibraryButton from "@/app/components/library/LibraryButton";
-import RateReviewButton from "@/app/components/game/RateReviewButton";
-import GameReviewsFilters from "@/app/components/game/GameReviewsFilters";
-import Pagination from "@/app/components/util/Pagination";
-import StatCompare from "@/app/components/game/StatCompare";
-import StickyGameActions from "@/app/components/game/StickyGameActions";
-import AddToListButton from "@/app/components/lists/AddToListButton";
-import Avatar from "@/app/components/user/Avatar";
-import ExpandableText from "@/app/components/util/ExpandableText";
-import SectionHead from "@/app/components/util/SectionHead";
-import { tierColor } from "@/lib/rating-tier";
-import Panel from "@/app/components/util/Panel";
-import { LIBRARY_SECTION_TITLE, libraryEmptyLine, libraryScoreText, libraryStats, type LibraryStatKey } from "@screenpeak/shared/library-copy";
-import { GameRatingsStats } from "@screenpeak/shared/types";
-import { getOptionalUser } from "@/lib/auth";
-import { loadGamePage } from "@/lib/loaders/game-page";
-import { parseGameReviewsQueryLenient } from "@/lib/game-reviews-query";
-import { displayCoverUrl, displayLandscapeUrl } from "@/lib/catalog/images";
-import { getGameBySlug } from "@/lib/queries/game";
-import { getGameReviewsForPage } from "@/lib/queries/review";
-import { Metadata } from "next";
+import ScreenshotCarousel from "@/app/components/game/ScreenshotCarousel"
+import LibraryButton from "@/app/components/library/LibraryButton"
+import RateReviewButton from "@/app/components/game/RateReviewButton"
+import GameReviewsFilters from "@/app/components/game/GameReviewsFilters"
+import Pagination from "@/app/components/util/Pagination"
+import StatCompare from "@/app/components/game/StatCompare"
+import StickyGameActions from "@/app/components/game/StickyGameActions"
+import AddToListButton from "@/app/components/lists/AddToListButton"
+import Avatar from "@/app/components/user/Avatar"
+import ExpandableText from "@/app/components/util/ExpandableText"
+import SectionHead from "@/app/components/util/SectionHead"
+import { tierColor } from "@/lib/rating-tier"
+import Panel from "@/app/components/util/Panel"
+import { LIBRARY_SECTION_TITLE, libraryEmptyLine, libraryScoreText, libraryStats, type LibraryStatKey } from "@screenpeak/shared/library-copy"
+import { GameRatingsStats } from "@screenpeak/shared/types"
+import { getOptionalUser } from "@/lib/auth"
+import { loadGamePage } from "@/lib/loaders/game-page"
+import { parseGameReviewsQueryLenient } from "@/lib/game-reviews-query"
+import { displayCoverUrl, displayLandscapeUrl } from "@/lib/catalog/images"
+import { getGameBySlug } from "@/lib/queries/game"
+import { getGameReviewsForPage } from "@/lib/queries/review"
+import { Metadata } from "next"
 import { ChevronLeft, Clock, Repeat, Trophy } from "lucide-react"
 
 type GamePageProps = {
@@ -85,7 +85,7 @@ function Log({ row, own = false }: { row: LogRow, own?: boolean }) {
 }
 
 export default async function GamePage({ params, searchParams }: GamePageProps) {
-    const { slug } = await params;
+    const { slug } = await params
     // Lenient: a bad value in a hand-edited URL falls back to its default
     const reviewsQuery = parseGameReviewsQueryLenient(await searchParams)
     const { page: pageQuery, pageSize: pageSizeQuery, sort: sortQuery, order: orderQuery } = reviewsQuery

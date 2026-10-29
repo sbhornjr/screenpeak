@@ -1,6 +1,6 @@
-import { StyleSheet, Text } from 'react-native';
+import { StyleSheet, Text } from 'react-native'
 
-import { face, ratingTier, tierColor, typeScale } from '@/theme';
+import { face, ratingTier, tierColor, typeScale } from '@/theme'
 
 /** A score value in its tier colour. Text rows use this; covers use Seal. */
 export function RatingBadge({ score, scale = 10 }: { score: number; scale?: 10 | 100 }) {
@@ -11,7 +11,7 @@ export function RatingBadge({ score, scale = 10 }: { score: number; scale?: 10 |
     >
       {score}
     </Text>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -21,4 +21,4 @@ const styles = StyleSheet.create({
     lineHeight: typeScale.xl.line,
     fontVariant: ['tabular-nums'],
   },
-});
+})

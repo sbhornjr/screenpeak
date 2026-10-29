@@ -1,11 +1,11 @@
 "use client"
 
-import { createClient } from "@/lib/supabase-browser";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import Modal from "@/app/components/util/Modal";
-import EditTriggerButton from "@/app/components/util/EditTriggerButton";
-import { updateEmail } from "@/lib/queries/user-auth";
+import { createClient } from "@/lib/supabase-browser"
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import Modal from "@/app/components/util/Modal"
+import EditTriggerButton from "@/app/components/util/EditTriggerButton"
+import { updateEmail } from "@/lib/queries/user-auth"
 
 export default function ChangeEmailButton({ currentEmail } : { currentEmail: string }) {
     const [isChangeEmailModalOpen, setIsChangeEmailModalOpen] = useState(false)

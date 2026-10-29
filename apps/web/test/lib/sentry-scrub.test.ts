@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { sentryReplayCases, sentryScrubCases, type SentryScrubCase } from '@screenpeak/shared/sentry-cases'
+import { sentryReplayCases, sentryScrubCases, type SentryScrubCase } from '@screenpeak/shared/testing/sentry-cases'
 
 const init = vi.hoisted(() => vi.fn())
 const replayIntegration = vi.hoisted(() => vi.fn((options?: { beforeAddRecordingEvent?: (event: unknown) => unknown }) => ({

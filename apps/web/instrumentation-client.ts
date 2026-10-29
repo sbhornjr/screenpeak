@@ -2,8 +2,8 @@
 // The added config here will be used whenever a users loads a page in their browser.
 // https://docs.sentry.io/platforms/javascript/guides/nextjs/
 
-import * as Sentry from "@sentry/nextjs";
-import { sentryBeforeBreadcrumb, sentryBeforeSend } from "@screenpeak/shared/sentry";
+import * as Sentry from "@sentry/nextjs"
+import { sentryBeforeBreadcrumb, sentryBeforeSend } from "@screenpeak/shared/sentry"
 
 Sentry.init({
   dsn: "https://a4583dae7f8c2aa4ba4ce25399257449@o4512142406057984.ingest.us.sentry.io/4512142410973184",
@@ -15,7 +15,7 @@ Sentry.init({
   // Add optional integrations for additional features
   integrations: [Sentry.replayIntegration({
     beforeAddRecordingEvent(event) {
-      return sentryBeforeSend(event);
+      return sentryBeforeSend(event)
     },
   })],
 
@@ -36,6 +36,6 @@ Sentry.init({
     // userInfo: false,
     // httpBodies: [],
   },
-});
+})
 
-export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
+export const onRouterTransitionStart = Sentry.captureRouterTransitionStart

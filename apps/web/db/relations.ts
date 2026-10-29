@@ -1,5 +1,5 @@
-import { relations } from "drizzle-orm/relations";
-import { games, ratingsReviews, users, libraryEntries, lists, steamAccounts, usersInAuth, gameGenres, genres, gamePlatforms, platforms, developers, gameDevelopers, gamePublishers, publishers, listLikes, follows, listGames, gameExternalIds } from "./schema";
+import { relations } from "drizzle-orm/relations"
+import { games, ratingsReviews, users, libraryEntries, lists, steamAccounts, usersInAuth, gameGenres, genres, gamePlatforms, platforms, developers, gameDevelopers, gamePublishers, publishers, listLikes, follows, listGames, gameExternalIds } from "./schema"
 
 export const ratingsReviewsRelations = relations(ratingsReviews, ({one}) => ({
 	game: one(games, {
@@ -10,7 +10,7 @@ export const ratingsReviewsRelations = relations(ratingsReviews, ({one}) => ({
 		fields: [ratingsReviews.userId],
 		references: [users.id]
 	}),
-}));
+}))
 
 export const gamesRelations = relations(games, ({many}) => ({
 	ratingsReviews: many(ratingsReviews),
@@ -21,7 +21,7 @@ export const gamesRelations = relations(games, ({many}) => ({
 	gamePublishers: many(gamePublishers),
 	listGames: many(listGames),
 	gameExternalIds: many(gameExternalIds),
-}));
+}))
 
 export const usersRelations = relations(users, ({one, many}) => ({
 	ratingsReviews: many(ratingsReviews),
@@ -39,7 +39,7 @@ export const usersRelations = relations(users, ({one, many}) => ({
 	follows_followingId: many(follows, {
 		relationName: "follows_followingId_users_id"
 	}),
-}));
+}))
 
 export const libraryEntriesRelations = relations(libraryEntries, ({one}) => ({
 	game: one(games, {
@@ -50,7 +50,7 @@ export const libraryEntriesRelations = relations(libraryEntries, ({one}) => ({
 		fields: [libraryEntries.userId],
 		references: [users.id]
 	}),
-}));
+}))
 
 export const listsRelations = relations(lists, ({one, many}) => ({
 	user: one(users, {
@@ -59,18 +59,18 @@ export const listsRelations = relations(lists, ({one, many}) => ({
 	}),
 	listLikes: many(listLikes),
 	listGames: many(listGames),
-}));
+}))
 
 export const steamAccountsRelations = relations(steamAccounts, ({one}) => ({
 	user: one(users, {
 		fields: [steamAccounts.userId],
 		references: [users.id]
 	}),
-}));
+}))
 
 export const usersInAuthRelations = relations(usersInAuth, ({many}) => ({
 	users: many(users),
-}));
+}))
 
 export const gameGenresRelations = relations(gameGenres, ({one}) => ({
 	game: one(games, {
@@ -81,11 +81,11 @@ export const gameGenresRelations = relations(gameGenres, ({one}) => ({
 		fields: [gameGenres.genreId],
 		references: [genres.id]
 	}),
-}));
+}))
 
 export const genresRelations = relations(genres, ({many}) => ({
 	gameGenres: many(gameGenres),
-}));
+}))
 
 export const gamePlatformsRelations = relations(gamePlatforms, ({one}) => ({
 	game: one(games, {
@@ -96,11 +96,11 @@ export const gamePlatformsRelations = relations(gamePlatforms, ({one}) => ({
 		fields: [gamePlatforms.platformId],
 		references: [platforms.id]
 	}),
-}));
+}))
 
 export const platformsRelations = relations(platforms, ({many}) => ({
 	gamePlatforms: many(gamePlatforms),
-}));
+}))
 
 export const gameDevelopersRelations = relations(gameDevelopers, ({one}) => ({
 	developer: one(developers, {
@@ -111,11 +111,11 @@ export const gameDevelopersRelations = relations(gameDevelopers, ({one}) => ({
 		fields: [gameDevelopers.gameId],
 		references: [games.id]
 	}),
-}));
+}))
 
 export const developersRelations = relations(developers, ({many}) => ({
 	gameDevelopers: many(gameDevelopers),
-}));
+}))
 
 export const gamePublishersRelations = relations(gamePublishers, ({one}) => ({
 	game: one(games, {
@@ -126,11 +126,11 @@ export const gamePublishersRelations = relations(gamePublishers, ({one}) => ({
 		fields: [gamePublishers.publisherId],
 		references: [publishers.id]
 	}),
-}));
+}))
 
 export const publishersRelations = relations(publishers, ({many}) => ({
 	gamePublishers: many(gamePublishers),
-}));
+}))
 
 export const listLikesRelations = relations(listLikes, ({one}) => ({
 	list: one(lists, {
@@ -141,7 +141,7 @@ export const listLikesRelations = relations(listLikes, ({one}) => ({
 		fields: [listLikes.userId],
 		references: [users.id]
 	}),
-}));
+}))
 
 export const followsRelations = relations(follows, ({one}) => ({
 	user_followerId: one(users, {
@@ -154,7 +154,7 @@ export const followsRelations = relations(follows, ({one}) => ({
 		references: [users.id],
 		relationName: "follows_followingId_users_id"
 	}),
-}));
+}))
 
 export const listGamesRelations = relations(listGames, ({one}) => ({
 	game: one(games, {
@@ -165,7 +165,7 @@ export const listGamesRelations = relations(listGames, ({one}) => ({
 		fields: [listGames.listId],
 		references: [lists.id]
 	}),
-}));
+}))
 export const gameExternalIdsRelations = relations(gameExternalIds, ({ one }) => ({
     game: one(games, { fields: [gameExternalIds.gameId], references: [games.id] }),
-}));
+}))

@@ -1,14 +1,14 @@
-import type { Metadata } from "next";
-import Rating from "@/app/components/game/ReviewPageRating";
-import Review from "@/app/components/game/ReviewPageReview";
-import Pagination from "@/app/components/util/Pagination";
-import RatingsReviewsFilters from "@/app/components/game/RatingsReviewsFilters";
-import { notFound } from "next/navigation";
-import Link from "next/link";
-import { loadUserReviews } from "@/lib/loaders/user-reviews";
-import { parseUserReviewsQueryLenient } from "@/lib/screen-query";
-import Eyebrow from "@/app/components/util/Eyebrow";
-import EmptyState from "@/app/components/util/EmptyState";
+import type { Metadata } from "next"
+import Rating from "@/app/components/game/ReviewPageRating"
+import Review from "@/app/components/game/ReviewPageReview"
+import Pagination from "@/app/components/util/Pagination"
+import RatingsReviewsFilters from "@/app/components/game/RatingsReviewsFilters"
+import { notFound } from "next/navigation"
+import Link from "next/link"
+import { loadUserReviews } from "@/lib/loaders/user-reviews"
+import { parseUserReviewsQueryLenient } from "@/lib/screen-query"
+import Eyebrow from "@/app/components/util/Eyebrow"
+import EmptyState from "@/app/components/util/EmptyState"
 import { ArrowLeft } from "lucide-react"
 
 type RatingsPageProps = {
@@ -25,7 +25,7 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
 }
 
 export default async function RatingsPage({ params, searchParams }: RatingsPageProps) {
-    const { username } = await params;
+    const { username } = await params
     const raw = await searchParams
     const query = parseUserReviewsQueryLenient(raw)
     let data

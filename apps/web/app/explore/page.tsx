@@ -1,13 +1,13 @@
-import type { Metadata } from "next";
-import GameCard from "@/app/components/game/GameCard";
-import Link from "next/link";
-import ListPreview from "../components/lists/ListPreview";
-import UserCard from "../components/user/UserCard";
-import { getOptionalUser } from "@/lib/auth";
-import SectionHead from "@/app/components/util/SectionHead";
-import Eyebrow from "@/app/components/util/Eyebrow";
-import { loadExplore } from "@/lib/loaders/explore";
-import { parseExploreQueryLenient } from "@/lib/screen-query";
+import type { Metadata } from "next"
+import GameCard from "@/app/components/game/GameCard"
+import Link from "next/link"
+import ListPreview from "../components/lists/ListPreview"
+import UserCard from "../components/user/UserCard"
+import { getOptionalUser } from "@/lib/auth"
+import SectionHead from "@/app/components/util/SectionHead"
+import Eyebrow from "@/app/components/util/Eyebrow"
+import { loadExplore } from "@/lib/loaders/explore"
+import { parseExploreQueryLenient } from "@/lib/screen-query"
 
 type ExplorePageProps = {
     searchParams: Promise<{ range?: string }>
@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 }
 
 export default async function Explore({ searchParams }: ExplorePageProps) {
-    const { range } = await searchParams;
+    const { range } = await searchParams
 
     const viewer = await getOptionalUser()
     const { range: rangeString } = parseExploreQueryLenient({ range })
