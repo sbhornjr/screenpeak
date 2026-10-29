@@ -254,6 +254,19 @@ Kill only the pids in `/tmp/screenpeak-verify/pids`. After `down`, `/tmp/screenp
 
 ## Helpers
 
-The only helper is the executable script. Run it with `node` as shown above (the file is also executable). There is no separate browser binary to install beyond `google-chrome`. PostgREST is downloaded on `up` into `/tmp/screenpeak-verify/postgrest` when it is not already there (pinned to v16.4, linux static x86-64).
+The entry point is the executable `verify-screenpeak.mjs`. Run it with `node` as shown above (the file is also executable). The modules beside it are not commands:
+
+- `config.mjs` — paths, ports, the local database URL, and the fixture accounts
+- `runtime.mjs` — logging, pid files, `state.json`, and the doctor gate every drive runs first
+- `env.mjs` — the `apps/web/.env.local` marker check and writer
+- `database.mjs` — the role and database, auth stubs, `migrate:journal`, the local-app SQL, and the catalogue seed
+- `jwt.mjs` and `gateway.mjs` — the local Auth/PostgREST stand-in
+- `apps.mjs` — the Next and Expo launches
+- `browser.mjs` — headless Chrome over the DevTools protocol
+- `stack.mjs` — `up`, `doctor`, and `down`
+- `fixtures.mjs` — rows and SQL helpers shared by drives
+- `drives/<feature>.mjs` — one drive per `features/<feature>.md`, registered in `drives/index.mjs`
+
+A new feature needs its recipe in `features/`, its drive in `drives/`, and a line in `drives/index.mjs`. `node --test '.cursor/skills/verify-screenpeak/test/*.test.mjs'` fails when a recipe and a drive do not match. CI runs it. There is no separate browser binary to install beyond `google-chrome`. PostgREST is downloaded on `up` into `/tmp/screenpeak-verify/postgrest` when it is not already there (pinned to v16.4, linux static x86-64).
 
 Keep the feature map honest with `/maintain-verification-skill` when the app changes.

@@ -17,6 +17,7 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm test -w @screenpeak/mobile
+      - run: node --test '.cursor/skills/verify-screenpeak/test/*.test.mjs'
       - run: R2_PUBLIC_URL=https://ci.example npx next typegen
         working-directory: apps/web
       - run: npx tsc --noEmit -p apps/web
