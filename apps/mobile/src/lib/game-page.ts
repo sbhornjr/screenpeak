@@ -6,6 +6,8 @@ import { LIBRARY_STATUSES, type LibraryStatus } from '@screenpeak/shared/constan
 import { LIBRARY_STATUS_COPY } from '@screenpeak/shared/library-copy'
 import { libraryEntryWriteSchema } from '@screenpeak/shared/schemas'
 
+import { mergeLibraryWrite } from './library-page'
+
 export const LIBRARY_CHOICES = LIBRARY_STATUSES.map(status => ({ status, ...LIBRARY_STATUS_COPY[status] }))
 
 export type LibraryForm = {
@@ -154,13 +156,7 @@ export function withLibraryWrite(data: GamePageData, write: LibraryWrite): GameP
     ...data,
     viewer: {
       ...data.viewer,
-      libraryEntry: {
-        id: entry.id,
-        status: write.status,
-        completed_all_achievements: write.completed_all_achievements ?? entry.completed_all_achievements,
-        hours_played: 'hours_played' in write ? (write.hours_played ?? null) : entry.hours_played,
-        play_count: write.play_count ?? entry.play_count,
-      },
+      libraryEntry: { id: entry.id, ...mergeLibraryWrite(entry, write) },
     },
   }
 }

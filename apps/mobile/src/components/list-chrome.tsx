@@ -1,7 +1,8 @@
 import { Heart, Lock } from 'lucide-react-native'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 
-import { gamesLabel, likeActionLabel, likesCountLabel, updatedDay } from '@/lib/lists-page'
+import { gamesLabel, likeActionLabel, likesCountLabel } from '@/lib/lists-page'
+import { calendarLabel } from '@/lib/profile-hub'
 import { colors, face, hitTarget, space, typeScale } from '@/theme'
 
 const HEART = 16
@@ -62,7 +63,7 @@ export function ListMeta({
   isPrivate: boolean
   updatedAt: string
 }) {
-  const day = updatedDay(updatedAt)
+  const day = calendarLabel(updatedAt)
   return (
     <View style={styles.metaRow}>
       <Text numberOfLines={1} style={styles.metaGames}>{gamesLabel(gameCount)}</Text>

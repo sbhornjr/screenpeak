@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { ApiClientError, createApiClient } from './client'
+import { ApiClientError, createApiClient } from '@screenpeak/shared/api/client'
 
 const GAME = {
   game: { id: '11111111-1111-1111-1111-111111111111', name: 'Hades', slug: 'hades' },

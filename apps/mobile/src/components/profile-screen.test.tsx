@@ -6,7 +6,6 @@ import React from 'react'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { profileHubModel } from '@/lib/profile-hub'
 
 import { ProfileHubScreen } from './profile-hub-screen'
 
@@ -218,7 +217,7 @@ describe('profile follow', () => {
       return { following: true }
     })
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    client.setQueryData(['profile', 'ada', 'other-viewer'], profileHubModel(ada(false, 4)))
+    client.setQueryData(['profile', 'ada', 'other-viewer'], ada(false, 4))
     render(
       <QueryClientProvider client={client}>
         <ProfileHubScreen username="peek" />
@@ -231,9 +230,9 @@ describe('profile follow', () => {
     expect(await screen.findByText('1 follower · 3 following')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Unfollow ada' }).textContent).toBe('Following')
     expect(screen.getByText('5 followers · 2 following').textContent).toBe('5 followers · 2 following')
-    const cached = client.getQueryData<ReturnType<typeof profileHubModel>>(['profile', 'ada', 'other-viewer'])
-    expect(cached?.following).toBe(false)
-    expect(cached?.followerCount).toBe(4)
+    const cached = client.getQueryData<ProfilePageData>(['profile', 'ada', 'other-viewer'])
+    expect(cached?.viewer?.is_following).toBe(false)
+    expect(cached?.profile.follower_count).toBe(4)
   })
 
   it('clears a follow in progress when you open another profile', async () => {

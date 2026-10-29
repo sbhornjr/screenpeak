@@ -1,7 +1,7 @@
+import { createApiClient } from '@screenpeak/shared/api/client'
 import Constants from 'expo-constants'
 
 import { apiBaseUrlFromEnv, isDevRuntime, MissingDevHostError } from '../api-base'
-import { createApiClient } from './client'
 import { supabase } from '../supabase'
 
 const dev = isDevRuntime()

@@ -1,4 +1,4 @@
-import { ApiClientError } from './api/client'
+import { ApiClientError } from '@screenpeak/shared/api/client'
 
 /** The sentence a screen shows for a failed request. A 429 names the wait. */
 export function actionFailure(error: unknown): string {

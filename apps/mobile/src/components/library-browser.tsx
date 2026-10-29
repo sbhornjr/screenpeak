@@ -9,7 +9,7 @@ import { useCachedWrite } from '@/lib/cached-write'
 import { loadFailure } from '@/lib/failure'
 import { back, go } from '@/lib/go'
 import { applyLibraryWrite, LIBRARY_QUERY, withoutLibraryGame } from '@/lib/library-page'
-import { loadProfileHub } from '@/lib/profile-hub'
+import { profileHubModel } from '@/lib/profile-hub'
 import { keepSameScope, latestCached, playerScope, queryKeys, scopes } from '@/lib/query-keys'
 import { useRefresh } from '@/lib/use-refresh'
 import { useRemote } from '@/lib/use-remote'
@@ -115,8 +115,13 @@ export function OwnLibrary() {
 }
 
 export function UserLibrary({ username }: { username: string }) {
-  // Shares the profile hub cache. That entry is a hub model, not the raw page.
-  const remote = useRemote(viewer => queryKeys.profile(username, viewer), () => loadProfileHub(api, username), username.length > 0)
+  // Shares the profile hub's cache entry, so opening the hub first saves a request.
+  const remote = useRemote(
+    viewer => queryKeys.profile(username, viewer),
+    () => api.users.get(username),
+    username.length > 0,
+    profileHubModel,
+  )
   if (remote.query.isError) {
     const failure = loadFailure(remote.query.error)
     return (

@@ -4,20 +4,13 @@ import type { ListsTab } from '@screenpeak/shared/api/lists'
 import type { QueryClient, QueryKey } from '@tanstack/react-query'
 
 import type { ReviewListQuery } from './game-page'
+import type { CatalogueFilter } from './routes'
 
 // Every query key the app uses. Each one ends with the viewer id, so a cache
 // entry never serves another account. Writes invalidate by `scopes`, a prefix.
 // The readers below are the only code that looks inside a key.
 
 type Viewer = string | null
-
-export type CatalogueFilter = {
-  genre?: string
-  platform?: string
-  developer?: string
-  publisher?: string
-  esrb?: string
-}
 
 export const scopes = {
   game: ['game'],

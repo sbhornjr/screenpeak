@@ -14,12 +14,10 @@ export const RESET_REPEAT_MS = 30_000
 
 const HIDDEN_ACCOUNT_CODES = new Set(['user_not_found', 'email_not_found'])
 
-export type ResetSendDecision =
-  | { send: true, email: string }
-  | { send: false, confirmation: string }
-  | { send: false, message: string }
-
 export type ResetOutcome = { confirmation: string } | { error: string }
+
+/** Send to `email`, or answer without a request: a bad address, or a repeat inside the window. */
+export type ResetSendDecision = { send: true, email: string } | { send: false, outcome: ResetOutcome }
 
 export type AuthCallback = {
   code: string | null
@@ -34,21 +32,6 @@ export type AuthCallback = {
 export type AuthCallbackClient = {
   verifyOtp: (args: { type: string, token_hash: string }) => Promise<{ error: { message: string } | null }>
   exchangeCodeForSession: (code: string) => Promise<{ error: { message: string } | null, recovery?: boolean }>
-}
-
-export type ResetClaim = { decision: ResetSendDecision, lastSentAt: number | null }
-
-/** Stamp the send time before the request so a second call in the same turn does not send. */
-export function claimResetSend(email: string, lastSentAt: number | null, now: number): ResetClaim {
-  const decision = resetSendDecision(email, lastSentAt, now)
-  if (!decision.send) return { decision, lastSentAt }
-  return { decision, lastSentAt: now }
-}
-
-/** A failed send does not consume the window. */
-export function releaseResetSend(lastSentAt: number | null, outcome: ResetOutcome): number | null {
-  if ('error' in outcome) return null
-  return lastSentAt
 }
 
 /** Milliseconds until Send reset link can run again. The button reads this. */
@@ -66,28 +49,20 @@ export function updatePasswordView(recovery: boolean, updated: boolean): Passwor
   return { form: true }
 }
 
-export function recoveryScreenExit(recovery: boolean, updated: boolean): 'sign-out' | 'keep' {
-  if (recovery && !updated) return 'sign-out'
-  return 'keep'
-}
-
 /** Leaving the set-new-password screen before a successful save signs the user out. */
 export async function leavePasswordScreen(
   state: { recovery: boolean, updated: boolean },
   signOut: () => Promise<void>,
 ): Promise<'sign-out' | 'keep'> {
-  const action = recoveryScreenExit(state.recovery, state.updated)
-  if (action === 'sign-out') await signOut()
-  return action
+  if (!state.recovery || state.updated) return 'keep'
+  await signOut()
+  return 'sign-out'
 }
 
-/** `web` keeps the page origin. `native` is `scheme://` (Expo's two-slash deep link). */
-export function passwordResetRedirectBase(platform: 'web' | 'native', webOrigin: string, scheme: string): string {
-  if (platform === 'web') return webOrigin
-  return `${scheme}://`
-}
-
-/** redirectTo for resetPasswordForEmail. Same path the website sends. */
+/**
+ * redirectTo for resetPasswordForEmail. Same path the website sends. `base` is
+ * the page origin on web, or `scheme://` (Expo's two-slash deep link) on a phone.
+ */
 export function passwordResetRedirectTo(base: string): string {
   const trimmed = base.replace(/\/$/, '')
   if (trimmed.endsWith('://')) return `${trimmed}auth/confirm?next=/auth/update-password`
@@ -96,19 +71,45 @@ export function passwordResetRedirectTo(base: string): string {
 
 export function resetSendDecision(email: string, lastSentAt: number | null, now: number): ResetSendDecision {
   const parsed = parseOrError(emailSchema, email)
-  if (!parsed.success) return { send: false, message: parsed.error }
-  if (lastSentAt != null && now - lastSentAt < RESET_REPEAT_MS) {
-    return { send: false, confirmation: RESET_CONFIRMATION }
+  if (!parsed.success) return { send: false, outcome: { error: parsed.error } }
+  if (resetCooldownRemaining(lastSentAt, now) > 0) {
+    return { send: false, outcome: { confirmation: RESET_CONFIRMATION } }
   }
   return { send: true, email: parsed.data }
 }
 
-export function resetOutcome(error: { code?: string | null, message: string } | null): ResetOutcome {
+type ResetError = { code?: string | null, message: string }
+
+/**
+ * One Send reset link. The send time is stamped before the request, so a
+ * second tap in the same turn answers without sending. A failed send clears
+ * it, so the next tap can try again.
+ */
+export async function requestReset(
+  email: string,
+  sentAt: { get: () => number | null, set: (at: number | null) => void },
+  send: (email: string) => Promise<ResetError | null>,
+  now = Date.now(),
+): Promise<ResetOutcome> {
+  const decision = resetSendDecision(email, sentAt.get(), now)
+  if (!decision.send) return decision.outcome
+  sentAt.set(now)
+  try {
+    const outcome = resetOutcome(await send(decision.email))
+    if ('error' in outcome) sentAt.set(null)
+    return outcome
+  } catch (error) {
+    sentAt.set(null)
+    throw error
+  }
+}
+
+export function resetOutcome(error: ResetError | null): ResetOutcome {
   if (!error || hidesAccount(error)) return { confirmation: RESET_CONFIRMATION }
   return { error: error.message }
 }
 
-function hidesAccount(error: { code?: string | null, message: string }): boolean {
+function hidesAccount(error: ResetError): boolean {
   if (error.code && HIDDEN_ACCOUNT_CODES.has(error.code)) return true
   return /user[^\n]{0,40}not found|email[^\n]{0,40}not found|no user found|user does not exist/i.test(error.message)
 }

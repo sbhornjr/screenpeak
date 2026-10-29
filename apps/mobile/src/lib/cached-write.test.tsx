@@ -4,7 +4,7 @@ import { renderHook } from '@testing-library/react'
 import React from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { ApiClientError } from './api/client'
+import { ApiClientError } from '@screenpeak/shared/api/client'
 import { useCachedWrite } from './cached-write'
 
 const KEY = ['lists', 'peek', 'user', 'viewer'] as const

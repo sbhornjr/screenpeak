@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { back, backOrHome, go } from './go'
+import { back, go } from './go'
 
 const router = vi.hoisted(() => ({
   push: vi.fn(),
@@ -24,22 +24,15 @@ beforeEach(() => {
   router.canDismiss.mockReset()
 })
 
-describe('backOrHome', () => {
+describe('back', () => {
   it('returns to the previous screen when one exists', () => {
     router.canGoBack.mockReturnValue(true)
-    backOrHome()
+    back()
     expect(router.back).toHaveBeenCalledOnce()
     expect(router.replace).not.toHaveBeenCalled()
   })
 
-  it('opens the feed when sign-in was opened directly', () => {
-    router.canGoBack.mockReturnValue(false)
-    backOrHome()
-    expect(router.replace).toHaveBeenCalledWith('/')
-    expect(router.back).not.toHaveBeenCalled()
-  })
-
-  it('sends a cold-opened detail screen home', () => {
+  it('sends a cold-opened screen home', () => {
     router.canGoBack.mockReturnValue(false)
     back()
     expect(router.replace).toHaveBeenCalledWith('/')

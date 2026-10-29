@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
-import { backOrHome } from '@/lib/go'
+import { back } from '@/lib/go'
 import { colors, face, space, typeScale } from '@/theme'
 
 import { AppHeader } from './app-header'
@@ -10,7 +10,7 @@ import { AppHeader } from './app-header'
 export function AuthScaffold({ title, children }: { title: string, children: ReactNode }) {
   return (
     <SafeAreaView style={styles.screen}>
-      <AppHeader onBack={backOrHome} />
+      <AppHeader onBack={back} />
       <View style={styles.content}>
         <Text role="heading" accessibilityRole="header" accessibilityLevel={1} style={styles.title}>{title}</Text>
         {children}

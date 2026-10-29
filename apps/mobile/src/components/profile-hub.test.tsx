@@ -162,21 +162,22 @@ describe('profile dates and averages', () => {
 
 describe('profile follow cache', () => {
   it('raises the follower count when a follow starts and will not drop it below zero', () => {
-    const start = profileHubModel(page({ viewer: 'other', following: false, followers: 4 }))
-    const followed = withFollowing(start, true)
+    const start = page({ viewer: 'other', following: false, followers: 4 })
+    const followed = profileHubModel(withFollowing(start, true))
     expect(followed.following).toBe(true)
     expect(followed.followerCount).toBe(5)
-    const cleared = withFollowing(followed, false)
+    const cleared = profileHubModel(withFollowing(withFollowing(start, true), false))
     expect(cleared.following).toBe(false)
     expect(cleared.followerCount).toBe(4)
-    const empty = withFollowing({ ...cleared, followerCount: 0 }, false)
-    expect(empty.followerCount).toBe(0)
-    expect(empty.following).toBe(false)
+    const zero = page({ viewer: 'other', following: true, followers: 0 })
+    expect(profileHubModel(withFollowing(zero, false)).followerCount).toBe(0)
   })
 
-  it('leaves an owner profile unchanged', () => {
-    const owner = profileHubModel(page({ username: 'peek', viewer: 'owner', followers: 3 }))
-    expect(withFollowing(owner, true)).toEqual(owner)
+  it('leaves owner and signed-out profiles unchanged', () => {
+    const owner = page({ username: 'peek', viewer: 'owner', followers: 3 })
+    expect(withFollowing(owner, true)).toBe(owner)
+    const signedOut = page({ viewer: null, followers: 3 })
+    expect(withFollowing(signedOut, true)).toBe(signedOut)
   })
 })
 

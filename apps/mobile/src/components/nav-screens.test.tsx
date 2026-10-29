@@ -18,7 +18,7 @@ import { LoadoutScreen } from './loadout-screen'
 import { ProfileHub } from './profile-hub'
 import { WelcomeScreen } from './welcome-screen'
 import { screenGate } from './screen-state'
-import { loadProfileHub, profileHubModel } from '@/lib/profile-hub'
+import { profileHubModel } from '@/lib/profile-hub'
 
 vi.mock('expo-router/native-tabs', () => {
   function Label({ children }: { children?: React.ReactNode }) {
@@ -580,50 +580,30 @@ describe('profile hub', () => {
     expect(onOpen).toHaveBeenCalledWith('/user/ada/lists')
   })
 
-  it('loads another player from the profile route only, public or private', async () => {
-    const privatePage = profilePage({
+  it('hides a private library and loadout and keeps the lists link', () => {
+    const hidden = profileHubModel(profilePage({
       username: 'ada',
       owner: false,
       libraryPublic: false,
       loadoutPublic: false,
       stats: null,
       viewer: 'other',
-    })
-    const publicPage = profilePage({
+    }))
+    expect(hidden.loadoutHref).toBeNull()
+    expect(hidden.library).toBeNull()
+    expect(hidden.listsHref).toBe('/user/ada/lists')
+
+    const visible = profileHubModel(profilePage({
       username: 'ada',
       owner: false,
       libraryPublic: true,
       loadoutPublic: true,
       stats: { total_games: 10, completed: 3 },
       viewer: null,
-    })
-    const pages = [privatePage, publicPage]
-    const get = vi.fn(async (username: string) => {
-      const page = pages.shift()
-      if (!page || page.profile.username !== username) throw new Error('unexpected profile fetch')
-      return page
-    })
-    const library = vi.fn(async () => {
-      throw new Error('library was fetched')
-    })
-    const loadout = vi.fn(async () => {
-      throw new Error('loadout was fetched')
-    })
-    const lists = vi.fn(async () => {
-      throw new Error('lists were fetched')
-    })
-    const users = { get, library, loadout, lists }
-
-    const hidden = await loadProfileHub({ users }, 'ada')
-    expect(hidden.loadoutHref).toBeNull()
-    expect(hidden.library).toBeNull()
-    expect(hidden.listsHref).toBe('/user/ada/lists')
-
-    const visible = await loadProfileHub({ users }, 'ada')
+    }))
     expect(visible.loadoutHref).toBe('/user/ada/loadout')
     expect(visible.library).toEqual({ href: '/user/ada/library', totalGames: 10, completed: 3 })
     expect(visible.listsHref).toBe('/user/ada/lists')
-    expect(get.mock.calls).toEqual([['ada'], ['ada']])
   })
 })
 
@@ -712,7 +692,7 @@ describe('stack screens', () => {
 
 describe('screen gate', () => {
   it('turns a missing API url and a 404 into the copy the screen shows', async () => {
-    const { ApiClientError } = await import('@/lib/api/client')
+    const { ApiClientError } = await import('@screenpeak/shared/api/client')
     expect(screenGate({ ready: true, configured: false, loading: false, error: null })).toEqual({
       title: 'API URL missing',
       body: 'Set EXPO_PUBLIC_API_URL to the ScreenPeak server.',

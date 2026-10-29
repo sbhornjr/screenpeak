@@ -1,20 +1,17 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import {
   RESET_CONFIRMATION,
   RESET_LINK_HINT,
   RESET_REPEAT_MS,
-  claimResetSend,
   completeAuthCallback,
   confirmDestination,
   createAuthCallbackCompleter,
   leavePasswordScreen,
   newPasswordProblem,
-  passwordResetRedirectBase,
   passwordResetRedirectTo,
   parseAuthCallback,
-  recoveryScreenExit,
-  releaseResetSend,
+  requestReset,
   resetCooldownRemaining,
   resetOutcome,
   resetSendDecision,
@@ -27,13 +24,12 @@ const NATIVE_URL = 'screenpeak://auth/confirm?code=reset-code&next=/auth/update-
 
 describe('password reset redirect', () => {
   it('uses the website confirm path on the Expo web origin', () => {
-    const base = passwordResetRedirectBase('web', WEB, 'screenpeak')
-    expect(passwordResetRedirectTo(base)).toBe(`${WEB}/auth/confirm?next=/auth/update-password`)
+    expect(passwordResetRedirectTo(WEB)).toBe(`${WEB}/auth/confirm?next=/auth/update-password`)
+    expect(passwordResetRedirectTo(`${WEB}/`)).toBe(`${WEB}/auth/confirm?next=/auth/update-password`)
   })
 
   it('uses the screenpeak scheme for a native build', () => {
-    const base = passwordResetRedirectBase('native', WEB, 'screenpeak')
-    expect(passwordResetRedirectTo(base)).toBe('screenpeak://auth/confirm?next=/auth/update-password')
+    expect(passwordResetRedirectTo('screenpeak://')).toBe('screenpeak://auth/confirm?next=/auth/update-password')
   })
 })
 
@@ -41,7 +37,7 @@ describe('reset request', () => {
   it('asks for a real email before sending', () => {
     expect(resetSendDecision('not-an-email', null, 1_000)).toEqual({
       send: false,
-      message: 'Enter a valid email address',
+      outcome: { error: 'Enter a valid email address' },
     })
   })
 
@@ -56,7 +52,7 @@ describe('reset request', () => {
     const sentAt = 5_000
     expect(resetSendDecision('person@example.com', sentAt, sentAt + RESET_REPEAT_MS - 1)).toEqual({
       send: false,
-      confirmation: RESET_CONFIRMATION,
+      outcome: { confirmation: RESET_CONFIRMATION },
     })
   })
 
@@ -68,26 +64,39 @@ describe('reset request', () => {
     })
   })
 
-  it('records the send before the request returns so a second call does not send', () => {
-    const first = claimResetSend('person@example.com', null, 1_000)
-    const second = claimResetSend('person@example.com', first.lastSentAt, 1_000)
-    expect(first.decision).toEqual({ send: true, email: 'person@example.com' })
-    expect(second.decision).toEqual({
-      send: false,
-      confirmation: 'If that email has an account, a reset link is on its way.',
-    })
-    expect(resetCooldownRemaining(first.lastSentAt, 1_000)).toBe(RESET_REPEAT_MS)
-    expect(resetCooldownRemaining(first.lastSentAt, 1_000 + RESET_REPEAT_MS)).toBe(0)
+  it('stamps the send before the request so a second tap does not send', async () => {
+    let stamp: number | null = null
+    const sentAt = { get: () => stamp, set: (at: number | null) => { stamp = at } }
+    let release: () => void = () => undefined
+    const send = vi.fn(() => new Promise<null>((resolve) => { release = () => resolve(null) }))
+    const first = requestReset('person@example.com', sentAt, send, 1_000)
+    expect(stamp).toBe(1_000)
+    expect(await requestReset('person@example.com', sentAt, send, 1_000)).toEqual({ confirmation: RESET_CONFIRMATION })
+    release()
+    expect(await first).toEqual({ confirmation: RESET_CONFIRMATION })
+    expect(send).toHaveBeenCalledOnce()
+    expect(stamp).toBe(1_000)
   })
 
-  it('clears the send time when the request fails so another send can start', () => {
-    const claimed = claimResetSend('person@example.com', null, 1_000)
-    const released = releaseResetSend(claimed.lastSentAt, { error: 'Email rate limit exceeded' })
-    expect(released).toBeNull()
-    expect(claimResetSend('person@example.com', released, 1_001).decision).toEqual({
-      send: true,
-      email: 'person@example.com',
-    })
+  it('clears the stamp when the send fails so another send can start', async () => {
+    let stamp: number | null = null
+    const sentAt = { get: () => stamp, set: (at: number | null) => { stamp = at } }
+    const refused = await requestReset('person@example.com', sentAt, async () => ({
+      code: 'over_email_send_rate_limit',
+      message: 'Email rate limit exceeded',
+    }), 1_000)
+    expect(refused).toEqual({ error: 'Email rate limit exceeded' })
+    expect(stamp).toBeNull()
+    await expect(requestReset('person@example.com', sentAt, async () => {
+      throw new Error('offline')
+    }, 1_001)).rejects.toThrow('offline')
+    expect(stamp).toBeNull()
+  })
+
+  it('counts the cooldown down from the send', () => {
+    expect(resetCooldownRemaining(null, 1_000)).toBe(0)
+    expect(resetCooldownRemaining(1_000, 1_000)).toBe(RESET_REPEAT_MS)
+    expect(resetCooldownRemaining(1_000, 1_000 + RESET_REPEAT_MS)).toBe(0)
   })
 
   it('reports the same confirmation whether or not the account exists', () => {
@@ -242,7 +251,6 @@ describe('set new password screen', () => {
     })
     expect(left).toBe('sign-out')
     expect(actions).toEqual(['signed-out'])
-    expect(recoveryScreenExit(true, true)).toBe('keep')
     const stayed: string[] = []
     const kept = await leavePasswordScreen({ recovery: true, updated: true }, async () => {
       stayed.push('signed-out')

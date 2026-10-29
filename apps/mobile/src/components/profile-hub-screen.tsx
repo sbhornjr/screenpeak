@@ -1,10 +1,11 @@
+import type { ProfilePageData } from '@screenpeak/shared/api/profile'
 import { useState } from 'react'
 
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { useCachedWrite } from '@/lib/cached-write'
 import { back, go } from '@/lib/go'
-import { loadProfileHub, withFollowing, type ProfileHubModel } from '@/lib/profile-hub'
+import { profileHubModel, withFollowing } from '@/lib/profile-hub'
 import { queryKeys, scopes } from '@/lib/query-keys'
 import { useSingleFlight } from '@/lib/single-flight'
 import { useRefresh } from '@/lib/use-refresh'
@@ -20,9 +21,14 @@ export function ProfileHubScreen({ username, showBack }: { username: string, sho
 }
 
 function ProfileFollowSession({ username, showBack }: { username: string, showBack?: boolean }) {
-  const remote = useRemote(viewer => queryKeys.profile(username, viewer), () => loadProfileHub(api, username), username.length > 0)
+  const remote = useRemote(
+    viewer => queryKeys.profile(username, viewer),
+    () => api.users.get(username),
+    username.length > 0,
+    profileHubModel,
+  )
   const viewerId = remote.session?.user.id ?? null
-  const commit = useCachedWrite<ProfileHubModel>(queryKeys.profile(username, viewerId), {
+  const commit = useCachedWrite<ProfilePageData>(queryKeys.profile(username, viewerId), {
     viewerId,
     invalidate: [scopes.profile],
   })
@@ -39,7 +45,7 @@ function ProfileFollowSession({ username, showBack }: { username: string, showBa
       setFollowNote(null)
       const note = await commit(
         () => following ? api.users.follow(current.userId) : api.users.unfollow(current.userId),
-        row => withFollowing(row, following),
+        page => withFollowing(page, following),
       )
       setFollowNote(note)
       setFollowBusy(false)

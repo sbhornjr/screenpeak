@@ -8,7 +8,7 @@ import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWi
 
 import { igdbImageUri } from '@/lib/catalog-image'
 import { communityScore, relTime, scoreGap, statusLabel, yearOf, type ReviewListQuery } from '@/lib/game-page'
-import type { CatalogueFilter } from '@/lib/query-keys'
+import type { CatalogueFilter } from '@/lib/routes'
 import { colors, face, radius, space, text, tierColor, tracking, trackingPx, typeScale } from '@/theme'
 
 import { AppHeader } from './app-header'

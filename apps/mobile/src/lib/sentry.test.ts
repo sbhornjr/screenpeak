@@ -31,7 +31,7 @@ vi.mock('../components/button', () => ({
 const DSN = 'https://key@o4512142406057984.ingest.us.sentry.io/1'
 
 describe('mobile Sentry', () => {
-  it('treats an explicit undefined DSN as unset, then scrubs the shared fixture and the component stack', async () => {
+  it('treats a null DSN as unset, then scrubs the shared fixture and the component stack', async () => {
     vi.resetModules()
     init.mockClear()
     captureException.mockClear()
@@ -43,7 +43,7 @@ describe('mobile Sentry', () => {
 
       reportAppError(error)
       process.env.EXPO_PUBLIC_SENTRY_DSN = DSN
-      expect(startMobileSentry(undefined)).toBe(false)
+      expect(startMobileSentry(null)).toBe(false)
       expect(startMobileSentry('   ')).toBe(false)
       delete process.env.EXPO_PUBLIC_SENTRY_DSN
       expect(startMobileSentry()).toBe(false)

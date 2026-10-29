@@ -1,7 +1,7 @@
 import type { ProfilePageData } from '@screenpeak/shared/api/profile'
 import { parseDbTimestamp } from '@screenpeak/shared/dates'
 
-import { listsHref, loadoutHref, ratingsHref, settingsHref, userLibraryHref } from './routes'
+import { listsHref, loadoutHref, ratingsHref, SETTINGS_HREF, userLibraryHref } from './routes'
 
 // Visibility matches the website profile nav (apps/web/app/user/[username]/page.tsx).
 // Library: owner, or library_public. Loadout: owner, or loadout_public.
@@ -66,20 +66,20 @@ export function averageText(count: number, avg: number | null): string {
   return `${Math.trunc(avg * 100) / 100} / 10`
 }
 
-/** The follow button's optimistic row. Owners and signed-out profiles stay as they are. */
-export function withFollowing(model: ProfileHubModel, following: boolean): ProfileHubModel {
-  if (model.following == null || model.following === following) return model
+/** The follow button's optimistic page. Owners and signed-out profiles stay as they are. */
+export function withFollowing(data: ProfilePageData, following: boolean): ProfilePageData {
+  const viewer = data.viewer
+  if (!viewer || viewer.is_owner || viewer.is_following === following) return data
   return {
-    ...model,
-    following,
-    followerCount: Math.max(0, model.followerCount + (following ? 1 : -1)),
+    ...data,
+    profile: { ...data.profile, follower_count: Math.max(0, data.profile.follower_count + (following ? 1 : -1)) },
+    viewer: { ...viewer, is_following: following },
   }
 }
 
-export type ProfileHubSource = {
-  users: {
-    get: (username: string) => Promise<ProfilePageData>
-  }
+/** Trimmed text, or null when nothing is left. */
+function filled(value: string | null | undefined): string | null {
+  return value?.trim() || null
 }
 
 export function profileHubModel(data: ProfilePageData): ProfileHubModel {
@@ -87,16 +87,14 @@ export function profileHubModel(data: ProfilePageData): ProfileHubModel {
   const isOwner = data.viewer?.is_owner ?? false
   const showLibrary = isOwner || data.profile.library_public
   const showLoadout = isOwner || data.profile.loadout_public
-  const quote = data.profile.profile_loadout_bio?.trim() ? data.profile.profile_loadout_bio : null
-  const bio = data.profile.user_bio?.trim() ? data.profile.user_bio.trim() : null
   return {
     userId: data.profile.id,
     username,
-    displayName: data.profile.display_name?.trim() || username,
-    title: data.profile.selected_title?.trim() || 'Title-less Noob',
+    displayName: filled(data.profile.display_name) ?? username,
+    title: filled(data.profile.selected_title) ?? 'Title-less Noob',
     memberSince: memberSinceLabel(data.profile.created_at),
-    bio,
-    loadoutQuote: showLoadout ? quote : null,
+    bio: filled(data.profile.user_bio),
+    loadoutQuote: showLoadout ? filled(data.profile.profile_loadout_bio) : null,
     avatarUrl: data.profile.avatar_url,
     followerCount: data.profile.follower_count,
     followingCount: data.profile.following_count,
@@ -116,11 +114,6 @@ export function profileHubModel(data: ProfilePageData): ProfileHubModel {
     favorites: data.favorites,
     reviews: data.recent_reviews,
     reviewsHref: ratingsHref(username),
-    settingsHref: isOwner ? settingsHref() : null,
+    settingsHref: isOwner ? SETTINGS_HREF : null,
   }
-}
-
-export async function loadProfileHub(source: ProfileHubSource, username: string): Promise<ProfileHubModel> {
-  const data = await source.users.get(username)
-  return profileHubModel(data)
 }

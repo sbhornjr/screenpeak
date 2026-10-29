@@ -4,7 +4,6 @@ import type { GameSearchHit } from '@screenpeak/shared/api/search'
 import type { ListGameSync, ListWrite } from '@screenpeak/shared/api/writes'
 
 import { withListMembership } from '@/lib/game-page'
-import { calendarLabel } from '@/lib/profile-hub'
 
 export function listsHeading(owner: boolean, username: string): string {
   return owner ? 'Your Lists' : `${username}'s Lists`
@@ -30,18 +29,27 @@ export function likeActionLabel(liked: boolean, count: number): string {
   return `${liked ? 'Unlike' : 'Like'} list, ${likesCountLabel(count)}`
 }
 
-export function updatedDay(value: string): string {
-  return calendarLabel(value) ?? ''
+/** The card and detail fields a list form writes. */
+function formFields(fields: ListWrite) {
+  return {
+    name: fields.name.trim(),
+    description: fields.description,
+    is_public: fields.isPublic,
+    is_pinned: fields.isPinned,
+  }
+}
+
+/** The like count after a toggle. Repeating the current state changes nothing. */
+function likedCount(count: number, was: boolean, liked: boolean): number {
+  if (liked === was) return count
+  return Math.max(0, count + (liked ? 1 : -1))
 }
 
 export function withNewList(page: ListsPageData, id: string, fields: ListWrite): ListsPageData {
   if (page.lists.some(list => list.id === id)) return page
   const card: ListCard = {
     id,
-    name: fields.name.trim(),
-    description: fields.description,
-    is_public: fields.isPublic,
-    is_pinned: fields.isPinned,
+    ...formFields(fields),
     is_default: false,
     last_activity: '',
     game_count: 0,
@@ -59,46 +67,27 @@ export function withNewList(page: ListsPageData, id: string, fields: ListWrite):
 export function withListEdits(page: ListsPageData, listId: string, fields: ListWrite): ListsPageData {
   return {
     ...page,
-    lists: page.lists.map(list => list.id === listId ? {
-      ...list,
-      name: fields.name.trim(),
-      description: fields.description,
-      is_public: fields.isPublic,
-      is_pinned: fields.isPinned,
-    } : list),
+    lists: page.lists.map(list => list.id === listId ? { ...list, ...formFields(fields) } : list),
   }
 }
 
 export function withDetailEdits(page: ListPageData, fields: ListWrite): ListPageData {
-  return {
-    ...page,
-    list: {
-      ...page.list,
-      name: fields.name.trim(),
-      description: fields.description,
-      is_public: fields.isPublic,
-      is_pinned: fields.isPinned,
-    },
-  }
+  return { ...page, list: { ...page.list, ...formFields(fields) } }
 }
 
 export function withListLike(page: ListsPageData, listId: string, liked: boolean): ListsPageData {
   return {
     ...page,
-    lists: page.lists.map(list => {
-      if (list.id !== listId) return list
-      const delta = liked === list.viewer_has_liked ? 0 : liked ? 1 : -1
-      return { ...list, viewer_has_liked: liked, like_count: Math.max(0, list.like_count + delta) }
-    }),
+    lists: page.lists.map(list => list.id === listId
+      ? { ...list, viewer_has_liked: liked, like_count: likedCount(list.like_count, list.viewer_has_liked, liked) }
+      : list),
   }
 }
 
 export function withDetailLike(page: ListPageData, liked: boolean): ListPageData {
-  const current = page.viewer?.has_liked ?? false
-  const delta = liked === current ? 0 : liked ? 1 : -1
   return {
     ...page,
-    like_count: Math.max(0, page.like_count + delta),
+    like_count: likedCount(page.like_count, page.viewer?.has_liked ?? false, liked),
     viewer: page.viewer ? { ...page.viewer, has_liked: liked } : page.viewer,
   }
 }

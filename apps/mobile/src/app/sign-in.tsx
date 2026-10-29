@@ -7,7 +7,7 @@ import { Button } from '@/components/button'
 import { TextField } from '@/components/text-field'
 import { authConfigError } from '@/lib/auth-config'
 import { useAuth } from '@/lib/auth'
-import { backOrHome } from '@/lib/go'
+import { back } from '@/lib/go'
 import { text } from '@/theme'
 
 export default function SignInScreen() {
@@ -23,7 +23,7 @@ export default function SignInScreen() {
     setPending(true)
     try {
       await signIn(email.trim(), password)
-      backOrHome()
+      back()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not log in.')
     } finally {

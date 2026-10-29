@@ -9,7 +9,7 @@ import { Button } from '@/components/button'
 import { TextField } from '@/components/text-field'
 import { authConfigError } from '@/lib/auth-config'
 import { useAuth } from '@/lib/auth'
-import { backOrHome } from '@/lib/go'
+import { back } from '@/lib/go'
 import { text } from '@/theme'
 
 export default function SignUpScreen() {
@@ -34,7 +34,7 @@ export default function SignUpScreen() {
     try {
       const message = await signUp(email.trim(), password, usernameCheck.data)
       if (message) setNotice(message)
-      else backOrHome()
+      else back()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create the account.')
     } finally {

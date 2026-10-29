@@ -7,7 +7,6 @@ import React from 'react'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { profileHubModel } from '@/lib/profile-hub'
 
 import { OwnLibrary, UserLibrary } from './library-browser'
 
@@ -428,7 +427,7 @@ describe('UserLibrary', () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
     client.setQueryData(
       ['profile', 'nova', 'viewer-1'],
-      profileHubModel(profile({ username: 'nova', libraryPublic: true, owner: false })),
+      profile({ username: 'nova', libraryPublic: true, owner: false }),
     )
     getLibrary.mockResolvedValue({ ...PAGE, username: 'nova' })
     render(<QueryClientProvider client={client}><UserLibrary username="nova" /></QueryClientProvider>)
@@ -440,7 +439,7 @@ describe('UserLibrary', () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
     client.setQueryData(
       ['profile', 'ada', 'viewer-1'],
-      profileHubModel(profile({ username: 'ada', libraryPublic: false, owner: false })),
+      profile({ username: 'ada', libraryPublic: false, owner: false }),
     )
     render(<QueryClientProvider client={client}><UserLibrary username="ada" /></QueryClientProvider>)
     expect((await screen.findByText('This library is private.')).textContent).toBe('This library is private.')

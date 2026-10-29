@@ -51,16 +51,23 @@ export function libraryColumnWidth(windowWidth: number): number {
   return (windowWidth - horizontal * 2 - space[3]) / 2
 }
 
+// Fixed heights in GameCard's label and LibraryCell's stat row. Change them
+// with those styles. The Edit button floats over the cover and adds nothing.
+const CARD_BORDER = 1
+const TITLE_LINE = 19
+const META_LINE = 12
+const STAT_LINE = 16
+
 /**
  * One virtualized row. FlatList's `numColumns` asks for the row index.
  * The offset includes the measured header and the gap under it.
  */
-export function libraryRowLayout(columnWidth: number, canEdit: boolean, headerHeight: number, rowIndex: number) {
+export function libraryRowLayout(columnWidth: number, headerHeight: number, rowIndex: number) {
   const cover = columnWidth * (4 / 3)
-  const card = 2 + space[2.5] + 19 + space[1.5] + 1 + space[1.5] + 12 + space[3]
-  const stats = space[2] + 16
-  const length = cover + card + stats + space[3] + space[3]
-  void canEdit
+  const label = space[2.5] + TITLE_LINE + space[1.5] + CARD_BORDER + space[1.5] + META_LINE + space[3]
+  const card = CARD_BORDER * 2 + cover + label
+  const stats = space[2] + STAT_LINE
+  const length = card + stats + space[3] + space[3]
   return {
     length,
     offset: headerHeight + space[3] + rowIndex * length,
@@ -78,6 +85,21 @@ export function cardEntry(game: LibraryGameCard): ViewerLibraryEntry {
   }
 }
 
+type EntryFields = Pick<ViewerLibraryEntry, 'completed_all_achievements' | 'hours_played' | 'play_count'>
+
+/**
+ * A write on top of the cached entry. An omitted field keeps its value;
+ * `hours_played: null` clears it, so presence is checked, not `??`.
+ */
+export function mergeLibraryWrite(entry: EntryFields, write: LibraryWrite): EntryFields & { status: LibraryWrite['status'] } {
+  return {
+    status: write.status,
+    completed_all_achievements: write.completed_all_achievements ?? entry.completed_all_achievements,
+    hours_played: 'hours_played' in write ? (write.hours_played ?? null) : entry.hours_played,
+    play_count: write.play_count ?? entry.play_count,
+  }
+}
+
 /** Apply a library write to the cached page. A card that leaves the active filter drops out. */
 export function applyLibraryWrite(
   page: LibraryPageData,
@@ -87,15 +109,8 @@ export function applyLibraryWrite(
 ): LibraryPageData {
   const games = page.games.flatMap((game) => {
     if (game.id !== gameId) return [game]
-    const next: LibraryGameCard = {
-      ...game,
-      library_status: write.status,
-      completed_all_achievements: write.completed_all_achievements ?? game.completed_all_achievements,
-      hours_played: Object.prototype.hasOwnProperty.call(write, 'hours_played')
-        ? (write.hours_played ?? null)
-        : game.hours_played,
-      play_count: write.play_count ?? game.play_count,
-    }
+    const { status, ...fields } = mergeLibraryWrite(game, write)
+    const next: LibraryGameCard = { ...game, ...fields, library_status: status }
     if (query.status && next.library_status !== query.status) return []
     if (query.is100 && !next.completed_all_achievements) return []
     return [next]

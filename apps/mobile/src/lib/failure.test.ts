@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { ApiClientError } from './api/client'
+import { ApiClientError } from '@screenpeak/shared/api/client'
 import { actionFailure, loadFailure } from './failure'
 
 describe('actionFailure', () => {

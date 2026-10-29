@@ -301,7 +301,7 @@ export function LibraryScreen({
         numColumns={2}
         refreshing={refreshing}
         onRefresh={onRefresh}
-        getItemLayout={(_data, index) => libraryRowLayout(columnWidth, canEdit, headerHeight, index)}
+        getItemLayout={(_data, index) => libraryRowLayout(columnWidth, headerHeight, index)}
         columnWrapperStyle={games.length > 0 ? styles.columns : undefined}
         contentContainerStyle={[styles.list, compact && styles.padCompact]}
         ListHeaderComponent={header}

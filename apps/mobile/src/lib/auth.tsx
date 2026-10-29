@@ -5,13 +5,10 @@ import * as Linking from 'expo-linking'
 
 import { sendPasswordReset } from './mobile-client'
 import {
-  claimResetSend,
   completeAuthCallback,
   newPasswordProblem,
-  passwordResetRedirectBase,
   passwordResetRedirectTo,
-  releaseResetSend,
-  resetOutcome,
+  requestReset,
   RESET_LINK_HINT,
   SITE_ORIGIN,
   type ResetOutcome,
@@ -40,15 +37,15 @@ const AuthContext = createContext<AuthValue | null>(null)
 
 function passwordResetRedirect(): string {
   if (Platform.OS === 'web') {
-    const origin = typeof window === 'undefined' ? 'http://localhost:8081' : window.location.origin
-    return passwordResetRedirectTo(passwordResetRedirectBase('web', origin, 'screenpeak'))
+    return passwordResetRedirectTo(typeof window === 'undefined' ? 'http://localhost:8081' : window.location.origin)
   }
-  return passwordResetRedirectTo(passwordResetRedirectBase('native', '', Linking.resolveScheme({})))
+  return passwordResetRedirectTo(`${Linking.resolveScheme({})}://`)
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [ready, setReady] = useState(supabase == null)
+  // The ref stops a second tap in the same turn; the state re-renders the cooldown.
   const [resetSentAt, setResetSentAt] = useState<number | null>(null)
   const lastResetAt = useRef<number | null>(null)
 
@@ -107,26 +104,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     resetSentAt,
     async requestPasswordReset(email) {
-      if (!supabase) throw new Error(authConfigError())
-      const claim = claimResetSend(email, lastResetAt.current, Date.now())
-      lastResetAt.current = claim.lastSentAt
-      if (!claim.decision.send) {
-        if ('confirmation' in claim.decision) return { confirmation: claim.decision.confirmation }
-        return { error: claim.decision.message }
+      const client = supabase
+      if (!client) throw new Error(authConfigError())
+      const sentAt = {
+        get: () => lastResetAt.current,
+        set: (at: number | null) => {
+          lastResetAt.current = at
+          setResetSentAt(at)
+        },
       }
-      setResetSentAt(claim.lastSentAt)
-      try {
-        const { error } = await sendPasswordReset(supabase, claim.decision.email, passwordResetRedirect())
-        const outcome = resetOutcome(error ? { code: error.code, message: error.message } : null)
-        const released = releaseResetSend(lastResetAt.current, outcome)
-        lastResetAt.current = released
-        setResetSentAt(released)
-        return outcome
-      } catch (err) {
-        lastResetAt.current = null
-        setResetSentAt(null)
-        throw err
-      }
+      return requestReset(email, sentAt, async (address) => {
+        const { error } = await sendPasswordReset(client, address, passwordResetRedirect())
+        return error ? { code: error.code, message: error.message } : null
+      })
     },
     async openRecoveryLink(url) {
       const client = supabase

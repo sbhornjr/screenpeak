@@ -16,13 +16,11 @@ export function go(href: string) {
   else router.navigate(target)
 }
 
-/** Detail screens use this. A cold open has no screen underneath, so it returns home. */
+/**
+ * Leave a detail, sign-in, or sign-up screen. A cold or direct open has no
+ * screen underneath, so it returns home.
+ */
 export function back() {
-  backOrHome()
-}
-
-/** Leave a sign-in or sign-up screen. A direct open has no screen to return to. */
-export function backOrHome() {
   if (router.canGoBack()) router.back()
   else router.replace('/' as Href)
 }
