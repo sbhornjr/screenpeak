@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation"
 import Modal from "@/app/components/util/Modal"
 import { submitRatingReview } from "@/app/review-actions"
 import { plus1 } from "@/lib/plus1"
+import { ratingLabel } from "@screenpeak/shared/rating-copy"
 
 export default function RateReviewButton({ game_id, existing_rating_review } :
     { game_id: string, existing_rating_review: { rating: number, review: string | null, user_id: string, created_at: string | null, updated_at: string | null } | null | undefined}) {
@@ -15,52 +16,14 @@ export default function RateReviewButton({ game_id, existing_rating_review } :
     const [isRateReviewModalOpen, setIsRateReviewModalOpen] = useState(false)
     const [existingRatingReview, setExistingRatingReview] = useState<{ rating: number, review: string | null, user_id: string, created_at: string | null, updated_at: string | null } | null | undefined>(existing_rating_review)
     const [rating, setRating] = useState(existingRatingReview ? existingRatingReview.rating : "6")
-    const [ratingLabel, setRatingLabel] = useState("")
+    const [label, setRatingLabel] = useState("")
     const [review, setReview] = useState(existingRatingReview?.review ?? "")
     const [error, setError] = useState("")
     const router = useRouter()
 
-    function setLabel(value: string) {
-        switch (value) {
-            case "1":
-                setRatingLabel("Might be the worst game I've ever played.")
-                break
-            case "2":
-                setRatingLabel("It was really really bad.")
-                break
-            case "3":
-                setRatingLabel("I didn't really like it.")
-                break
-            case "4":
-                setRatingLabel("I couldn't get into it.")
-                break
-            case "5":
-                setRatingLabel("Meh. It was fine.")
-                break
-            case "6":
-                setRatingLabel("It was alright.")
-                break
-            case "7":
-                setRatingLabel("Pretty solid game.")
-                break
-            case "8":
-                setRatingLabel("This game was really good.")
-                break
-            case "9":
-                setRatingLabel("Incredible game.")
-                break
-            case "10":
-                setRatingLabel("Might be the best game I've ever played.")
-                break
-            default:
-                setRatingLabel("This is definitely a bug.")
-                break
-        }
-    }
-
     function handleRatingChange(value: string) {
         setRating(value)
-        setLabel(value)
+        setRatingLabel(ratingLabel(Number(value)))
     }
 
     async function handleSubmit() {
@@ -116,7 +79,7 @@ export default function RateReviewButton({ game_id, existing_rating_review } :
                                 </button>
                             ))}
                         </div>
-                        <p className="text-md text-(--color-muted) text-center my-2">{ratingLabel}</p>
+                        <p className="text-md text-(--color-muted) text-center my-2">{label}</p>
                         <div className="flex flex-col gap-1 items-center mb-4">
                             <p className="self-start text-md text-(--color-muted)">Would you like to leave a review? (Optional)</p>
                             <textarea

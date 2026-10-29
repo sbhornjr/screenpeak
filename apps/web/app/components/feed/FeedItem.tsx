@@ -8,7 +8,7 @@ import FeedListPreview from "@/app/components/feed/FeedListPreview"
 import Avatar from "@/app/components/user/Avatar"
 import FeedLibraryBatch from "./FeedLibraryBatch"
 import type { FeedItem as FeedItemType } from "@screenpeak/shared/types"
-import { parseDbTimestamp } from "@/lib/dates"
+import { parseDbTimestamp } from "@screenpeak/shared/dates"
 
 export function timeAgo(date: string): string {
     const seconds = Math.floor((Date.now() - parseDbTimestamp(date).getTime()) / 1000)

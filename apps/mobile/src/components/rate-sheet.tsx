@@ -1,8 +1,8 @@
+import { ratingLabel } from '@screenpeak/shared/rating-copy'
 import { ratingReviewSchema } from '@screenpeak/shared/schemas'
 import { useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 
-import { ratingLabel } from '@/lib/game-page'
 import { useAction } from '@/lib/use-action'
 import { useOnOpen } from '@/lib/use-on-open'
 import { colors, face, radius, space, text, tierColor, typeScale } from '@/theme'

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { SEARCH_MAX_PAGE_SIZE, SEARCH_QUERY_MAX_LENGTH, TAXONOMY_SEARCH_ID_CAP, TAXONOMY_SEARCH_TABLES } from './constants'
+import { LIBRARY_STATUSES, SEARCH_MAX_PAGE_SIZE, SEARCH_QUERY_MAX_LENGTH, TAXONOMY_SEARCH_ID_CAP, TAXONOMY_SEARCH_TABLES } from './constants'
 
 // Shared field schemas — the single source of truth for input shape rules,
 // used both by lib/queries/* (server-side-of-the-call defense) and by the
@@ -50,7 +50,7 @@ export const privacyTypeSchema = z.enum(['Default List', 'Library', 'Loadout'])
 /** Account, game, and list ids on `/api/v1` are uuid strings. */
 export const uuidIdSchema = z.uuid('Must be a uuid.')
 
-export const libraryStatusSchema = z.enum(['playing', 'completed', 'backlog', 'abandoned'])
+export const libraryStatusSchema = z.enum(LIBRARY_STATUSES)
 
 /** numeric(8,1): one decimal place, at most 9999999.9. */
 const hoursPlayedSchema = z.number()

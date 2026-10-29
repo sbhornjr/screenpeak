@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { and, eq, sql } from 'drizzle-orm'
 import { db, type DB } from '@/lib/db'
 import { games, gameExternalIds } from '@/db/schema'
-import { parseDbTimestamp } from '@/lib/dates'
+import { parseDbTimestamp } from '@screenpeak/shared/dates'
 import type { CatalogGame, CatalogTaxon } from './types'
 
 const positiveId = z.number().int().positive().max(2_147_483_647)

@@ -1,8 +1,17 @@
 // Copy both apps show for the game-page library section. Dependency-free so
 // the phone bundle can import it.
 import type { ViewerLibraryEntry } from './api/games'
+import type { LibraryStatus } from './constants'
 
 export const LIBRARY_SECTION_TITLE = 'In your library'
+
+/** The status picker's name and line for each status. */
+export const LIBRARY_STATUS_COPY: Record<LibraryStatus, { label: string, description: string }> = {
+    backlog: { label: 'Backlog', description: "I'll get to it..." },
+    playing: { label: 'Playing', description: 'Currently playing it' },
+    completed: { label: 'Completed', description: 'Done and satisfied' },
+    abandoned: { label: 'Abandoned', description: "Couldn't get into it" },
+}
 
 export function libraryEmptyLine(signedIn: boolean): string {
     return signedIn

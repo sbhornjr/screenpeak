@@ -2,7 +2,7 @@ import 'server-only'
 import { and, asc, desc, eq, gt, lt, or, sql, type SQL } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { games, lists, users } from '@/db/schema'
-import { parseDbTimestamp } from '@/lib/dates'
+import { parseDbTimestamp } from '@screenpeak/shared/dates'
 
 // One page at a time. A single .limit(5000) is not a guarantee — PostgREST
 // caps rows, and an unordered cap shifts between requests. A short page ends

@@ -6,7 +6,7 @@ import { GameRatingReview, RatingReviewData, RatingReviewCounts, AvgRatingsData,
 import type { GameReviewsPage } from '@screenpeak/shared/api/games'
 import type { GameReviewsQuery } from '@/lib/game-reviews-query'
 import { ratingReviewSchema, parseOrError } from '@screenpeak/shared/schemas'
-import { parseDbTimestamp } from '@/lib/dates'
+import { parseDbTimestamp } from '@screenpeak/shared/dates'
 import { writeErrorText } from '@/lib/write-http'
 import { uuidArrayParam } from '@/lib/sql-helpers'
 

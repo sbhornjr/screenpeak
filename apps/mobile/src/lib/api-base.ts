@@ -88,6 +88,11 @@ export function devApiRuntime(devFlag: boolean | undefined, nodeEnv: string | un
   return nodeEnv !== 'production'
 }
 
+/** This runtime's answer, read at call time so a test can flip `__DEV__`. */
+export function isDevRuntime(): boolean {
+  return devApiRuntime(typeof __DEV__ === 'boolean' ? __DEV__ : undefined)
+}
+
 export function apiBaseUrlFromEnv(
   input: { dev: boolean, EXPO_PUBLIC_API_URL?: string | null },
   constants?: { expoConfig?: { hostUri?: string | null } | null },

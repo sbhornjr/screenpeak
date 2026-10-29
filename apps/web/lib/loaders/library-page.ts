@@ -1,6 +1,6 @@
 import 'server-only'
 import type { LibraryPageData, LibraryQuery } from '@screenpeak/shared/api/library'
-import { parseDbTimestamp } from '@/lib/dates'
+import { parseDbTimestamp } from '@screenpeak/shared/dates'
 import { getDeveloperNameMap, queryGames } from '@/lib/queries/game'
 import { getLibraryEntries, getLibraryFacets } from '@/lib/queries/library'
 import { getAccountSettings, getUserIdFromUsername } from '@/lib/queries/user'

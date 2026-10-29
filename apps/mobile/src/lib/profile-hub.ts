@@ -1,6 +1,6 @@
 import type { ProfilePageData } from '@screenpeak/shared/api/profile'
+import { parseDbTimestamp } from '@screenpeak/shared/dates'
 
-import { parseDbTimestamp } from './game-page'
 import { listsHref, loadoutHref, ratingsHref, settingsHref, userLibraryHref } from './routes'
 
 // Visibility matches the website profile nav (apps/web/app/user/[username]/page.tsx).

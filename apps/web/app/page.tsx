@@ -12,7 +12,7 @@ import Link from "next/link";
 import { getOptionalUser } from "@/lib/auth";
 import { loadFeed } from "@/lib/loaders/feed";
 import { loadHomeLanding } from "@/lib/loaders/home";
-import { parseDbTimestamp } from "@/lib/dates";
+import { parseDbTimestamp } from "@screenpeak/shared/dates";
 import { resolveHeroVisual } from "@/lib/catalog/images";
 
 export default async function Home() {

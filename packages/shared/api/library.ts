@@ -3,10 +3,12 @@
 // Null from the loader (404 from the route) when the player does not exist or
 // the library is private and the caller is not the owner. A public library is
 // readable signed out, with viewer scores null.
+import type { LibraryStatus } from '../constants'
 import type { GameCardData } from './games'
 
 export type LibrarySort = 'name' | 'ngplus_rating' | 'your_rating' | 'date_added'
-export type LibraryStatus = '' | 'playing' | 'completed' | 'backlog' | 'abandoned'
+/** The library's Status filter. Empty is every status. */
+export type LibraryStatusFilter = '' | LibraryStatus
 
 export type LibraryQuery = {
     q: string | null
@@ -17,7 +19,7 @@ export type LibraryQuery = {
     esrb: string | null
     sort: LibrarySort
     order: 'asc' | 'desc'
-    status: LibraryStatus
+    status: LibraryStatusFilter
     is100: boolean
 }
 

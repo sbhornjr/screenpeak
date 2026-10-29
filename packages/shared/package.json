@@ -6,9 +6,11 @@
   "exports": {
     "./api/*": "./api/*.ts",
     "./constants": "./constants.ts",
+    "./dates": "./dates.ts",
     "./images": "./images.ts",
     "./library-copy": "./library-copy.ts",
     "./tokens": "./tokens.ts",
+    "./rating-copy": "./rating-copy.ts",
     "./redirect": "./redirect.ts",
     "./schemas": "./schemas.ts",
     "./sentry": "./sentry.ts",

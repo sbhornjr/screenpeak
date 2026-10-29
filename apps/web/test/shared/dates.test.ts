@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseDbTimestamp } from '@/lib/dates'
+import { parseDbTimestamp } from '@screenpeak/shared/dates'
 
 describe('parseDbTimestamp', () => {
     it('parses postgres\'s space-separated, 2-digit-offset format', () => {

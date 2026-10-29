@@ -1,10 +1,10 @@
 import { z } from 'zod'
-import { GAME_REVIEWS_MAX_PAGE_SIZE, GAME_REVIEWS_PAGE_SIZE } from '@screenpeak/shared/constants'
+import { GAME_REVIEWS_MAX_PAGE_SIZE, GAME_REVIEWS_PAGE_SIZE, LIBRARY_STATUSES } from '@screenpeak/shared/constants'
 import type { ExploreRange } from '@screenpeak/shared/api/explore'
 import type { GamesListQuery } from '@screenpeak/shared/api/games'
 import type { TaxonomySearchTable } from '@screenpeak/shared/api/search'
 import { gameSearchSchema, taxonomySearchSchema } from '@screenpeak/shared/schemas'
-import type { LibraryQuery, LibrarySort, LibraryStatus } from '@screenpeak/shared/api/library'
+import type { LibraryQuery, LibrarySort, LibraryStatusFilter } from '@screenpeak/shared/api/library'
 import type { ListsTab } from '@screenpeak/shared/api/lists'
 import type { UserReviewsQuery } from '@screenpeak/shared/api/user-reviews'
 import { CATALOG_SORTS, LIBRARY_SORTS, parseCatalogSort, parseCatalogSortLenient, InvalidCatalogSortError } from '@/lib/game-catalog-sort'
@@ -107,11 +107,15 @@ export function parseGamesListQueryLenient(params: PageSearch): GamesListQuery {
     }
 }
 
-const STATUSES = ['', 'playing', 'completed', 'backlog', 'abandoned'] as const
+const STATUS_FILTERS: readonly string[] = ['', ...LIBRARY_STATUSES]
+
+function isStatusFilter(value: string): value is LibraryStatusFilter {
+    return STATUS_FILTERS.includes(value)
+}
 
 export function parseLibraryQuery(params: URLSearchParams): Parsed<LibraryQuery> {
     const status = (params.get('status') ?? '').trim()
-    if (!STATUSES.includes(status as LibraryStatus)) return { ok: false, message: 'Invalid `status`' }
+    if (!isStatusFilter(status)) return { ok: false, message: 'Invalid `status`' }
     const is100 = (params.get('is100') ?? '').trim()
     if (is100 && is100 !== 'true' && is100 !== 'false') return { ok: false, message: 'Invalid `is100`' }
     try {
@@ -127,7 +131,7 @@ export function parseLibraryQuery(params: URLSearchParams): Parsed<LibraryQuery>
                 esrb: blank(params.get('esrb')),
                 sort: sort.sort as LibrarySort,
                 order: sort.order,
-                status: status as LibraryStatus,
+                status,
                 is100: is100 === 'true',
             },
         }
@@ -140,7 +144,7 @@ export function parseLibraryQuery(params: URLSearchParams): Parsed<LibraryQuery>
 /** Null when `status` is not a library status. The page must not treat that as "every game". */
 export function parseLibraryQueryLenient(params: PageSearch): LibraryQuery | null {
     const status = (first(params.status) ?? '').trim()
-    if (!(STATUSES as readonly string[]).includes(status)) return null
+    if (!isStatusFilter(status)) return null
     const sort = parseCatalogSortLenient({ sort: first(params.sort), order: first(params.order) }, LIBRARY_SORTS)
     return {
         q: blank(first(params.q)),
@@ -151,7 +155,7 @@ export function parseLibraryQueryLenient(params: PageSearch): LibraryQuery | nul
         esrb: blank(first(params.esrb)),
         sort: sort.sort as LibrarySort,
         order: sort.order,
-        status: status as LibraryStatus,
+        status,
         is100: first(params.is100)?.trim() === 'true',
     }
 }

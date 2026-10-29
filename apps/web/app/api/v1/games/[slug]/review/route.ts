@@ -5,7 +5,7 @@ import { withAuth } from '@/lib/api'
 import { requireBearerUser } from '@/lib/auth'
 import { consumeWriteRateLimit } from '@/lib/rate-limit'
 import { getUserRatingReviewForGame, saveRatingReview } from '@/lib/queries/review'
-import { parseDbTimestamp } from '@/lib/dates'
+import { parseDbTimestamp } from '@screenpeak/shared/dates'
 import { assertWriteOk, jsonPrivate, parseBody, readJson, uuidParam } from '@/lib/write-http'
 
 function isoTimestamp(value: string | null | undefined): string | null {

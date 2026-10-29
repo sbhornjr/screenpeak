@@ -1,9 +1,9 @@
 import type { GamePageData } from '@screenpeak/shared/api/games'
+import { ratingLabel } from '@screenpeak/shared/rating-copy'
 import { describe, expect, it } from 'vitest'
 
 import {
   libraryWrite,
-  ratingLabel,
   relTime,
   scoreGap,
   withLibraryWrite,

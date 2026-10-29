@@ -1,6 +1,9 @@
 // Write contracts for /api/v1. Field names on library rows match ViewerLibraryEntry.
 // List field names match the website's list form (isPublic, isPinned).
+import type { LibraryStatus } from '../constants'
 import type { ViewerLibraryEntry } from './games'
+
+export type { LibraryStatus }
 
 export type RatingWrite = {
     rating: number
@@ -14,8 +17,6 @@ export type RatingWriteResult = {
     created_at: string | null
     updated_at: string | null
 }
-
-export type LibraryStatus = 'playing' | 'completed' | 'backlog' | 'abandoned'
 
 export type LibraryWrite = {
     status: LibraryStatus

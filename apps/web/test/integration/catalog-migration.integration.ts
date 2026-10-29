@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, expect, it, vi } from 'vitest'
 import postgres from 'postgres'
 import { drizzle } from 'drizzle-orm/postgres-js'
-import { parseDbTimestamp } from '@/lib/dates'
+import { parseDbTimestamp } from '@screenpeak/shared/dates'
 import type { DB } from '@/lib/db'
 import type { CatalogGame } from '@/lib/catalog/types'
 const state = vi.hoisted(() => ({ db: null as DB | null }))

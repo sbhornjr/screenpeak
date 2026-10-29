@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { parseDbTimestamp } from "@/lib/dates"
+import { parseDbTimestamp } from "@screenpeak/shared/dates"
 import { displayCoverUrl } from "@/lib/catalog/images"
 import { tierColor } from "@/lib/rating-tier"
 

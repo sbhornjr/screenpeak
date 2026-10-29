@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { sql, type SQL } from 'drizzle-orm'
-import { parseDbTimestamp } from '@/lib/dates'
+import { parseDbTimestamp } from '@screenpeak/shared/dates'
 import { catalogContent, catalogGameSchema, catalogSlug, taxonCandidates, taxonIsNewer } from './upsert'
 import type { CatalogGame, CatalogTaxon } from './types'
 

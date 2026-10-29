@@ -4,6 +4,9 @@ import { safeNextPath } from '@screenpeak/shared/redirect'
 /** Same sentence as the website. It does not say whether the address has an account. */
 export const RESET_CONFIRMATION = 'If that email has an account, a reset link is on its way.'
 
+/** The site a phone-side redirect resolves against when there is no page origin. */
+export const SITE_ORIGIN = 'https://screenpeak.app'
+
 export const RESET_LINK_HINT = 'This page only works from the reset link in your email.'
 
 /** Ignore another send from the same screen session inside this window. */
@@ -127,7 +130,7 @@ export function parseAuthCallback(raw: string): AuthCallback {
 
 export function confirmDestination(callback: AuthCallback, origin: string): string {
   if (callback.type === 'recovery') return '/auth/update-password'
-  const base = origin.startsWith('http://') || origin.startsWith('https://') ? origin : 'https://screenpeak.app'
+  const base = origin.startsWith('http://') || origin.startsWith('https://') ? origin : SITE_ORIGIN
   return safeNextPath(callback.next, base)
 }
 

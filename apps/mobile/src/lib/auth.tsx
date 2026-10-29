@@ -13,6 +13,7 @@ import {
   releaseResetSend,
   resetOutcome,
   RESET_LINK_HINT,
+  SITE_ORIGIN,
   type ResetOutcome,
 } from './password-reset'
 import { readRecovery, writeRecovery } from './recovery-session'
@@ -132,7 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!client) throw new Error(authConfigError())
       const origin = Platform.OS === 'web' && typeof window !== 'undefined'
         ? window.location.origin
-        : 'https://screenpeak.app'
+        : SITE_ORIGIN
       const result = await completeAuthCallback(url, {
         verifyOtp: ({ type, token_hash }) => client.auth.verifyOtp({
           type: type as EmailOtpType,

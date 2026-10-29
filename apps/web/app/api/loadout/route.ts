@@ -4,7 +4,7 @@ import { users } from '@/db/schema'
 import { withAuth } from '@/lib/api'
 import { requireUser } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { parseDbTimestamp } from '@/lib/dates'
+import { parseDbTimestamp } from '@screenpeak/shared/dates'
 import { buildLoadoutInput, generateLoadoutIdentity } from '@/lib/loadout'
 import { logger } from '@/lib/logger'
 

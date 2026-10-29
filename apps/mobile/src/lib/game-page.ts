@@ -1,31 +1,12 @@
 import type { GamePageData, ViewerLibraryEntry } from '@screenpeak/shared/api/games'
 import type { GameRatingsStats } from '@screenpeak/shared/types'
+import { parseDbTimestamp } from '@screenpeak/shared/dates'
 import type { LibraryWrite } from '@screenpeak/shared/api/writes'
+import { LIBRARY_STATUSES, type LibraryStatus } from '@screenpeak/shared/constants'
+import { LIBRARY_STATUS_COPY } from '@screenpeak/shared/library-copy'
 import { libraryEntryWriteSchema } from '@screenpeak/shared/schemas'
 
-export const LIBRARY_STATUSES = ['backlog', 'playing', 'completed', 'abandoned'] as const
-
-export type LibraryStatus = (typeof LIBRARY_STATUSES)[number]
-
-export const LIBRARY_CHOICES: { status: LibraryStatus, label: string, description: string }[] = [
-  { status: 'backlog', label: 'Backlog', description: "I'll get to it..." },
-  { status: 'playing', label: 'Playing', description: 'Currently playing it' },
-  { status: 'completed', label: 'Completed', description: 'Done and satisfied' },
-  { status: 'abandoned', label: 'Abandoned', description: "Couldn't get into it" },
-]
-
-const RATING_LABELS: Record<number, string> = {
-  1: "Might be the worst game I've ever played.",
-  2: 'It was really really bad.',
-  3: "I didn't really like it.",
-  4: "I couldn't get into it.",
-  5: 'Meh. It was fine.',
-  6: 'It was alright.',
-  7: 'Pretty solid game.',
-  8: 'This game was really good.',
-  9: 'Incredible game.',
-  10: "Might be the best game I've ever played.",
-}
+export const LIBRARY_CHOICES = LIBRARY_STATUSES.map(status => ({ status, ...LIBRARY_STATUS_COPY[status] }))
 
 export type LibraryForm = {
   status: LibraryStatus | null
@@ -40,16 +21,13 @@ export type ReviewListQuery = {
   order: 'asc' | 'desc'
 }
 
-export function ratingLabel(score: number): string {
-  return RATING_LABELS[score] ?? ''
-}
-
 export function asStatus(value: string | null | undefined): LibraryStatus | null {
   return LIBRARY_STATUSES.find(status => status === value) ?? null
 }
 
 export function statusLabel(status: string): string {
-  return status.charAt(0).toUpperCase() + status.slice(1)
+  const known = asStatus(status)
+  return known ? LIBRARY_STATUS_COPY[known].label : status
 }
 
 export function communityScore(stats: GameRatingsStats): number | null {
@@ -61,13 +39,6 @@ export function yearOf(released: string | null): number | null {
   if (!released) return null
   const year = Number(released.slice(0, 4))
   return Number.isInteger(year) ? year : null
-}
-
-/** Postgres timestamptz text uses a space and a short offset. Safari rejects that. */
-export function parseDbTimestamp(value: string): Date {
-  const isoLike = value.includes('T') ? value : value.replace(' ', 'T')
-  const withColonOffset = /[+-]\d{2}$/.test(isoLike) ? `${isoLike}:00` : isoLike
-  return new Date(withColonOffset)
 }
 
 export function relTime(value: string | null, now = Date.now()): string {

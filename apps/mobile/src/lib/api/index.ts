@@ -1,10 +1,10 @@
 import Constants from 'expo-constants'
 
-import { apiBaseUrlFromEnv, devApiRuntime, MissingDevHostError } from '../api-base'
+import { apiBaseUrlFromEnv, isDevRuntime, MissingDevHostError } from '../api-base'
 import { createApiClient } from './client'
 import { supabase } from '../supabase'
 
-const dev = devApiRuntime(typeof __DEV__ === 'undefined' ? undefined : __DEV__)
+const dev = isDevRuntime()
 
 function resolveBaseUrl(): string {
   try {

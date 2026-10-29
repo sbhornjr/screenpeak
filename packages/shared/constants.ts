@@ -19,3 +19,7 @@ export const SEARCH_MAX_PAGE_SIZE = 20
 export const TAXONOMY_SEARCH_ID_CAP = 200
 
 export const TAXONOMY_SEARCH_TABLES = ['developers', 'publishers'] as const
+
+/** A library row's status, in the order both apps list them. */
+export const LIBRARY_STATUSES = ['backlog', 'playing', 'completed', 'abandoned'] as const
+export type LibraryStatus = (typeof LIBRARY_STATUSES)[number]

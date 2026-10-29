@@ -7,7 +7,7 @@ import LikeButton from "./LikeListButton"
 import CoverFan from "./CoverFan"
 import { GameCover } from "@screenpeak/shared/types"
 import { toggleListPinned } from "@/app/list-actions"
-import { parseDbTimestamp } from "@/lib/dates"
+import { parseDbTimestamp } from "@screenpeak/shared/dates"
 import { Pin } from "lucide-react"
 
 export default function ListPreview({ listId, listName, gameCovers, isPinnable, isLikable, description, lastUpdated, username, listCount, isPinned, likeCount, userHasLiked, activeUserId, fullLength } :
