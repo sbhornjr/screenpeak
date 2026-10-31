@@ -4,7 +4,7 @@ import type { FeedItem } from '@screenpeak/shared/types'
 import { Image } from 'expo-image'
 import { Bookmark, Heart, List, MessageSquare, Star } from 'lucide-react-native'
 import { useState, type ReactNode } from 'react'
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
+import { FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { igdbImageUri } from '@/lib/catalog-image'
@@ -18,6 +18,7 @@ import { Avatar } from './avatar'
 import { Button } from './button'
 import { CoverStrip } from './cover-strip'
 import { EmptyState } from './empty-state'
+import { MoreFooter } from './more-footer'
 import { ListLike } from './list-chrome'
 import { Seal } from './seal'
 import { WelcomeScreen } from './welcome-screen'
@@ -170,25 +171,6 @@ function FeedCard({ item, now, onOpen }: { item: FeedItem, now: number, onOpen: 
   )
 }
 
-function MoreFooter({ loadingMore, loadMoreError, onLoadMore }: {
-  loadingMore: boolean
-  loadMoreError: string | null
-  onLoadMore?: () => void
-}) {
-  if (loadMoreError) {
-    return (
-      <View style={styles.stack}>
-        <Text accessibilityLiveRegion="polite" style={text.error}>{loadMoreError}</Text>
-        {onLoadMore ? <Button label="Retry" variant="secondary" onPress={onLoadMore} /> : null}
-      </View>
-    )
-  }
-  if (loadingMore) {
-    return <ActivityIndicator accessibilityLabel="Loading more activity" color={colors.accent} style={styles.more} />
-  }
-  return null
-}
-
 export type FeedScreenProps = {
   signedIn: boolean
   items: FeedItem[]
@@ -255,7 +237,7 @@ export function FeedScreen({
             onAction={() => onOpen('/explore')}
           />
         )}
-        ListFooterComponent={<MoreFooter loadingMore={loadingMore} loadMoreError={loadMoreError} onLoadMore={onLoadMore} />}
+        ListFooterComponent={<MoreFooter loadingLabel="Loading more activity" loadingMore={loadingMore} loadMoreError={loadMoreError} onLoadMore={onLoadMore} />}
         onEndReached={() => {
           if (hasMore && !loadingMore && !loadMoreError) onLoadMore?.()
         }}
@@ -352,7 +334,6 @@ const styles = StyleSheet.create({
   listMeta: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
   batchBody: { minHeight: hitTarget, justifyContent: 'center' },
   stack: { gap: space[2] },
-  more: { paddingVertical: space[4] },
   boneTitle: { height: 28, width: '40%', backgroundColor: colors.surfaceLight, borderRadius: radius.base },
   boneCard: { height: 132, backgroundColor: colors.surfaceLight, borderRadius: radius.base },
 })

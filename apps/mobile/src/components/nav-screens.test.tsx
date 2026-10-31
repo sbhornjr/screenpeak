@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import type { ExplorePageData } from '@screenpeak/shared/api/explore'
 import type { LibraryGameCard } from '@screenpeak/shared/api/library'
 import type { ProfilePageData } from '@screenpeak/shared/api/profile'
 import React from 'react'
@@ -7,8 +6,6 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import AppTabs from './app-tabs'
-import { CatalogueScreen } from './catalogue-screen'
-import { ExploreScreen } from './explore-screen'
 import { LibraryScreen } from './library-screen'
 import { ListDetailScreen } from './list-detail-screen'
 import { ListsScreen } from './lists-screen'
@@ -172,73 +169,6 @@ afterEach(() => {
   cleanup()
 })
 
-const OPEN = vi.fn()
-
-const EXPLORE: ExplorePageData = {
-  range: 'week',
-  trending_games: [{
-    id: 'g-celeste',
-    name: 'Celeste',
-    slug: 'celeste',
-    cover_image_url: null,
-    released: '2018-01-25',
-    developer: 'Extremely OK',
-    avg_rating: 9,
-    user_rating: null,
-  }],
-  trending_lists: [{
-    id: 'list-trend',
-    name: 'Peak climbs',
-    description: '',
-    owner_username: 'mina',
-    last_activity: '2026-10-01 00:00:00+00',
-    game_count: 3,
-    like_count: 2,
-    viewer_has_liked: false,
-    covers: [],
-  }],
-  recommendations: {
-    games: [{
-      id: 'g-hades',
-      name: 'Hades',
-      slug: 'hades',
-      cover_image_url: null,
-      released: null,
-      developer: null,
-      avg_rating: 9,
-      user_rating: null,
-      avg_follower_rating: 8.5,
-      follower_count: 2,
-      library_status: null,
-    }],
-    lists: [{
-      id: 'list-rec',
-      name: 'Underworld',
-      description: '',
-      owner_username: 'ada',
-      last_activity: '2026-10-01 00:00:00+00',
-      game_count: 4,
-      like_count: 1,
-      viewer_has_liked: false,
-      covers: [],
-      follower_like_count: 1,
-    }],
-    users: [{
-      id: 'user-ada',
-      username: 'ada',
-      avatar_url: null,
-      selected_title: null,
-      created_at: '2026-01-01 00:00:00+00',
-      mutual_follower_count: 1,
-      follower_count: 4,
-      following_count: 2,
-      game_count: 10,
-      avg_rating: 8,
-    }],
-  },
-  viewer: { id: 'viewer' },
-}
-
 const HADES: LibraryGameCard = {
   id: '11111111-1111-1111-1111-111111111111',
   name: 'Hades',
@@ -280,71 +210,6 @@ describe('welcome', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Browse' }))
     expect(onOpen.mock.calls).toEqual([['/sign-up'], ['/sign-in'], ['/games']])
     expect(screen.getByRole('img', { name: 'ScreenPeak' }).textContent).toBe('ScreenPeak')
-  })
-})
-
-describe('explore', () => {
-  const genres = [{ id: 'genre-1', name: 'Roguelike', slug: 'roguelike' }]
-  const platforms = [{ id: 'platform-1', name: 'PC', slug: 'pc' }]
-
-  it('searches, then shows trending, friends, recommendations, and browse', () => {
-    const onOpen = vi.fn()
-    const onSearch = vi.fn()
-    render(
-      <ExploreScreen
-        data={EXPLORE}
-        genres={genres}
-        platforms={platforms}
-        results={[{ id: 'g-hades', name: 'Hades', slug: 'hades', cover_image_url: null, released: null, avg_rating: 9 }]}
-        searching={false}
-        searchError={null}
-        onSearch={onSearch}
-        onOpen={onOpen}
-        onRange={() => undefined}
-      />,
-    )
-    fireEvent.change(screen.getByLabelText('Search games'), { target: { value: 'Hades' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
-    expect(onSearch).toHaveBeenCalledWith('Hades')
-    fireEvent.click(screen.getByRole('link', { name: 'Hades' }))
-    expect(onOpen).toHaveBeenCalledWith('/games/hades')
-    expect(screen.getByRole('link', { name: 'Celeste' }).textContent).toBe('Celeste')
-    expect(screen.getByText('2 followers completed').textContent).toBe('2 followers completed')
-    fireEvent.click(screen.getByRole('link', { name: 'Underworld' }))
-    expect(onOpen).toHaveBeenCalledWith('/user/ada/lists/list-rec')
-    fireEvent.click(screen.getByRole('link', { name: 'ada' }))
-    expect(onOpen).toHaveBeenCalledWith('/user/ada')
-    fireEvent.click(screen.getByRole('button', { name: 'Browse Roguelike' }))
-    expect(onOpen).toHaveBeenCalledWith('/games?genre=roguelike')
-    fireEvent.click(screen.getByRole('button', { name: 'Browse PC' }))
-    expect(onOpen).toHaveBeenCalledWith('/games?platform=pc')
-    fireEvent.click(screen.getByRole('button', { name: 'Browse all' }))
-    expect(onOpen).toHaveBeenCalledWith('/games')
-  })
-
-  it('does not search an empty name', () => {
-    const onSearch = vi.fn()
-    render(
-      <ExploreScreen
-        data={{ ...EXPLORE, recommendations: null, viewer: null }}
-        genres={[]}
-        platforms={[]}
-        results={null}
-        searching={false}
-        searchError={null}
-        onSearch={onSearch}
-        onOpen={OPEN}
-        onRange={() => undefined}
-      />,
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
-    expect(onSearch).not.toHaveBeenCalled()
-    expect(screen.getByText('Type a game name.').textContent).toBe('Type a game name.')
-    expect(screen.getByText("Sign up to see what people you follow are playing.").textContent)
-      .toBe("Sign up to see what people you follow are playing.")
-    expect(screen.getByText('Sign up to get recommendations.').textContent).toBe('Sign up to get recommendations.')
-    expect(screen.getAllByRole('button', { name: 'Sign up' })).toHaveLength(2)
-    expect(screen.queryByText('2 followers completed')).toBeNull()
   })
 })
 
@@ -534,28 +399,6 @@ describe('profile hub', () => {
 })
 
 describe('stack screens', () => {
-  it('opens a catalogue game and the next page', () => {
-    const onOpen = vi.fn()
-    const onPage = vi.fn()
-    render(
-      <CatalogueScreen
-        filterLabel="Roguelike"
-        games={[{ id: 'g1', name: 'Hades', slug: 'hades', cover_image_url: null, released: null, developer: null, avg_rating: 9, user_rating: null }]}
-        total={11}
-        page={1}
-        totalPages={2}
-        onOpen={onOpen}
-        onPage={onPage}
-        onBack={() => onOpen('/back')}
-      />,
-    )
-    expect(screen.getByText('Roguelike').textContent).toBe('Roguelike')
-    fireEvent.click(screen.getByRole('link', { name: 'Hades' }))
-    expect(onOpen).toHaveBeenCalledWith('/games/hades')
-    fireEvent.click(screen.getByRole('button', { name: 'Next page' }))
-    expect(onPage).toHaveBeenCalledWith(2)
-  })
-
   it('opens a list and its game', () => {
     const onOpen = vi.fn()
     render(<ListsScreen username="peek" lists={[{

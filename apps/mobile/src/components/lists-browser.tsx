@@ -41,7 +41,8 @@ import { ListDetailScreen, ListDetailSkeleton } from './list-detail-screen'
 import { ListsScreen, ListsSkeleton } from './lists-screen'
 import { API_MISSING, ScreenNotice } from './screen-state'
 
-const LIST_WRITE_SCOPES = [scopes.lists, scopes.game]
+// Explore shows trending and recommended lists, so a list write reloads it too.
+const LIST_WRITE_SCOPES = [scopes.lists, scopes.game, scopes.explore]
 
 export function UserLists({ username }: { username: string }) {
   const queryClient = useQueryClient()

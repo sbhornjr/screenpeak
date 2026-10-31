@@ -1,19 +1,17 @@
 import type { ListCard, ListsTab } from '@screenpeak/shared/api/lists'
 import type { ListWrite } from '@screenpeak/shared/api/writes'
-import { ChevronDown, Pin } from 'lucide-react-native'
+import { ChevronDown } from 'lucide-react-native'
 import { useState } from 'react'
 import { FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
-import { listHref, profileHref } from '@/lib/routes'
 import { useSingleFlight } from '@/lib/single-flight'
 import { colors, face, hitTarget, radius, space, text, typeScale } from '@/theme'
 
 import { AppHeader } from './app-header'
 import { Button } from './button'
-import { CoverStrip } from './cover-strip'
 import { EmptyState } from './empty-state'
-import { ListLike, ListMeta } from './list-chrome'
+import { ListCardView } from './list-card'
 import { ListFormSheet, type ListFormValues } from './list-form-sheet'
 import { Sheet } from './sheet'
 
@@ -47,90 +45,6 @@ function MenuTrigger({ label, onPress }: { label: string, onPress: () => void })
       <Text numberOfLines={1} style={styles.menuLabel}>{label}</Text>
       <ChevronDown size={16} color={colors.muted} />
     </Pressable>
-  )
-}
-
-function ListCardRow({
-  list,
-  username,
-  viewerId,
-  onOpen,
-  onLike,
-  onPin,
-  onActionError,
-}: {
-  list: ListCard
-  username: string
-  viewerId: string | null
-  onOpen: (href: string) => void
-  onLike?: (listId: string, liked: boolean) => Promise<string | null>
-  onPin?: (listId: string, pinned: boolean) => Promise<string | null>
-  onActionError: (message: string | null) => void
-}) {
-  const mine = viewerId != null && list.owner_id === viewerId
-  const flight = useSingleFlight()
-  const openList = () => onOpen(listHref(list.owner_username || username, list.id))
-  return (
-    <View style={styles.card}>
-      <Pressable
-        accessibilityRole="link"
-        accessibilityLabel={list.name}
-        onPress={openList}
-        style={styles.cardBody}
-      >
-        <CoverStrip covers={list.covers.map(cover => cover.cover_image_url)} />
-        <Text numberOfLines={2} style={styles.cardTitle}>{list.name}</Text>
-        <ListMeta gameCount={list.game_count} isPrivate={!list.is_public} updatedAt={list.last_activity} />
-        {list.description ? <Text numberOfLines={3} style={text.body}>{list.description}</Text> : null}
-      </Pressable>
-      <View style={styles.footer}>
-        <Pressable
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
-          onPress={openList}
-          style={styles.footerFill}
-        />
-        {list.owner_username ? (
-          <Pressable
-            accessibilityRole="link"
-            accessibilityLabel={list.owner_username}
-            onPress={() => onOpen(profileHref(list.owner_username))}
-            style={styles.ownerLink}
-          >
-            <Text numberOfLines={1} style={styles.owner}>{list.owner_username}</Text>
-          </Pressable>
-        ) : null}
-        <View style={styles.footerEnd}>
-          <ListLike
-            count={list.like_count}
-            liked={list.viewer_has_liked}
-            interactive={viewerId != null && !mine}
-            onPress={() => {
-              void flight(async () => {
-                const message = await onLike?.(list.id, !list.viewer_has_liked)
-                onActionError(message ?? null)
-              })
-            }}
-          />
-          {mine ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={list.is_pinned ? `Unpin ${list.name}` : `Pin ${list.name}`}
-              hitSlop={{ top: 13, right: 13, bottom: 13, left: 13 }}
-              onPress={() => {
-                void flight(async () => {
-                  const message = await onPin?.(list.id, !list.is_pinned)
-                  onActionError(message ?? null)
-                })
-              }}
-              style={styles.pin}
-            >
-              <Pin size={18} color={list.is_pinned ? colors.accent : colors.muted} />
-            </Pressable>
-          ) : null}
-        </View>
-      </View>
-    </View>
   )
 }
 
@@ -218,10 +132,11 @@ export function ListsScreen({
           <EmptyState dense title={emptyTitle} description={emptyDescription} />
         )}
         renderItem={({ item }) => (
-          <ListCardRow
+          <ListCardView
             list={item}
             username={username}
-            viewerId={signedIn ? viewerId : null}
+            canLike={signedIn && viewerId != null && item.owner_id !== viewerId}
+            canPin={signedIn && viewerId != null && item.owner_id === viewerId}
             onOpen={onOpen}
             onLike={onLike}
             onPin={onPin}
@@ -300,44 +215,6 @@ const styles = StyleSheet.create({
     lineHeight: typeScale.sm.line,
     color: colors.text,
   },
-  card: {
-    gap: space[2],
-    padding: space[3],
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.base,
-    backgroundColor: colors.surface,
-    marginBottom: space[3],
-  },
-  cardBody: { gap: space[2], minHeight: hitTarget },
-  cardTitle: {
-    fontFamily: face.display[600],
-    fontSize: typeScale.xl.size,
-    lineHeight: typeScale.xl.line,
-    color: colors.text,
-  },
-  footer: {
-    position: 'relative',
-    flexDirection: 'row',
-    alignItems: 'center',
-    minHeight: hitTarget,
-  },
-  footerFill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
-  footerEnd: {
-    marginLeft: 'auto',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space[2],
-    zIndex: 1,
-  },
-  ownerLink: { alignSelf: 'flex-start', flexShrink: 1, zIndex: 1 },
-  owner: {
-    fontFamily: face.body[600],
-    fontSize: typeScale.sm.size,
-    lineHeight: typeScale.sm.line,
-    color: colors.accent,
-  },
-  pin: { alignItems: 'center', justifyContent: 'center', zIndex: 1 },
   stack: { gap: space[2] },
   bone: { height: 28, width: '55%', backgroundColor: colors.surfaceLight, borderRadius: radius.base },
   boneShort: { height: 120, backgroundColor: colors.surfaceLight, borderRadius: radius.base },

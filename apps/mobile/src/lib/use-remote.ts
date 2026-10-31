@@ -1,8 +1,13 @@
-import { useInfiniteQuery, useQuery, type QueryKey } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery, type InfiniteData, type QueryKey } from '@tanstack/react-query'
 
 import { apiConfigured } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { screenGate } from '@/components/screen-state'
+
+type Placeholder<T> = (viewer: string | null) => (
+  previous: T | undefined,
+  previousQuery: { queryKey: QueryKey } | undefined,
+) => T | undefined
 
 /**
  * `key` gets the viewer id, so every key is built by `queryKeys` with the viewer last.
@@ -39,23 +44,31 @@ export function useRemote<T, R = T>(
 }
 
 /**
- * `useRemote` for a list the API pages by `offset`, starting at 0. Only a failed
- * first page gates the screen; after that a failed refresh or next page keeps
- * what loaded.
+ * `useRemote` for a list the API pages by a number: an offset from 0 (the feed)
+ * or a page from 1 (the catalogue). Only a failed first page gates the screen;
+ * after that a failed refresh or next page keeps what loaded. `placeholderData`
+ * keeps an earlier query's pages on screen while a new one loads.
  */
 export function useRemotePages<T>(
   key: (viewer: string | null) => QueryKey,
-  queryFn: (offset: number) => Promise<T>,
-  nextOffset: (last: T, pages: T[]) => number | undefined,
-  enabled = true,
+  queryFn: (pageParam: number) => Promise<T>,
+  nextPageParam: (last: T, pages: T[]) => number | undefined,
+  options: {
+    enabled?: boolean
+    firstPageParam?: number
+    placeholderData?: Placeholder<InfiniteData<T, number>>
+  } = {},
 ) {
+  const { enabled = true, firstPageParam = 0, placeholderData } = options
   const { ready, session } = useAuth()
   const configured = apiConfigured()
+  const viewer = session?.user.id ?? null
   const query = useInfiniteQuery({
-    queryKey: key(session?.user.id ?? null),
+    queryKey: key(viewer),
     queryFn: ({ pageParam }) => queryFn(pageParam),
-    initialPageParam: 0,
-    getNextPageParam: nextOffset,
+    initialPageParam: firstPageParam,
+    getNextPageParam: nextPageParam,
+    placeholderData: placeholderData?.(viewer),
     enabled: enabled && ready && configured,
   })
   const gate = screenGate({

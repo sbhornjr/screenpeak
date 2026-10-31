@@ -1,10 +1,12 @@
 import 'server-only'
 import type { GamesListPage, GamesListQuery } from '@screenpeak/shared/api/games'
-import { getAllGenres, getAllPlatforms, getDeveloperNameMap, getDistinctEsrbRatings, queryGames } from '@/lib/queries/game'
+import type { TaxonomySearchTable } from '@screenpeak/shared/api/search'
+import { TAXONOMY_SLUG_MAX_LENGTH } from '@screenpeak/shared/constants'
+import { getAllGenres, getAllPlatforms, getDeveloperNameMap, getDistinctEsrbRatings, getTaxonomyNameBySlug, queryGames } from '@/lib/queries/game'
 import { gameCard, int } from '@/lib/loaders/shape'
 
 export async function loadGamesPage(query: GamesListQuery, viewerId: string | null): Promise<GamesListPage> {
-    const [rows, genres, platforms, esrb] = await Promise.all([
+    const [rows, genres, platforms, esrb, developerName, publisherName] = await Promise.all([
         queryGames({
             q: query.q,
             genre: query.genre,
@@ -22,6 +24,8 @@ export async function loadGamesPage(query: GamesListQuery, viewerId: string | nu
         getAllGenres(),
         getAllPlatforms(),
         getDistinctEsrbRatings(),
+        filterName('developers', query.developer),
+        filterName('publishers', query.publisher),
     ])
 
     const developers = await getDeveloperNameMap(rows.map(game => game.id))
@@ -34,6 +38,13 @@ export async function loadGamesPage(query: GamesListQuery, viewerId: string | nu
         genres,
         platforms,
         esrb_ratings: esrb,
+        filter_names: { developer: developerName, publisher: publisherName },
         viewer: viewerId ? { id: viewerId } : null,
     }
+}
+
+// A slug no table could hold is shown as-is by the client; it is not a lookup error.
+async function filterName(table: TaxonomySearchTable, slug: string | null): Promise<string | null> {
+    if (!slug || slug.length > TAXONOMY_SLUG_MAX_LENGTH) return null
+    return (await getTaxonomyNameBySlug(table, slug)) || null
 }

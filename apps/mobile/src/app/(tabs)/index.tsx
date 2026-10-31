@@ -14,7 +14,7 @@ import { API_MISSING, ScreenMessage } from '@/components/screen-state'
 
 export default function FeedRoute() {
   const { ready, session } = useAuth()
-  const feed = useRemotePages(queryKeys.feed, offset => api.feed.get(offset), nextFeedOffset, session != null)
+  const feed = useRemotePages(queryKeys.feed, offset => api.feed.get(offset), nextFeedOffset, { enabled: session != null })
   const { query } = feed
   const { refreshing, refresh } = useRefresh(query.refetch)
   const items = useMemo(() => feedItems(query.data?.pages ?? []), [query.data])

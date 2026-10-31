@@ -27,7 +27,7 @@ export default async function SearchPage({ searchParams } : SearchPageProps) {
     try {
         data = await loadGamesPage(query, user?.id ?? null)
     } catch {
-        data = { games: [], total: 0, total_pages: 0, genres: [], platforms: [], esrb_ratings: [], viewer: null }
+        data = { games: [], total: 0, total_pages: 0, genres: [], platforms: [], esrb_ratings: [], filter_names: { developer: null, publisher: null }, viewer: null }
     }
 
     const { games, total: totalCount, total_pages: totalPages, genres, platforms, esrb_ratings } = data

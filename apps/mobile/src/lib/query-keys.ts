@@ -3,8 +3,8 @@ import type { LibraryQuery } from '@screenpeak/shared/api/library'
 import type { ListsTab } from '@screenpeak/shared/api/lists'
 import type { QueryClient, QueryKey } from '@tanstack/react-query'
 
+import type { CatalogueQuery } from './catalogue-page'
 import type { ReviewListQuery } from './game-page'
-import type { CatalogueFilter } from './routes'
 
 // Every query key the app uses. Each one ends with the viewer id, so a cache
 // entry never serves another account. Writes invalidate by `scopes`, a prefix.
@@ -13,6 +13,8 @@ import type { CatalogueFilter } from './routes'
 type Viewer = string | null
 
 export const scopes = {
+  catalogue: ['catalogue'],
+  explore: ['explore'],
   feed: ['feed'],
   game: ['game'],
   library: ['library'],
@@ -25,14 +27,19 @@ export const queryKeys = {
   me: (viewer: Viewer) => ['me', viewer] as const,
   explore: (range: ExploreRange, viewer: Viewer) => ['explore', range, viewer] as const,
   gameSearch: (query: string, viewer: Viewer) => ['game-search', query, viewer] as const,
-  catalogue: (filter: CatalogueFilter, page: number, viewer: Viewer) => [
+  /** Explore's genre and platform browse: the first catalogue page, one game long. */
+  browseFacets: (viewer: Viewer) => ['browse-facets', viewer] as const,
+  /** Every loaded page of one catalogue query. */
+  catalogue: (query: CatalogueQuery, viewer: Viewer) => [
     'catalogue',
-    filter.genre ?? '',
-    filter.platform ?? '',
-    filter.developer ?? '',
-    filter.publisher ?? '',
-    filter.esrb ?? '',
-    page,
+    query.q ?? '',
+    query.genre ?? '',
+    query.platform ?? '',
+    query.developer ?? '',
+    query.publisher ?? '',
+    query.esrb ?? '',
+    query.sort,
+    query.order,
     viewer,
   ] as const,
   profile: (username: string, viewer: Viewer) => ['profile', username, viewer] as const,

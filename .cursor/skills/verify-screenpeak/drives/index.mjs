@@ -3,6 +3,7 @@ import { fail } from '../runtime.mjs'
 import { driveGamePage } from './game-page.mjs'
 import { driveGameWrites } from './game-writes.mjs'
 import { driveLoadoutReadout } from './loadout-readout.mjs'
+import { driveMobileExplore } from './mobile-explore.mjs'
 import { driveMobileFeed } from './mobile-feed.mjs'
 import { driveForgotPassword } from './mobile-forgot-password.mjs'
 import { driveMobileGame } from './mobile-game.mjs'
@@ -29,6 +30,7 @@ export const drives = new Map([
     ['mobile-library', driveMobileLibrary],
     ['mobile-lists', driveMobileLists],
     ['mobile-feed', driveMobileFeed],
+    ['mobile-explore', driveMobileExplore],
 ])
 
 export async function drive(feature) {

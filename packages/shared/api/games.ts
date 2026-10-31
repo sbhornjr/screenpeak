@@ -151,6 +151,8 @@ export type GamesListPage = {
     genres: Taxon[]
     platforms: Taxon[]
     esrb_ratings: string[]
+    /** Display names for the developer and publisher filters. Null when unset or unknown. */
+    filter_names: { developer: string | null, publisher: string | null }
     /** Null when signed out. `user_rating` on each game belongs to this viewer. */
     viewer: { id: string } | null
 }

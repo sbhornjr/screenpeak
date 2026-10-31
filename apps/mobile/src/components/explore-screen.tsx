@@ -1,49 +1,210 @@
-import type { ExplorePageData, ExploreRange } from '@screenpeak/shared/api/explore'
-import type { Taxon } from '@screenpeak/shared/api/games'
+// Port of apps/web/app/explore/page.tsx. The phone adds search and genre and
+// platform browse at the top and bottom, since Games is not a tab.
+import type { ExploreGameCard, ExplorePageData, ExploreRange } from '@screenpeak/shared/api/explore'
+import type { GameCardData, Taxon } from '@screenpeak/shared/api/games'
+import { releaseYear } from '@screenpeak/shared/dates'
 import type { GameSearchHit } from '@screenpeak/shared/api/search'
-import { useState } from 'react'
-import { Text } from 'react-native'
+import { Image } from 'expo-image'
+import { useState, type ReactNode } from 'react'
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 
-import { catalogueHref, gameHref, listHref, profileHref } from '@/lib/routes'
-import { text } from '@/theme'
+import { igdbImageUri } from '@/lib/catalog-image'
+import { completedLine, followedByLine, libraryLine, likedByLine } from '@/lib/explore-page'
+import { catalogueHref, gameHref, profileHref } from '@/lib/routes'
+import { colors, face, hitTarget, radius, space, text, typeScale } from '@/theme'
 
+import { AppHeader } from './app-header'
 import { Button } from './button'
 import { EmptyState } from './empty-state'
+import { MenuTrigger } from './filter-controls'
+import { GameCard } from './game-card'
+import { ListCardView, type ListCardFields } from './list-card'
+import { Panel } from './panel'
 import { SectionHead } from './section-head'
-import { ScreenScroll, PanelRow, SignupButtons } from './screen-scroll'
+import { SignupButtons } from './screen-scroll'
+import { Sheet } from './sheet'
 import { TextField } from './text-field'
+import { UserCard } from './user-card'
 
-const RANGES: { id: ExploreRange, label: string }[] = [
-  { id: 'week', label: 'This week' },
-  { id: 'month', label: 'This month' },
-  { id: 'year', label: 'This year' },
-  { id: 'alltime', label: 'All time' },
+type Open = (href: string) => void
+
+const RANGES: { id: ExploreRange, label: string, phrase: string }[] = [
+  { id: 'week', label: 'This week', phrase: 'this week' },
+  { id: 'month', label: 'This month', phrase: 'this month' },
+  { id: 'year', label: 'This year', phrase: 'this year' },
+  { id: 'alltime', label: 'All time', phrase: 'yet' },
 ]
+
+const RAIL_CARD_WIDTH = 148
+
+export type ExploreScreenProps = {
+  data: ExplorePageData
+  /** The range the player picked. `data.range` lags behind it while that range loads. */
+  range: ExploreRange
+  genres: Taxon[]
+  platforms: Taxon[]
+  results: GameSearchHit[] | null
+  /** The search the results belong to. */
+  searchedFor: string | null
+  searching: boolean
+  searchError: string | null
+  onSearch: (query: string) => void
+  onOpen: Open
+  onRange: (range: ExploreRange) => void
+  /** Signed in: your own lists show a like count instead of a button. */
+  viewerUsername: string | null
+  onLike?: (listId: string, liked: boolean) => Promise<string | null>
+  /** A new range is loading while the previous one stays on screen. */
+  updating?: boolean
+  refreshing?: boolean
+  onRefresh?: () => void
+  refreshError?: string | null
+  onRetry?: () => void
+}
+
+function SearchHitRow({ hit, onOpen }: { hit: GameSearchHit, onOpen: Open }) {
+  const year = releaseYear(hit.released)
+  const cover = igdbImageUri(hit.cover_image_url)
+  return (
+    <Pressable
+      accessibilityRole="link"
+      accessibilityLabel={year ? `${hit.name}, ${year}` : hit.name}
+      onPress={() => onOpen(gameHref(hit.slug))}
+      style={styles.hitTarget}
+    >
+      {({ pressed }) => (
+        <Panel style={[styles.hit, pressed && styles.hitPressed]}>
+          <View style={styles.hitCover}>
+            {cover ? <Image source={cover} recyclingKey={hit.id} style={StyleSheet.absoluteFill} contentFit="cover" /> : null}
+          </View>
+          <View style={styles.hitBody}>
+            <Text numberOfLines={2} style={styles.hitName}>{hit.name}</Text>
+            <Text style={styles.meta}>{[year, hit.avg_rating != null ? `SP ${hit.avg_rating}/10` : null].filter(Boolean).join(' · ')}</Text>
+          </View>
+        </Panel>
+      )}
+    </Pressable>
+  )
+}
+
+function RailCard({ game, onOpen }: { game: GameCardData, onOpen: Open }) {
+  return (
+    <GameCard
+      game={{ id: game.id, name: game.name, slug: game.slug, cover_image_url: game.cover_image_url, released: game.released }}
+      developer={game.developer}
+      spRating={game.avg_rating}
+      userRating={game.user_rating}
+      onPress={() => onOpen(gameHref(game.slug))}
+    />
+  )
+}
+
+/**
+ * Cards scroll sideways, so a section stays one row tall on a phone. The rail
+ * runs to the screen edge; `inset` is the page padding it reaches past.
+ */
+function Rail({ label, inset, children }: { label: string, inset: number, children: ReactNode }) {
+  return (
+    <ScrollView
+      horizontal
+      accessibilityLabel={label}
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={[styles.rail, { paddingHorizontal: inset }]}
+      style={{ marginHorizontal: -inset }}
+    >
+      {children}
+    </ScrollView>
+  )
+}
+
+function RecommendedGame({ game, onOpen }: { game: ExploreGameCard, onOpen: Open }) {
+  const where = libraryLine(game.library_status)
+  return (
+    <View style={styles.railItem}>
+      <Text numberOfLines={2} style={styles.caption}>{completedLine(game.follower_count ?? 0, game.avg_follower_rating ?? null)}</Text>
+      <RailCard game={game} onOpen={onOpen} />
+      {where ? <Text style={styles.caption}>{where}</Text> : null}
+    </View>
+  )
+}
+
+function Chips({ children }: { children: ReactNode }) {
+  return <View style={styles.chips}>{children}</View>
+}
+
+/** A dropdown, like the Library tab's: the trigger opens a sheet of options you can narrow by typing. */
+function BrowseMenu({ label, noun, options, onPick }: {
+  label: string
+  noun: string
+  options: Taxon[]
+  onPick: (slug: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [needle, setNeedle] = useState('')
+  const typed = needle.trim().toLowerCase()
+  const shown = typed ? options.filter(option => option.name.toLowerCase().includes(typed)) : options
+  function close() {
+    setOpen(false)
+    setNeedle('')
+  }
+  return (
+    <>
+      {/* The trigger grows along a row, as on the Library tab, so it gets one here too. */}
+      <View style={styles.menuRow}>
+        <MenuTrigger label={label} onPress={() => setOpen(true)} />
+      </View>
+      <Sheet visible={open} title={label} onClose={close}>
+        <TextField label={`Search ${noun}`} hideLabel placeholder={`Search ${noun}`} value={needle} onChangeText={setNeedle} />
+        {shown.length === 0 ? <Text style={text.muted}>No matches</Text> : shown.map(option => (
+          <Button
+            key={option.id}
+            label={option.name}
+            accessibilityLabel={`Browse ${option.name}`}
+            variant="secondary"
+            onPress={() => {
+              close()
+              onPick(option.slug)
+            }}
+          />
+        ))}
+      </Sheet>
+    </>
+  )
+}
 
 export function ExploreScreen({
   data,
+  range,
   genres,
   platforms,
   results,
+  searchedFor,
   searching,
   searchError,
   onSearch,
   onOpen,
   onRange,
-}: {
-  data: ExplorePageData
-  genres: Taxon[]
-  platforms: Taxon[]
-  results: GameSearchHit[] | null
-  searching: boolean
-  searchError: string | null
-  onSearch: (query: string) => void
-  onOpen: (href: string) => void
-  onRange: (range: ExploreRange) => void
-}) {
+  viewerUsername,
+  onLike,
+  updating = false,
+  refreshing = false,
+  onRefresh,
+  refreshError = null,
+  onRetry,
+}: ExploreScreenProps) {
+  const { width } = useWindowDimensions()
+  const compact = width <= 375
+  const inset = compact ? space[4] : space[6]
   const [query, setQuery] = useState('')
   const [hint, setHint] = useState<string | null>(null)
-  const rangeLabel = RANGES.find(range => range.id === data.range)?.label ?? 'This week'
+  const [actionError, setActionError] = useState<string | null>(null)
+  const phrase = RANGES.find(item => item.id === data.range)?.phrase ?? 'this week'
+  const recommendations = data.recommendations
+  const nothingRecommended = recommendations != null
+    && recommendations.games.length === 0
+    && recommendations.lists.length === 0
+    && recommendations.users.length === 0
 
   function submit() {
     const trimmed = query.trim()
@@ -55,100 +216,213 @@ export function ExploreScreen({
     onSearch(trimmed)
   }
 
-  return (
-    <ScreenScroll title="Explore">
-      <TextField
-        label="Search games"
-        placeholder="Search games"
-        value={query}
-        onChangeText={setQuery}
-        onSubmitEditing={submit}
+  function listCard(list: ListCardFields) {
+    return (
+      <ListCardView
+        list={list}
+        username={list.owner_username}
+        canLike={viewerUsername != null && onLike != null && list.owner_username !== viewerUsername}
+        canPin={false}
+        onOpen={onOpen}
+        onLike={onLike}
+        onActionError={setActionError}
       />
-      <Button label="Search" onPress={submit} />
-      {hint ? <Text style={text.muted}>{hint}</Text> : null}
-      {searching ? <Text style={text.muted}>Searching</Text> : null}
-      {searchError ? <Text style={text.muted}>{searchError}</Text> : null}
-      {results ? (
-        results.length === 0 ? <EmptyState dense title="No games match." /> : results.map(game => (
-          <PanelRow key={game.id} accessibilityRole="link" accessibilityLabel={game.name} onPress={() => onOpen(gameHref(game.slug))}>
-            <Text style={text.body}>{game.name}</Text>
-          </PanelRow>
-        ))
-      ) : null}
+    )
+  }
 
-      <Text style={text.muted}>Range: {rangeLabel}</Text>
-      {RANGES.map(range => (
-        <Button key={range.id} label={range.label} variant="secondary" onPress={() => onRange(range.id)} />
-      ))}
+  return (
+    <SafeAreaView style={styles.screen}>
+      <AppHeader />
+      <ScrollView
+        contentContainerStyle={[styles.content, compact && styles.contentCompact]}
+        keyboardShouldPersistTaps="handled"
+        refreshControl={onRefresh ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} /> : undefined}
+      >
+        <Text role="heading" accessibilityRole="header" accessibilityLevel={1} style={styles.title}>Explore</Text>
+        {refreshError ? (
+          <View style={styles.stack}>
+            <Text accessibilityLiveRegion="polite" style={text.error}>{refreshError}</Text>
+            {onRetry ? <Button label="Retry" variant="secondary" onPress={onRetry} /> : null}
+          </View>
+        ) : null}
 
-      <SectionHead>Trending</SectionHead>
-      {data.trending_games.length === 0 && data.trending_lists.length === 0 ? (
-        <EmptyState dense title="Nothing trending right now." />
-      ) : null}
-      {data.trending_games.map(game => (
-        <PanelRow key={game.id} accessibilityRole="link" accessibilityLabel={game.name} onPress={() => onOpen(gameHref(game.slug))}>
-          <Text style={text.body}>{game.name}</Text>
-        </PanelRow>
-      ))}
-      {data.trending_lists.map(list => (
-        <PanelRow key={list.id} accessibilityRole="link" accessibilityLabel={list.name} onPress={() => onOpen(listHref(list.owner_username, list.id))}>
-          <Text style={text.body}>{list.name}</Text>
-        </PanelRow>
-      ))}
+        <View style={styles.searchRow}>
+          <View style={styles.searchField}>
+            <TextField
+              label="Search games"
+              hideLabel
+              placeholder="Search games"
+              value={query}
+              onChangeText={setQuery}
+              onSubmitEditing={submit}
+            />
+          </View>
+          <Button label="Search" onPress={submit} />
+        </View>
+        <Button
+          label="Browse all"
+          accessibilityLabel={searchedFor ? `Browse all games matching "${searchedFor}"` : 'Browse all'}
+          variant="secondary"
+          onPress={() => onOpen(catalogueHref(searchedFor ? { q: searchedFor } : {}))}
+        />
+        {hint ? <Text style={text.muted}>{hint}</Text> : null}
+        {searching ? <ActivityIndicator accessibilityLabel="Searching games" color={colors.accent} /> : null}
+        {searchError ? <Text accessibilityLiveRegion="polite" style={text.error}>{searchError}</Text> : null}
+        {results && searchedFor ? (
+          <View style={styles.stack}>
+            {results.length === 0
+              ? <Text style={text.muted}>{`No games match "${searchedFor}".`}</Text>
+              : results.map(hit => <SearchHitRow key={hit.id} hit={hit} onOpen={onOpen} />)}
+          </View>
+        ) : null}
 
-      <SectionHead>Friends&apos; activity</SectionHead>
-      {data.recommendations == null ? (
-        <>
-          <Text style={text.muted}>Sign up to see what people you follow are playing.</Text>
-          <SignupButtons onOpen={onOpen} />
-        </>
-      ) : data.recommendations.games.length === 0 ? (
-        <EmptyState dense title="No games from people you follow yet." />
-      ) : data.recommendations.games.map(game => (
-        <PanelRow
-          key={game.id}
-          accessibilityRole="link"
-          accessibilityLabel={`${game.name}, ${game.follower_count ?? 0} followers completed`}
-          onPress={() => onOpen(gameHref(game.slug))}
-        >
-          <Text style={text.body}>{game.name}</Text>
-          <Text style={text.meta}>{game.follower_count ?? 0} followers completed</Text>
-        </PanelRow>
-      ))}
+        <View style={styles.rangeRow}>
+          <Chips>
+            {RANGES.map(item => (
+              <Button
+                key={item.id}
+                label={item.label}
+                variant={range === item.id ? 'primary' : 'ghost'}
+                selected={range === item.id}
+                onPress={() => onRange(item.id)}
+                style={styles.rangeChip}
+              />
+            ))}
+          </Chips>
+          {updating ? <ActivityIndicator accessibilityLabel="Updating Explore" color={colors.accent} /> : null}
+        </View>
+        {actionError ? <Text accessibilityLiveRegion="polite" style={text.error}>{actionError}</Text> : null}
 
-      <SectionHead>Recommendations</SectionHead>
-      {data.recommendations == null ? (
-        <>
-          <Text style={text.muted}>Sign up to get recommendations.</Text>
-          <SignupButtons onOpen={onOpen} />
-        </>
-      ) : (
-        <>
-          {data.recommendations.lists.length === 0 && data.recommendations.users.length === 0 ? (
-            <EmptyState dense title="No recommendations yet." />
-          ) : null}
-          {data.recommendations.lists.map(list => (
-            <PanelRow key={list.id} accessibilityRole="link" accessibilityLabel={list.name} onPress={() => onOpen(listHref(list.owner_username, list.id))}>
-              <Text style={text.body}>{list.name}</Text>
-            </PanelRow>
-          ))}
-          {data.recommendations.users.map(user => (
-            <PanelRow key={user.id} accessibilityRole="link" accessibilityLabel={user.username} onPress={() => onOpen(profileHref(user.username))}>
-              <Text style={text.body}>{user.username}</Text>
-            </PanelRow>
-          ))}
-        </>
-      )}
+        <SectionHead>Peak right now</SectionHead>
+        {data.trending_games.length === 0 ? (
+          <EmptyState dense title={`Nothing peaking ${phrase}.`} />
+        ) : (
+          <Rail label="Peak right now" inset={inset}>
+            {data.trending_games.map(game => (
+              <View key={game.id} style={styles.railItem}>
+                <RailCard game={game} onOpen={onOpen} />
+              </View>
+            ))}
+          </Rail>
+        )}
 
-      <SectionHead>Browse by genre</SectionHead>
-      {genres.map(genre => (
-        <Button key={genre.id} label={genre.name} accessibilityLabel={`Browse ${genre.name}`} variant="secondary" onPress={() => onOpen(catalogueHref({ genre: genre.slug }))} />
-      ))}
-      <SectionHead>Browse by platform</SectionHead>
-      {platforms.map(platform => (
-        <Button key={platform.id} label={platform.name} accessibilityLabel={`Browse ${platform.name}`} variant="secondary" onPress={() => onOpen(catalogueHref({ platform: platform.slug }))} />
-      ))}
-      <Button label="Browse all" variant="secondary" onPress={() => onOpen(catalogueHref())} />
-    </ScreenScroll>
+        <SectionHead>Recommended for you</SectionHead>
+        {recommendations == null ? (
+          <View style={styles.stack}>
+            <Text style={text.muted}>Sign up to see what people you follow are playing.</Text>
+            <SignupButtons onOpen={onOpen} />
+          </View>
+        ) : (
+          <View style={styles.stack}>
+            <Text style={text.muted}>Follow more users to get more recommendations.</Text>
+            {nothingRecommended ? <EmptyState dense title="No recommendations yet." /> : null}
+            {recommendations.games.length > 0 ? (
+              <>
+                <Text accessibilityRole="header" style={styles.subhead}>Games</Text>
+                <Rail label="Recommended games" inset={inset}>
+                  {recommendations.games.map(game => <RecommendedGame key={game.id} game={game} onOpen={onOpen} />)}
+                </Rail>
+              </>
+            ) : null}
+            {recommendations.lists.length > 0 ? (
+              <>
+                <Text accessibilityRole="header" style={styles.subhead}>Lists</Text>
+                {recommendations.lists.map(list => (
+                  <View key={list.id} style={styles.captioned}>
+                    <Text style={styles.caption}>{likedByLine(list.follower_like_count ?? 0)}</Text>
+                    {listCard(list)}
+                  </View>
+                ))}
+              </>
+            ) : null}
+            {recommendations.users.length > 0 ? (
+              <>
+                <Text accessibilityRole="header" style={styles.subhead}>Players</Text>
+                {recommendations.users.map(user => (
+                  <View key={user.id} style={styles.captioned}>
+                    <Text style={styles.caption}>{followedByLine(user.mutual_follower_count)}</Text>
+                    <UserCard user={user} onPress={() => onOpen(profileHref(user.username))} />
+                  </View>
+                ))}
+              </>
+            ) : null}
+          </View>
+        )}
+
+        <SectionHead>Lists peaking now</SectionHead>
+        {data.trending_lists.length === 0 ? (
+          <EmptyState dense title={`No lists peaking ${phrase}.`} />
+        ) : (
+          <View>
+            {data.trending_lists.map(list => <View key={list.id}>{listCard(list)}</View>)}
+          </View>
+        )}
+
+        <SectionHead>Browse</SectionHead>
+        {genres.length > 0 ? (
+          <BrowseMenu label="Browse by genre" noun="genres" options={genres} onPick={genre => onOpen(catalogueHref({ genre }))} />
+        ) : null}
+        {platforms.length > 0 ? (
+          <BrowseMenu label="Browse by platform" noun="platforms" options={platforms} onPick={platform => onOpen(catalogueHref({ platform }))} />
+        ) : null}
+        <Button label="Browse all" onPress={() => onOpen(catalogueHref())} />
+      </ScrollView>
+    </SafeAreaView>
   )
 }
+
+export function ExploreSkeleton() {
+  return (
+    <SafeAreaView accessibilityLabel="Loading Explore" style={styles.screen}>
+      <AppHeader />
+      <View style={styles.content}>
+        <View style={styles.boneTitle} />
+        <View style={styles.boneRow} />
+        <View style={styles.boneRail}>
+          <View style={styles.boneCover} />
+          <View style={styles.boneCover} />
+        </View>
+      </View>
+    </SafeAreaView>
+  )
+}
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.bg },
+  content: { paddingHorizontal: space[6], paddingTop: space[4], paddingBottom: space[10], gap: space[4] },
+  contentCompact: { paddingHorizontal: space[4] },
+  title: {
+    fontFamily: face.display[600],
+    fontSize: typeScale['3xl'].size,
+    lineHeight: typeScale['3xl'].line,
+    color: colors.text,
+  },
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
+  searchField: { flex: 1 },
+  stack: { gap: space[3] },
+  hitTarget: { minHeight: hitTarget },
+  hit: { flexDirection: 'row', alignItems: 'center', gap: space[3], padding: space[2] },
+  hitPressed: { borderColor: colors.accent },
+  hitCover: { width: 42, aspectRatio: 3 / 4, borderRadius: radius.base, overflow: 'hidden', backgroundColor: colors.surfaceLight },
+  hitBody: { flex: 1, minWidth: 0, gap: space[0.5] },
+  hitName: { fontFamily: face.display[500], fontSize: typeScale.base.size, lineHeight: typeScale.base.line, color: colors.text },
+  meta: { fontFamily: face.mono[400], fontSize: 12, lineHeight: 16, color: colors.muted },
+  rangeRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
+  rangeChip: { paddingHorizontal: space[3] },
+  chips: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
+  menuRow: { flexDirection: 'row' },
+  rail: { gap: space[3] },
+  railItem: { width: RAIL_CARD_WIDTH, gap: space[1.5] },
+  caption: { fontFamily: face.body[400], fontSize: typeScale.xs.size, lineHeight: typeScale.xs.line, color: colors.muted },
+  captioned: { gap: space[1.5] },
+  subhead: {
+    fontFamily: face.display[600],
+    fontSize: typeScale.lg.size,
+    lineHeight: typeScale.lg.line,
+    color: colors.text,
+  },
+  boneTitle: { height: 28, width: '40%', backgroundColor: colors.surfaceLight, borderRadius: radius.base },
+  boneRow: { height: hitTarget, backgroundColor: colors.surfaceLight, borderRadius: radius.base },
+  boneRail: { flexDirection: 'row', gap: space[3] },
+  boneCover: { width: RAIL_CARD_WIDTH, aspectRatio: 3 / 4, backgroundColor: colors.surfaceLight, borderRadius: radius.base },
+})

@@ -1,6 +1,6 @@
 import type { LibraryGameCard, LibraryPageData, LibraryQuery, LibrarySort } from '@screenpeak/shared/api/library'
 import type { LibraryWrite } from '@screenpeak/shared/api/writes'
-import { ArrowDownWideNarrow, ArrowUpNarrowWide, ChevronDown, Pencil, SlidersHorizontal } from 'lucide-react-native'
+import { Pencil, SlidersHorizontal } from 'lucide-react-native'
 import { useState } from 'react'
 import { FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -12,6 +12,7 @@ import { colors, face, hitTarget, radius, space, text, typeScale } from '@/theme
 import { AppHeader } from './app-header'
 import { Button } from './button'
 import { EmptyState } from './empty-state'
+import { FacetPicker, MenuTrigger, SortToggle } from './filter-controls'
 import { GameCard } from './game-card'
 import { LibrarySheet } from './library-sheet'
 import { LibraryStatRow } from './library-stat-row'
@@ -105,62 +106,6 @@ function LibraryCell({
   )
 }
 
-function MenuTrigger({ label, onPress }: { label: string, onPress: () => void }) {
-  return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={styles.menuTrigger}>
-      <Text numberOfLines={1} style={styles.menuLabel}>{label}</Text>
-      <ChevronDown size={16} color={colors.muted} />
-    </Pressable>
-  )
-}
-
-function FacetPicker({
-  label,
-  options,
-  selected,
-  onSelect,
-}: {
-  label: string
-  options: { id: string, name: string, slug: string }[]
-  selected: string | null
-  onSelect: (slug: string | null) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const [needle, setNeedle] = useState('')
-  if (options.length === 0) return null
-  const count = selected ? 1 : 0
-  const name = `${label}: ${count} selected`
-  const queryText = needle.trim().toLowerCase()
-  const shown = queryText ? options.filter(option => option.name.toLowerCase().includes(queryText)) : options
-  const searchLabel = `Search ${label.toLowerCase()}`
-  return (
-    <View style={styles.stack}>
-      <View style={styles.controlRow}>
-        <MenuTrigger label={name} onPress={() => setOpen(current => !current)} />
-        <Button label="Clear" accessibilityLabel={`Clear ${label}`} variant="secondary" onPress={() => onSelect(null)} />
-      </View>
-      {open ? (
-        <View style={styles.stack}>
-          <TextField label={searchLabel} hideLabel placeholder={searchLabel} value={needle} onChangeText={setNeedle} />
-          {shown.length === 0 ? <Text style={styles.emptyMatch}>No matches</Text> : shown.map(option => (
-            <Button
-              key={option.id}
-              label={option.name}
-              selected={selected === option.slug}
-              variant="secondary"
-              onPress={() => {
-                onSelect(option.slug)
-                setNeedle('')
-                setOpen(false)
-              }}
-            />
-          ))}
-        </View>
-      ) : null}
-    </View>
-  )
-}
-
 /** Cover grid of one library. The owner edits a game through the library sheet. */
 export function LibraryScreen({
   locked = false,
@@ -250,16 +195,7 @@ export function LibraryScreen({
           label={`Sort: ${SORTS.find(sort => sort.sort === query.sort)?.label ?? 'Name'}`}
           onPress={() => setMenu('sort')}
         />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={query.order === 'desc' ? 'Sort descending — tap for ascending' : 'Sort ascending — tap for descending'}
-          onPress={() => change({ ...query, order: query.order === 'desc' ? 'asc' : 'desc' })}
-          style={styles.sortToggle}
-        >
-          {query.order === 'desc'
-            ? <ArrowDownWideNarrow size={18} color={colors.muted} />
-            : <ArrowUpNarrowWide size={18} color={colors.muted} />}
-        </Pressable>
+        <SortToggle order={query.order} onToggle={() => change({ ...query, order: query.order === 'desc' ? 'asc' : 'desc' })} />
       </View>
       {loadError ? (
         <View style={styles.stack}>
@@ -412,43 +348,11 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   controlRow: { flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', gap: space[2] },
-  menuTrigger: {
-    flexGrow: 1,
-    flexShrink: 1,
-    minWidth: 0,
-    minHeight: hitTarget,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space[2],
-    paddingHorizontal: space[3],
-    borderRadius: radius.base,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  menuLabel: {
-    flex: 1,
-    fontFamily: face.display[600],
-    fontSize: typeScale.sm.size,
-    lineHeight: typeScale.sm.line,
-    color: colors.text,
-  },
   sideControl: { flexShrink: 0, paddingHorizontal: space[3] },
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
   searchField: { flex: 1 },
   columns: { gap: space[3] },
   cell: { position: 'relative', gap: space[2], marginBottom: space[3] },
-  sortToggle: {
-    minWidth: hitTarget,
-    minHeight: hitTarget,
-    flexShrink: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.base,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
   edit: {
     position: 'absolute',
     right: space[2],
@@ -478,12 +382,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   stack: { gap: space[2] },
-  emptyMatch: {
-    fontFamily: face.body[400],
-    fontSize: typeScale.sm.size,
-    lineHeight: typeScale.sm.line,
-    color: colors.muted,
-  },
   bone: { height: 28, width: '55%', backgroundColor: colors.surfaceLight, borderRadius: radius.base },
   boneShort: { height: 160, backgroundColor: colors.surfaceLight, borderRadius: radius.base },
 })

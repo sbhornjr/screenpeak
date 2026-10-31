@@ -7,6 +7,7 @@ export function gameHref(slug: string): string {
 }
 
 export type CatalogueFilter = {
+  q?: string
   genre?: string
   platform?: string
   developer?: string

@@ -203,7 +203,7 @@ describe('feed', () => {
     )
     expect(screen.queryByLabelText('Loading more activity')).toBeNull()
     expect(screen.getByText('Too many requests. Try again in 5 seconds.')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Retry loading more' }))
     expect(onLoadMore).toHaveBeenCalledOnce()
   })
 

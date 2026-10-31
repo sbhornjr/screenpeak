@@ -1,11 +1,11 @@
 ---
 name: verify-screenpeak
-description: "Drive the ScreenPeak web app against a local Postgres and prove the Loadout Read-Out through the signed-in UI. Also drives the phone navigation skeleton, the phone profile, the phone library, the phone lists, the phone game page, and the phone feed on Expo web. Use before calling ScreenPeak work done, and whenever a change can affect sign-in, the library fixture, /user/peek/loadout, the phone tabs, the phone profile, the phone library, the phone lists, the phone game page, or the phone feed."
+description: "Drive the ScreenPeak web app against a local Postgres and prove the Loadout Read-Out through the signed-in UI. Also drives the phone navigation skeleton, the phone profile, the phone library, the phone lists, the phone game page, the phone feed, and the phone Explore tab and catalogue on Expo web. Use before calling ScreenPeak work done, and whenever a change can affect sign-in, the library fixture, /user/peek/loadout, the phone tabs, the phone profile, the phone library, the phone lists, the phone game page, the phone feed, or the phone Explore tab and catalogue."
 ---
 
 # Verify ScreenPeak
 
-ScreenPeak's primary surface is the Next.js web app. This skill launches that app on a disposable local Postgres, signs in as the fixture user through the sign-in dialog, and proves the Loadout Read-Out. The phone navigation skeleton is driven on Expo web against the same local API (`drive mobile-nav`). The phone profile, including follow and the privacy gates, is `drive mobile-profile`. The phone library, including filters and a private library, is `drive mobile-library`. The phone lists, including a private list and the owner's create, edit, and delete, are `drive mobile-lists`. The phone game page, including rate, review, library, and lists, is `drive mobile-game`. The phone feed, including the next page and the empty feed, is `drive mobile-feed`. Steam import is intentionally absent: agents have no Steam account.
+ScreenPeak's primary surface is the Next.js web app. This skill launches that app on a disposable local Postgres, signs in as the fixture user through the sign-in dialog, and proves the Loadout Read-Out. The phone navigation skeleton is driven on Expo web against the same local API (`drive mobile-nav`). The phone profile, including follow and the privacy gates, is `drive mobile-profile`. The phone library, including filters and a private library, is `drive mobile-library`. The phone lists, including a private list and the owner's create, edit, and delete, are `drive mobile-lists`. The phone game page, including rate, review, library, and lists, is `drive mobile-game`. The phone feed, including the next page and the empty feed, is `drive mobile-feed`. The phone Explore tab and the catalogue, including list likes and the catalogue's filters and next page, are `drive mobile-explore`. Steam import is intentionally absent: agents have no Steam account.
 
 One instance per machine. `up` refuses when port 3210, 54321, or 54322 is already taken. Do not point this skill at a hosted database.
 
@@ -68,6 +68,7 @@ node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-game
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-library
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-lists
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-feed
+node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-explore
 ```
 
 `drive search` does not start signed in. It reads one of `peek`'s rated games and that game's developer and publisher from Postgres, fetches the game and taxonomy search routes, and types into the catalogue's developer dropdown and the signed-in favorite-game picker. It does not click Lock.
@@ -79,6 +80,8 @@ node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs drive mobile-feed
 `drive mobile-lists` starts the same Expo web server. It inserts peek's public list Night runs (one library game), peek's private Secret shelf, ada's public Ada's picks, and ada's private Ada hidden. Wishlist stays empty. Signed in as peek, it opens Lists from the Profile hub and screenshots the index, Secret shelf, Night runs, the edit sheet, the empty Wishlist, the New list sheet, ada's index, Ada's picks, the liked detail, and the liked preview. The index, Night runs, the edit sheet, the empty Wishlist, the New list sheet, and ada's screens are checked at 375×667 and 320×568. Secret shelf, the liked detail, and the liked preview are 320. Remove stays on the list. The default Wishlist has no Delete. It creates Drive shelf and deletes it. Ada's index hides Ada hidden and has no New list. The private list URL says Not found. It likes Ada's picks, then deletes those lists and `ada`, and stops Expo before it exits. Port 8081 must be free. Do not run it at the same time as another Expo drive.
 
 `drive mobile-feed` starts the same Expo web server. It inserts `nova` with a public library, makes peek follow nova, and writes nova's review, rating, three library adds, and 14 public lists in one transaction, so every feed row ties on `created_at`. Signed in as peek, it screenshots the Feed tab at 375×667, scrolls until the second page (`offset=12`) has loaded, and checks each list shows exactly once. It expands the long review, opens the game, nova's profile, and nova's library and comes Back from each, and screenshots the feed at 320×568. It then deletes the follow and checks the empty feed and its Find people to follow button. It deletes `nova` and stops Expo before it exits. Pull-to-refresh is not driven: React Native Web has no `RefreshControl`. Port 8081 must be free. Do not run it at the same time as another Expo drive.
+
+`drive mobile-explore` starts the same Expo web server. It inserts developer Verify Works with 30 games, private `ada`, and `nova` with a public library. Peek follows nova and nova follows ada; nova completes and rates one of the games, and likes ada's Ada shelf and peek's Peek shelf. Signed in as peek, it checks Explore's trending and recommended sections at 375×667, likes Ada shelf (both of its cards change, Peek shelf stays a count), picks All time, searches a game and opens Browse all with that search, opens Browse all before any search, and browses a genre from the Browse by genre dropdown. In the catalogue it opens a developer link, scrolls to `page=2`, sorts by score and flips the direction, and picks the developer again from the Filters sheet's server search. It screenshots both screens at 320×568. It deletes everything it inserted and stops Expo before it exits. Pull-to-refresh is not driven. Port 8081 must be free. Do not run it at the same time as another Expo drive.
 
 `drive mobile-profile` starts the same Expo web server. It dresses peek's display name, bio, title, read-out, one favorite, and one written review, then restores those columns. It inserts `nova`, whose library and loadout are public, and `ada`, whose library and loadout are private. Signed in as peek, it screenshots the Profile tab, nova, and ada at 375×667 and 320×568. It opens the Settings stub and the ratings stub, opens the Library tab from peek's preview, follows and unfollows nova by user id, and opens nova's library. It deletes `nova` and `ada`, restores peek, and stops Expo before it exits. Port 8081 must be free. Do not run it at the same time as another Expo drive.
 
@@ -254,6 +257,23 @@ A passing mobile-lists proof shows ScreenPeak on each screenshot, Show: My lists
 - `empty-320.png` — Your feed is quiet and Find people to follow
 - `result.json` — the feed request URLs, how many times each of the 14 lists appeared, the paths each link opened, and an empty `problems` list
 
+`drive mobile-explore` writes `/tmp/screenpeak-verify/evidence/mobile-explore/`:
+
+- `explore-375.png` — Peak right now, Recommended for you, and Lists peaking now
+- `explore-liked-375.png` — Ada shelf liked on both of its cards
+- `explore-search-375.png` — the search hit with its year
+- `catalogue-search-375.png` — Browse all after a search, with the Search chip
+- `browse-genre-375.png` — the Browse by genre sheet
+- `catalogue-genre-375.png` — the catalogue from a genre in that sheet
+- `explore-320.png` — Explore at 320×568
+- `catalogue-developer-375.png` — Developer: Verify Works and 30 games
+- `catalogue-end-375.png` — the end of the grid after page 2
+- `filters-375.png` — the Filters sheet with the developer search result
+- `catalogue-320.png` — the catalogue at 320×568
+- `result.json` — the like, range, page, sort, and developer-search request URLs, the genre browsed, and an empty `problems` list
+
+A passing mobile-explore proof shows ScreenPeak on each screenshot, one like POST, a `range=alltime` request, a `page=2` request, `order=desc` and `order=asc` score sorts, and a developer search request in `result.json`, and an empty `problems` list. After the drive, nova, ada, Peek shelf, the 30 Verify Catalogue games, and Verify Works are gone.
+
 A passing mobile-feed proof shows ScreenPeak on each screenshot, a `GET /api/v1/feed?offset=12` in `result.json`, a count of 1 for every Nova shelf, `/games/<slug>`, `/user/nova`, `/user/nova/library`, and `/explore` among the visited paths, and an empty `problems` list. After the drive, nova is gone, and so are the follow, the lists, the review, the rating, and the library rows nova wrote.
 
 A passing mobile-game proof shows ScreenPeak and the game name on `se-signed-out.png`, the signup sentence on `signup.png`, the new review then the edited review, the score still visible after the written review is deleted, a library PUT body that is only `{ "status": ... }` while Postgres still has hours 12.5, play count 4, and the 100% flag, the game on the wishlist and on the created list, and Close inside the short viewport. `result.json` has an empty `problems` list. After the drive, peek still has five ratings and five library rows, and the created list is gone.
@@ -264,7 +284,7 @@ A passing mobile-game proof shows ScreenPeak and the game name on `se-signed-out
 node .cursor/skills/verify-screenpeak/verify-screenpeak.mjs down
 ```
 
-Kill only the pids in `/tmp/screenpeak-verify/pids`. After `down`, `/tmp/screenpeak-verify/evidence/loadout-readout/`, `/tmp/screenpeak-verify/evidence/game-page/`, `/tmp/screenpeak-verify/evidence/read-endpoints/`, `/tmp/screenpeak-verify/evidence/game-writes/`, `/tmp/screenpeak-verify/evidence/search/`, `/tmp/screenpeak-verify/evidence/mobile-nav/`, `/tmp/screenpeak-verify/evidence/mobile-profile/`, `/tmp/screenpeak-verify/evidence/mobile-forgot-password/`, `/tmp/screenpeak-verify/evidence/mobile-sign-up/`, `/tmp/screenpeak-verify/evidence/mobile-game/`, `/tmp/screenpeak-verify/evidence/mobile-library/`, `/tmp/screenpeak-verify/evidence/mobile-lists/`, and `/tmp/screenpeak-verify/evidence/mobile-feed/` must still exist. Confirm that before treating the run as finished.
+Kill only the pids in `/tmp/screenpeak-verify/pids`. After `down`, `/tmp/screenpeak-verify/evidence/loadout-readout/`, `/tmp/screenpeak-verify/evidence/game-page/`, `/tmp/screenpeak-verify/evidence/read-endpoints/`, `/tmp/screenpeak-verify/evidence/game-writes/`, `/tmp/screenpeak-verify/evidence/search/`, `/tmp/screenpeak-verify/evidence/mobile-nav/`, `/tmp/screenpeak-verify/evidence/mobile-profile/`, `/tmp/screenpeak-verify/evidence/mobile-forgot-password/`, `/tmp/screenpeak-verify/evidence/mobile-sign-up/`, `/tmp/screenpeak-verify/evidence/mobile-game/`, `/tmp/screenpeak-verify/evidence/mobile-library/`, `/tmp/screenpeak-verify/evidence/mobile-lists/`, `/tmp/screenpeak-verify/evidence/mobile-feed/`, and `/tmp/screenpeak-verify/evidence/mobile-explore/` must still exist. Confirm that before treating the run as finished.
 
 ## Helpers
 

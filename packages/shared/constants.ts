@@ -14,6 +14,8 @@ export const GAME_REVIEWS_MAX_PAGE_SIZE = 100
 /** Typeahead search. The query is trimmed. `limit` defaults to this cap. */
 export const SEARCH_QUERY_MAX_LENGTH = 100
 export const SEARCH_MAX_PAGE_SIZE = 20
+/** The longest developer or publisher slug a lookup accepts. */
+export const TAXONOMY_SLUG_MAX_LENGTH = 120
 
 /** `ids` on taxonomy search, comma-separated on the API. */
 export const TAXONOMY_SEARCH_ID_CAP = 200

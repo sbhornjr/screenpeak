@@ -1,67 +1,78 @@
+import type { TaxonomySearchTable } from '@screenpeak/shared/api/search'
 import { useLocalSearchParams } from 'expo-router'
-import { useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 
 import { api } from '@/lib/api'
+import {
+  CATALOGUE_PAGE_SIZE,
+  catalogueGames,
+  catalogueQuery,
+  nextCataloguePage,
+  type CatalogueQuery,
+} from '@/lib/catalogue-page'
+import { actionFailure } from '@/lib/failure'
 import { back, go } from '@/lib/go'
-import { queryKeys } from '@/lib/query-keys'
-import { useRemote } from '@/lib/use-remote'
+import { keepSameScope, queryKeys, scopes } from '@/lib/query-keys'
+import { useRefresh } from '@/lib/use-refresh'
+import { useRemotePages } from '@/lib/use-remote'
 
-import { CatalogueScreen } from '@/components/catalogue-screen'
-import { RemoteGate } from '@/components/screen-state'
+import { CatalogueScreen, CatalogueSkeleton } from '@/components/catalogue-screen'
+import { API_MISSING, ScreenNotice } from '@/components/screen-state'
 
-function one(value: string | string[] | undefined): string | undefined {
-  const first = Array.isArray(value) ? value[0] : value
-  return first && first.length > 0 ? first : undefined
-}
+const TAXONOMY_LIMIT = 10
 
 export default function CatalogueRoute() {
-  const params = useLocalSearchParams<{
-    genre?: string
-    platform?: string
-    developer?: string
-    publisher?: string
-    esrb?: string
-  }>()
-  const genre = one(params.genre)
-  const platform = one(params.platform)
-  const developer = one(params.developer)
-  const publisher = one(params.publisher)
-  const esrb = one(params.esrb)
-  const filterKey = `${genre ?? ''}|${platform ?? ''}|${developer ?? ''}|${publisher ?? ''}|${esrb ?? ''}`
-  const [pageState, setPageState] = useState({ filterKey, page: 1 })
-  const page = pageState.filterKey === filterKey ? pageState.page : 1
-  function setPage(next: number) {
-    setPageState({ filterKey, page: next })
-  }
-  const remote = useRemote(
-    viewer => queryKeys.catalogue({ genre, platform, developer, publisher, esrb }, page, viewer),
-    () => api.games.list({
-      genre: genre ?? null,
-      platform: platform ?? null,
-      developer: developer ?? null,
-      publisher: publisher ?? null,
-      esrb: esrb ?? null,
-      page,
-      pageSize: 10,
-    }),
-    true,
+  const params = useLocalSearchParams<Record<string, string | string[]>>()
+  // The link's filters seed the screen. A new link (another genre) starts over;
+  // changes made on the screen stay until then.
+  const linked = useMemo(() => catalogueQuery(params), [params])
+  const linkKey = JSON.stringify(linked)
+  const [state, setState] = useState<{ linkKey: string, query: CatalogueQuery }>({ linkKey, query: linked })
+  const query = state.linkKey === linkKey ? state.query : linked
+
+  const pages = useRemotePages(
+    viewer => queryKeys.catalogue(query, viewer),
+    page => api.games.list({ ...query, page, pageSize: CATALOGUE_PAGE_SIZE }),
+    nextCataloguePage,
+    { firstPageParam: 1, placeholderData: viewer => keepSameScope(scopes.catalogue, viewer) },
   )
-  if (remote.gate || !remote.query.data) return <RemoteGate gate={remote.gate} onRetry={() => { void remote.query.refetch() }} />
-  const data = remote.query.data
-  const genreName = genre ? data.genres.find(item => item.slug === genre)?.name ?? genre : null
-  const platformName = platform ? data.platforms.find(item => item.slug === platform)?.name ?? platform : null
-  const esrbName = esrb ? data.esrb_ratings.find(item => item === esrb) ?? esrb : null
-  const filterLabel = [genreName, platformName, developer, publisher, esrbName].filter((item): item is string => !!item).join(' · ') || null
+  const remote = pages.query
+  const { refreshing, refresh } = useRefresh(remote.refetch)
+  const games = useMemo(() => catalogueGames(remote.data?.pages ?? []), [remote.data])
+  const searchTaxonomy = useCallback(async (table: TaxonomySearchTable, q: string) => {
+    try {
+      const page = await api.taxonomy.search(table, q, { limit: TAXONOMY_LIMIT })
+      return { hits: page.results }
+    } catch (error) {
+      return { error: actionFailure(error) }
+    }
+  }, [])
+
+  if (!pages.configured) return <ScreenNotice {...API_MISSING} onBack={back} />
+  if (pages.gate?.retry) {
+    return <ScreenNotice title={pages.gate.title} body={pages.gate.body} onBack={back} onRetry={() => { void remote.refetch() }} />
+  }
+  const first = remote.data?.pages[0]
+  if (!first) return <CatalogueSkeleton onBack={back} />
   return (
     <CatalogueScreen
-      filterLabel={filterLabel}
-      games={data.games}
-      total={data.total}
-      page={page}
-      totalPages={data.total_pages}
+      games={games}
+      total={first.total}
+      query={query}
+      facets={first}
+      onQuery={next => setState({ linkKey, query: next })}
       onOpen={go}
-      onPage={setPage}
       onBack={back}
+      searchTaxonomy={searchTaxonomy}
+      hasMore={remote.hasNextPage}
+      loadingMore={remote.isFetchingNextPage}
+      loadMoreError={remote.isFetchNextPageError ? actionFailure(remote.error) : null}
+      onLoadMore={() => { void remote.fetchNextPage() }}
+      refreshing={refreshing}
+      onRefresh={refresh}
+      refreshError={remote.isRefetchError ? actionFailure(remote.error) : null}
+      onRetry={() => { void remote.refetch() }}
+      updating={remote.isPlaceholderData}
     />
   )
 }

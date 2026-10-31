@@ -23,6 +23,7 @@ const libraryQ = {
 const gameQ = {
     queryGames: vi.fn(),
     getDeveloperNameMap: vi.fn(),
+    getTaxonomyNameBySlug: vi.fn(),
     getAllGenres: vi.fn(),
     getAllPlatforms: vi.fn(),
     getDistinctEsrbRatings: vi.fn(),
@@ -530,6 +531,40 @@ describe('loadGamesPage', () => {
         expect(data.viewer).toBeNull()
         expect(JSON.stringify(data)).not.toContain('avg_ngplus_rating')
         expect(JSON.stringify(data)).not.toContain('steam_appid')
+        expect(data.filter_names).toEqual({ developer: null, publisher: null })
+        expect(gameQ.getTaxonomyNameBySlug).not.toHaveBeenCalled()
+    })
+
+    it('names the developer and publisher filters', async () => {
+        gameQ.getTaxonomyNameBySlug.mockImplementation(async (table: string, slug: string) =>
+            table === 'developers' && slug === 'fromsoftware' ? 'FromSoftware' : '')
+
+        const data = await loadGamesPage({
+            q: null, genre: null, platform: null, developer: 'fromsoftware', publisher: 'gone', esrb: null,
+            sort: 'name', order: 'asc', page: 1, pageSize: 10,
+        }, null)
+
+        expect(data.filter_names).toEqual({ developer: 'FromSoftware', publisher: null })
+        expect(JSON.parse(JSON.stringify(data)).filter_names).toEqual({ developer: 'FromSoftware', publisher: null })
+    })
+
+    it('does not look up a slug longer than any taxonomy slug', async () => {
+        const data = await loadGamesPage({
+            q: null, genre: null, platform: null, developer: 'x'.repeat(121), publisher: null, esrb: null,
+            sort: 'name', order: 'asc', page: 1, pageSize: 10,
+        }, null)
+
+        expect(data.filter_names.developer).toBeNull()
+        expect(gameQ.getTaxonomyNameBySlug).not.toHaveBeenCalled()
+    })
+
+    it('fails when a filter name cannot be read', async () => {
+        gameQ.getTaxonomyNameBySlug.mockRejectedValue(new Error('db down'))
+
+        await expect(loadGamesPage({
+            q: null, genre: null, platform: null, developer: 'fromsoftware', publisher: null, esrb: null,
+            sort: 'name', order: 'asc', page: 1, pageSize: 10,
+        }, null)).rejects.toThrow('db down')
     })
 })
 

@@ -2,7 +2,7 @@ import 'server-only'
 import { sql, and, asc, eq, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { games, gameGenres, gamePlatforms, gameDevelopers, gamePublishers, genres, platforms, developers, publishers, gameExternalIds, libraryEntries } from '@/db/schema'
-import { SEARCH_MAX_PAGE_SIZE, SEARCH_QUERY_MAX_LENGTH, TAXONOMY_SEARCH_ID_CAP, TAXONOMY_SEARCH_TABLES } from '@screenpeak/shared/constants'
+import { SEARCH_MAX_PAGE_SIZE, SEARCH_QUERY_MAX_LENGTH, TAXONOMY_SEARCH_ID_CAP, TAXONOMY_SEARCH_TABLES, TAXONOMY_SLUG_MAX_LENGTH } from '@screenpeak/shared/constants'
 import type { TaxonomySearchTable } from '@screenpeak/shared/api/search'
 import { GameData } from '@screenpeak/shared/types'
 import { uuidArrayParam } from '@/lib/sql-helpers'
@@ -351,7 +351,7 @@ export async function searchLibraryTaxonomy(
 
 export async function getTaxonomyNameBySlug(table: TaxonomySearchTable, slug: string): Promise<string> {
     const trimmed = slug.trim()
-    if (!trimmed || trimmed.length > 120) throw new SearchInputError('Enter a slug.')
+    if (!trimmed || trimmed.length > TAXONOMY_SLUG_MAX_LENGTH) throw new SearchInputError('Enter a slug.')
     const source = taxonomySource(table)
     const rows = await db.select({ name: source.name }).from(source).where(eq(source.slug, trimmed)).limit(1)
     return rows[0]?.name ?? ''

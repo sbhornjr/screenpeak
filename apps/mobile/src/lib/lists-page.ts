@@ -40,7 +40,8 @@ function formFields(fields: ListWrite) {
 }
 
 /** The like count after a toggle. Repeating the current state changes nothing. */
-function likedCount(count: number, was: boolean, liked: boolean): number {
+/** A like count after one viewer's like or unlike. Liking twice changes nothing. */
+export function likedCount(count: number, was: boolean, liked: boolean): number {
   if (liked === was) return count
   return Math.max(0, count + (liked ? 1 : -1))
 }
