@@ -165,8 +165,8 @@ export async function driveForgotPassword() {
             return 'waiting'
         })()`)
         await page.navigate(expoOrigin)
-        await page.waitForText('Nothing in your feed yet.', 45_000)
-        const signedIn = await shot('signed-in.png', 'Nothing in your feed yet.')
+        await page.waitForText('Your feed is quiet', 45_000)
+        const signedIn = await shot('signed-in.png', 'Your feed is quiet')
         if (signedIn.includes('Sign up, log in, or browse the catalogue.')) problems.push('signing in with the new password still shows the welcome')
 
         await page.navigate(`${expoOrigin}/auth/update-password`)

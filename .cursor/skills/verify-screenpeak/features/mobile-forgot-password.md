@@ -34,7 +34,7 @@ Preconditions:
 - **Open the local reset link.** The drive reads the code the local gateway stored for that request and opens `http://localhost:8081/auth/confirm?next=/auth/update-password&code=…`. The screen says Set a new password.
 - **Save a new password.** Fill New password and Confirm new password with `local-new-1` and click Update password. The screen says "Password updated. Taking you home…".
 - **Reject the old password.** The drive clears the recovery session, opens Log in, and signs in with `local-old-1`. The screen says "Invalid login credentials".
-- **Sign in with the new password.** Sign in with `local-new-1`. The feed no longer shows the welcome. It says "Nothing in your feed yet."
+- **Sign in with the new password.** Sign in with `local-new-1`. The feed no longer shows the welcome. It says "Your feed is quiet."
 - **Open set-new-password while signed in.** Open `http://localhost:8081/auth/update-password`. The screen says "This page only works from the reset link in your email." The new-password field is not there.
 - **Proof.** The drive writes `/tmp/screenpeak-verify/evidence/mobile-forgot-password/`. The png files are the welcome, the blocked set-new-password screen, the request, the confirmation, the set-new-password form, the saved-password sentence, the signed-in feed, and the same screen after a normal sign-in. `result.json` records that the gateway's recover response was the same for `resetfan` and for `nobody-reset@example.com`, that the redirect was the Expo web confirm URL, that the reset request sent a PKCE challenge, and that `verify_local.passwords` stored `local-new-1`.
 

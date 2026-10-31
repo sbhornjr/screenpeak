@@ -27,7 +27,7 @@ Preconditions:
 - **Create the account.** Fill Email with `hornflakes+signup@mail.grokbot.com`, Username with `signupfan`, and Password with `local-signup-1`. Click Sign up. The screen says "Check your email to confirm the account, then log in."
 - **Reject the password before confirmation.** Open Log in and sign in with that email and password. The screen says "Email not confirmed".
 - **Open the local confirmation link.** The drive calls the gateway's `/auth/v1/verify` with the token it recorded. That is the first hop of the default confirmation email. It returns 200 and does not ask for a code verifier.
-- **Sign in.** Click Log in again. The feed no longer shows the welcome. It says "Nothing in your feed yet."
+- **Sign in.** Click Log in again. The feed no longer shows the welcome. It says "Your feed is quiet."
 - **Proof.** The drive writes `/tmp/screenpeak-verify/evidence/mobile-sign-up/`. The png files are the sign-up form, the check-your-email sentence, the unconfirmed error, and the signed-in feed. `result.json` records that the signup request's code challenge was null, that verify returned 200, and that sign-in then reached the feed.
 
 ```bash

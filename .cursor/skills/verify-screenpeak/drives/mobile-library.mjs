@@ -286,7 +286,7 @@ export async function driveMobileLibrary() {
 
         await page.setViewport(375, 667)
         await page.navigate(expoOrigin)
-        await page.waitForTextEither(['Nothing in your feed yet.', gameName, "Couldn't load this screen"], 45_000)
+        await page.waitForTextEither(['Your feed is quiet', gameName, "Couldn't load this screen"], 45_000)
         await expectCentered('logo-375')
         await shot('logo-375.png')
         await page.setViewport(320, 568)

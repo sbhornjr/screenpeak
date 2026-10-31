@@ -95,7 +95,7 @@ export async function driveMobileNav() {
             return 'waiting'
         })()`)
         await page.navigate(expoOrigin)
-        const feedNeedles = ['Nothing in your feed yet.', ...library.games, "Couldn't load this screen"]
+        const feedNeedles = ['Your feed is quiet', ...library.games, "Couldn't load this screen"]
         await page.waitForTextEither(feedNeedles, 45_000)
         const feedInPath = join(dir, 'feed-signed-in.png')
         await page.screenshot(feedInPath)
@@ -103,7 +103,7 @@ export async function driveMobileNav() {
         const feedIn = await page.panelText()
         if (feedIn.includes('Sign up, log in, or browse the catalogue.')) problems.push('signed-in feed still shows the welcome')
         if (feedIn.includes("Couldn't load this screen")) problems.push('signed-in feed failed to load')
-        const feedOk = feedIn.includes('Nothing in your feed yet.') || library.games.some((name) => feedIn.includes(name))
+        const feedOk = feedIn.includes('Your feed is quiet') || library.games.some((name) => feedIn.includes(name))
         if (!feedOk) problems.push('signed-in feed has neither the empty state nor a library game')
 
         await page.clickTab('Explore')

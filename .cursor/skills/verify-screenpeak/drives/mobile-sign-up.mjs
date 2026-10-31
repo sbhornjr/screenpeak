@@ -103,7 +103,7 @@ export async function driveSignUp() {
             return 'waiting'
         })()`)
         await page.navigate(expoOrigin)
-        const home = await shot('signed-in.png', 'Nothing in your feed yet.', 45_000)
+        const home = await shot('signed-in.png', 'Your feed is quiet', 45_000)
         signedIn = !home.includes('Sign up, log in, or browse the catalogue.')
         if (!signedIn) problems.push('confirmed sign-up still shows the welcome')
 
