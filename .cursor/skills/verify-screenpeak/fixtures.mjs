@@ -1,5 +1,5 @@
 // Fixture rows and SQL helpers that more than one drive uses.
-import { adaEmail, adaUsername, databaseUrl, gatewayPort, peekEmail, peekPassword, peekUsername } from './config.mjs'
+import { adaEmail, adaUsername, databaseUrl, gatewayPort, novaEmail, peekEmail, peekPassword, peekUsername } from './config.mjs'
 import { psql } from './database.mjs'
 import { log } from './runtime.mjs'
 
@@ -99,6 +99,14 @@ export function insertPrivateAda() {
 export function deleteAda() {
     try {
         psql(databaseUrl, `DELETE FROM auth.users WHERE email = '${adaEmail}';`)
+    } catch (error) {
+        log(error instanceof Error ? error.message : String(error))
+    }
+}
+
+export function deleteNova() {
+    try {
+        psql(databaseUrl, `DELETE FROM auth.users WHERE email = '${novaEmail}';`)
     } catch (error) {
         log(error instanceof Error ? error.message : String(error))
     }

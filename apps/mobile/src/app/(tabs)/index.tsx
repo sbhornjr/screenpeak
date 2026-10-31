@@ -1,17 +1,45 @@
-import { useAuth } from '@/lib/auth'
+import { useMemo } from 'react'
+
 import { api } from '@/lib/api'
+import { useAuth } from '@/lib/auth'
+import { actionFailure } from '@/lib/failure'
+import { feedItems, nextFeedOffset } from '@/lib/feed-page'
 import { go } from '@/lib/go'
 import { queryKeys } from '@/lib/query-keys'
-import { useRemote } from '@/lib/use-remote'
+import { useRefresh } from '@/lib/use-refresh'
+import { useRemotePages } from '@/lib/use-remote'
 
-import { FeedScreen } from '@/components/feed-screen'
-import { RemoteGate, ScreenMessage } from '@/components/screen-state'
+import { FeedScreen, FeedSkeleton } from '@/components/feed-screen'
+import { API_MISSING, ScreenMessage } from '@/components/screen-state'
 
 export default function FeedRoute() {
   const { ready, session } = useAuth()
-  const feed = useRemote(queryKeys.feed, () => api.feed.get(0), session != null)
-  if (!ready) return <ScreenMessage title="Loading" />
+  const feed = useRemotePages(queryKeys.feed, offset => api.feed.get(offset), nextFeedOffset, session != null)
+  const { query } = feed
+  const { refreshing, refresh } = useRefresh(query.refetch)
+  const items = useMemo(() => feedItems(query.data?.pages ?? []), [query.data])
+
+  if (!ready) return <FeedSkeleton />
   if (!session) return <FeedScreen signedIn={false} items={[]} onOpen={go} />
-  if (feed.gate || !feed.query.data) return <RemoteGate gate={feed.gate} onRetry={() => { void feed.query.refetch() }} />
-  return <FeedScreen signedIn items={feed.query.data.items} onOpen={go} />
+  if (!feed.configured) return <ScreenMessage {...API_MISSING} />
+  if (feed.gate?.retry) {
+    return <ScreenMessage title={feed.gate.title} body={feed.gate.body} onRetry={() => { void query.refetch() }} />
+  }
+  if (feed.gate || !query.data) return <FeedSkeleton />
+  return (
+    <FeedScreen
+      signedIn
+      items={items}
+      now={query.dataUpdatedAt}
+      onOpen={go}
+      hasMore={query.hasNextPage}
+      loadingMore={query.isFetchingNextPage}
+      loadMoreError={query.isFetchNextPageError ? actionFailure(query.error) : null}
+      onLoadMore={() => { void query.fetchNextPage() }}
+      refreshing={refreshing}
+      onRefresh={refresh}
+      refreshError={query.isRefetchError ? actionFailure(query.error) : null}
+      onRetry={() => { void query.refetch() }}
+    />
+  )
 }

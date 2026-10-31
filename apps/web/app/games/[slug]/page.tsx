@@ -24,6 +24,7 @@ import { getGameBySlug } from "@/lib/queries/game"
 import { getGameReviewsForPage } from "@/lib/queries/review"
 import { Metadata } from "next"
 import { ChevronLeft, Clock, Repeat, Trophy } from "lucide-react"
+import { releaseYear } from "@screenpeak/shared/dates"
 
 type GamePageProps = {
     params: Promise<{ slug: string }>
@@ -126,7 +127,7 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
 
     const lists = viewer?.lists ?? []
 
-    const year = game.released ? new Date(game.released).getFullYear() : null
+    const year = releaseYear(game.released)
     const cover = displayCoverUrl(game.cover_image_url, 'large')
     const screenshots = (game.screenshots ?? []).flatMap(url => {
         const landscape = displayLandscapeUrl(url)

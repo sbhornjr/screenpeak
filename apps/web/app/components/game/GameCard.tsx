@@ -4,6 +4,7 @@ import { Game, AdvancedStats } from '@screenpeak/shared/types'
 import Seal from '@/app/components/game/Seal'
 import { displayCoverUrl } from '@/lib/catalog/images'
 import { Check } from "lucide-react"
+import { releaseYear } from "@screenpeak/shared/dates"
 
 // Library status is neutral chrome, not a verdict — it never borrows the
 // blue/amber/red rating hues. Brass marks the one "active" state; the rest
@@ -84,7 +85,7 @@ export default function GameCard({ game, developer, ngplusRating, userRating, ad
                         </p>
                         {game.released && (
                             <span className="text-(--color-muted) text-xs shrink-0 font-mono">
-                                {new Date(game.released).getFullYear()}
+                                {releaseYear(game.released)}
                             </span>
                         )}
                     </div>

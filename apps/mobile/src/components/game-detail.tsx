@@ -1,4 +1,5 @@
 import type { GamePageData, GameReviewsPage, Taxon } from '@screenpeak/shared/api/games'
+import { releaseYear } from '@screenpeak/shared/dates'
 import type { LibraryWrite, ListWrite } from '@screenpeak/shared/api/writes'
 import type { GameRatingsStats } from '@screenpeak/shared/types'
 import { LIBRARY_SECTION_TITLE, libraryEmptyLine, libraryScoreText } from '@screenpeak/shared/library-copy'
@@ -7,7 +8,7 @@ import { useState } from 'react'
 import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 
 import { igdbImageUri } from '@/lib/catalog-image'
-import { communityScore, relTime, scoreGap, statusLabel, yearOf, type ReviewListQuery } from '@/lib/game-page'
+import { communityScore, relTime, scoreGap, statusLabel, type ReviewListQuery } from '@/lib/game-page'
 import type { CatalogueFilter } from '@/lib/routes'
 import { colors, face, radius, space, text, tierColor, tracking, trackingPx, typeScale } from '@/theme'
 
@@ -172,7 +173,7 @@ export function GameDetail({
   const viewer = signedIn ? data.viewer : null
   const community = communityScore(stats)
   const yours = viewer?.review?.rating ?? null
-  const year = yearOf(game.released)
+  const year = releaseYear(game.released)
   const esrb = game.esrb_rating
   const cover = igdbImageUri(game.cover_image_url)
   const shots = game.screenshots.flatMap(url => {

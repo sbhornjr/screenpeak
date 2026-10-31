@@ -13,6 +13,7 @@ import type { CatalogueFilter } from './routes'
 type Viewer = string | null
 
 export const scopes = {
+  feed: ['feed'],
   game: ['game'],
   library: ['library'],
   lists: ['lists'],

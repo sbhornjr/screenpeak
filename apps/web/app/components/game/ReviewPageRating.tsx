@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { parseDbTimestamp } from "@screenpeak/shared/dates"
+import { parseDbTimestamp, releaseYear } from "@screenpeak/shared/dates"
 import { displayCoverUrl } from "@/lib/catalog/images"
 import { tierColor } from "@/lib/rating-tier"
 
@@ -28,7 +28,7 @@ export default function Rating({ slug, name, cover, released, developer, rating,
                 </span>
                 {released && (
                     <span className="text-xs text-(--color-muted) shrink-0">
-                        {new Date(released).getFullYear()}
+                        {releaseYear(released)}
                     </span>
                 )}
                     {developer && (

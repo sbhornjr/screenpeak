@@ -37,12 +37,6 @@ export function communityScore(stats: GameRatingsStats): number | null {
   return stats.avg_rating
 }
 
-export function yearOf(released: string | null): number | null {
-  if (!released) return null
-  const year = Number(released.slice(0, 4))
-  return Number.isInteger(year) ? year : null
-}
-
 export function relTime(value: string | null, now = Date.now()): string {
   if (!value) return ''
   const time = parseDbTimestamp(value).getTime()

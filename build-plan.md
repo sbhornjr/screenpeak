@@ -178,14 +178,14 @@ screenpeak/
 │   └── mobile/             # new Expo app
 │       ├── src/app/        # Expo Router screens
 │       ├── src/components/
-│       ├── src/lib/api/    # fetch client for /api/v1 (mobile is its only user)
+│       ├── src/lib/api/    # configures the shared fetch client (base URL, bearer token)
 │       └── package.json
 └── packages/
     └── shared/             # imported by BOTH apps
         ├── types/          # moved from ./types
         ├── schemas.ts      # moved from lib/schemas.ts (already client-safe)
         ├── tokens.ts       # colours/fonts/spacing from globals.css as JS
-        └── api/            # request/response types for /api/v1 (the contract)
+        └── api/            # /api/v1 contract types and the fetch client for them
 ```
 
 Why a monorepo rather than a separate repo:
@@ -215,16 +215,17 @@ phone app*, and two things are true of a phone app:
    the web, just on a different client.
 
 So **`db` is only ever used inside `apps/web`** — the one process that runs on a
-server you control. `packages/shared/api` holds the *contract* — types only,
-no queries and no fetching:
+server you control. `packages/shared/api` holds the *contract* types and the
+fetch client that calls it — no queries, no db:
 
 ```
-packages/shared/api/          ← NO db, no runtime code. Imported by both apps.
-  types.ts                      GamePageData, UpdateLibraryEntryBody, ApiError …
-
-apps/mobile/src/lib/api/      ← the phone's side of the contract.
+packages/shared/api/          ← NO db. Types imported by both apps.
+  games.ts, writes.ts, …         GamePageData, LibraryWrite, ApiErrorBody …
   client.ts                     api.games.get(slug) → fetch(`${BASE}/api/v1/games/${slug}`)
-                                (adds the bearer header, parses JSON, throws ApiError)
+                                (adds the bearer header, parses JSON, throws ApiClientError)
+
+apps/mobile/src/lib/api/      ← the phone's configuration of that client.
+  index.ts                      createApiClient({ baseUrl, getToken }) → api
 
 apps/web/                     ← the ONLY place db is imported.
   lib/queries/*.ts              Drizzle queries (unchanged)
@@ -238,7 +239,7 @@ apps/web/                     ← the ONLY place db is imported.
 A request from the phone:
 
 ```
-Game screen ─► api.games.get('elden-ring')          (apps/mobile/src/lib/api/client.ts, on the phone)
+Game screen ─► api.games.get('elden-ring')          (packages/shared/api/client.ts, running on the phone)
             ─► HTTPS GET /api/v1/games/elden-ring
             ─► route.ts ─► loadGamePage() ─► lib/queries/* ─► db ─► Postgres   (all in apps/web, on the server)
             ◄─ JSON typed as GamePageData (the same type both sides import)
@@ -687,9 +688,9 @@ tests. The website is unchanged for users.
    > caller is not the owner. Followers and following are counts. Catalogue
    > cards rename `query_games.avg_ngplus_rating` to `avg_rating`. Covers are
    > display-ready via `packages/shared/images.ts`. Contracts and
-   > `createApiClient` live in `packages/shared/api` (the phone re-exports the
-   > client). Not in this slice: search, taxonomy search, write routes, and a
-   > Steam-library GET.
+   > `createApiClient` live in `packages/shared/api` (the phone configures the
+   > client in `src/lib/api/index.ts`). Not in this slice: search, taxonomy
+   > search, write routes, and a Steam-library GET.
 4. Write routes (mirror the Server Actions). Have both the action and the route
    call the same function; validate request bodies with the shared zod schemas.
    > **Done.** `requireBearerUser()` — 401 `unauthenticated` when the Bearer
@@ -732,12 +733,11 @@ tests. The website is unchanged for users.
    > The signed-in native game screen calls rate, library save, and add-to-list.
    > `POST /me/steam/link-intent` and `POST /me/steam/import` landed in step 7.
    > Search landed in step 6. Rate limiting landed in step 8.
-5. Put request/response types in `packages/shared/api/`. (The fetch client that
-   calls these routes lives in `apps/mobile/src/lib/api/` — Phase 1 step 2b — since the
-   website never calls `/api/v1` itself.)
+5. Put request/response types in `packages/shared/api/`, next to the fetch
+   client that calls these routes (Appendix B.9 says why it lives there).
    > **Read routes from step 3** already have their types in
    > `@screenpeak/shared/api`, and `createApiClient` lives there too. The phone
-   > client re-exports it. **Write routes from step 4** add
+   > configures it once in `src/lib/api/index.ts`. **Write routes from step 4** add
    > `@screenpeak/shared/api/writes` and the write methods on `createApiClient`.
 6. Retire `game-search.ts`: reimplement its three functions on `db` in
    `lib/queries/game.ts` (`searchGamesByName`, `searchTaxonomyTable`,
@@ -884,8 +884,9 @@ stack.
    > Sign-up stays on the default implicit flow so its confirmation link does
    > not need a verifier stored on the phone. Signed-out opens of the tabs
    > still stay on the tabs. Redirect allowlist entries are in Phase 5.
-3. API client lives in `apps/mobile/src/lib/api/` (bearer header, shared
-   contract types — Appendix B.3) with the TanStack Query provider. Done with
+3. API client: `createApiClient` in `packages/shared/api/client.ts` (bearer
+   header, contract types — Appendix B.3), configured once in
+   `apps/mobile/src/lib/api/index.ts`, with the TanStack Query provider. Done with
    the game screen. Later screens add endpoints to the same client.
 4. Theme + the core primitives, ported from `app/components/util/`:
    `Eyebrow`, `SectionHead`, `Wordmark`, `Panel`, `EmptyState`, `Avatar`, a
@@ -933,7 +934,8 @@ Build in order of the core loop — each is shippable to TestFlight on its own:
    > **Done.** The Library tab and `/user/[username]/library` are a two-column cover grid. The website returns the filtered set in one response, so the phone virtualizes that list. A Status dropdown and 100% only share a row. A Sort dropdown and the website's direction toggle share the next. Search has no caption. Each facet is a searchable picker with a selected count and Clear. A filter change keeps the current grid on screen. Each card shows the status chip, both scores, and icon stats for hours, times played, and 100%. The owner edits from a pencil on the cover, through the same library sheet as the game page, and that press does not open the game. Tapping the card opens the game. Another player's library opens from their profile hub. A private library says so and does not request the games. Empty, loading, error, and 429 states are on the screen. The Screen | Peak wordmark is centered in the header bar.
 4. **Lists** — index and detail landed in Phase 2 step 1.
    > **Done.** The Profile hub's Lists row opens `/user/[username]/lists`. A Show dropdown reads Show: My lists or Show: {username}'s lists, and the other choice is Liked lists. Private lists stay on your own user tab. Another player does not see them, and the direct URL says Not found. Cards show the name, the game count, a lock when private, a one-line date, and the owner. The profile link is the username text. A borderless heart sits beside the like count, in accent whether or not it is filled. It is a button on someone else's list and a count on your own or when signed out. The server rejects liking your own list. Pin stays on your own card. The detail is the title, description, owner, and a two-column cover grid in stored order. The website has no ranked layout, notes, or reorder, so the phone does not add them. The owner creates a list and edits the name, description, public flag, and pin. Delete asks first. The default Wishlist cannot be deleted. Add games is a search, then Save games. Remove sits on the cover, asks first, and does not open the game. Writes update this viewer's cache immediately and roll back on a 429, which names the wait. The game page's New list shows on the Add to list sheet before the game reload finishes, and a game already in a list reads In this list. Empty, loading, error, and 429 states are on the screen. Keys end with the viewer id, and the previous page stays only for that viewer and that username. A second tap sends one write, and overlapping rate limits restore the server label. Dates are the local calendar day. Five covers shrink to fit a 320-point card. The like control is named Like list or Unlike list with the count, and its hit area stays 44 points without a tall button. Signing out drops the lists cache.
-5. **Feed** — the first page landed in Phase 2 step 1. Still to build: infinite scroll (`useInfiniteQuery` + `FEED_PAGE_SIZE`), pull-to-refresh.
+5. **Feed** — the first page landed in Phase 2 step 1.
+   > **Done.** The Feed tab follows the website's cards. Each starts with the avatar, the username as a profile link, what they did, an activity icon, and how long ago it was. A rating or library add shows the cover with one score tag (community, else yours), the title, and the year and developer. A review shows the cover with its score, the title, and the review clamped to three lines with Read more. A created or liked list shows the name, description, likes, game count, and up to five covers. A batch of library adds shows its covers and opens that player's library. The wording, the time-ago labels, and the empty state come from `@screenpeak/shared/feed-copy`, which the website now uses too. The tab loads `FEED_PAGE_SIZE` (12) rows a page with `useInfiniteQuery` and asks for the next page near the end of the list. Pull-to-refresh reloads every loaded page. A failed next page or refresh keeps what loaded and offers Retry; only a failed first page replaces the screen. A 429 names the wait. `get_feed` sorted only by `created_at`, and rows written in one transaction tie, so an `OFFSET` page could repeat or skip one. Migration 0011 ends the sort with actor, activity type, game, and list, which no two rows share. Offsets still shift when a friend posts between page loads; the phone shows a row that comes back on the next page once. Following someone on the phone refetches the feed in the background. The tab has a loading skeleton, an empty state (Your feed is quiet, with Find people to follow opening Explore), and pull-to-refresh. `drive mobile-feed` covers it on Expo web, except pull-to-refresh, which React Native Web does not render.
 6. **Explore** and the catalogue — search, trending, friends' activity, recommendations, and genre/platform browse landed in Phase 2 step 1. Games is not a tab. The catalogue is the native `/games` page; welcome's Browse button and Explore's Browse all open it, not a web view. Still to build: the rest of the filters.
 7. **Ratings & reviews** page.
 8. **Loadout** — stats charts + generate/clear.
@@ -1272,10 +1274,10 @@ export type GamePageData = {
 
 A description only — no queries, compiles to nothing.
 
-### B.3 `apps/mobile/src/lib/api/client.ts` — how the phone asks for it
+### B.3 `packages/shared/api/client.ts` — how the phone asks for it
 
 ```ts
-import type { GamePageData } from '@screenpeak/shared/api/games'
+import type { GamePageData } from './games'
 
 export function createApiClient(opts: { baseUrl: string; getToken: () => Promise<string | null> }) {
     async function get<T>(path: string): Promise<T> {
@@ -1369,7 +1371,7 @@ export async function GET(req: NextRequest, ctx: RouteContext<'/api/v1/games/[sl
 
 ```ts
 // apps/mobile/src/lib/api/index.ts
-import { createApiClient } from './client'
+import { createApiClient } from '@screenpeak/shared/api/client'
 import { supabase } from '../supabase'
 
 export const api = createApiClient({
@@ -1438,25 +1440,34 @@ After a mutation, `queryClient.invalidateQueries({ queryKey: ['game', slug] })`
 marks that entry stale and it refetches. Convention: mirror the URL in the
 key, so it's obvious which label belongs to which endpoint.
 
-### B.9 Why the client lives in `apps/mobile`, not `packages/shared`
+### B.9 Why the client lives in `packages/shared`
 
-Only code that **both** apps import belongs in `packages/shared`. The website
-never calls `/api/v1`:
+`packages/shared` holds code that is safe to ship inside the phone app: no
+`db`, no `postgres`, no `next/*`, no React, nothing server-only. Being
+imported by both apps is not the test. The website never calls `/api/v1`:
 
 - Server Components call **loaders** directly (B.5).
 - Client components call **Server Actions** — including search, which uses
   `app/search-actions.ts` rather than going through the API (Phase 1 step 6).
 
-So the fetch client has exactly one user, and it lives at `apps/mobile/src/lib/api/`. What
-*is* shared is the contract types (`GamePageData` etc.), because both sides
-compile against them: the loader/route produces them, the phone consumes them.
+So today the phone is the client's only caller. It still lives in
+`packages/shared/api/client.ts`, beside the contract types it is typed
+against, for two reasons:
 
-The URL strings (`/api/v1/games/${slug}`) live in the mobile client rather than
-next to the types. The route file's own path is the server's side of that, and
-a mismatch shows up immediately as a 404 in development. If the website ever
-does need `/api/v1` from the browser — or you add a second consumer, like a
-browser extension — move `client.ts` into `packages/shared` then; it has no
-mobile-specific imports, so the move is a `git mv`.
+- A contract change and the client method that sends it are edited in the
+  same folder, and `npx tsc --noEmit -p packages/shared` checks them together.
+- It uses only `fetch` and the shared types, so nothing about it is
+  phone-specific. A second caller (a browser extension, a script) imports it
+  as it is.
+
+The website does not bundle it: no web file imports it, so it never reaches a
+web build. What stays in `apps/mobile/src/lib/api/index.ts` is the phone's
+configuration: the base URL from `EXPO_PUBLIC_API_URL` and the Supabase session
+token. The client's own tests are in `apps/mobile/src/lib/api/client.test.ts`.
+
+The route file's own path is the server's side of each URL string
+(`/api/v1/games/${slug}`), and a mismatch shows up immediately as a 404 in
+development.
 
 ### B.10 What this means for loaders
 

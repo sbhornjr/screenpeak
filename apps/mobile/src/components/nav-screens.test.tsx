@@ -2,7 +2,6 @@
 import type { ExplorePageData } from '@screenpeak/shared/api/explore'
 import type { LibraryGameCard } from '@screenpeak/shared/api/library'
 import type { ProfilePageData } from '@screenpeak/shared/api/profile'
-import type { FeedItem } from '@screenpeak/shared/types'
 import React from 'react'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -10,7 +9,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import AppTabs from './app-tabs'
 import { CatalogueScreen } from './catalogue-screen'
 import { ExploreScreen } from './explore-screen'
-import { FeedScreen } from './feed-screen'
 import { LibraryScreen } from './library-screen'
 import { ListDetailScreen } from './list-detail-screen'
 import { ListsScreen } from './lists-screen'
@@ -176,42 +174,6 @@ afterEach(() => {
 
 const OPEN = vi.fn()
 
-function feedItem(overrides: Partial<FeedItem>): FeedItem {
-  return {
-    activity_type: 'rating',
-    created_at: '2026-10-01 00:00:00+00',
-    actor_id: '22222222-2222-2222-2222-222222222222',
-    actor_username: 'ada',
-    actor_avatar_url: null,
-    game_id: '11111111-1111-1111-1111-111111111111',
-    game_name: 'Hades',
-    game_slug: 'hades',
-    game_cover_image_url: null,
-    game_released: null,
-    game_developer: null,
-    game_avg_rating: 9,
-    viewer_game_rating: null,
-    list_cover_urls: null,
-    list_id: null,
-    list_name: null,
-    list_description: null,
-    list_owner_username: null,
-    list_game_count: null,
-    list_last_activity: null,
-    list_like_count: null,
-    viewer_liked_list: null,
-    rating: 9,
-    review: null,
-    review_created_at: null,
-    review_updated_at: null,
-    library_status: null,
-    library_game_count: null,
-    library_cover_urls: null,
-    library_game_names: null,
-    ...overrides,
-  }
-}
-
 const EXPLORE: ExplorePageData = {
   range: 'week',
   trending_games: [{
@@ -318,42 +280,6 @@ describe('welcome', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Browse' }))
     expect(onOpen.mock.calls).toEqual([['/sign-up'], ['/sign-in'], ['/games']])
     expect(screen.getByRole('img', { name: 'ScreenPeak' }).textContent).toBe('ScreenPeak')
-  })
-})
-
-describe('feed', () => {
-  it('shows the welcome screen when signed out, even if items were passed', () => {
-    render(<FeedScreen signedIn={false} items={[feedItem({})]} onOpen={OPEN} />)
-    expect(screen.getByRole('button', { name: 'Browse' }).textContent).toBe('Browse')
-    expect(screen.queryByText('ada rated Hades a 9/10')).toBeNull()
-  })
-
-  it('shows a rating and opens the game when signed in', () => {
-    const onOpen = vi.fn()
-    render(<FeedScreen signedIn items={[feedItem({})]} onOpen={onOpen} />)
-    fireEvent.click(screen.getByRole('link', { name: 'ada rated Hades a 9/10' }))
-    expect(onOpen).toHaveBeenCalledWith('/games/hades')
-    expect(screen.queryByRole('button', { name: 'Browse' })).toBeNull()
-  })
-
-  it('opens a liked list on that list', () => {
-    const onOpen = vi.fn()
-    render(<FeedScreen signedIn items={[feedItem({
-      activity_type: 'list_liked',
-      game_slug: null,
-      game_name: null,
-      rating: null,
-      list_id: 'list-1',
-      list_name: 'Underworld',
-      list_owner_username: 'ada',
-    })]} onOpen={onOpen} />)
-    fireEvent.click(screen.getByRole('link', { name: 'ada liked "Underworld" by ada' }))
-    expect(onOpen).toHaveBeenCalledWith('/user/ada/lists/list-1')
-  })
-
-  it('says the feed is empty when there is no activity', () => {
-    render(<FeedScreen signedIn items={[]} onOpen={OPEN} />)
-    expect(screen.getByText('Nothing in your feed yet.').textContent).toBe('Nothing in your feed yet.')
   })
 })
 

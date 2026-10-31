@@ -1,4 +1,5 @@
 import type { ProfilePageData } from '@screenpeak/shared/api/profile'
+import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { api } from '@/lib/api'
@@ -32,6 +33,7 @@ function ProfileFollowSession({ username, showBack }: { username: string, showBa
     viewerId,
     invalidate: [scopes.profile],
   })
+  const queryClient = useQueryClient()
   const flight = useSingleFlight()
   const { refreshing, refresh } = useRefresh(remote.query.refetch)
   const [followNote, setFollowNote] = useState<string | null>(null)
@@ -47,6 +49,9 @@ function ProfileFollowSession({ username, showBack }: { username: string, showBa
         () => following ? api.users.follow(current.userId) : api.users.unfollow(current.userId),
         page => withFollowing(page, following),
       )
+      // The follow changes whose activity the feed shows. Every loaded feed
+      // page refetches, so the button does not wait for it.
+      if (!note) void queryClient.invalidateQueries({ queryKey: scopes.feed })
       setFollowNote(note)
       setFollowBusy(false)
     })

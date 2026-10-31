@@ -10,6 +10,7 @@ import { searchGamesByName } from "@/app/search-actions"
 import { displayCoverUrl } from "@/lib/catalog/images"
 import { saveFavoriteGames } from "@/app/user-actions"
 import { plus1 } from "@/lib/plus1"
+import { releaseYear } from "@screenpeak/shared/dates"
 
 export default function FavoriteGamePicker({ currentGames } : { currentGames: Game[]}) {
     const [searchQuery, setSearchQuery] = useState('')
@@ -128,7 +129,7 @@ export default function FavoriteGamePicker({ currentGames } : { currentGames: Ga
                                         </h3>
                                         {game.released && (
                                             <p className="text-(--color-muted) text-sm mt-1">
-                                                {new Date(game.released).getFullYear()}
+                                                {releaseYear(game.released)}
                                             </p>
                                         )}
                                         </div>

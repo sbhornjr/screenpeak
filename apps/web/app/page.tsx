@@ -13,6 +13,7 @@ import { getOptionalUser } from "@/lib/auth"
 import { loadFeed } from "@/lib/loaders/feed"
 import { loadHomeLanding } from "@/lib/loaders/home"
 import { parseDbTimestamp } from "@screenpeak/shared/dates"
+import { FEED_EMPTY } from "@screenpeak/shared/feed-copy"
 import { resolveHeroVisual } from "@/lib/catalog/images"
 
 export default async function Home() {
@@ -169,10 +170,10 @@ export default async function Home() {
                     <FeedList initialItems={feed} />
                 ) : (
                     <EmptyState
-                        title="Your feed is quiet"
-                        description="Follow other players and their ratings, reviews, and lists will show up here."
+                        title={FEED_EMPTY.title}
+                        description={FEED_EMPTY.description}
                         actionHref="/explore"
-                        actionLabel="Find people to follow"
+                        actionLabel={FEED_EMPTY.actionLabel}
                     />
                 )}
             </div>

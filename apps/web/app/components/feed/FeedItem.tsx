@@ -8,16 +8,7 @@ import FeedListPreview from "@/app/components/feed/FeedListPreview"
 import Avatar from "@/app/components/user/Avatar"
 import FeedLibraryBatch from "./FeedLibraryBatch"
 import type { FeedItem as FeedItemType } from "@screenpeak/shared/types"
-import { parseDbTimestamp } from "@screenpeak/shared/dates"
-
-export function timeAgo(date: string): string {
-    const seconds = Math.floor((Date.now() - parseDbTimestamp(date).getTime()) / 1000)
-    if (seconds < 60) return 'just now'
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
-    if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`
-    return parseDbTimestamp(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
+import { feedActivityPhrase, timeAgo } from "@screenpeak/shared/feed-copy"
 
 // A glyph per activity type so the feed is scannable without reading every line.
 function ActivityIcon({ type }: { type: string }) {
@@ -31,13 +22,7 @@ function ActivityIcon({ type }: { type: string }) {
 
 export default function FeedItem({ item }: { item: FeedItemType }) {
 
-    const activity_text = item.activity_type === "library_add" 
-        ? `added ${item.game_name} to their ${item.library_status === 'playing' ? 'currently playing' : item.library_status}` 
-        : item.activity_type === "review" ? `reviewed ${item.game_name}` 
-        : item.activity_type === "rating" ? `rated ${item.game_name} a ${item.rating}/10` 
-        : item.activity_type === "list_created" ? `created the list "${item.list_name}"`
-        : item.activity_type === "list_liked" ? `liked "${item.list_name}" by ${item.list_owner_username}` 
-        : item.activity_type === "library_add_batch" ?  `added ${item.library_game_count} games to their library` : ""
+    const activity_text = feedActivityPhrase(item)
 
     // List cards drive the row's height; the shorter card types (game card,
     // cover fan, review) centre their content in whatever height the row gets.

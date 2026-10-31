@@ -1,5 +1,6 @@
 // Catalog card — port of apps/web/app/components/game/GameCard.tsx (the web's
 // advancedStats row is not ported yet). Web hover → native pressed state.
+import { releaseYear } from '@screenpeak/shared/dates'
 import type { Game } from '@screenpeak/shared/types'
 import { Image } from 'expo-image'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
@@ -30,7 +31,7 @@ const STATUS = {
 
 export function GameCard({ game, developer, spRating, userRating, libraryStatus, onPress }: GameCardProps) {
   const status = libraryStatus ? STATUS[libraryStatus] : null
-  const year = game.released ? game.released.slice(0, 4) : null
+  const year = releaseYear(game.released)
   const cover = igdbImageUri(game.cover_image_url)
 
   return (

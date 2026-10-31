@@ -9,7 +9,7 @@ import {
 } from '../config.mjs'
 import { psql } from '../database.mjs'
 import { readPublicEnv } from '../env.mjs'
-import { deleteAda, insertPrivateAda, peekLibraryGames, sqlLiteral, sqlNullable } from '../fixtures.mjs'
+import { deleteAda, deleteNova, insertPrivateAda, peekLibraryGames, sqlLiteral, sqlNullable } from '../fixtures.mjs'
 import { fail, log, portOpen, requireDoctor, waitForHttp } from '../runtime.mjs'
 
 function peekColumn(column) {
@@ -96,14 +96,6 @@ function insertPublicNova(favoriteId, otherId) {
         FROM users u WHERE u.username = '${novaUsername}'
         ON CONFLICT (user_id, game_id) DO UPDATE SET rating = EXCLUDED.rating, review = EXCLUDED.review;
     `)
-}
-
-function deleteNova() {
-    try {
-        psql(databaseUrl, `DELETE FROM auth.users WHERE email = '${novaEmail}';`)
-    } catch (error) {
-        log(error instanceof Error ? error.message : String(error))
-    }
 }
 
 function giveAdaPrivateNote(gameId) {

@@ -1,18 +1,17 @@
 import type { ListCard, ListsTab } from '@screenpeak/shared/api/lists'
 import type { ListWrite } from '@screenpeak/shared/api/writes'
-import { Image } from 'expo-image'
 import { ChevronDown, Pin } from 'lucide-react-native'
 import { useState } from 'react'
 import { FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
-import { igdbImageUri } from '@/lib/catalog-image'
 import { listHref, profileHref } from '@/lib/routes'
 import { useSingleFlight } from '@/lib/single-flight'
 import { colors, face, hitTarget, radius, space, text, typeScale } from '@/theme'
 
 import { AppHeader } from './app-header'
 import { Button } from './button'
+import { CoverStrip } from './cover-strip'
 import { EmptyState } from './empty-state'
 import { ListLike, ListMeta } from './list-chrome'
 import { ListFormSheet, type ListFormValues } from './list-form-sheet'
@@ -79,18 +78,7 @@ function ListCardRow({
         onPress={openList}
         style={styles.cardBody}
       >
-        {list.covers.length > 0 ? (
-          <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.covers}>
-            {list.covers.slice(0, 5).map(cover => {
-              const uri = igdbImageUri(cover.cover_image_url)
-              return uri ? (
-                <Image key={cover.slug ?? uri} source={uri} style={styles.cover} contentFit="cover" />
-              ) : (
-                <View key={cover.slug ?? 'empty'} style={styles.cover} />
-              )
-            })}
-          </View>
-        ) : null}
+        <CoverStrip covers={list.covers.map(cover => cover.cover_image_url)} />
         <Text numberOfLines={2} style={styles.cardTitle}>{list.name}</Text>
         <ListMeta gameCount={list.game_count} isPrivate={!list.is_public} updatedAt={list.last_activity} />
         {list.description ? <Text numberOfLines={3} style={text.body}>{list.description}</Text> : null}
@@ -320,14 +308,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.base,
     backgroundColor: colors.surface,
     marginBottom: space[3],
-  },
-  covers: { flexDirection: 'row', gap: space[2] },
-  cover: {
-    flex: 1,
-    maxWidth: space[12],
-    height: space[16],
-    borderRadius: radius.base,
-    backgroundColor: colors.surfaceLight,
   },
   cardBody: { gap: space[2], minHeight: hitTarget },
   cardTitle: {

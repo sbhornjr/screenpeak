@@ -8,6 +8,7 @@ import Modal from "@/app/components/util/Modal"
 import { searchGamesByName } from "@/app/search-actions"
 import { displayCoverUrl } from "@/lib/catalog/images"
 import { syncListGamesAction } from "@/app/list-actions"
+import { releaseYear } from "@screenpeak/shared/dates"
 
 export default function AddToListFromListButton({ listId, currentGames } : { listId: string, currentGames: Game[]}) {
     const [isAddToListModalOpen, setIsAddToListModalOpen] = useState(false)
@@ -128,7 +129,7 @@ export default function AddToListFromListButton({ listId, currentGames } : { lis
                                             </h3>
                                             {game.released && (
                                                 <p className="text-(--color-muted) text-sm mt-1">
-                                                    {new Date(game.released).getFullYear()}
+                                                    {releaseYear(game.released)}
                                                 </p>
                                             )}
                                             </div>

@@ -4,6 +4,7 @@ import Image from "next/image"
 import Link from "next/link"
 import Seal from "@/app/components/game/Seal"
 import { displayCoverUrl } from "@/lib/catalog/images"
+import { releaseYear } from "@screenpeak/shared/dates"
 
 export default function FeedGameCard({ gameSlug, gameName, gameCoverImageUrl, gameReleased, gameDeveloper, userRating, avgRating } :
     { gameSlug: string | null, gameName: string | null, gameCoverImageUrl: string | null, gameReleased: string | null, gameDeveloper: string | null, userRating: number | null, avgRating: number | null }) {
@@ -41,7 +42,7 @@ export default function FeedGameCard({ gameSlug, gameName, gameCoverImageUrl, ga
                     {gameName}
                 </p>
                 <p className="text-sm text-(--color-muted) font-(family-name:--font-mono)">
-                    {gameReleased && new Date(gameReleased).getFullYear()}
+                    {releaseYear(gameReleased)}
                     {gameDeveloper && ` · ${gameDeveloper}`}
                 </p>
             </div>

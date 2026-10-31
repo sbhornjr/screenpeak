@@ -53,3 +53,4 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 - [Mobile game](./mobile-game.md) covers the phone game page on Expo web: signed-out reading, the in-app screenshot viewer, the signup prompt, rating and review, library stats, and lists.
 - [Mobile library](./mobile-library.md) covers the phone library grid, filters, search, the owner's edit sheet, and a private library.
 - [Mobile lists](./mobile-lists.md) covers the phone lists index, a list's games, the owner's create, edit, and delete, and a private list.
+- [Mobile feed](./mobile-feed.md) covers the phone Feed tab: followed players' activity cards, the next page on scroll, the links each card opens, and the empty feed.
