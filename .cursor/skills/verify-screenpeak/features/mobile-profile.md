@@ -1,11 +1,11 @@
 # Mobile profile
 
-The phone profile shows the player card (avatar, display name, @username, title, member since, follower counts, and bio), then Loadout, Lists, and a library count that opens the library. Favorites, the read-out, recent written reviews, and the stats follow. Loadout and the library counts show only for the owner or when that player made them public. Lists stay linked. Follow shows when you are signed in on someone else's profile. Edit profile and View all reviews open stubs. This drive checks that screen on Expo web. It does not open a device.
+The phone profile shows the player card (avatar, display name, @username, title, member since, follower counts, and bio), then Loadout, Lists, and a library count that opens the library. Favorites, the read-out, recent written reviews, and the stats follow. Loadout and the library counts show only for the owner or when that player made them public. Lists stay linked. Follow shows when you are signed in on someone else's profile. Edit profile opens a stub. View all reviews opens the ratings page (see [Mobile ratings](./mobile-ratings.md)). This drive checks that screen on Expo web. It does not open a device.
 
 ## Sub-features
 
 - `own-profile` shows peek's display name, bio, title, read-out, favorite, written review, and library counts, and has no Follow button.
-- `stubs` opens Settings from Edit profile and the ratings page from View all reviews. Both say the full editor is later.
+- `stubs` opens the Settings stub from Edit profile, which says the editor is later, and the ratings page from View all reviews.
 - `own-library` opens the Library tab from the count, with the hub no longer on top.
 - `public-profile` shows nova's name, bio, read-out, library counts, and Follow.
 - `follow` follows nova with POST `/api/v1/user/<uuid>/follow`, then unfollows with DELETE on that same path. The follower count moves with the row.
@@ -30,7 +30,7 @@ Preconditions:
 - `peek` has five ratings and five library games. The drive sets a display name, bio, title, read-out, one favorite, and one written review, then restores them. It inserts `nova` (library and loadout public, two games, one written review) and `ada` (library and loadout private, one written review, no library rows). You start signed out. The drive signs in as peek.
 
 - **Open your profile.** The drive signs in, sets the viewport to 375×667, and opens the Profile tab. The screen shows Peek Reader, @peek, Range Finder, the bio, the read-out, the favorite game, the written review, Loadout, Lists, and the library counts. Follow is not a control. Edit profile is present. It then checks the same screen at 320×568.
-- **Open the stubs.** Click Edit profile. The screen says profile editing is not on this screen yet. Click Back. Click View all reviews. The path is `/user/peek/ratings_reviews`. The screen says the full ratings page is not on this screen yet, and that peek's recent reviews stay on the profile. Click Back.
+- **Open the stubs.** Click Edit profile. The screen says profile editing is not on this screen yet. Click Back. Click View all reviews. The path is `/user/peek/ratings_reviews`. The screen says peek's Ratings & Reviews and shows the counts line. Click Back.
 - **Open your library.** Click the library counts. The path is `/library`, the Library tab is selected, Back is gone, and Loadout is not on top of the games.
 - **Open a public profile.** Open `/user/nova` at 375×667. The screen shows Nova Vale, @nova, the bio, the read-out, Follow, Loadout, Lists, and "2 games · 1 completed". Edit profile is absent. It then checks the same screen at 320×568.
 - **Follow and unfollow.** Click Follow. The control becomes Unfollow nova, the page says "1 follower", the request is POST `/api/v1/user/<nova's uuid>/follow`, and Postgres has one follow row. The request is not `/api/v1/user/nova/follow`. Click Following. The control is Follow nova again, the page says "0 followers", the request is DELETE on that uuid path, and the row is gone.

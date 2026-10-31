@@ -55,3 +55,4 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 - [Mobile lists](./mobile-lists.md) covers the phone lists index, a list's games, the owner's create, edit, and delete, and a private list.
 - [Mobile feed](./mobile-feed.md) covers the phone Feed tab: followed players' activity cards, the next page on scroll, the links each card opens, and the empty feed.
 - [Mobile explore](./mobile-explore.md) covers the phone Explore tab and the catalogue: search, the range, trending and recommended games, lists, and players, list likes, genre browse, and the catalogue's filters, chips, sort, and next page.
+- [Mobile ratings](./mobile-ratings.md) covers a player's phone Ratings & Reviews page: the counts, Show and Sort, the next page across tied ratings, the review clamp, the links, and the empty states.

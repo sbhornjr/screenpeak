@@ -53,11 +53,6 @@ function filters(params: Params) {
   }
 }
 
-/** Pages are numbered from 1. `query_games` ends its sort in name and id, so pages do not overlap. */
-export function nextCataloguePage(last: GamesListPage, pages: GamesListPage[]): number | undefined {
-  return pages.length < last.total_pages ? pages.length + 1 : undefined
-}
-
 /** Every loaded page in order. A game added between loads can push one onto the next page; it shows once. */
 export function catalogueGames(pages: GamesListPage[]): GameCardData[] {
   const seen = new Set<string>()

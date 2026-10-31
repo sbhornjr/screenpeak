@@ -11,6 +11,7 @@ import { driveMobileLibrary } from './mobile-library.mjs'
 import { driveMobileLists } from './mobile-lists.mjs'
 import { driveMobileNav } from './mobile-nav.mjs'
 import { driveMobileProfile } from './mobile-profile.mjs'
+import { driveMobileRatings } from './mobile-ratings.mjs'
 import { driveSignUp } from './mobile-sign-up.mjs'
 import { driveReadEndpoints } from './read-endpoints.mjs'
 import { driveSearch } from './search.mjs'
@@ -31,6 +32,7 @@ export const drives = new Map([
     ['mobile-lists', driveMobileLists],
     ['mobile-feed', driveMobileFeed],
     ['mobile-explore', driveMobileExplore],
+    ['mobile-ratings', driveMobileRatings],
 ])
 
 export async function drive(feature) {

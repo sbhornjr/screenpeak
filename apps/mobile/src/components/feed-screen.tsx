@@ -16,6 +16,7 @@ import { colors, face, hitTarget, radius, space, text, typeScale } from '@/theme
 import { AppHeader } from './app-header'
 import { Avatar } from './avatar'
 import { Button } from './button'
+import { ClampedText } from './clamped-text'
 import { CoverStrip } from './cover-strip'
 import { EmptyState } from './empty-state'
 import { MoreFooter } from './more-footer'
@@ -76,10 +77,8 @@ function GameBody({ item, onOpen }: { item: FeedItem, onOpen: Open }) {
 }
 
 function ReviewBody({ item, onOpen }: { item: FeedItem, onOpen: Open }) {
-  const [expanded, setExpanded] = useState(false)
   const name = item.game_name ?? ''
   const review = item.review ?? ''
-  const long = review.length > REVIEW_CLAMP_CHARS
   const openGame = () => onOpen(gameHref(item.game_slug ?? ''))
   return (
     <View style={styles.gameRow}>
@@ -92,17 +91,7 @@ function ReviewBody({ item, onOpen }: { item: FeedItem, onOpen: Open }) {
         <Pressable accessibilityRole="link" accessibilityLabel={name} onPress={openGame} style={styles.nameLink}>
           <Text numberOfLines={2} style={styles.name}>{name}</Text>
         </Pressable>
-        {review ? <Text numberOfLines={long && !expanded ? REVIEW_LINES : undefined} style={styles.review}>{review}</Text> : null}
-        {long ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={expanded ? 'Show less' : 'Read more'}
-            onPress={() => setExpanded(value => !value)}
-            style={styles.toggle}
-          >
-            <Text style={styles.toggleText}>{expanded ? 'Show less' : 'Read more'}</Text>
-          </Pressable>
-        ) : null}
+        {review ? <ClampedText text={review} lines={REVIEW_LINES} longerThan={REVIEW_CLAMP_CHARS} style={styles.review} /> : null}
       </View>
     </View>
   )
@@ -322,8 +311,6 @@ const styles = StyleSheet.create({
     lineHeight: typeScale.sm.line * 1.15,
     color: colors.muted,
   },
-  toggle: { alignSelf: 'flex-start', minHeight: hitTarget, justifyContent: 'center' },
-  toggleText: { fontFamily: face.body[600], fontSize: typeScale.sm.size, color: colors.accent },
   listBody: { gap: space[2], minHeight: hitTarget },
   description: {
     fontFamily: face.body[400],

@@ -228,11 +228,11 @@ export async function driveMobileProfile() {
         await page.waitForText('Peek Reader')
 
         await page.clickControl('View all reviews')
-        await page.waitForText('The full ratings page is not on this screen yet.')
+        await page.waitForText(`${peekUsername}'s Ratings & Reviews`, 30_000)
         const ratingsPath = await page.evaluate('location.pathname')
-        if (ratingsPath !== `/user/${peekUsername}/ratings_reviews`) problems.push(`ratings stub opened ${ratingsPath}`)
+        if (ratingsPath !== `/user/${peekUsername}/ratings_reviews`) problems.push(`View all reviews opened ${ratingsPath}`)
         const ratingsText = await page.bodyText()
-        if (!ratingsText.includes("peek's recent reviews stay on the profile.")) problems.push('ratings stub is missing its note')
+        if (!ratingsText.includes(' total')) problems.push('the ratings page is missing its counts')
         await page.clickControl('Back')
         await page.waitForText(peekCounts)
 

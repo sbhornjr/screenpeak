@@ -7,10 +7,10 @@ import {
   CATALOGUE_PAGE_SIZE,
   catalogueGames,
   catalogueQuery,
-  nextCataloguePage,
   type CatalogueQuery,
 } from '@/lib/catalogue-page'
 import { actionFailure } from '@/lib/failure'
+import { nextNumberedPage } from '@/lib/paging'
 import { back, go } from '@/lib/go'
 import { keepSameScope, queryKeys, scopes } from '@/lib/query-keys'
 import { useRefresh } from '@/lib/use-refresh'
@@ -33,7 +33,7 @@ export default function CatalogueRoute() {
   const pages = useRemotePages(
     viewer => queryKeys.catalogue(query, viewer),
     page => api.games.list({ ...query, page, pageSize: CATALOGUE_PAGE_SIZE }),
-    nextCataloguePage,
+    nextNumberedPage,
     { firstPageParam: 1, placeholderData: viewer => keepSameScope(scopes.catalogue, viewer) },
   )
   const remote = pages.query

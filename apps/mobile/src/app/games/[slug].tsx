@@ -46,7 +46,7 @@ export default function GameScreen() {
   })
   const commit = useCachedWrite<GamePageData>(gameKey, {
     viewerId,
-    invalidate: [gameScope(slug), scopes.library, scopes.lists, scopes.profile],
+    invalidate: [gameScope(slug), scopes.library, scopes.lists, scopes.profile, scopes.ratings],
     // The sheets read the commit. A hung refetch must not keep Create list
     // spinning after the new list is already in the cache.
     background: true,

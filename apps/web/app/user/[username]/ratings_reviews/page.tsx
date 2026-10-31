@@ -10,6 +10,7 @@ import { parseUserReviewsQueryLenient } from "@/lib/screen-query"
 import Eyebrow from "@/app/components/util/Eyebrow"
 import EmptyState from "@/app/components/util/EmptyState"
 import { ArrowLeft } from "lucide-react"
+import { ratingsEmpty } from "@screenpeak/shared/ratings-copy"
 
 type RatingsPageProps = {
     params: Promise<{ username: string }>
@@ -47,6 +48,7 @@ export default async function RatingsPage({ params, searchParams }: RatingsPageP
     const ratingsReviewsCounts = data.counts
     const totalCount = data.total
     const totalPages = data.total_pages
+    const empty = ratingsEmpty(filterValue, data.username)
 
     return (
         <main>
@@ -65,21 +67,19 @@ export default async function RatingsPage({ params, searchParams }: RatingsPageP
                     <span className="text-(--color-border)">/</span>
                     <span className="tabular-nums"><span className="text-(--color-text)">{ratingsReviewsCounts.total_count}</span> total</span>
                 </div>
-                {ratingsReviews && ratingsReviews.length > 0 ? (
-                    <div className="flex flex-col gap-4 w-full mb-4">
-                        <RatingsReviewsFilters username={username} filter={filterValue} page={String(currentPage)} pageSize={String(currentPageSize)} sort={sortValue} order={orderValue} />
-                        {ratingsReviews.map(rr => (
-                            rr.review == "" ? (
-                                <Rating key={rr.game_id} slug={rr.game_slug} name={rr.game_name} cover={rr.cover_image_url ?? ''} developer={rr.developer} released={rr.released ?? ''} rating={rr.rating} createdAt={rr.updated_at} />
-                            ) : (
-                                <Review key={rr.game_id} slug={rr.game_slug} name={rr.game_name} cover={rr.cover_image_url ?? ''} developer={rr.developer} released={rr.released ?? ''} rating={rr.rating} review={rr.review} createdAt={rr.updated_at} />
-                            )
-                        ))}
-                    </div>
-                ) : (
-                    <div>
-                    </div>
-                )}
+                <div className="flex flex-col gap-4 w-full mb-4">
+                    {/* The filters stay on an empty result, so an empty Show choice can be switched back. */}
+                    <RatingsReviewsFilters username={username} filter={filterValue} page={String(currentPage)} pageSize={String(currentPageSize)} sort={sortValue} order={orderValue} />
+                    {ratingsReviews.length > 0 ? ratingsReviews.map(rr => (
+                        rr.review == "" ? (
+                            <Rating key={rr.game_id} slug={rr.game_slug} name={rr.game_name} cover={rr.cover_image_url ?? ''} developer={rr.developer} released={rr.released ?? ''} rating={rr.rating} createdAt={rr.updated_at} />
+                        ) : (
+                            <Review key={rr.game_id} slug={rr.game_slug} name={rr.game_name} cover={rr.cover_image_url ?? ''} developer={rr.developer} released={rr.released ?? ''} rating={rr.rating} review={rr.review} createdAt={rr.updated_at} />
+                        )
+                    )) : (
+                        <EmptyState dense title={empty.title} description={empty.description} />
+                    )}
+                </div>
                 {!!totalCount && totalCount > 0 && 
                     <Pagination 
                         page={currentPage}

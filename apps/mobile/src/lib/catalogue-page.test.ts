@@ -7,7 +7,6 @@ import {
   catalogueChips,
   catalogueGames,
   catalogueQuery,
-  nextCataloguePage,
   withoutChip,
 } from './catalogue-page'
 
@@ -43,21 +42,6 @@ describe('catalogueQuery', () => {
     expect(catalogueQuery({ sort: 'ngplus_rating' })).toMatchObject({ sort: 'ngplus_rating', order: 'desc' })
     expect(catalogueQuery({ sort: 'ngplus_rating', order: 'asc' })).toMatchObject({ sort: 'ngplus_rating', order: 'asc' })
     expect(catalogueQuery({ sort: 'metacritic', order: 'desc' })).toMatchObject({ sort: 'name', order: 'asc' })
-  })
-})
-
-describe('nextCataloguePage', () => {
-  it('asks for the page after the ones loaded until the last page', () => {
-    const first = page(['a'], 3)
-    const second = page(['b'], 3)
-    expect(nextCataloguePage(first, [first])).toBe(2)
-    expect(nextCataloguePage(second, [first, second])).toBe(3)
-    expect(nextCataloguePage(second, [first, second, page(['c'], 3)])).toBeUndefined()
-  })
-
-  it('stops on an empty catalogue', () => {
-    const empty = page([], 0)
-    expect(nextCataloguePage(empty, [empty])).toBeUndefined()
   })
 })
 

@@ -5,6 +5,7 @@ import type { QueryClient, QueryKey } from '@tanstack/react-query'
 
 import type { CatalogueQuery } from './catalogue-page'
 import type { ReviewListQuery } from './game-page'
+import type { RatingsQuery } from './ratings-page'
 
 // Every query key the app uses. Each one ends with the viewer id, so a cache
 // entry never serves another account. Writes invalidate by `scopes`, a prefix.
@@ -20,6 +21,7 @@ export const scopes = {
   library: ['library'],
   lists: ['lists'],
   profile: ['profile'],
+  ratings: ['ratings'],
 } as const
 
 export const queryKeys = {
@@ -44,6 +46,9 @@ export const queryKeys = {
   ] as const,
   profile: (username: string, viewer: Viewer) => ['profile', username, viewer] as const,
   loadout: (username: string, viewer: Viewer) => ['loadout', username, viewer] as const,
+  /** Every loaded page of one player's ratings for one Show and Sort. */
+  ratings: (username: string, query: RatingsQuery, viewer: Viewer) =>
+    ['ratings', username, query.filter, query.sort, query.order, viewer] as const,
   /** The game page. Exactly three parts: `isGamePageKey` relies on it. */
   game: (slug: string, viewer: Viewer) => ['game', slug, viewer] as const,
   gameReviews: (slug: string, query: ReviewListQuery, viewer: Viewer) =>

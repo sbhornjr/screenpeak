@@ -8,6 +8,7 @@
     "./constants": "./constants.ts",
     "./dates": "./dates.ts",
     "./feed-copy": "./feed-copy.ts",
+    "./ratings-copy": "./ratings-copy.ts",
     "./images": "./images.ts",
     "./library-copy": "./library-copy.ts",
     "./tokens": "./tokens.ts",
