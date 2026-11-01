@@ -28,6 +28,7 @@ import type {
     ListPinResult,
     ListPinWrite,
     ListWrite,
+    LoadoutGenerated,
     MePatch,
     OkResult,
     RatingWrite,
@@ -171,6 +172,7 @@ export function createApiClient(opts: {
             get: () => get<MeData>('/api/v1/me'),
             settings: () => get<SettingsData>('/api/v1/me/settings'),
             patch: (body: MePatch) => send<OkResult>('PATCH', '/api/v1/me', body),
+            generateLoadout: () => send<LoadoutGenerated>('POST', '/api/v1/me/loadout'),
             clearLoadout: () => send<OkResult>('DELETE', '/api/v1/me/loadout'),
             library: {
                 get: (gameId: string) => send<LibraryWriteResult>('GET', `/api/v1/me/library/${gameIdPath(gameId)}`),

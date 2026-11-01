@@ -9,7 +9,6 @@ import AppTabs from './app-tabs'
 import { LibraryScreen } from './library-screen'
 import { ListDetailScreen } from './list-detail-screen'
 import { ListsScreen } from './lists-screen'
-import { LoadoutScreen } from './loadout-screen'
 import { ProfileHub } from './profile-hub'
 import { WelcomeScreen } from './welcome-screen'
 import { screenGate } from './screen-state'
@@ -439,23 +438,6 @@ describe('stack screens', () => {
     expect(screen.getByText('Later.').textContent).toBe('Later.')
     fireEvent.click(screen.getByRole('link', { name: 'Hades' }))
     expect(onOpen).toHaveBeenCalledWith('/games/hades')
-  })
-
-  it('shows a loadout paragraph and a genre', () => {
-    render(
-      <LoadoutScreen
-        username="peek"
-        identity="A patient roguelike reader."
-        ratingCount={5}
-        avgRating={8}
-        genres={[{ genre_name: 'Roguelike', weighted_rating: 8, rated_count: 5, completed_count: 2 }]}
-        onBack={() => undefined}
-      />,
-    )
-    expect(screen.getByText("peek's Loadout").textContent).toBe("peek's Loadout")
-    expect(screen.getByText('A patient roguelike reader.').textContent).toBe('A patient roguelike reader.')
-    expect(screen.getByText('Roguelike').textContent).toBe('Roguelike')
-    expect(screen.getByText('5 rated · 8 average').textContent).toBe('5 rated · 8 average')
   })
 })
 

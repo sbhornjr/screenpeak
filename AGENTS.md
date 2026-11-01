@@ -151,7 +151,8 @@ Use that harness, or another fixture user you insert the same way, for local run
 
 - `app/` — Next.js App Router pages and API routes
   - `app/components/` — UI components organized by domain (user, game, library, lists, feed, settings, util)
-  - `app/api/` — route handlers: `loadout` (POST, generates the Loadout paragraph),
+  - `app/api/` — route handlers: `loadout` (POST, generates the Loadout paragraph for the website;
+    the phone calls `POST /api/v1/me/loadout`, and both use `generateReadout` in `lib/loadout-readout.ts`),
     `steam/link` + `steam/callback` (Steam OpenID sign-in), `delete-account` (DELETE)
   - `app/auth/confirm/` — landing route for every Supabase auth email link
   - `app/feed-actions.ts` — server action, paginates the activity feed

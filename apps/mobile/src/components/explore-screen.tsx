@@ -1,7 +1,7 @@
 // Port of apps/web/app/explore/page.tsx. The phone adds search and genre and
 // platform browse at the top and bottom, since Games is not a tab.
 import type { ExploreGameCard, ExplorePageData, ExploreRange } from '@screenpeak/shared/api/explore'
-import type { GameCardData, Taxon } from '@screenpeak/shared/api/games'
+import type { Taxon } from '@screenpeak/shared/api/games'
 import { releaseYear } from '@screenpeak/shared/dates'
 import type { GameSearchHit } from '@screenpeak/shared/api/search'
 import { Image } from 'expo-image'
@@ -18,7 +18,7 @@ import { AppHeader } from './app-header'
 import { Button } from './button'
 import { EmptyState } from './empty-state'
 import { MenuTrigger } from './filter-controls'
-import { GameCard } from './game-card'
+import { GameRail, RAIL_CARD_WIDTH, RailCard } from './game-rail'
 import { ListCardView, type ListCardFields } from './list-card'
 import { Panel } from './panel'
 import { SectionHead } from './section-head'
@@ -35,8 +35,6 @@ const RANGES: { id: ExploreRange, label: string, phrase: string }[] = [
   { id: 'year', label: 'This year', phrase: 'this year' },
   { id: 'alltime', label: 'All time', phrase: 'yet' },
 ]
-
-const RAIL_CARD_WIDTH = 148
 
 export type ExploreScreenProps = {
   data: ExplorePageData
@@ -88,44 +86,15 @@ function SearchHitRow({ hit, onOpen }: { hit: GameSearchHit, onOpen: Open }) {
   )
 }
 
-function RailCard({ game, onOpen }: { game: GameCardData, onOpen: Open }) {
-  return (
-    <GameCard
-      game={{ id: game.id, name: game.name, slug: game.slug, cover_image_url: game.cover_image_url, released: game.released }}
-      developer={game.developer}
-      spRating={game.avg_rating}
-      userRating={game.user_rating}
-      onPress={() => onOpen(gameHref(game.slug))}
-    />
-  )
-}
-
-/**
- * Cards scroll sideways, so a section stays one row tall on a phone. The rail
- * runs to the screen edge; `inset` is the page padding it reaches past.
- */
-function Rail({ label, inset, children }: { label: string, inset: number, children: ReactNode }) {
-  return (
-    <ScrollView
-      horizontal
-      accessibilityLabel={label}
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={[styles.rail, { paddingHorizontal: inset }]}
-      style={{ marginHorizontal: -inset }}
-    >
-      {children}
-    </ScrollView>
-  )
-}
-
 function RecommendedGame({ game, onOpen }: { game: ExploreGameCard, onOpen: Open }) {
   const where = libraryLine(game.library_status)
   return (
-    <View style={styles.railItem}>
-      <Text numberOfLines={2} style={styles.caption}>{completedLine(game.follower_count ?? 0, game.avg_follower_rating ?? null)}</Text>
-      <RailCard game={game} onOpen={onOpen} />
-      {where ? <Text style={styles.caption}>{where}</Text> : null}
-    </View>
+    <RailCard
+      game={game}
+      onOpen={onOpen}
+      above={<Text numberOfLines={2} style={styles.caption}>{completedLine(game.follower_count ?? 0, game.avg_follower_rating ?? null)}</Text>}
+      below={where ? <Text style={styles.caption}>{where}</Text> : null}
+    />
   )
 }
 
@@ -297,13 +266,11 @@ export function ExploreScreen({
         {data.trending_games.length === 0 ? (
           <EmptyState dense title={`Nothing peaking ${phrase}.`} />
         ) : (
-          <Rail label="Peak right now" inset={inset}>
+          <GameRail label="Peak right now" inset={inset}>
             {data.trending_games.map(game => (
-              <View key={game.id} style={styles.railItem}>
-                <RailCard game={game} onOpen={onOpen} />
-              </View>
+              <RailCard key={game.id} game={game} onOpen={onOpen} />
             ))}
-          </Rail>
+          </GameRail>
         )}
 
         <SectionHead>Recommended for you</SectionHead>
@@ -319,9 +286,9 @@ export function ExploreScreen({
             {recommendations.games.length > 0 ? (
               <>
                 <Text accessibilityRole="header" style={styles.subhead}>Games</Text>
-                <Rail label="Recommended games" inset={inset}>
+                <GameRail label="Recommended games" inset={inset}>
                   {recommendations.games.map(game => <RecommendedGame key={game.id} game={game} onOpen={onOpen} />)}
-                </Rail>
+                </GameRail>
               </>
             ) : null}
             {recommendations.lists.length > 0 ? (
@@ -411,8 +378,6 @@ const styles = StyleSheet.create({
   rangeChip: { paddingHorizontal: space[3] },
   chips: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
   menuRow: { flexDirection: 'row' },
-  rail: { gap: space[3] },
-  railItem: { width: RAIL_CARD_WIDTH, gap: space[1.5] },
   caption: { fontFamily: face.body[400], fontSize: typeScale.xs.size, lineHeight: typeScale.xs.line, color: colors.muted },
   captioned: { gap: space[1.5] },
   subhead: {

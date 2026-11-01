@@ -61,6 +61,11 @@ export type MePatch = {
     privacy?: { type: 'Default List' | 'Library' | 'Loadout'; public: boolean }
 }
 
+/** POST /api/v1/me/loadout: the Read-out that was generated and saved. */
+export type LoadoutGenerated = {
+    identity: string
+}
+
 export type AvatarUploadRequest = {
     contentType: string
     contentLength: number

@@ -33,6 +33,7 @@ const updateAvatarUrl = vi.fn()
 const clearLoadoutIdentity = vi.fn()
 const createPresignedAvatarUploadUrl = vi.fn()
 const unlinkSteamAccount = vi.fn()
+const generateReadout = vi.fn()
 
 class SteamImportInputError extends Error {
     constructor(message: string) {
@@ -58,6 +59,7 @@ vi.mock('@/lib/queries/user', () => ({
 vi.mock('@/lib/queries/steam', () => ({ unlinkSteamAccount }))
 vi.mock('@/lib/r2', () => ({ createPresignedAvatarUploadUrl }))
 vi.mock('@/lib/loaders/me', () => ({ loadMe: vi.fn() }))
+vi.mock('@/lib/loadout-readout', () => ({ generateReadout }))
 
 const review = await import('@/app/api/v1/games/[slug]/review/route')
 const library = await import('@/app/api/v1/me/library/[gameId]/route')
@@ -100,7 +102,7 @@ beforeEach(() => {
         importConfirmedSteamLibrary, createList, createListWithGame, updateList, deleteList, setListPinned, likeList, unlikeList,
         addGameToList, removeGameFromList, syncListGames, followUser, unfollowUser, userExists, patchAccount,
         updateBio, updateSelectedTitle, updateLoadoutBio, updateFavoriteGames, updatePrivacy, updateAvatarUrl,
-        clearLoadoutIdentity, createPresignedAvatarUploadUrl, unlinkSteamAccount,
+        clearLoadoutIdentity, createPresignedAvatarUploadUrl, unlinkSteamAccount, generateReadout,
     ]) fn.mockReset()
     userExists.mockResolvedValue(true)
 })
@@ -430,6 +432,60 @@ describe('profile, avatar, steam, loadout clear', () => {
 
         expect(res.status).toBe(200)
         expect(clearLoadoutIdentity).toHaveBeenCalledWith(USER.id)
+    })
+
+    it('generates the caller\'s Read-out and returns it', async () => {
+        generateReadout.mockResolvedValue({ ok: true, identity: 'You chase hard games.' })
+
+        const res = await call(loadout.POST, 'http://localhost/api/v1/me/loadout', {}, { method: 'POST' })
+
+        expect(res.status).toBe(200)
+        expect(await res.json()).toEqual({ identity: 'You chase hard games.' })
+        expect(generateReadout).toHaveBeenCalledWith(USER.id)
+        expect(consumeWriteRateLimit).toHaveBeenCalledWith(USER.id)
+        expect(res.headers.get('Cache-Control')).toBe('private, no-store')
+    })
+
+    it('says how long to wait after a Read-out from the last minute', async () => {
+        generateReadout.mockResolvedValue({ ok: false, reason: 'too_soon', retryAfter: 42 })
+
+        const res = await call(loadout.POST, 'http://localhost/api/v1/me/loadout', {}, { method: 'POST' })
+        const body = await res.json()
+
+        expect(res.status).toBe(429)
+        expect(res.headers.get('Retry-After')).toBe('42')
+        expect(body.error).toMatchObject({ code: 'rate_limited', retry_after: 42 })
+    })
+
+    it('asks for five ratings before a Read-out', async () => {
+        generateReadout.mockResolvedValue({ ok: false, reason: 'not_eligible' })
+
+        const res = await call(loadout.POST, 'http://localhost/api/v1/me/loadout', {}, { method: 'POST' })
+        const body = await res.json()
+
+        expect(res.status).toBe(400)
+        expect(body.error).toEqual({ code: 'invalid_request', message: 'Rate at least 5 games first.' })
+    })
+
+    it('treats an empty generation as a retryable outage, and a failed save as an error', async () => {
+        generateReadout.mockResolvedValueOnce({ ok: false, reason: 'generation_failed' })
+        const empty = await call(loadout.POST, 'http://localhost/api/v1/me/loadout', {}, { method: 'POST' })
+        expect(empty.status).toBe(503)
+        expect((await empty.json()).error.code).toBe('unavailable')
+
+        generateReadout.mockResolvedValueOnce({ ok: false, reason: 'save_failed' })
+        const unsaved = await call(loadout.POST, 'http://localhost/api/v1/me/loadout', {}, { method: 'POST' })
+        expect(unsaved.status).toBe(500)
+        expect((await unsaved.json()).error.code).toBe('internal')
+    })
+
+    it('does not generate when the write budget is spent', async () => {
+        consumeWriteRateLimit.mockRejectedValueOnce(new ApiError(429, 'rate_limited', 'Too many requests.', { 'Retry-After': '30' }))
+
+        const res = await call(loadout.POST, 'http://localhost/api/v1/me/loadout', {}, { method: 'POST' })
+
+        expect(res.status).toBe(429)
+        expect(generateReadout).not.toHaveBeenCalled()
     })
 
     it('mints an upload URL for the bearer user', async () => {
