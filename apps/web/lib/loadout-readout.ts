@@ -1,5 +1,5 @@
 import 'server-only'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import { users } from '@/db/schema'
 import { db } from '@/lib/db'
 import { parseDbTimestamp } from '@screenpeak/shared/dates'
@@ -39,21 +39,50 @@ export async function generateReadout(userId: string): Promise<ReadoutOutcome> {
     const input = await buildLoadoutInput(userId, current.username)
     if (input.totalRatings < READOUT_MIN_RATINGS) return { ok: false, reason: 'not_eligible' }
 
+    // Claim the minute before the paid model call. The update only lands while
+    // the stored time is still the one checked above, so of two requests that
+    // passed that check together, one claims the slot and the other is too soon.
+    const previous = current.loadoutIdentityAt
+    const claimed = await db
+        .update(users)
+        .set({ loadoutIdentityAt: sql`now()` })
+        .where(and(eq(users.id, userId), previous ? eq(users.loadoutIdentityAt, previous) : isNull(users.loadoutIdentityAt)))
+        .returning({ at: users.loadoutIdentityAt })
+    const claim = claimed[0]?.at
+    if (!claim) return { ok: false, reason: 'too_soon', retryAfter: READOUT_COOLDOWN_MS / 1000 }
+
+    // A failed generation gives the slot back so the player can retry, unless
+    // something else has written the column since.
+    const release = async () => {
+        try {
+            await db
+                .update(users)
+                .set({ loadoutIdentityAt: previous })
+                .where(and(eq(users.id, userId), eq(users.loadoutIdentityAt, claim)))
+        } catch (error) {
+            logger.error('loadout-identity', 'Failed to release the cooldown', {
+                userId, error: error instanceof Error ? error.message : String(error),
+            })
+        }
+    }
+
     const identity = await generateLoadoutIdentity(input)
     if (!identity) {
         logger.error('loadout-identity', 'Generation returned empty', { userId })
+        await release()
         return { ok: false, reason: 'generation_failed' }
     }
 
     try {
         await db
             .update(users)
-            .set({ loadoutIdentity: identity, loadoutIdentityAt: new Date().toISOString() })
+            .set({ loadoutIdentity: identity, loadoutIdentityAt: sql`now()` })
             .where(eq(users.id, userId))
     } catch (error) {
         logger.error('loadout-identity', 'Failed to save identity', {
             userId, error: error instanceof Error ? error.message : String(error),
         })
+        await release()
         return { ok: false, reason: 'save_failed' }
     }
     return { ok: true, identity }
