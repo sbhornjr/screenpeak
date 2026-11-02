@@ -18,6 +18,9 @@ const BIO = 'Settings drive bio: roguelikes on the train, RPGs at home.'
 const RENAMED = 'peek_settings'
 const NEW_PASSWORD = 'local-peek-new-1'
 const NEW_EMAIL = 'hornflakes+peeknew@mail.grokbot.com'
+// A made-up SteamID64. The drive never presses Link Steam or Re-sync, so it
+// never reaches Steam with it.
+const FIXTURE_STEAM_ID = '76561190000000042'
 const PEEK_COLUMNS = ['username', 'user_bio', 'selected_title', 'library_public', 'default_list_public', 'loadout_public']
 
 function peekValue(column) {
@@ -46,6 +49,20 @@ function restorePeekPassword() {
     psql(databaseUrl, `
         UPDATE verify_local.passwords SET password = '${peekPassword}'
         WHERE user_id = (SELECT id FROM auth.users WHERE email = '${peekEmail}');
+    `)
+}
+
+const PEEK_ID = `(SELECT id FROM auth.users WHERE email = '${peekEmail}')`
+
+function peekSteamId() {
+    return psql(databaseUrl, `select coalesce(steam_id, '') from steam_accounts where user_id = ${PEEK_ID}`, ['-tA'])
+}
+
+function setPeekSteam(steamId) {
+    if (steamId && !/^[0-9]{1,20}$/.test(steamId)) throw new Error('peek steam id was not numeric')
+    psql(databaseUrl, `
+        DELETE FROM steam_accounts WHERE user_id = ${PEEK_ID};
+        ${steamId ? `INSERT INTO steam_accounts (user_id, steam_id) SELECT ${PEEK_ID}, '${steamId}';` : ''}
     `)
 }
 
@@ -111,7 +128,9 @@ export async function driveMobileSettings() {
     let expoPid = null
     let code = 0
     const saved = savePeek()
+    const savedSteam = peekSteamId()
     try {
+        setPeekSteam('')
         deleteDrop()
         insertDrop(games)
         expoPid = startExpo(origin, publicEnv)
@@ -241,6 +260,33 @@ export async function driveMobileSettings() {
         await clickInSheet('Done')
         restorePeekPassword()
 
+        // Steam. Not linked offers Link Steam, and /steamlink sends you back here.
+        const unlinked = await page.bodyText()
+        if (!unlinked.includes('Connections') || !unlinked.includes('Not linked')) problems.push('Settings is missing Connections, Not linked')
+        if (!(await page.ariaLabels()).includes('Link Steam')) problems.push('Settings is missing Link Steam')
+        await page.navigate(`${expoOrigin}/steamlink`)
+        await page.waitForText('Link Steam in Settings to import your games.', 45_000)
+        await shot('steam-unlinked-375.png')
+        await page.clickControl('Open Settings')
+        await waitForPath('/settings')
+        await page.waitForText('Danger zone', 30_000)
+
+        // Linked (a fixture row) shows Re-sync and Unlink. Unlink asks, then deletes the row.
+        setPeekSteam(FIXTURE_STEAM_ID)
+        await page.navigate(`${expoOrigin}/settings`)
+        await page.waitForText('Re-sync', 45_000)
+        const linkedText = await shot('steam-linked-375.png')
+        if (!linkedText.includes('Linked') || linkedText.includes('Not linked')) problems.push('Settings does not say Steam is linked')
+        await page.clickControl('Unlink Steam')
+        await page.waitForText('This will not change your library.')
+        await clickInSheet('Keep it linked')
+        if (peekSteamId() !== FIXTURE_STEAM_ID) problems.push('Keep it linked unlinked Steam')
+        await page.clickControl('Unlink Steam')
+        await page.waitForText('This will not change your library.')
+        await clickInSheet('Unlink Steam account')
+        postgres.steamAfterUnlink = await waitForValue(() => peekSteamId(), '', 'peek steam_accounts row')
+        await page.waitForText('Not linked', 30_000)
+
         // Sign out lands on the signed-out home.
         await page.clickControl('Sign out')
         await waitForPath('/')
@@ -283,6 +329,7 @@ export async function driveMobileSettings() {
         stopExpo(expoPid)
         deleteDrop()
         try { restorePeek(saved) } catch (error) { log(error instanceof Error ? error.message : String(error)) }
+        try { setPeekSteam(savedSteam) } catch (error) { log(error instanceof Error ? error.message : String(error)) }
     }
     if (problems.length) console.error(problems.join('\n'))
     if (code !== 0 || problems.length) process.exit(code || 1)

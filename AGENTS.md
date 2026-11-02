@@ -353,6 +353,11 @@ return the contract type itself is called directly by both the page and the rout
   lease heartbeat 5s, takeover 30s). A busy lease does not spend the write
   budget. There is no whole-library GET. `POST /api/v1/me/library/import` still
   confirms the selection.
+  The phone links from Settings › Connections (`apps/mobile/src/lib/steam-link.ts`,
+  S256 via `expo-crypto`) and imports on `/steamlink` (`lib/steam-import.ts`,
+  the website's batch loop and merge). It tells a private Steam library apart by
+  `STEAM_NOT_PUBLIC_MESSAGE` (`@screenpeak/shared/api/steam`), so keep the
+  server's `not_public` copy on that constant.
 - **Cloudflare R2** — user avatars, via a presigned direct-to-R2 upload (`lib/r2.ts`,
   `createAvatarUploadUrl` in `app/user-actions.ts`). The R2 env is read when an
   upload URL is signed, not when the module loads: `user-actions.ts` shares a

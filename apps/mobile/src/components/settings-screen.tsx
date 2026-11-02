@@ -47,13 +47,17 @@ export type SettingsScreenProps = {
   onPrivacy: (type: PrivacyType, value: boolean) => Promise<string | null>
   onSignOut: Write
   onDeleteAccount: Write
+  onLinkSteam: Write
+  /** Opens the import screen. */
+  onResyncSteam: () => void
+  onUnlinkSteam: Write
   refreshing?: boolean
   onRefresh?: () => void
   refreshError?: string | null
   onRetry?: () => void
 }
 
-type Editing = null | 'title' | 'bio' | 'username' | 'email' | 'password' | 'delete'
+type Editing = null | 'title' | 'bio' | 'username' | 'email' | 'password' | 'unlink-steam' | 'delete'
 
 function Section({ title, children, danger = false }: { title: string, children: React.ReactNode, danger?: boolean }) {
   return (
@@ -280,6 +284,25 @@ function DeleteSheet({ visible, onClose, onDelete }: { visible: boolean, onClose
   )
 }
 
+function UnlinkSteamSheet({ visible, onClose, onUnlink }: { visible: boolean, onClose: () => void, onUnlink: Write }) {
+  const unlink = useAction()
+  useOnOpen(visible, unlink.clear)
+  return (
+    <Sheet visible={visible} title="Unlink Steam?" onClose={onClose}>
+      <Text style={text.body}>This will not change your library. Games you imported from Steam stay in it.</Text>
+      <ActionError error={unlink.error} onRetry={unlink.canRetry ? unlink.retry : undefined} />
+      <Button label="Keep it linked" variant="secondary" onPress={onClose} />
+      <Button
+        label={unlink.busy ? 'Unlinking…' : 'Unlink Steam account'}
+        accessibilityLabel="Unlink Steam account"
+        variant="danger"
+        disabled={unlink.busy}
+        onPress={() => { void unlink.run(onUnlink, onClose) }}
+      />
+    </Sheet>
+  )
+}
+
 export function SettingsScreen({
   settings,
   bio,
@@ -294,6 +317,9 @@ export function SettingsScreen({
   onPrivacy,
   onSignOut,
   onDeleteAccount,
+  onLinkSteam,
+  onResyncSteam,
+  onUnlinkSteam,
   refreshing = false,
   onRefresh,
   refreshError = null,
@@ -305,6 +331,7 @@ export function SettingsScreen({
   const photo = useAction()
   const privacy = useAction()
   const signOut = useAction()
+  const steam = useAction()
   const since = memberSinceLine(settings.created_at)
   const close = () => setEditing(null)
 
@@ -367,6 +394,29 @@ export function SettingsScreen({
           <ActionError error={privacy.error} />
         </Section>
 
+        <Section title="Connections">
+          <View style={styles.row}>
+            <View style={styles.rowText}>
+              <Text style={styles.rowLabel}>Steam</Text>
+              <Text style={styles.rowValue}>{settings.steam_linked ? 'Linked' : 'Not linked'}</Text>
+            </View>
+          </View>
+          {settings.steam_linked ? (
+            <>
+              <Button label="Re-sync" onPress={onResyncSteam} />
+              <Button label="Unlink Steam" variant="secondary" onPress={() => setEditing('unlink-steam')} />
+            </>
+          ) : (
+            <Button
+              label={steam.busy ? 'Linking…' : 'Link Steam'}
+              accessibilityLabel="Link Steam"
+              disabled={steam.busy}
+              onPress={() => { void steam.run(onLinkSteam) }}
+            />
+          )}
+          <ActionError error={steam.error} />
+        </Section>
+
         <Button
           label={signOut.busy ? 'Signing out…' : 'Sign out'}
           variant="secondary"
@@ -388,6 +438,7 @@ export function SettingsScreen({
       <UsernameSheet visible={editing === 'username'} current={settings.username} onClose={close} onSave={onSaveUsername} />
       <EmailSheet visible={editing === 'email'} current={settings.email} onClose={close} onChange={onChangeEmail} />
       <PasswordSheet visible={editing === 'password'} onClose={close} onChange={onChangePassword} />
+      <UnlinkSteamSheet visible={editing === 'unlink-steam'} onClose={close} onUnlink={onUnlinkSteam} />
       <DeleteSheet visible={editing === 'delete'} onClose={close} onDelete={onDeleteAccount} />
     </SafeAreaView>
   )

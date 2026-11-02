@@ -35,3 +35,9 @@ export const api = createApiClient({
 export function apiConfigured(): boolean {
   return baseUrl.length > 0
 }
+
+/** An API-relative path (`/api/...`) on this build's API origin. */
+export function apiUrl(path: string): string {
+  if (!path.startsWith('/') || path.startsWith('//')) throw new Error('Expected an API-relative path.')
+  return `${baseUrl}${path}`
+}

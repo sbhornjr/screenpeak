@@ -49,3 +49,6 @@ export function ratingsHref(username: string): string {
 }
 
 export const SETTINGS_HREF = '/settings'
+
+/** The Steam import screen, at the website's path. */
+export const STEAM_IMPORT_HREF = '/steamlink'

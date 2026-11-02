@@ -10,7 +10,10 @@ import { useCachedWrite } from '@/lib/cached-write'
 import { actionFailure } from '@/lib/failure'
 import { back, go } from '@/lib/go'
 import { queryKeys, scopes } from '@/lib/query-keys'
+import { STEAM_IMPORT_HREF } from '@/lib/routes'
 import { titleChoices, withPrivacy } from '@/lib/settings-page'
+import { linkSteam } from '@/lib/steam-link'
+import { steamLinkSteps } from '@/lib/steam-link-steps'
 import { useRefresh } from '@/lib/use-refresh'
 
 import { EmptyState } from '@/components/empty-state'
@@ -127,6 +130,16 @@ export default function SettingsRoute() {
         leave()
         return null
       }}
+      onLinkSteam={async () => {
+        const outcome = await linkSteam(steamLinkSteps)
+        if (outcome.kind === 'failed') return outcome.message
+        if (outcome.kind === 'canceled') return null
+        await queryClient.invalidateQueries({ queryKey: settingsKey })
+        go(STEAM_IMPORT_HREF)
+        return null
+      }}
+      onResyncSteam={() => go(STEAM_IMPORT_HREF)}
+      onUnlinkSteam={() => patched(() => api.me.unlinkSteam(), current => ({ ...current, steam_linked: false }))}
       onDeleteAccount={async () => {
         try {
           await api.me.deleteAccount()

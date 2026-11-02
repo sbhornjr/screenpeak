@@ -99,6 +99,9 @@ function renderScreen(props: Partial<SettingsScreenProps> = {}) {
     onPrivacy: vi.fn(async () => null as string | null),
     onSignOut: vi.fn(async () => null as string | null),
     onDeleteAccount: vi.fn(async () => null as string | null),
+    onLinkSteam: vi.fn(async () => null as string | null),
+    onResyncSteam: vi.fn(),
+    onUnlinkSteam: vi.fn(async () => null as string | null),
   }
   render(
     <SettingsScreen
@@ -116,6 +119,36 @@ function renderScreen(props: Partial<SettingsScreenProps> = {}) {
 function type(label: string, value: string) {
   fireEvent.change(screen.getByLabelText(label), { target: { value } })
 }
+
+describe('settings Steam connection', () => {
+  it('links Steam when it is not linked, and shows why linking failed', async () => {
+    const onLinkSteam = vi.fn(async () => "Couldn't link Steam. Try again." as string | null)
+    renderScreen({ onLinkSteam })
+    expect(screen.getByRole('heading', { name: 'Connections' })).toBeTruthy()
+    expect(screen.getByText('Not linked')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Re-sync' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Link Steam' }))
+    await waitFor(() => expect(onLinkSteam).toHaveBeenCalledTimes(1))
+    expect(await screen.findByText("Couldn't link Steam. Try again.")).toBeTruthy()
+  })
+
+  it('re-syncs a linked account, and unlinks it only after asking', async () => {
+    const { onResyncSteam, onUnlinkSteam } = renderScreen({ settings: { ...SETTINGS, steam_linked: true } })
+    expect(screen.getByText('Linked')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Link Steam' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Re-sync' }))
+    expect(onResyncSteam).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Unlink Steam' }))
+    expect(screen.getByText('This will not change your library. Games you imported from Steam stay in it.')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Keep it linked' }))
+    expect(onUnlinkSteam).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Unlink Steam' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Unlink Steam account' }))
+    await waitFor(() => expect(onUnlinkSteam).toHaveBeenCalledTimes(1))
+  })
+})
 
 describe('settings', () => {
   it('shows the account, the profile fields, and each privacy flag', () => {

@@ -12,6 +12,12 @@ export function mobileSteamCodeUrl(code: string): string {
     return `${MOBILE_STEAM_RETURN_URL}?${new URLSearchParams({ code }).toString()}`
 }
 
+/**
+ * The 400 message for a Steam profile whose game details are private. The phone
+ * matches on it to show where Steam keeps that setting.
+ */
+export const STEAM_NOT_PUBLIC_MESSAGE = 'Steam library details are not public.'
+
 /** POST /api/v1/me/steam/link-intent. `path` is relative to the API origin. */
 export type SteamLinkIntent = {
     state: string

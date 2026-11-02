@@ -1,4 +1,5 @@
 import type { ApiErrorCode } from '@screenpeak/shared/api/errors'
+import { STEAM_NOT_PUBLIC_MESSAGE } from '@screenpeak/shared/api/steam'
 import { ApiError } from '@/lib/api'
 
 /** Codes at the steam-import boundary. English copy lives only in the table below. */
@@ -30,7 +31,7 @@ type HttpRow = { status: number, apiCode: ApiErrorCode, message: string, retryAf
  */
 export const STEAM_IMPORT_HTTP: Record<SteamImportErrorCode, HttpRow> = {
     not_linked: { status: 400, apiCode: 'invalid_request', message: 'Link Steam before importing.' },
-    not_public: { status: 400, apiCode: 'invalid_request', message: 'Steam library details are not public.' },
+    not_public: { status: 400, apiCode: 'invalid_request', message: STEAM_NOT_PUBLIC_MESSAGE },
     invalid_request: { status: 400, apiCode: 'invalid_request', message: 'Invalid import request.' },
     steam_unavailable: {
         status: 503,
