@@ -114,7 +114,7 @@ Details: `docs/igdb.md`.
 ## Rules for agents
 
 - Talk to IGDB only through `lib/igdb/` and `scripts/seed-igdb.ts`. Talk to Steam only through `lib/steam.ts`, `lib/steam-openid.ts`, and `lib/catalog/steam-import.ts`. Do not call those APIs from a new client.
-- Never put `SUPABASE_SECRET_KEY` (the service role key) in client code, `NEXT_PUBLIC_*` env, or a module imported by a `'use client'` component. The admin client stays in `app/api/delete-account`.
+- Never put `SUPABASE_SECRET_KEY` (the service role key) in client code, `NEXT_PUBLIC_*` env, or a module imported by a `'use client'` component. The admin client is created only in `lib/account-deletion.ts` (`deleteAccount`), which the website's `DELETE /api/delete-account` and the phone's `DELETE /api/v1/me` call with their own authenticated user id.
 - Cloud agents never connect to the hosted database.
 
 ## Test account
@@ -153,7 +153,8 @@ Use that harness, or another fixture user you insert the same way, for local run
   - `app/components/` — UI components organized by domain (user, game, library, lists, feed, settings, util)
   - `app/api/` — route handlers: `loadout` (POST, generates the Loadout paragraph for the website;
     the phone calls `POST /api/v1/me/loadout`, and both use `generateReadout` in `lib/loadout-readout.ts`),
-    `steam/link` + `steam/callback` (Steam OpenID sign-in), `delete-account` (DELETE)
+    `steam/link` + `steam/callback` (Steam OpenID sign-in), `delete-account` (DELETE, the website's;
+    the phone calls `DELETE /api/v1/me`, and both use `deleteAccount` in `lib/account-deletion.ts`)
   - `app/auth/confirm/` — landing route for every Supabase auth email link
   - `app/feed-actions.ts` — server action, paginates the activity feed
 - `db/` — Drizzle schema (`schema.ts`, `relations.ts`) and hand-authored SQL
@@ -364,7 +365,7 @@ return the contract type itself is called directly by both the page and the rout
 
 Required in `apps/web/.env.local` (gitignored):
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SECRET_KEY` (admin client in `delete-account`)
+- `SUPABASE_SECRET_KEY` (admin client in `lib/account-deletion.ts`, for account deletion)
 - `DATABASE_URL` (session pooler — read by `apps/web/drizzle.config.ts`. Apply schema changes with `migrate:journal`, not `drizzle-kit push`. See `docs/igdb.md`)
 - `DATABASE_POOL_URL` (transaction pooler — the app's runtime Drizzle client, `lib/db.ts`; throws at module load if unset)
 - `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET` (IGDB seed and Steam-app matching)

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { getTitles } from "@/lib/titles"
+import { getTitles } from "@screenpeak/shared/titles"
 import { useRouter } from "next/navigation"
 import Modal from "@/app/components/util/Modal"
 import EditTriggerButton from "@/app/components/util/EditTriggerButton"

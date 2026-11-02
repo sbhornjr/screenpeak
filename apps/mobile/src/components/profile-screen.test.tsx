@@ -32,6 +32,11 @@ vi.mock('expo-image', () => ({
   Image: () => null,
 }))
 
+// The owner's favorites editor has its own test (favorites-sheet.test.tsx).
+vi.mock('./favorites-sheet', () => ({
+  FavoritesSheet: () => null,
+}))
+
 vi.mock('react-native-safe-area-context', () => ({
   SafeAreaView: ({ children }: { children?: React.ReactNode }) => React.createElement('div', null, children),
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),

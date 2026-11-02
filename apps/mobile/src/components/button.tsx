@@ -2,7 +2,8 @@ import { Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from 'rea
 
 import { colors, face, hitTarget, radius, space, typeScale } from '@/theme'
 
-type ButtonVariant = 'primary' | 'secondary' | 'ghost'
+/** `danger` is the website's red delete button. */
+type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger'
 
 /** Website button: 3px corners, display semibold, at least a 44pt hit target. */
 export function Button({
@@ -39,7 +40,7 @@ export function Button({
         style,
       ]}
     >
-      <Text style={[styles.label, variant === 'primary' ? styles.onAccent : variant === 'ghost' ? styles.ghostLabel : styles.secondaryLabel]}>
+      <Text style={[styles.label, variant === 'primary' || variant === 'danger' ? styles.onAccent : variant === 'ghost' ? styles.ghostLabel : styles.secondaryLabel]}>
         {label}
       </Text>
     </Pressable>
@@ -56,6 +57,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   primary: { backgroundColor: colors.accent },
+  danger: { backgroundColor: colors.bad },
   secondary: {
     backgroundColor: colors.surface,
     borderWidth: 1,

@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, type R
 import { AppState, Platform } from 'react-native'
 import * as Linking from 'expo-linking'
 
+import { changeEmail, changePassword } from './account-auth'
 import { sendPasswordReset } from './mobile-client'
 import {
   completeAuthCallback,
@@ -25,6 +26,11 @@ type AuthValue = {
   signIn: (email: string, password: string) => Promise<void>
   signUp: (email: string, password: string, username: string) => Promise<string>
   signOut: () => Promise<void>
+  /** After the account is deleted: drop the session here without asking Auth. */
+  forgetSession: () => Promise<void>
+  /** Null on success, or the sentence to show. */
+  changePassword: (current: string, next: string, again: string) => Promise<string | null>
+  changeEmail: (email: string) => Promise<{ ok: boolean, message: string }>
   requestPasswordReset: (email: string) => Promise<ResetOutcome>
   resetSentAt: number | null
   openRecoveryLink: (url: string) => Promise<string>
@@ -101,6 +107,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!supabase) return
       const { error } = await supabase.auth.signOut()
       if (error) throw error
+    },
+    async forgetSession() {
+      if (!supabase) return
+      await supabase.auth.signOut({ scope: 'local' })
+    },
+    async changePassword(current, next, again) {
+      const email = session?.user.email
+      if (!supabase) return authConfigError()
+      if (!email) return 'Log in again to change your password.'
+      return changePassword(supabase, email, current, next, again)
+    },
+    async changeEmail(email) {
+      if (!supabase) return { ok: false, message: authConfigError() }
+      return changeEmail(supabase, email, session?.user.email ?? null)
     },
     resetSentAt,
     async requestPasswordReset(email) {

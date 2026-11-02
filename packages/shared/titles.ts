@@ -1,3 +1,5 @@
+// The titles a player can pick: the fixed genre titles, then "#1 <name> Fan"
+// for each favorite game and top developer. The website and the phone both use it.
 export function getTitles({ topGames, topDevelopers } : { topGames: string[], topDevelopers: string[] }) {
 
     const genreTitles = [

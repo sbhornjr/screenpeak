@@ -4,14 +4,15 @@ import { StyleSheet, Text, View } from 'react-native'
 
 import { colors, face, seam, space, tracking, trackingPx, typeScale } from '@/theme'
 
-/** A phosphor seam, a tracked label, then a rule. */
-export function SectionHead({ children, count }: { children: ReactNode; count?: ReactNode }) {
+/** A phosphor seam, a tracked label, then a rule. `action` sits after the rule, as on the website. */
+export function SectionHead({ children, count, action }: { children: ReactNode; count?: ReactNode; action?: ReactNode }) {
   return (
     <View role="heading" accessibilityRole="header" accessibilityLevel={2} style={styles.row}>
       <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.seam} />
       <Text style={styles.label}>{children}</Text>
       {count != null ? <Text style={styles.count}>{`· ${count}`}</Text> : null}
       <View style={styles.rule} />
+      {action}
     </View>
   )
 }

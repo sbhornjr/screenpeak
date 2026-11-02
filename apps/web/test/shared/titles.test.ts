@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getTitles } from '@/lib/titles'
+import { getTitles } from '@screenpeak/shared/titles'
 
 const GENRE_TITLE_COUNT = 18
 

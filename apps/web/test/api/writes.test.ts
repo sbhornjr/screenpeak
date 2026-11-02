@@ -34,6 +34,7 @@ const clearLoadoutIdentity = vi.fn()
 const createPresignedAvatarUploadUrl = vi.fn()
 const unlinkSteamAccount = vi.fn()
 const generateReadout = vi.fn()
+const deleteAccount = vi.fn()
 
 class SteamImportInputError extends Error {
     constructor(message: string) {
@@ -60,6 +61,7 @@ vi.mock('@/lib/queries/steam', () => ({ unlinkSteamAccount }))
 vi.mock('@/lib/r2', () => ({ createPresignedAvatarUploadUrl }))
 vi.mock('@/lib/loaders/me', () => ({ loadMe: vi.fn() }))
 vi.mock('@/lib/loadout-readout', () => ({ generateReadout }))
+vi.mock('@/lib/account-deletion', () => ({ deleteAccount }))
 
 const review = await import('@/app/api/v1/games/[slug]/review/route')
 const library = await import('@/app/api/v1/me/library/[gameId]/route')
@@ -102,7 +104,7 @@ beforeEach(() => {
         importConfirmedSteamLibrary, createList, createListWithGame, updateList, deleteList, setListPinned, likeList, unlikeList,
         addGameToList, removeGameFromList, syncListGames, followUser, unfollowUser, userExists, patchAccount,
         updateBio, updateSelectedTitle, updateLoadoutBio, updateFavoriteGames, updatePrivacy, updateAvatarUrl,
-        clearLoadoutIdentity, createPresignedAvatarUploadUrl, unlinkSteamAccount, generateReadout,
+        clearLoadoutIdentity, createPresignedAvatarUploadUrl, unlinkSteamAccount, generateReadout, deleteAccount,
     ]) fn.mockReset()
     userExists.mockResolvedValue(true)
 })
@@ -423,6 +425,37 @@ describe('profile, avatar, steam, loadout clear', () => {
         expect(res.status).toBe(400)
         expect(body.error.code).toBe('invalid_request')
         expect(JSON.stringify(body)).not.toContain('users_username_key')
+    })
+
+    it('deletes the bearer user\'s account', async () => {
+        deleteAccount.mockResolvedValue({ error: null })
+
+        const res = await call(me.DELETE, 'http://localhost/api/v1/me', {}, { method: 'DELETE' })
+
+        expect(res.status).toBe(200)
+        expect(await res.json()).toEqual({ ok: true })
+        expect(deleteAccount).toHaveBeenCalledWith(USER.id)
+        expect(consumeWriteRateLimit).toHaveBeenCalledWith(USER.id)
+        expect(res.headers.get('access-control-allow-origin')).toBe('*')
+    })
+
+    it('answers a failed delete with a 500 that names no internals', async () => {
+        deleteAccount.mockResolvedValue({ error: 'User not allowed: service role misconfigured' })
+
+        const res = await call(me.DELETE, 'http://localhost/api/v1/me', {}, { method: 'DELETE' })
+        const body = await res.json()
+
+        expect(res.status).toBe(500)
+        expect(body.error).toEqual({ code: 'internal', message: 'Could not delete the account. Try again.' })
+    })
+
+    it('does not delete when the write budget is spent', async () => {
+        consumeWriteRateLimit.mockRejectedValueOnce(new ApiError(429, 'rate_limited', 'Too many requests.', { 'Retry-After': '30' }))
+
+        const res = await call(me.DELETE, 'http://localhost/api/v1/me', {}, { method: 'DELETE' })
+
+        expect(res.status).toBe(429)
+        expect(deleteAccount).not.toHaveBeenCalled()
     })
 
     it('clears the caller\'s Read-out', async () => {

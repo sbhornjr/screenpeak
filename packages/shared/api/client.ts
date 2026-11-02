@@ -172,6 +172,7 @@ export function createApiClient(opts: {
             get: () => get<MeData>('/api/v1/me'),
             settings: () => get<SettingsData>('/api/v1/me/settings'),
             patch: (body: MePatch) => send<OkResult>('PATCH', '/api/v1/me', body),
+            deleteAccount: () => send<OkResult>('DELETE', '/api/v1/me'),
             generateLoadout: () => send<LoadoutGenerated>('POST', '/api/v1/me/loadout'),
             clearLoadout: () => send<OkResult>('DELETE', '/api/v1/me/loadout'),
             library: {

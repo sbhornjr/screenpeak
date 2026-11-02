@@ -79,6 +79,20 @@ vi.mock('expo-image', () => ({
   Image: () => null,
 }))
 
+// The sheet has its own test (favorites-sheet.test.tsx). Here it shows what it
+// was opened with and saves one new pick in front.
+vi.mock('./favorites-sheet', () => ({
+  FavoritesSheet: ({ visible, current, onSave }: {
+    visible: boolean
+    current: { id: string, name: string }[]
+    onSave: (ids: string[]) => Promise<string | null>
+  }) => visible
+    ? React.createElement('div', null,
+        React.createElement('span', null, `Picker: ${current.map(pick => pick.name).join(', ')}`),
+        React.createElement('button', { type: 'button', onClick: () => { void onSave(['hades', ...current.map(pick => pick.id)]) } }, 'Stub save'))
+    : null,
+}))
+
 afterEach(() => {
   cleanup()
 })
@@ -202,7 +216,7 @@ describe('profile page', () => {
     expect(screen.getByText('Writes proofs.').textContent).toBe('Writes proofs.')
     expect(screen.getByText('“A patient roguelike reader.”').textContent).toBe('“A patient roguelike reader.”')
     expect(screen.queryByRole('button', { name: 'Follow peek' })).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Edit profile' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
     fireEvent.click(screen.getByRole('button', { name: 'Loadout' }))
     fireEvent.click(screen.getByRole('button', { name: 'Lists' }))
     fireEvent.click(screen.getByRole('button', { name: 'Library, 5 games, 2 completed' }))
@@ -222,6 +236,34 @@ describe('profile page', () => {
     expect(screen.getByText('Sharp climb.').textContent).toBe('Sharp climb.')
     expect(screen.getByText('7.66 / 10').textContent).toBe('7.66 / 10')
     expect(screen.getByText('Jan 31, 2026').textContent).toBe('Jan 31, 2026')
+  })
+
+  it('edits your favorite games from the Favorite games heading', () => {
+    const onSaveFavorites = vi.fn(async () => null as string | null)
+    render(<ProfileHub
+      model={profileHubModel(page({ username: 'peek', viewer: 'owner' }))}
+      onOpen={vi.fn()}
+      onSearchGames={vi.fn(async () => [])}
+      onSaveFavorites={onSaveFavorites}
+    />)
+    expect(screen.queryByText('Picker: Celeste')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit favorite games' }))
+    expect(screen.getByText('Picker: Celeste')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Stub save' }))
+    expect(onSaveFavorites).toHaveBeenCalledWith(['hades', '44444444-4444-4444-8444-444444444444'])
+  })
+
+  it('offers to pick favorites when you have none', () => {
+    const data = page({ username: 'peek', viewer: 'owner' })
+    data.favorites = []
+    render(<ProfileHub
+      model={profileHubModel(data)}
+      onOpen={vi.fn()}
+      onSearchGames={vi.fn(async () => [])}
+      onSaveFavorites={vi.fn(async () => null)}
+    />)
+    fireEvent.click(screen.getByRole('button', { name: 'Pick favorite games' }))
+    expect(screen.getByText('Picker:')).toBeTruthy()
   })
 
   it('keeps a long review title beside its score', () => {
@@ -256,7 +298,8 @@ describe('profile page', () => {
 
     expect(screen.getByRole('heading', { level: 1, name: 'Ada Lovelace' }).textContent).toBe('Ada Lovelace')
     expect(screen.getByText('@ada').textContent).toBe('@ada')
-    expect(screen.queryByRole('button', { name: 'Edit profile' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Settings' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Edit favorite games' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Follow ada' }))
     expect(onFollow).toHaveBeenCalledTimes(1)
     fireEvent.click(screen.getByRole('button', { name: 'Library, 10 games, 3 completed' }))

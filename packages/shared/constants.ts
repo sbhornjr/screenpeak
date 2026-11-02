@@ -25,3 +25,9 @@ export const TAXONOMY_SEARCH_TABLES = ['developers', 'publishers'] as const
 /** A library row's status, in the order both apps list them. */
 export const LIBRARY_STATUSES = ['backlog', 'playing', 'completed', 'abandoned'] as const
 export type LibraryStatus = (typeof LIBRARY_STATUSES)[number]
+
+/** The largest avatar the presigned upload accepts, in bytes. */
+export const AVATAR_MAX_BYTES = 2 * 1024 * 1024
+
+/** The most favorite games a profile pins. */
+export const FAVORITE_GAMES_MAX = 5

@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { useCachedWrite } from '@/lib/cached-write'
+import { actionFailure } from '@/lib/failure'
 import { back, go } from '@/lib/go'
 import { profileHubModel, withFollowing } from '@/lib/profile-hub'
 import { queryKeys, scopes } from '@/lib/query-keys'
@@ -69,6 +70,19 @@ function ProfileFollowSession({ username, showBack }: { username: string, showBa
   }
   if (remote.gate || !remote.query.data) return <ProfileHubSkeleton />
   const model = remote.query.data
+
+  // The cards need each game's developer and scores, so the profile refetches
+  // rather than patching the cache. Settings' title choices read the same page.
+  async function saveFavorites(gameIds: string[]) {
+    try {
+      await api.me.patch({ favoriteGames: gameIds })
+      await queryClient.invalidateQueries({ queryKey: scopes.profile })
+      return null
+    } catch (error) {
+      return actionFailure(error)
+    }
+  }
+
   return (
     <ProfileHub
       model={model}
@@ -80,6 +94,8 @@ function ProfileFollowSession({ username, showBack }: { username: string, showBa
       followNote={followNote}
       refreshing={refreshing}
       onRefresh={refresh}
+      onSearchGames={model.isOwner ? async query => (await api.games.search(query)).games : undefined}
+      onSaveFavorites={model.isOwner ? saveFavorites : undefined}
     />
   )
 }

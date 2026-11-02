@@ -205,7 +205,8 @@ export async function driveMobileProfile() {
         if (await page.controlInView('Lists') !== 'yes') problems.push('own profile hides Lists')
         if (await page.controlInView('Follow') === 'yes') problems.push('own profile shows Follow')
         const ownLabels = await page.ariaLabels()
-        if (!ownLabels.includes('Edit profile')) problems.push('own profile is missing Edit profile')
+        if (!ownLabels.includes('Settings')) problems.push('own profile is missing Settings')
+        if (!ownLabels.includes('Edit favorite games')) problems.push('own profile is missing Edit favorite games')
 
         await page.setViewport(320, 568)
         await shot('own-320.png')
@@ -220,12 +221,53 @@ export async function driveMobileProfile() {
         await shot('review-title-320.png')
         await page.setViewport(375, 667)
 
-        await page.clickLabel('Edit profile')
-        await page.waitForText('Profile editing is not on this screen yet.')
+        await page.clickLabel('Settings')
+        await page.waitForText('Danger zone', 30_000)
         const settingsText = await page.bodyText()
-        if (!settingsText.includes('Username, bio, title, photo, and favorite games land here later.')) problems.push('settings stub is missing its note')
+        if (!settingsText.includes('Change photo')) problems.push('Settings is missing Change photo')
         await page.clickControl('Back')
         await page.waitForText('Peek Reader')
+
+        // Favorite games edit from their heading. The review game's title is
+        // also a link on the profile under the sheet, so clicks stay in the dialog.
+        async function clickInSheet(name) {
+            const outcome = await page.evaluate(`(() => {
+                const dialog = document.querySelector('[role="dialog"]')
+                if (!dialog) return 'no dialog'
+                const node = [...dialog.querySelectorAll('button, [role="button"]')]
+                    .find((item) => (item.getAttribute('aria-label') || '').trim() === ${JSON.stringify(name)})
+                if (!node) return 'missing'
+                node.click()
+                return 'clicked'
+            })()`)
+            if (outcome !== 'clicked') throw new Error(`Could not click ${name} in the sheet (${outcome})`)
+        }
+        await page.clickLabel('Edit favorite games')
+        await page.waitForText('Choose wisely.', 30_000)
+        await clickInSheet(`${favoriteGame.name}, picked`)
+        await page.fillLabel('Search games', 'Extremely Long Chronicle')
+        await clickInSheet('Search')
+        await page.waitUntil(`(() => {
+            const dialog = document.querySelector('[role="dialog"]')
+            return dialog && [...dialog.querySelectorAll('[aria-label]')].some((item) => item.getAttribute('aria-label') === ${JSON.stringify(longReviewTitle)}) ? 'ok' : 'waiting'
+        })()`, 30_000)
+        await clickInSheet(longReviewTitle)
+        const picker = await shot('favorites-375.png')
+        if (!picker.includes('1 of 5 picked')) problems.push('the favorites sheet did not count one pick')
+        await clickInSheet('Save favorites')
+        let favoritesNow = ''
+        for (let attempt = 0; attempt < 60; attempt += 1) {
+            favoritesNow = psql(databaseUrl, `select coalesce(favorite_game_ids::text, '{}') from users where username = '${peekUsername}'`, ['-tA'])
+            if (favoritesNow === `{${reviewGame.id}}`) break
+            await new Promise((resolve) => setTimeout(resolve, 250))
+        }
+        if (favoritesNow !== `{${reviewGame.id}}`) problems.push(`favorite_game_ids was ${favoritesNow} after saving`)
+        await page.waitUntil(`document.querySelector('[role="dialog"]') ? 'waiting' : 'ok'`, 30_000)
+        const favoritesAfter = await page.bodyText()
+        if (!favoritesAfter.includes(longReviewTitle)) problems.push('the profile does not show the new favorite')
+        dressPeekProfile(favoriteGame.id, reviewGame.id)
+        await page.navigate(`${expoOrigin}/profile`)
+        await page.waitForText(favoriteGame.name, 45_000)
 
         await page.clickControl('View all reviews')
         await page.waitForText(`${peekUsername}'s Ratings & Reviews`, 30_000)
@@ -269,7 +311,9 @@ export async function driveMobileProfile() {
         if (await page.controlInView('Follow') !== 'yes') problems.push('public profile hides Follow')
         if (await page.controlInView('Loadout') !== 'yes') problems.push('public profile hides Loadout')
         if (await page.controlInView('Lists') !== 'yes') problems.push('public profile hides Lists')
-        if ((await page.ariaLabels()).includes('Edit profile')) problems.push('public profile shows Edit profile')
+        const publicLabels = await page.ariaLabels()
+        if (publicLabels.includes('Settings')) problems.push('public profile shows Settings')
+        if (publicLabels.includes('Edit favorite games')) problems.push('public profile shows Edit favorite games')
         await page.setViewport(320, 568)
         await shot('public-320.png')
         await page.setViewport(375, 667)
@@ -325,7 +369,9 @@ export async function driveMobileProfile() {
         if (await page.controlInView('Loadout') === 'yes') problems.push('private profile shows Loadout')
         if (await page.controlInView('Lists') !== 'yes') problems.push('private profile hides Lists')
         if (await page.controlInView('Follow') !== 'yes') problems.push('private profile hides Follow')
-        if ((await page.ariaLabels()).includes('Edit profile')) problems.push('private profile shows Edit profile')
+        const privateLabels = await page.ariaLabels()
+        if (privateLabels.includes('Settings')) problems.push('private profile shows Settings')
+        if (privateLabels.includes('Edit favorite games')) problems.push('private profile shows Edit favorite games')
         const adaLeaks = page.requestUrlsSince(adaMark).filter((url) => /\/api\/v1\/user\/ada\/(library|loadout|lists)/.test(url))
         if (adaLeaks.length) problems.push(`private profile fetched ${adaLeaks.join(', ')}`)
         await page.setViewport(320, 568)

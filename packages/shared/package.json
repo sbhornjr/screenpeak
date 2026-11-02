@@ -11,6 +11,7 @@
     "./ratings-copy": "./ratings-copy.ts",
     "./images": "./images.ts",
     "./library-copy": "./library-copy.ts",
+    "./titles": "./titles.ts",
     "./tokens": "./tokens.ts",
     "./rating-copy": "./rating-copy.ts",
     "./redirect": "./redirect.ts",

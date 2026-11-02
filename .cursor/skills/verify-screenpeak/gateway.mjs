@@ -2,7 +2,7 @@
 import { randomBytes } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { createServer, request as httpRequest } from 'node:http'
-import { databaseUrl, gatewayPort, postgrestPort, recoveryPath, scriptPath, signupPath } from './config.mjs'
+import { databaseUrl, deletionPath, gatewayPort, postgrestPort, recoveryPath, scriptPath, signupPath } from './config.mjs'
 import { psql } from './database.mjs'
 import { pkceMatches, signJwt, verifyJwt } from './jwt.mjs'
 import { fail, log, spawnLogged } from './runtime.mjs'
@@ -67,6 +67,13 @@ function recordSignup(entry) {
     try { list = JSON.parse(readFileSync(signupPath, 'utf8')) } catch { list = [] }
     list.push(entry)
     writeFileSync(signupPath, JSON.stringify(list, null, 2))
+}
+
+function recordDeletion(entry) {
+    let list = []
+    try { list = JSON.parse(readFileSync(deletionPath, 'utf8')) } catch { list = [] }
+    list.push(entry)
+    writeFileSync(deletionPath, JSON.stringify(list, null, 2))
 }
 
 function startGateway(secret) {
@@ -250,6 +257,27 @@ function startGateway(secret) {
                     `)
                 }
                 sendJson(res, 200, userRecord(row), originHeaders)
+                return
+            }
+            const adminUser = url.pathname.match(/^\/auth\/v1\/admin\/users\/([0-9a-f-]{36})$/i)
+            if (adminUser && req.method === 'DELETE') {
+                const token = bearer(req)
+                const payload = token && verifyJwt(token, secret)
+                if (payload?.role !== 'service_role') {
+                    sendJson(res, 403, { error: 'not_admin', msg: 'User not allowed' }, originHeaders)
+                    return
+                }
+                const row = lookupUserById(adminUser[1])
+                if (!row) {
+                    sendJson(res, 404, { error: 'user_not_found', msg: 'User not found' }, originHeaders)
+                    return
+                }
+                psql(databaseUrl, `
+                    DELETE FROM verify_local.passwords WHERE user_id = '${row.id}';
+                    DELETE FROM auth.users WHERE id = '${row.id}';
+                `)
+                recordDeletion({ id: row.id, email: row.email, at: new Date().toISOString() })
+                sendJson(res, 200, {}, originHeaders)
                 return
             }
             if (url.pathname === '/auth/v1/logout' && req.method === 'POST') {

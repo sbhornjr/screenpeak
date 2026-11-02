@@ -1,5 +1,6 @@
-import { Crosshair, Library, List, Pencil } from 'lucide-react-native'
-import type { ReactNode } from 'react'
+import type { GameSearchHit } from '@screenpeak/shared/api/search'
+import { Crosshair, Library, List } from 'lucide-react-native'
+import { useState, type ReactNode } from 'react'
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
@@ -11,6 +12,7 @@ import { colors, face, hitTarget, radius, seam, space, text, tierColor, tracking
 import { Avatar } from './avatar'
 import { Button } from './button'
 import { EmptyState } from './empty-state'
+import { FavoritesSheet } from './favorites-sheet'
 import { GameCard } from './game-card'
 import { Panel } from './panel'
 import { AppHeader } from './app-header'
@@ -62,7 +64,10 @@ function Stat({ label, value }: { label: string, value: string }) {
   )
 }
 
-/** Loadout, Lists, and the library preview render only when `model` includes them. */
+/**
+ * Loadout, Lists, and the library preview render only when `model` includes them.
+ * Settings and the favorites editor show on your own profile; the editor needs both handlers.
+ */
 export function ProfileHub({
   model,
   onOpen,
@@ -73,6 +78,8 @@ export function ProfileHub({
   followNote,
   refreshing = false,
   onRefresh,
+  onSearchGames,
+  onSaveFavorites,
 }: {
   model: ProfileHubModel
   onOpen: (href: string) => void
@@ -83,8 +90,13 @@ export function ProfileHub({
   followNote?: string | null
   refreshing?: boolean
   onRefresh?: () => void
+  onSearchGames?: (query: string) => Promise<GameSearchHit[]>
+  /** Saves the ids in order. The failure sentence, or null. */
+  onSaveFavorites?: (gameIds: string[]) => Promise<string | null>
 }) {
   const { width } = useWindowDimensions()
+  const [pickingFavorites, setPickingFavorites] = useState(false)
+  const canPickFavorites = model.isOwner && onSearchGames != null && onSaveFavorites != null
   const compact = width <= 375
   const library = model.library ? libraryCopy(model.library) : null
   const favoriteEmpty = model.isOwner
@@ -129,14 +141,12 @@ export function ProfileHub({
             />
           ) : null}
           {model.settingsHref ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Edit profile"
+            <Button
+              label="Settings"
+              variant="secondary"
               onPress={() => { if (model.settingsHref) onOpen(model.settingsHref) }}
-              style={styles.iconButton}
-            >
-              <Pencil size={18} color={colors.accent} />
-            </Pressable>
+              style={styles.fill}
+            />
           ) : null}
         </View>
         {followNote ? <Text accessibilityLiveRegion="polite" style={styles.note}>{followNote}</Text> : null}
@@ -179,7 +189,13 @@ export function ProfileHub({
         </View>
         {model.loadoutQuote ? <Text style={styles.quote}>{`“${model.loadoutQuote}”`}</Text> : null}
 
-        <SectionHead>Favorite games</SectionHead>
+        <SectionHead
+          action={canPickFavorites
+            ? <Button label="Edit" accessibilityLabel="Edit favorite games" variant="ghost" onPress={() => setPickingFavorites(true)} />
+            : undefined}
+        >
+          Favorite games
+        </SectionHead>
         {model.favorites.length > 0 ? (
           <View style={styles.favorites}>
             {model.favorites.map(game => (
@@ -201,7 +217,12 @@ export function ProfileHub({
             ))}
           </View>
         ) : (
-          <EmptyState dense title={favoriteEmpty.title} description={favoriteEmpty.description} />
+          <>
+            <EmptyState dense title={favoriteEmpty.title} description={favoriteEmpty.description} />
+            {canPickFavorites
+              ? <Button label="Pick favorite games" variant="secondary" onPress={() => setPickingFavorites(true)} />
+              : null}
+          </>
         )}
 
         <SectionHead>Recent reviews</SectionHead>
@@ -226,6 +247,15 @@ export function ProfileHub({
           <EmptyState dense title={reviewEmpty.title} description={reviewEmpty.description} />
         )}
       </ScrollView>
+      {canPickFavorites ? (
+        <FavoritesSheet
+          visible={pickingFavorites}
+          current={model.favorites.map(game => ({ id: game.id, name: game.name }))}
+          onClose={() => setPickingFavorites(false)}
+          onSearch={onSearchGames}
+          onSave={onSaveFavorites}
+        />
+      ) : null}
     </SafeAreaView>
   )
 }
@@ -278,16 +308,7 @@ const styles = StyleSheet.create({
   },
   actionRow: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
   follow: { flexGrow: 1 },
-  iconButton: {
-    width: hitTarget,
-    height: hitTarget,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radius.base,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
+  fill: { flexGrow: 1 },
   note: {
     fontFamily: face.body[400],
     fontSize: typeScale.sm.size,

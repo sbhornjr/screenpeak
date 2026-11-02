@@ -1,3 +1,5 @@
+import { AVATAR_MAX_BYTES } from '@screenpeak/shared/constants'
+
 const ALLOWED_AVATAR_CONTENT_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
 
 export function getAvatarKeyForUpload(userId: string, contentType: string): string | null {
@@ -10,7 +12,7 @@ export function buildAvatarPublicUrl(publicBaseUrl: string, key: string, version
     return version ? `${url}?v=${version}` : url
 }
 
-export const MAX_AVATAR_BYTES = 2 * 1024 * 1024
+export const MAX_AVATAR_BYTES = AVATAR_MAX_BYTES
 
 export function avatarUploadErrorMessage(error: 'unsupported_type' | 'too_large'): string {
     return error === 'too_large' ? 'Image must be under 2MB' : 'Unsupported image type'

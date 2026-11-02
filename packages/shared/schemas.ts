@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { LIBRARY_STATUSES, SEARCH_MAX_PAGE_SIZE, SEARCH_QUERY_MAX_LENGTH, TAXONOMY_SEARCH_ID_CAP, TAXONOMY_SEARCH_TABLES } from './constants'
+import { FAVORITE_GAMES_MAX, LIBRARY_STATUSES, SEARCH_MAX_PAGE_SIZE, SEARCH_QUERY_MAX_LENGTH, TAXONOMY_SEARCH_ID_CAP, TAXONOMY_SEARCH_TABLES } from './constants'
 
 // Shared field schemas — the single source of truth for input shape rules,
 // used both by lib/queries/* (server-side-of-the-call defense) and by the
@@ -36,14 +36,14 @@ export const listFieldsSchema = z.object({
 
 export const bioSchema = z.string().max(500, 'Bio is limited to 500 characters')
 
-// Titles are computed per-user from stats (lib/titles.ts: genre titles plus
+// Titles are computed per-user from stats (@screenpeak/shared/titles: genre titles plus
 // dynamic "#1 <game/developer> Fan" entries), not a fixed static list — so
 // this only bounds shape/length. It can't verify the submitted title is one
 // this specific user actually earned without recomputing their stats
 // server-side; that's a real gap but a bigger one than input validation.
 export const selectedTitleSchema = z.string().trim().min(1, 'Pick a title').max(100, 'That title is too long')
 
-export const favoriteGameIdsSchema = z.array(z.string().min(1)).max(5, 'You can only select 5 favorite games')
+export const favoriteGameIdsSchema = z.array(z.string().min(1)).max(FAVORITE_GAMES_MAX, `You can only select ${FAVORITE_GAMES_MAX} favorite games`)
 
 export const privacyTypeSchema = z.enum(['Default List', 'Library', 'Loadout'])
 
@@ -93,7 +93,7 @@ export const patchMeSchema = z.object({
     bio: bioSchema.optional(),
     selectedTitle: selectedTitleSchema.optional(),
     loadoutBio: bioSchema.optional(),
-    favoriteGames: z.array(uuidIdSchema).max(5, 'You can only select 5 favorite games').optional(),
+    favoriteGames: z.array(uuidIdSchema).max(FAVORITE_GAMES_MAX, `You can only select ${FAVORITE_GAMES_MAX} favorite games`).optional(),
     privacy: z.object({
         type: privacyTypeSchema,
         public: z.boolean(),

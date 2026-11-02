@@ -27,6 +27,7 @@ export const scopes = {
 export const queryKeys = {
   feed: (viewer: Viewer) => ['feed', viewer] as const,
   me: (viewer: Viewer) => ['me', viewer] as const,
+  settings: (viewer: Viewer) => ['settings', viewer] as const,
   explore: (range: ExploreRange, viewer: Viewer) => ['explore', range, viewer] as const,
   gameSearch: (query: string, viewer: Viewer) => ['game-search', query, viewer] as const,
   /** Explore's genre and platform browse: the first catalogue page, one game long. */
