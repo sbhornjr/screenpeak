@@ -20,15 +20,26 @@ export function psql(url, sql, args = []) {
     return (result.stdout || '').trim()
 }
 
+// Linux installs (apt/Docker) put the superuser on a `postgres` system account,
+// so bootstrap needs `sudo -u postgres psql`. Homebrew's Postgres has no such
+// account — it makes the installing macOS user a superuser instead — so try a
+// direct connection first and only fall back to sudo when that's rejected.
 export function sudoPsql(sql) {
-    const result = spawnSync('sudo', ['-u', 'postgres', 'psql', '-v', 'ON_ERROR_STOP=1', '-X', '-d', 'postgres'], {
+    const direct = spawnSync('psql', ['-v', 'ON_ERROR_STOP=1', '-X', '-d', 'postgres'], {
         input: sql,
         encoding: 'utf8',
     })
-    if (result.status !== 0) {
-        throw new Error((result.stderr || result.stdout || `sudo psql exited ${result.status}`).trim())
-    }
-    return (result.stdout || '').trim()
+    if (direct.status === 0) return (direct.stdout || '').trim()
+
+    const viaSudo = spawnSync('sudo', ['-u', 'postgres', 'psql', '-v', 'ON_ERROR_STOP=1', '-X', '-d', 'postgres'], {
+        input: sql,
+        encoding: 'utf8',
+    })
+    if (viaSudo.status === 0) return (viaSudo.stdout || '').trim()
+
+    const directError = (direct.stderr || direct.stdout || `psql exited ${direct.status}`).trim()
+    const sudoError = (viaSudo.stderr || viaSudo.stdout || `sudo psql exited ${viaSudo.status}`).trim()
+    throw new Error(`Direct psql failed: ${directError}\nsudo -u postgres psql also failed: ${sudoError}`)
 }
 
 export async function ensurePostgres() {
