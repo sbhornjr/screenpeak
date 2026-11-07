@@ -8,7 +8,8 @@
     "scheme": "screenpeak",
     "userInterfaceStyle": "dark",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.steventpot.screenpeak"
     },
     "android": {
       "adaptiveIcon": {
