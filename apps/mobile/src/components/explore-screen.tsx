@@ -12,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { igdbImageUri } from '@/lib/catalog-image'
 import { completedLine, followedByLine, libraryLine, likedByLine } from '@/lib/explore-page'
 import { catalogueHref, gameHref, profileHref } from '@/lib/routes'
-import { colors, face, hitTarget, radius, space, text, typeScale } from '@/theme'
+import { colors, face, hitTarget, radius, space, text, tracking, trackingPx, typeScale } from '@/theme'
 
 import { AppHeader } from './app-header'
 import { Button } from './button'
@@ -22,6 +22,7 @@ import { GameRail, RAIL_CARD_WIDTH, RailCard } from './game-rail'
 import { ListCardView, type ListCardFields } from './list-card'
 import { Panel } from './panel'
 import { SectionHead } from './section-head'
+import { Seal } from './seal'
 import { SignupButtons } from './screen-scroll'
 import { Sheet } from './sheet'
 import { TextField } from './text-field'
@@ -98,8 +99,41 @@ function RecommendedGame({ game, onOpen }: { game: ExploreGameCard, onOpen: Open
   )
 }
 
+/** The #1 trending game, as a lead banner above the rest of the rail. */
+function FeaturedTrendingCard({ game, onOpen }: { game: ExploreGameCard, onOpen: Open }) {
+  const year = releaseYear(game.released)
+  const cover = igdbImageUri(game.cover_image_url)
+  return (
+    <Pressable accessibilityRole="link" accessibilityLabel={game.name} onPress={() => onOpen(gameHref(game.slug))} style={styles.featuredTarget}>
+      {({ pressed }) => (
+        <View style={[styles.featured, pressed && styles.featuredPressed]}>
+          <View style={styles.featuredCover}>
+            {cover ? <Image source={cover} style={StyleSheet.absoluteFill} contentFit="cover" /> : null}
+            {game.avg_rating != null ? <Seal label="SP" score={game.avg_rating} side="right" /> : null}
+          </View>
+          <View style={styles.featuredBody}>
+            <Text style={styles.featuredEyebrow}>Trending now</Text>
+            <Text numberOfLines={2} style={styles.featuredName}>{game.name}</Text>
+            <Text numberOfLines={1} style={styles.meta}>{[year, game.developer].filter(Boolean).join(' · ')}</Text>
+          </View>
+        </View>
+      )}
+    </Pressable>
+  )
+}
+
+/** A one-line, horizontally-scrolling chip row — never wraps, whatever the screen width. */
 function Chips({ children }: { children: ReactNode }) {
-  return <View style={styles.chips}>{children}</View>
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.chipsScroll}
+      contentContainerStyle={styles.chips}
+    >
+      {children}
+    </ScrollView>
+  )
 }
 
 /** A dropdown, like the Library tab's: the trigger opens a sheet of options you can narrow by typing. */
@@ -174,6 +208,12 @@ export function ExploreScreen({
     && recommendations.games.length === 0
     && recommendations.lists.length === 0
     && recommendations.users.length === 0
+  // Signed in with nothing trending, recommended, or peaking: one quiet message
+  // beats three stacked empty-state blocks in a row.
+  const allQuiet = recommendations != null
+    && nothingRecommended
+    && data.trending_games.length === 0
+    && data.trending_lists.length === 0
 
   function submit() {
     const trimmed = query.trim()
@@ -262,67 +302,82 @@ export function ExploreScreen({
         </View>
         {actionError ? <Text accessibilityLiveRegion="polite" style={text.error}>{actionError}</Text> : null}
 
-        <SectionHead>Peak right now</SectionHead>
-        {data.trending_games.length === 0 ? (
-          <EmptyState dense title={`Nothing peaking ${phrase}.`} />
+        {allQuiet ? (
+          <EmptyState
+            dense
+            title="It's quiet out there."
+            description="Follow more players to see what's trending, recommended, and peaking."
+          />
         ) : (
-          <GameRail label="Peak right now" inset={inset}>
-            {data.trending_games.map(game => (
-              <RailCard key={game.id} game={game} onOpen={onOpen} />
-            ))}
-          </GameRail>
-        )}
+          <>
+            <SectionHead>Peak right now</SectionHead>
+            {data.trending_games.length === 0 ? (
+              <EmptyState dense title={`Nothing peaking ${phrase}.`} />
+            ) : (
+              <View style={styles.stack}>
+                <FeaturedTrendingCard game={data.trending_games[0]} onOpen={onOpen} />
+                {data.trending_games.length > 1 ? (
+                  <GameRail label="Peak right now" inset={inset}>
+                    {data.trending_games.slice(1).map(game => (
+                      <RailCard key={game.id} game={game} onOpen={onOpen} />
+                    ))}
+                  </GameRail>
+                ) : null}
+              </View>
+            )}
 
-        <SectionHead>Recommended for you</SectionHead>
-        {recommendations == null ? (
-          <View style={styles.stack}>
-            <Text style={text.muted}>Sign up to see what people you follow are playing.</Text>
-            <SignupButtons onOpen={onOpen} />
-          </View>
-        ) : (
-          <View style={styles.stack}>
-            <Text style={text.muted}>Follow more users to get more recommendations.</Text>
-            {nothingRecommended ? <EmptyState dense title="No recommendations yet." /> : null}
-            {recommendations.games.length > 0 ? (
-              <>
-                <Text accessibilityRole="header" style={styles.subhead}>Games</Text>
-                <GameRail label="Recommended games" inset={inset}>
-                  {recommendations.games.map(game => <RecommendedGame key={game.id} game={game} onOpen={onOpen} />)}
-                </GameRail>
-              </>
-            ) : null}
-            {recommendations.lists.length > 0 ? (
-              <>
-                <Text accessibilityRole="header" style={styles.subhead}>Lists</Text>
-                {recommendations.lists.map(list => (
-                  <View key={list.id} style={styles.captioned}>
-                    <Text style={styles.caption}>{likedByLine(list.follower_like_count ?? 0)}</Text>
-                    {listCard(list)}
-                  </View>
-                ))}
-              </>
-            ) : null}
-            {recommendations.users.length > 0 ? (
-              <>
-                <Text accessibilityRole="header" style={styles.subhead}>Players</Text>
-                {recommendations.users.map(user => (
-                  <View key={user.id} style={styles.captioned}>
-                    <Text style={styles.caption}>{followedByLine(user.mutual_follower_count)}</Text>
-                    <UserCard user={user} onPress={() => onOpen(profileHref(user.username))} />
-                  </View>
-                ))}
-              </>
-            ) : null}
-          </View>
-        )}
+            <SectionHead>Recommended for you</SectionHead>
+            {recommendations == null ? (
+              <View style={styles.stack}>
+                <Text style={text.muted}>Sign up to see what people you follow are playing.</Text>
+                <SignupButtons onOpen={onOpen} />
+              </View>
+            ) : (
+              <View style={styles.stack}>
+                <Text style={text.muted}>Follow more users to get more recommendations.</Text>
+                {nothingRecommended ? <EmptyState dense title="No recommendations yet." /> : null}
+                {recommendations.games.length > 0 ? (
+                  <>
+                    <Text accessibilityRole="header" style={styles.subhead}>Games</Text>
+                    <GameRail label="Recommended games" inset={inset}>
+                      {recommendations.games.map(game => <RecommendedGame key={game.id} game={game} onOpen={onOpen} />)}
+                    </GameRail>
+                  </>
+                ) : null}
+                {recommendations.lists.length > 0 ? (
+                  <>
+                    <Text accessibilityRole="header" style={styles.subhead}>Lists</Text>
+                    {recommendations.lists.map(list => (
+                      <View key={list.id} style={styles.captioned}>
+                        <Text style={styles.caption}>{likedByLine(list.follower_like_count ?? 0)}</Text>
+                        {listCard(list)}
+                      </View>
+                    ))}
+                  </>
+                ) : null}
+                {recommendations.users.length > 0 ? (
+                  <>
+                    <Text accessibilityRole="header" style={styles.subhead}>Players</Text>
+                    {recommendations.users.map(user => (
+                      <View key={user.id} style={styles.captioned}>
+                        <Text style={styles.caption}>{followedByLine(user.mutual_follower_count)}</Text>
+                        <UserCard user={user} onPress={() => onOpen(profileHref(user.username))} />
+                      </View>
+                    ))}
+                  </>
+                ) : null}
+              </View>
+            )}
 
-        <SectionHead>Lists peaking now</SectionHead>
-        {data.trending_lists.length === 0 ? (
-          <EmptyState dense title={`No lists peaking ${phrase}.`} />
-        ) : (
-          <View>
-            {data.trending_lists.map(list => <View key={list.id}>{listCard(list)}</View>)}
-          </View>
+            <SectionHead>Lists peaking now</SectionHead>
+            {data.trending_lists.length === 0 ? (
+              <EmptyState dense title={`No lists peaking ${phrase}.`} />
+            ) : (
+              <View>
+                {data.trending_lists.map(list => <View key={list.id}>{listCard(list)}</View>)}
+              </View>
+            )}
+          </>
         )}
 
         <SectionHead>Browse</SectionHead>
@@ -374,9 +429,42 @@ const styles = StyleSheet.create({
   hitBody: { flex: 1, minWidth: 0, gap: space[0.5] },
   hitName: { fontFamily: face.display[500], fontSize: typeScale.base.size, lineHeight: typeScale.base.line, color: colors.text },
   meta: { fontFamily: face.mono[400], fontSize: 12, lineHeight: 16, color: colors.muted },
+  featuredTarget: { minHeight: hitTarget },
+  featured: {
+    flexDirection: 'row',
+    gap: space[3],
+    padding: space[3],
+    borderRadius: radius.base,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  featuredPressed: { borderColor: colors.accent },
+  featuredCover: {
+    width: 110,
+    aspectRatio: 3 / 4,
+    borderRadius: radius.base,
+    overflow: 'hidden',
+    backgroundColor: colors.surfaceLight,
+  },
+  featuredBody: { flex: 1, minWidth: 0, justifyContent: 'center', gap: space[1] },
+  featuredEyebrow: {
+    fontFamily: face.mono[600],
+    fontSize: typeScale.eyebrow.size,
+    letterSpacing: trackingPx(tracking.wide, typeScale.eyebrow.size),
+    textTransform: 'uppercase',
+    color: colors.accent,
+  },
+  featuredName: {
+    fontFamily: face.display[600],
+    fontSize: typeScale.lg.size,
+    lineHeight: typeScale.lg.line,
+    color: colors.text,
+  },
   rangeRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
-  rangeChip: { paddingHorizontal: space[3] },
-  chips: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
+  rangeChip: { paddingHorizontal: space[2], minWidth: 0 },
+  chipsScroll: { flexShrink: 1 },
+  chips: { flexDirection: 'row', gap: space[1.5] },
   menuRow: { flexDirection: 'row' },
   caption: { fontFamily: face.body[400], fontSize: typeScale.xs.size, lineHeight: typeScale.xs.line, color: colors.muted },
   captioned: { gap: space[1.5] },

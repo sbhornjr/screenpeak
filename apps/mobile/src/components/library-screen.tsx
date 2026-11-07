@@ -134,6 +134,7 @@ export function LibraryScreen({
   const [headerHeight, setHeaderHeight] = useState(0)
   const [editing, setEditing] = useState<LibraryGameCard | null>(null)
   const filteredEmpty = libraryFiltersActive(query)
+  const facetCount = [query.genre, query.platform, query.developer, query.publisher, query.esrb].filter(Boolean).length
 
   function change(next: LibraryQuery) {
     onQuery?.(next)
@@ -196,6 +197,19 @@ export function LibraryScreen({
           onPress={() => setMenu('sort')}
         />
         <SortToggle order={query.order} onToggle={() => change({ ...query, order: query.order === 'desc' ? 'asc' : 'desc' })} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={facetCount ? `Filters, ${facetCount} on` : 'Filters'}
+          onPress={() => setFiltersOpen(true)}
+          style={[styles.filterButton, facetCount > 0 && styles.filterButtonActive]}
+        >
+          <SlidersHorizontal size={18} color={facetCount > 0 ? colors.accent : colors.muted} />
+          {facetCount > 0 ? (
+            <View style={styles.filterBadge}>
+              <Text style={styles.filterBadgeText}>{facetCount}</Text>
+            </View>
+          ) : null}
+        </Pressable>
       </View>
       {loadError ? (
         <View style={styles.stack}>
@@ -216,15 +230,6 @@ export function LibraryScreen({
         </View>
         <Button label="Search" onPress={() => change({ ...query, q: draft.trim() || null })} />
       </View>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Filters"
-        onPress={() => setFiltersOpen(true)}
-        style={styles.filterButton}
-      >
-        <SlidersHorizontal size={18} color={colors.accent} />
-        <Text style={text.body}>Filters</Text>
-      </Pressable>
     </View>
   )
 
@@ -371,16 +376,28 @@ const styles = StyleSheet.create({
   filterButton: {
     minHeight: hitTarget,
     minWidth: hitTarget,
-    flexDirection: 'row',
+    flexShrink: 0,
     alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: space[2],
-    paddingHorizontal: space[3],
+    justifyContent: 'center',
     borderRadius: radius.base,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
+  filterButtonActive: { borderColor: colors.accent },
+  filterBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 3,
+    borderRadius: radius.full,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterBadgeText: { fontFamily: face.mono[600], fontSize: 10, color: colors.bg },
   stack: { gap: space[2] },
   bone: { height: 28, width: '55%', backgroundColor: colors.surfaceLight, borderRadius: radius.base },
   boneShort: { height: 160, backgroundColor: colors.surfaceLight, borderRadius: radius.base },

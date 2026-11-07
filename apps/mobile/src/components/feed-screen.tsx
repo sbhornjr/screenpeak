@@ -1,3 +1,4 @@
+import type { GameCardData } from '@screenpeak/shared/api/games'
 import { releaseYear } from '@screenpeak/shared/dates'
 import { FEED_EMPTY, feedActivityPhrase, timeAgo } from '@screenpeak/shared/feed-copy'
 import type { FeedItem } from '@screenpeak/shared/types'
@@ -174,6 +175,8 @@ export type FeedScreenProps = {
   onRefresh?: () => void
   refreshError?: string | null
   onRetry?: () => void
+  /** Signed out only: this week's trending games, falling back to all time. */
+  trendingGames?: GameCardData[]
 }
 
 /** Signed out: the welcome screen. Signed in: followed players' activity, a page at a time. */
@@ -190,11 +193,12 @@ export function FeedScreen({
   onRefresh,
   refreshError = null,
   onRetry,
+  trendingGames = [],
 }: FeedScreenProps) {
   const { width } = useWindowDimensions()
   const [mountedAt] = useState(() => Date.now())
   const clock = now ?? mountedAt
-  if (!signedIn) return <WelcomeScreen onOpen={onOpen} />
+  if (!signedIn) return <WelcomeScreen onOpen={onOpen} trendingGames={trendingGames} />
   const compact = width <= 375
 
   const header = (

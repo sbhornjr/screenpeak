@@ -8,9 +8,9 @@ import { useState } from 'react'
 import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 
 import { igdbImageUri } from '@/lib/catalog-image'
-import { communityScore, relTime, scoreGap, statusLabel, type ReviewListQuery } from '@/lib/game-page'
+import { asStatus, communityScore, relTime, scoreGap, statusLabel, type ReviewListQuery } from '@/lib/game-page'
 import type { CatalogueFilter } from '@/lib/routes'
-import { colors, face, radius, space, text, tierColor, tracking, trackingPx, typeScale } from '@/theme'
+import { alpha, colors, face, radius, seam, space, text, tierColor, tracking, trackingPx, typeScale } from '@/theme'
 
 import { AppHeader } from './app-header'
 import { Avatar } from './avatar'
@@ -25,6 +25,8 @@ import { Panel } from './panel'
 import { RateSheet } from './rate-sheet'
 import { SectionHead } from './section-head'
 import { Sheet, useSheetDismiss } from './sheet'
+import { StatusTag } from './status-tag'
+import { Tag } from './tag'
 
 const DEFAULT_QUERY: ReviewListQuery = { page: 1, sort: 'date', order: 'desc' }
 
@@ -87,11 +89,10 @@ function CreditTags({ label, rows, onOpen }: { label: string, rows: Taxon[], onO
       <Text style={text.label}>{label}</Text>
       <View style={styles.tags}>
         {rows.length === 0 ? <Text style={text.body}>—</Text> : rows.map(row => (
-          <Button
+          <Tag
             key={row.id}
             label={row.name}
             accessibilityLabel={`Browse ${row.name}`}
-            variant="ghost"
             onPress={() => onOpen(row.slug)}
           />
         ))}
@@ -200,6 +201,7 @@ export function GameDetail({
   })
   const inFile = !!(viewer?.review || viewer?.libraryEntry)
   const titleSize = compact ? typeScale['3xl'].size : typeScale['4xl'].size
+  const heroInset = compact ? space[4] : space[6]
 
   return (
     <View style={styles.screen}>
@@ -211,38 +213,50 @@ export function GameDetail({
           ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} colors={[colors.accent]} />
           : undefined}
       >
-        <View style={styles.titleRow}>
-          <View style={styles.titleSeam} />
-          <Text
-            accessibilityRole="header"
-            accessibilityLevel={1}
-            style={[styles.title, {
-              fontSize: titleSize,
-              lineHeight: Math.round(titleSize * 0.97),
-              letterSpacing: trackingPx(tracking.display, titleSize),
-            }]}
-          >
-            {game.name}
-          </Text>
-        </View>
-        <View style={styles.tags}>
-          {taxonomy.genres.map(genre => (
-            <Button
-              key={genre.id}
-              label={genre.name}
-              accessibilityLabel={`Browse ${genre.name}`}
-              variant="secondary"
-              onPress={() => onOpenCatalogue?.({ genre: genre.slug })}
-            />
-          ))}
-          {esrb ? (
-            <Button
-              label={esrb}
-              accessibilityLabel={`Browse games rated ${esrb}`}
-              variant="secondary"
-              onPress={() => onOpenCatalogue?.({ esrb })}
+        <View style={[styles.heroBackdrop, { marginHorizontal: -heroInset }]}>
+          {cover ? (
+            <Image
+              source={cover}
+              style={StyleSheet.absoluteFill}
+              contentFit="cover"
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
             />
           ) : null}
+          <View style={[StyleSheet.absoluteFill, styles.heroScrim]} />
+          <View style={[styles.heroBackdropContent, { paddingHorizontal: heroInset }]}>
+            <View style={styles.titleRow}>
+              <View style={styles.titleSeam} />
+              <Text
+                accessibilityRole="header"
+                accessibilityLevel={1}
+                style={[styles.title, {
+                  fontSize: titleSize,
+                  lineHeight: Math.round(titleSize * 0.97),
+                  letterSpacing: trackingPx(tracking.display, titleSize),
+                }]}
+              >
+                {game.name}
+              </Text>
+            </View>
+            <View style={styles.tags}>
+              {taxonomy.genres.map(genre => (
+                <Tag
+                  key={genre.id}
+                  label={genre.name}
+                  accessibilityLabel={`Browse ${genre.name}`}
+                  onPress={() => onOpenCatalogue?.({ genre: genre.slug })}
+                />
+              ))}
+              {esrb ? (
+                <Tag
+                  label={esrb}
+                  accessibilityLabel={`Browse games rated ${esrb}`}
+                  onPress={() => onOpenCatalogue?.({ esrb })}
+                />
+              ) : null}
+            </View>
+          </View>
         </View>
 
         <View style={styles.hero}>
@@ -270,10 +284,11 @@ export function GameDetail({
           {inFile ? (
             <View style={styles.stack}>
               <View style={styles.libraryTop}>
-                {viewer?.libraryEntry ? (
-                  <View style={styles.chip}>
-                    <Text style={styles.chipText}>{statusLabel(viewer.libraryEntry.status)}</Text>
-                  </View>
+                {viewer?.libraryEntry && asStatus(viewer.libraryEntry.status) ? (
+                  <StatusTag
+                    label={statusLabel(viewer.libraryEntry.status)}
+                    status={asStatus(viewer.libraryEntry.status)!}
+                  />
                 ) : null}
                 {yours != null ? (
                   <Text
@@ -296,9 +311,9 @@ export function GameDetail({
         </Panel>
 
         <SectionHead>The Scoreboard</SectionHead>
-        <Panel style={styles.scorePanel}>
+        <Panel style={styles.scoreboardPanel}>
           <View style={styles.scores}>
-            <View style={styles.scoreBlock}>
+            <View style={[styles.scoreBlock, styles.scoreBlockYou]}>
               <Text style={styles.scoreLabel}>You</Text>
               {yours == null ? <Text style={styles.scoreEmpty}>—</Text> : (
                 <Text accessibilityLabel={`Your score ${yours} out of 10`} style={[styles.communityScore, { color: colors.you }]}>
@@ -307,6 +322,7 @@ export function GameDetail({
               )}
               <Text style={styles.scoreScale}>{yours == null ? (signedIn ? 'not scored' : 'sign in to rate') : '/ 10'}</Text>
             </View>
+            <View style={styles.scoresDivider} />
             <View style={styles.scoreBlock}>
               <Text style={styles.scoreLabel}>Community</Text>
               {community == null ? <Text style={styles.scoreEmpty}>—</Text> : (
@@ -535,6 +551,15 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2], alignItems: 'center' },
+  heroBackdrop: {
+    height: 220,
+    marginTop: -space[6],
+    overflow: 'hidden',
+    backgroundColor: colors.surfaceLight,
+    justifyContent: 'flex-end',
+  },
+  heroScrim: { backgroundColor: alpha(colors.bg, 0.74) },
+  heroBackdropContent: { paddingBottom: space[5], gap: space[3] },
   hero: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
   heroFacts: { gap: space[3], justifyContent: 'center' },
   heroFact: { gap: space[1] },
@@ -565,21 +590,6 @@ const styles = StyleSheet.create({
   },
   savePanel: { padding: space[4], gap: space[3] },
   libraryTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space[3] },
-  chip: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surfaceLight,
-    borderRadius: radius.full,
-    paddingHorizontal: space[3],
-    paddingVertical: space[1],
-  },
-  chipText: {
-    fontFamily: face.mono[400],
-    fontSize: typeScale.xs.size,
-    letterSpacing: trackingPx(tracking.wide, typeScale.xs.size),
-    textTransform: 'uppercase',
-    color: colors.text,
-  },
   libraryScore: {
     marginLeft: 'auto',
     fontFamily: face.display[600],
@@ -588,8 +598,11 @@ const styles = StyleSheet.create({
   },
   stack: { gap: space[2] },
   scorePanel: { padding: space[4], gap: space[2] },
-  scores: { flexDirection: 'row', gap: space[6] },
-  scoreBlock: { flex: 1, gap: space[1] },
+  scoreboardPanel: { overflow: 'hidden' },
+  scores: { flexDirection: 'row', alignItems: 'stretch' },
+  scoreBlock: { flex: 1, gap: space[1], padding: space[4] },
+  scoreBlockYou: { backgroundColor: alpha(colors.accent, 0.08) },
+  scoresDivider: { width: seam.width, backgroundColor: seam.color },
   scoreLabel: {
     fontFamily: face.mono[400],
     fontSize: typeScale.eyebrow.size,
@@ -608,7 +621,9 @@ const styles = StyleSheet.create({
     color: colors.muted,
     borderTopWidth: 1,
     borderTopColor: colors.border,
+    paddingHorizontal: space[4],
     paddingTop: space[2],
+    paddingBottom: space[3],
   },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2], alignItems: 'center' },
   link: {

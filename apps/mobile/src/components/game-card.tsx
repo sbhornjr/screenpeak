@@ -1,5 +1,6 @@
 // Catalog card — port of apps/web/app/components/game/GameCard.tsx (the web's
 // advancedStats row is not ported yet). Web hover → native pressed state.
+import type { LibraryStatus } from '@screenpeak/shared/constants'
 import { releaseYear } from '@screenpeak/shared/dates'
 import type { Game } from '@screenpeak/shared/types'
 import { Image } from 'expo-image'
@@ -7,6 +8,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native'
 
 import { igdbImageUri } from '@/lib/catalog-image'
 import { Seal } from './seal'
+import { StatusTag } from './status-tag'
 
 import { alpha, colors, face, overlays, radius, space, tracking, trackingPx } from '@/theme'
 
@@ -17,20 +19,19 @@ export type GameCardProps = {
   spRating?: number | null;
   /** The viewer's own score (/10) */
   userRating?: number | null;
-  libraryStatus?: keyof typeof STATUS | null;
+  libraryStatus?: LibraryStatus | null;
   onPress?: () => void;
 }
 
-// Library status is neutral chrome, never a rating hue (same table as the web).
-const STATUS = {
-  playing: { label: 'Playing', color: colors.accent, border: alpha(colors.accent, 0.5), strike: false },
-  completed: { label: 'Done', color: colors.text, border: colors.border, strike: false },
-  backlog: { label: 'Backlog', color: colors.muted, border: colors.border, strike: false },
-  abandoned: { label: 'Dropped', color: colors.muted, border: colors.border, strike: true },
-} as const
+// Shorter than the game page's full status words — there's only card-badge room.
+const CARD_STATUS_LABEL: Record<LibraryStatus, string> = {
+  playing: 'Playing',
+  completed: 'Done',
+  backlog: 'Backlog',
+  abandoned: 'Dropped',
+}
 
 export function GameCard({ game, developer, spRating, userRating, libraryStatus, onPress }: GameCardProps) {
-  const status = libraryStatus ? STATUS[libraryStatus] : null
   const year = releaseYear(game.released)
   const cover = igdbImageUri(game.cover_image_url)
 
@@ -50,15 +51,8 @@ export function GameCard({ game, developer, spRating, userRating, libraryStatus,
             {spRating ? <Seal label="SP" score={spRating} side="right" /> : null}
             {userRating ? <Seal label="You" score={userRating} side="left" /> : null}
 
-            {status && (
-              <Text
-                style={[
-                  styles.status,
-                  { color: status.color, borderColor: status.border },
-                  status.strike && styles.strike,
-                ]}>
-                {status.label}
-              </Text>
+            {libraryStatus && (
+              <StatusTag label={CARD_STATUS_LABEL[libraryStatus]} status={libraryStatus} size="sm" style={styles.status} />
             )}
           </View>
 
@@ -102,18 +96,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: space[2],
     left: space[2],
-    overflow: 'hidden',
-    borderRadius: radius.seal,
-    borderWidth: 1,
-    paddingHorizontal: space[1.5],
-    paddingVertical: space[0.5],
     backgroundColor: overlays.statusFill,
-    fontFamily: face.mono[600],
-    fontSize: 9,
-    letterSpacing: trackingPx(tracking.wider, 9),
-    textTransform: 'uppercase',
   },
-  strike: { textDecorationLine: 'line-through' },
   label: { paddingHorizontal: space[3], paddingTop: space[2.5], paddingBottom: space[3] },
   title: { fontFamily: face.display[500], fontSize: 15, lineHeight: 19, color: colors.text },
   titlePressed: { color: colors.accent },

@@ -29,6 +29,8 @@ export const queryKeys = {
   me: (viewer: Viewer) => ['me', viewer] as const,
   settings: (viewer: Viewer) => ['settings', viewer] as const,
   explore: (range: ExploreRange, viewer: Viewer) => ['explore', range, viewer] as const,
+  /** The welcome screen's trending rail: this week, falling back to all time. */
+  welcomeTrending: (viewer: Viewer) => ['welcome-trending', viewer] as const,
   gameSearch: (query: string, viewer: Viewer) => ['game-search', query, viewer] as const,
   /** Explore's genre and platform browse: the first catalogue page, one game long. */
   browseFacets: (viewer: Viewer) => ['browse-facets', viewer] as const,

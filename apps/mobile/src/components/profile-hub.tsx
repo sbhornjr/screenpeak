@@ -55,6 +55,41 @@ function HubRow({
   )
 }
 
+function HubSegment({ label, title, icon, onPress }: {
+  label: string
+  title: string
+  icon: ReactNode
+  onPress: () => void
+}) {
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={styles.hubSegment}>
+      <View style={styles.hubRow}>
+        {icon}
+        <Text style={text.body}>{title}</Text>
+      </View>
+    </Pressable>
+  )
+}
+
+/** Loadout and Lists share one box with a seam divider — Loadout drops out (not a two-way split) when it's gated off. */
+function HubSplit({ loadoutHref, listsHref, onOpen }: {
+  loadoutHref: string | null
+  listsHref: string
+  onOpen: (href: string) => void
+}) {
+  return (
+    <View style={styles.hubSplit}>
+      {loadoutHref ? (
+        <>
+          <HubSegment label="Loadout" title="Loadout" icon={<Crosshair size={18} color={colors.accent} />} onPress={() => onOpen(loadoutHref)} />
+          <View style={styles.hubDivider} />
+        </>
+      ) : null}
+      <HubSegment label="Lists" title="Lists" icon={<List size={18} color={colors.accent} />} onPress={() => onOpen(listsHref)} />
+    </View>
+  )
+}
+
 function Stat({ label, value }: { label: string, value: string }) {
   return (
     <View style={styles.stat}>
@@ -154,20 +189,7 @@ export function ProfileHub({
           {model.bio ?? (model.isOwner ? "You haven't written a bio yet." : 'No bio yet.')}
         </Text>
 
-        {model.loadoutHref ? (
-          <HubRow
-            label="Loadout"
-            title="Loadout"
-            icon={<Crosshair size={18} color={colors.accent} />}
-            onPress={() => { if (model.loadoutHref) onOpen(model.loadoutHref) }}
-          />
-        ) : null}
-        <HubRow
-          label="Lists"
-          title="Lists"
-          icon={<List size={18} color={colors.accent} />}
-          onPress={() => onOpen(model.listsHref)}
-        />
+        <HubSplit loadoutHref={model.loadoutHref} listsHref={model.listsHref} onOpen={onOpen} />
         {model.library && library ? (
           <HubRow
             label={library.label}
@@ -316,6 +338,18 @@ const styles = StyleSheet.create({
     color: colors.bad,
   },
   hubRow: { flexDirection: 'row', alignItems: 'center', gap: space[3] },
+  hubSplit: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.base,
+    backgroundColor: colors.surface,
+    boxShadow: `inset 0 1px 0 ${colors.highlight}`,
+  },
+  hubSegment: { flex: 1, minHeight: hitTarget, justifyContent: 'center', paddingHorizontal: space[3], paddingVertical: space[3] },
+  hubDivider: { width: seam.width, backgroundColor: seam.color },
   stats: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
   stat: {
     width: '47%',

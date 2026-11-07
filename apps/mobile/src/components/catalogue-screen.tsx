@@ -2,7 +2,7 @@
 // numbered links; the phone loads the next page near the end of the grid.
 import type { GameCardData, GamesListPage } from '@screenpeak/shared/api/games'
 import type { TaxonomySearchTable } from '@screenpeak/shared/api/search'
-import { SlidersHorizontal, X } from 'lucide-react-native'
+import { SlidersHorizontal } from 'lucide-react-native'
 import { useCallback, useState } from 'react'
 import { FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -26,6 +26,7 @@ import { FacetPicker, MenuTrigger, SortToggle, TaxonomyPicker, type TaxonomySear
 import { GameCard } from './game-card'
 import { MoreFooter } from './more-footer'
 import { Sheet } from './sheet'
+import { Tag } from './tag'
 import { TextField } from './text-field'
 
 const SORTS: { sort: CatalogueSort, label: string }[] = [
@@ -102,6 +103,19 @@ export function CatalogueScreen({
           onPress={() => setSortOpen(true)}
         />
         <SortToggle order={query.order} onToggle={() => onQuery({ ...query, order: query.order === 'desc' ? 'asc' : 'desc' })} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={facetCount ? `Filters, ${facetCount} on` : 'Filters'}
+          onPress={() => setFiltersOpen(true)}
+          style={[styles.filterButton, facetCount > 0 && styles.filterButtonActive]}
+        >
+          <SlidersHorizontal size={18} color={facetCount > 0 ? colors.accent : colors.muted} />
+          {facetCount > 0 ? (
+            <View style={styles.filterBadge}>
+              <Text style={styles.filterBadgeText}>{facetCount}</Text>
+            </View>
+          ) : null}
+        </Pressable>
       </View>
       <View style={styles.controlRow}>
         <View style={styles.searchField}>
@@ -116,31 +130,17 @@ export function CatalogueScreen({
         </View>
         <Button label="Search" onPress={search} />
       </View>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={facetCount ? `Filters, ${facetCount} on` : 'Filters'}
-        onPress={() => setFiltersOpen(true)}
-        style={styles.filterButton}
-      >
-        <SlidersHorizontal size={18} color={colors.accent} />
-        <Text style={text.body}>{facetCount ? `Filters · ${facetCount}` : 'Filters'}</Text>
-      </Pressable>
       {chips.length ? (
         <View style={styles.chips}>
           {chips.map(chip => (
-            <Pressable
+            <Tag
               key={chip.key}
-              accessibilityRole="button"
-              accessibilityLabel={`Remove ${chip.label}`}
-              onPress={() => {
+              label={chip.label}
+              onRemove={() => {
                 if (chip.key === 'q') setDraft('')
                 onQuery(withoutChip(query, chip.key))
               }}
-              style={styles.chip}
-            >
-              <Text numberOfLines={1} style={styles.chipLabel}>{chip.label}</Text>
-              <X size={14} color={colors.muted} />
-            </Pressable>
+            />
           ))}
           <Button
             label="Clear all"
@@ -289,36 +289,29 @@ const styles = StyleSheet.create({
   filterButton: {
     minHeight: hitTarget,
     minWidth: hitTarget,
-    flexDirection: 'row',
+    flexShrink: 0,
     alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: space[2],
-    paddingHorizontal: space[3],
+    justifyContent: 'center',
     borderRadius: radius.base,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[2] },
-  chip: {
-    minHeight: hitTarget,
-    maxWidth: '100%',
-    flexDirection: 'row',
+  filterButtonActive: { borderColor: colors.accent },
+  filterBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 3,
+    borderRadius: radius.full,
+    backgroundColor: colors.accent,
     alignItems: 'center',
-    gap: space[1.5],
-    paddingHorizontal: space[3],
-    borderRadius: radius.base,
-    borderWidth: 1,
-    borderColor: colors.accent,
-    backgroundColor: colors.surface,
+    justifyContent: 'center',
   },
-  chipLabel: {
-    flexShrink: 1,
-    fontFamily: face.display[600],
-    fontSize: typeScale.sm.size,
-    lineHeight: typeScale.sm.line,
-    color: colors.text,
-  },
+  filterBadgeText: { fontFamily: face.mono[600], fontSize: 10, color: colors.bg },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space[2] },
   stack: { gap: space[2] },
   count: {
     fontFamily: face.mono[400],
