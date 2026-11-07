@@ -43,7 +43,9 @@ describe('feed copy', () => {
     it('says what the player did, without their name', () => {
         expect(feedActivityPhrase(item({}))).toBe('rated Hades a 9/10')
         expect(feedActivityPhrase(item({ activity_type: 'review' }))).toBe('reviewed Hades')
-        expect(feedActivityPhrase(item({ activity_type: 'library_add', library_status: 'playing' }))).toBe('added Hades to their currently playing')
+        expect(feedActivityPhrase(item({ activity_type: 'library_add', library_status: 'playing' }))).toBe('added Hades to their currently playing list')
+        expect(feedActivityPhrase(item({ activity_type: 'library_add', library_status: 'completed' }))).toBe('added Hades to their completed list')
+        expect(feedActivityPhrase(item({ activity_type: 'library_add', library_status: 'abandoned' }))).toBe('added Hades to their abandoned list')
         expect(feedActivityPhrase(item({ activity_type: 'library_add', library_status: 'backlog' }))).toBe('added Hades to their backlog')
         expect(feedActivityPhrase(item({ activity_type: 'library_add_batch', library_game_count: 14 }))).toBe('added 14 games to their library')
         expect(feedActivityPhrase(item({ activity_type: 'list_created', list_name: 'Underworld' }))).toBe('created the list "Underworld"')

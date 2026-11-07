@@ -12,8 +12,15 @@ export const FEED_EMPTY = {
 /** What the player did, without their name: each app renders the name as a profile link. */
 export function feedActivityPhrase(item: FeedItem): string {
     switch (item.activity_type) {
-        case 'library_add':
-            return `added ${item.game_name} to their ${item.library_status === 'playing' ? 'currently playing' : item.library_status}`
+        case 'library_add': {
+            const status = item.library_status
+            const target = status === 'playing' ? 'currently playing list'
+                : status === 'completed' ? 'completed list'
+                : status === 'abandoned' ? 'abandoned list'
+                : status === 'backlog' ? 'backlog'
+                : (status ?? 'library')
+            return `added ${item.game_name} to their ${target}`
+        }
         case 'review':
             return `reviewed ${item.game_name}`
         case 'rating':

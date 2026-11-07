@@ -226,7 +226,7 @@ export function GameDetail({
           <View style={[StyleSheet.absoluteFill, styles.heroScrim]} />
           <View style={[styles.heroBackdropContent, { paddingHorizontal: heroInset }]}>
             <View style={styles.titleRow}>
-              <View style={styles.titleSeam} />
+              <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.titleSeam} />
               <Text
                 accessibilityRole="header"
                 accessibilityLevel={1}
@@ -322,7 +322,7 @@ export function GameDetail({
               )}
               <Text style={styles.scoreScale}>{yours == null ? (signedIn ? 'not scored' : 'sign in to rate') : '/ 10'}</Text>
             </View>
-            <View style={styles.scoresDivider} />
+            <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.scoresDivider} />
             <View style={styles.scoreBlock}>
               <Text style={styles.scoreLabel}>Community</Text>
               {community == null ? <Text style={styles.scoreEmpty}>—</Text> : (

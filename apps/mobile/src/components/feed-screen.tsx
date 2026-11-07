@@ -12,7 +12,7 @@ import { igdbImageUri } from '@/lib/catalog-image'
 import { feedItemKey } from '@/lib/feed-page'
 import { gamesLabel } from '@/lib/lists-page'
 import { gameHref, listHref, profileHref, userLibraryHref } from '@/lib/routes'
-import { colors, face, hitTarget, radius, space, text, typeScale } from '@/theme'
+import { colors, face, hitTarget, radius, space, text, tracking, trackingPx, typeScale } from '@/theme'
 
 import { AppHeader } from './app-header'
 import { Avatar } from './avatar'
@@ -275,7 +275,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.base,
     backgroundColor: colors.surface,
   },
-  head: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
+  head: { flexDirection: 'row', alignItems: 'flex-start', gap: space[2] },
   line: {
     flex: 1,
     fontFamily: face.body[400],
@@ -296,8 +296,8 @@ const styles = StyleSheet.create({
   noCover: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   noCoverText: {
     fontFamily: face.mono[400],
-    fontSize: 8,
-    letterSpacing: 1.2,
+    fontSize: typeScale.eyebrow.size,
+    letterSpacing: trackingPx(tracking.wide, typeScale.eyebrow.size),
     textTransform: 'uppercase',
     color: colors.muted,
   },

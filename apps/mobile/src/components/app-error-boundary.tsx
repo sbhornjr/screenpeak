@@ -11,7 +11,7 @@ export function AppErrorFallback({ onRetry }: { onRetry: () => void }) {
     <View style={styles.notice}>
       <Text style={styles.title}>Something went wrong</Text>
       <Text style={text.muted}>An unexpected error occurred.</Text>
-      <Button label="Try again" onPress={onRetry} />
+      <Button label="Retry" variant="secondary" onPress={onRetry} />
     </View>
   )
 }

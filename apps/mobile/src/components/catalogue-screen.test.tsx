@@ -271,10 +271,10 @@ describe('catalogue', () => {
     expect(onRetry).toHaveBeenCalledTimes(1)
   })
 
-  it('says the results are updating while a new filter loads over the old grid', () => {
+  it('shows an updating spinner while a new filter loads over the old grid', () => {
     renderScreen({ total: 812, updating: true })
-    expect(screen.getByText('Updating results').textContent).toBe('Updating results')
-    expect(screen.queryByText('812 games')).toBeNull()
+    expect(screen.getByRole('progressbar', { name: 'Updating games' })).toBeTruthy()
+    expect(screen.getByText('812 games').textContent).toBe('812 games')
     expect(screen.getByRole('link', { name: 'Hades' })).toBeTruthy()
   })
 

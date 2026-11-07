@@ -4,7 +4,7 @@ import type { GameCardData, GamesListPage } from '@screenpeak/shared/api/games'
 import type { TaxonomySearchTable } from '@screenpeak/shared/api/search'
 import { SlidersHorizontal } from 'lucide-react-native'
 import { useCallback, useState } from 'react'
-import { FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import {
@@ -116,6 +116,7 @@ export function CatalogueScreen({
             </View>
           ) : null}
         </Pressable>
+        {updating ? <ActivityIndicator accessibilityLabel="Updating games" color={colors.accent} /> : null}
       </View>
       <View style={styles.controlRow}>
         <View style={styles.searchField}>
@@ -158,7 +159,7 @@ export function CatalogueScreen({
           <Button label="Retry" variant="secondary" onPress={onRetry} />
         </View>
       ) : null}
-      <Text accessibilityLiveRegion="polite" style={styles.count}>{updating ? 'Updating results' : countLabel(total)}</Text>
+      <Text accessibilityLiveRegion="polite" style={styles.count}>{countLabel(total)}</Text>
     </View>
   )
 

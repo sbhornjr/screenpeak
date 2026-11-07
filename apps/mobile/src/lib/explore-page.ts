@@ -1,10 +1,6 @@
 import type { ExploreListCard, ExplorePageData } from '@screenpeak/shared/api/explore'
 
-import { likedCount } from './lists-page'
-
-function plural(count: number, one: string, many: string): string {
-  return `${count} ${count === 1 ? one : many}`
-}
+import { likedCount, plural } from './lists-page'
 
 /** Above a recommended game, as on the website. */
 export function completedLine(followers: number, avgFollowerRating: number | null): string {

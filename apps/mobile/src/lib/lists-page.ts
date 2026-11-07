@@ -16,12 +16,17 @@ export function listShowChoices(owner: boolean, username: string): { tab: ListsT
   ]
 }
 
+/** `1 game` / `N games` — shared by every other count label in the app. */
+export function plural(count: number, one: string, many: string): string {
+  return `${count} ${count === 1 ? one : many}`
+}
+
 export function gamesLabel(count: number): string {
-  return count === 1 ? '1 game' : `${count} games`
+  return plural(count, 'game', 'games')
 }
 
 export function likesCountLabel(count: number): string {
-  return count === 1 ? '1 like' : `${count} likes`
+  return plural(count, 'like', 'likes')
 }
 
 /** Screen-reader name for the like control. The list name stays on the card link. */

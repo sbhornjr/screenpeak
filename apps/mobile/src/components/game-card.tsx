@@ -10,7 +10,7 @@ import { igdbImageUri } from '@/lib/catalog-image'
 import { Seal } from './seal'
 import { StatusTag } from './status-tag'
 
-import { alpha, colors, face, overlays, radius, space, tracking, trackingPx } from '@/theme'
+import { alpha, colors, face, overlays, radius, space, tracking, trackingPx, typeScale } from '@/theme'
 
 export type GameCardProps = {
   game: Game;
@@ -87,8 +87,8 @@ const styles = StyleSheet.create({
   noCover: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   noCoverText: {
     fontFamily: face.mono[400],
-    fontSize: 10,
-    letterSpacing: trackingPx(tracking.wide, 10),
+    fontSize: typeScale.eyebrow.size,
+    letterSpacing: trackingPx(tracking.wide, typeScale.eyebrow.size),
     textTransform: 'uppercase',
     color: colors.muted,
   },

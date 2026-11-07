@@ -186,7 +186,7 @@ describe('profile follow', () => {
     fireEvent.click(button)
     await waitFor(() => expect(follow).toHaveBeenCalledTimes(1))
     expect(follow).toHaveBeenCalledWith(ADA)
-    expect(screen.getByRole('button', { name: 'Unfollow ada' }).textContent).toBe('Following')
+    expect(screen.getByRole('button', { name: 'Unfollow ada' }).textContent).toBe('Following…')
     expect(screen.getByText('5 followers · 2 following').textContent).toBe('5 followers · 2 following')
 
     getProfile.mockResolvedValue(ada(false, 4))

@@ -82,7 +82,7 @@ function HubSplit({ loadoutHref, listsHref, onOpen }: {
       {loadoutHref ? (
         <>
           <HubSegment label="Loadout" title="Loadout" icon={<Crosshair size={18} color={colors.accent} />} onPress={() => onOpen(loadoutHref)} />
-          <View style={styles.hubDivider} />
+          <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.hubDivider} />
         </>
       ) : null}
       <HubSegment label="Lists" title="Lists" icon={<List size={18} color={colors.accent} />} onPress={() => onOpen(listsHref)} />
@@ -131,6 +131,9 @@ export function ProfileHub({
 }) {
   const { width } = useWindowDimensions()
   const [pickingFavorites, setPickingFavorites] = useState(false)
+  // Captured at click time: model.following has already flipped optimistically
+  // by the time followBusy settles, so it can't tell which direction is in flight.
+  const [followDirection, setFollowDirection] = useState<'follow' | 'unfollow' | null>(null)
   const canPickFavorites = model.isOwner && onSearchGames != null && onSaveFavorites != null
   const compact = width <= 375
   const library = model.library ? libraryCopy(model.library) : null
@@ -167,11 +170,16 @@ export function ProfileHub({
         <View style={styles.actionRow}>
           {model.following != null ? (
             <Button
-              label={model.following ? 'Following' : 'Follow'}
+              label={followBusy && followDirection
+                ? (followDirection === 'follow' ? 'Following…' : 'Unfollowing…')
+                : (model.following ? 'Following' : 'Follow')}
               accessibilityLabel={model.following ? `Unfollow ${model.username}` : `Follow ${model.username}`}
               variant={model.following ? 'secondary' : 'primary'}
               disabled={followBusy}
-              onPress={() => { if (model.following) onUnfollow?.(); else onFollow?.() }}
+              onPress={() => {
+                if (model.following) { setFollowDirection('unfollow'); onUnfollow?.() }
+                else { setFollowDirection('follow'); onFollow?.() }
+              }}
               style={styles.follow}
             />
           ) : null}
