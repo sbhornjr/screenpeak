@@ -109,7 +109,7 @@ export function ListFormSheet({
         <>
           <Text style={text.body}>This cannot be undone.</Text>
           <ActionError error={shown} />
-          <Button label={busy ? 'Deleting…' : 'Delete list'} variant="secondary" disabled={busy} onPress={() => onDelete?.()} />
+          <Button label={busy ? 'Deleting…' : 'Delete list'} variant="danger" disabled={busy} onPress={() => onDelete?.()} />
           <Button label="Keep list" variant="ghost" onPress={() => setConfirming(false)} />
         </>
       ) : (

@@ -80,7 +80,7 @@ export function RateSheet({ visible, review, onClose, onRate }: {
         confirmDelete ? (
           <View style={styles.stack}>
             <Text style={text.body}>Delete this review? Your score stays.</Text>
-            <Button label="Delete the written review" variant="secondary" disabled={action.busy} onPress={deleteNote} />
+            <Button label="Delete the written review" variant="danger" disabled={action.busy} onPress={deleteNote} />
             <Button label="Keep review" variant="ghost" onPress={() => setConfirmDelete(false)} />
           </View>
         ) : (
