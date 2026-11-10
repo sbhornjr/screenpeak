@@ -1,11 +1,11 @@
 "use client"
 
-import { createClient } from "@/lib/supabase-browser";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import Modal from "@/app/components/util/Modal";
-import { signOut } from "@/lib/queries/user-auth";
-import { logger } from "@/lib/logger";
+import { createClient } from "@/lib/supabase-browser"
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import Modal from "@/app/components/util/Modal"
+import { signOut } from "@/lib/queries/user-auth"
+import { logger } from "@/lib/logger"
 
 export default function DeleteAccountButton() {
     const [isDeleteUserModalOpen, setIsDeleteUserModalOpen] = useState(false)

@@ -1,5 +1,5 @@
 export type LibraryData = {
-    id: number
+    id: string
     name: string
     slug: string
 }

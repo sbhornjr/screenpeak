@@ -17,8 +17,10 @@ vi.mock('@/lib/supabase-stateless', () => ({
 vi.mock('@/lib/supabase-server', () => ({
     createClient: async () => ({ auth: { getUser: cookieGetUser } }),
 }))
+const consumeWriteRateLimit = vi.hoisted(() => vi.fn(async () => {}))
+vi.mock('@/lib/rate-limit', () => ({ consumeWriteRateLimit }))
 
-const { requireUser, getOptionalUser } = await import('@/lib/auth')
+const { requireUser, getOptionalUser, getBearerUser, requireBearerUser } = await import('@/lib/auth')
 const { ApiError, UnauthenticatedError, AuthUnavailableError } = await import('@/lib/api')
 
 const USER = { id: 'user-123', email: 'player@screenpeak.test' }
@@ -35,6 +37,8 @@ beforeEach(() => {
     requestHeaders = new Headers()      // default: a browser request, no Authorization header
     bearerGetUser.mockReset()
     cookieGetUser.mockReset()
+    consumeWriteRateLimit.mockReset()
+    consumeWriteRateLimit.mockResolvedValue(undefined)
     cookieGetUser.mockResolvedValue(fail(noSession()))   // default: no cookie session
 })
 
@@ -140,6 +144,54 @@ describe('getOptionalUser — signed-out callers', () => {
         bearerGetUser.mockResolvedValue(fail(expired()))
 
         await rejectsWith(getOptionalUser(), 401, 'invalid_token')
+    })
+})
+
+describe('getBearerUser — /api/v1 ignores the website cookie', () => {
+    it('returns null when there is no Bearer token, even if a cookie session would succeed', async () => {
+        cookieGetUser.mockResolvedValue(ok(USER))
+
+        await expect(getBearerUser()).resolves.toBeNull()
+        expect(cookieGetUser).not.toHaveBeenCalled()
+        expect(bearerGetUser).not.toHaveBeenCalled()
+    })
+
+    it('returns the user for a valid bearer token and still does not read cookies', async () => {
+        withHeaders({ authorization: 'Bearer good.jwt.token' })
+        bearerGetUser.mockResolvedValue(ok(USER))
+        cookieGetUser.mockResolvedValue(ok({ id: 'cookie-user', email: 'other@screenpeak.test' }))
+
+        await expect(getBearerUser()).resolves.toEqual({ id: 'user-123', email: 'player@screenpeak.test' })
+        expect(bearerGetUser).toHaveBeenCalledWith('good.jwt.token')
+        expect(cookieGetUser).not.toHaveBeenCalled()
+    })
+})
+
+describe('requireBearerUser — /api/v1 writes', () => {
+    it('rejects with 401 unauthenticated when no Bearer token is sent, and does not read a cookie', async () => {
+        cookieGetUser.mockResolvedValue(ok(USER))
+
+        await rejectsWith(requireBearerUser(), 401, 'unauthenticated')
+        expect(cookieGetUser).not.toHaveBeenCalled()
+        expect(bearerGetUser).not.toHaveBeenCalled()
+        expect(consumeWriteRateLimit).not.toHaveBeenCalled()
+    })
+
+    it('returns the bearer user without spending the write budget, and still does not read cookies', async () => {
+        withHeaders({ authorization: 'Bearer good.jwt.token' })
+        bearerGetUser.mockResolvedValue(ok(USER))
+        cookieGetUser.mockResolvedValue(ok({ id: 'cookie-user', email: 'other@screenpeak.test' }))
+
+        await expect(requireBearerUser()).resolves.toEqual({ id: 'user-123', email: 'player@screenpeak.test' })
+        expect(cookieGetUser).not.toHaveBeenCalled()
+        expect(consumeWriteRateLimit).not.toHaveBeenCalled()
+    })
+
+    it('rejects an empty bearer token with 401 invalid_token', async () => {
+        withHeaders({ authorization: 'Bearer' })
+
+        await rejectsWith(requireBearerUser(), 401, 'invalid_token')
+        expect(cookieGetUser).not.toHaveBeenCalled()
     })
 })
 

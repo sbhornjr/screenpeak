@@ -8,6 +8,7 @@ import Image from "next/image"
 import FilterSelect from "../util/FilterSelect"
 import { displayCoverUrl } from "@/lib/catalog/images"
 import { Check } from "lucide-react"
+import { releaseYear } from "@screenpeak/shared/dates"
 
 export default function GameFromSteam({ gameId, linkEntry, onUpdate } : { gameId: string, linkEntry: SteamLinkEntry, onUpdate: (gameId: string, linkEntry: SteamLinkEntry, field: SteamLinkEdit) => void }) {
     const [status, setStatus] = useState(linkEntry.status)
@@ -124,7 +125,7 @@ export default function GameFromSteam({ gameId, linkEntry, onUpdate } : { gameId
                             {linkEntry.gameDeveloper}
                         </p>
                         <span className="text-(--color-muted) text-xs shrink-0 font-mono">
-                            { linkEntry.gameReleased ? new Date(linkEntry.gameReleased).getFullYear() : ""}
+                            {releaseYear(linkEntry.gameReleased)}
                         </span>
                     </div>
                 </div>

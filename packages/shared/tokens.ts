@@ -46,7 +46,46 @@ export const overlays = {
     sealFill: 'rgba(11, 13, 16, 0.9)',
     /** Library-status pill on a cover: --color-bg at 80% */
     statusFill: 'rgba(16, 18, 21, 0.8)',
+    /** Modal scrim. Web: `bg-black/60`. */
+    backdrop: 'rgba(0, 0, 0, 0.6)',
+    /** Seal drop shadow. Web: `0 1px 4px rgba(0, 0, 0, 0.5)`. */
+    sealShadow: '0 1px 4px rgba(0, 0, 0, 0.5)',
 } as const
+
+/**
+ * The website has one scheme. Every colour in globals.css sits on `:root`,
+ * not under a light/dark pair, so both apps stay on this ground.
+ */
+export const colorScheme = 'dark' as const
+
+/**
+ * Type steps from the website: Tailwind's default scale at a 16px root,
+ * plus the 0.6875rem eyebrow used by Eyebrow and SectionHead.
+ */
+export const typeScale = {
+    eyebrow: { size: 11, line: 16 },
+    xs: { size: 12, line: 16 },
+    sm: { size: 14, line: 20 },
+    base: { size: 16, line: 24 },
+    lg: { size: 18, line: 28 },
+    xl: { size: 20, line: 28 },
+    '2xl': { size: 24, line: 32 },
+    '3xl': { size: 30, line: 36 },
+    '4xl': { size: 36, line: 40 },
+} as const
+
+/** Web `min-h-11` — 2.75rem. Controls are at least this tall. */
+export const hitTarget = 44
+
+/** Initial-avatar fills. Same list and hash as the website Avatar. */
+export const avatarTints = ['#5b4636', '#4a5340', '#5a4a52', '#3f4d57', '#63513a', '#4d4437', '#544033', '#425049'] as const
+
+export function avatarTint(seed: string): string {
+    const key = seed || '?'
+    let h = 0
+    for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) | 0
+    return avatarTints[Math.abs(h) % avatarTints.length]
+}
 
 /** Font families and the weights each app loads (next/font in apps/web/app/layout.tsx). */
 export const fonts = {
@@ -110,6 +149,8 @@ export const space = {
     10: 40,
     12: 48,
     16: 64,
+    /** Tailwind `py-24` — the full-page empty state. */
+    24: 96,
 } as const
 
 /** The Seam — the 2px vertical cyan bar before every Eyebrow/SectionHead (DESIGN.md §6). */
@@ -127,13 +168,21 @@ export function alpha(hex: string, opacity: number): string {
     return `rgba(${r}, ${g}, ${b}, ${opacity})`
 }
 
+export type RatingTier = 'good' | 'mid' | 'bad'
+
 /**
- * Rating-tier colour for a score. `scale` is the range the score is on.
+ * Which rating tier a score falls in. `scale` is the range the score is on.
  * ScreenPeak scores use 10. A scale of 100 normalises onto the same 0–10
- * tiers (80 reads "good", the same as an 8).
- * Same thresholds as apps/web/lib/rating-tier.ts (which returns CSS vars instead).
+ * tiers (80 reads "good", the same as an 8). The website's
+ * `lib/rating-tier.ts` maps this name to a CSS variable; `tierColor` maps
+ * it to the hex token for React Native.
  */
-export function tierColor(score: number, scale: 10 | 100 = 10): string {
+export function ratingTier(score: number, scale: 10 | 100 = 10): RatingTier {
     const s = scale === 100 ? score / 10 : score
-    return s >= 8 ? colors.good : s >= 6 ? colors.mid : colors.bad
+    return s >= 8 ? 'good' : s >= 6 ? 'mid' : 'bad'
+}
+
+/** Rating-tier colour for a score value. Score *values* only, never decoration. */
+export function tierColor(score: number, scale: 10 | 100 = 10): string {
+    return colors[ratingTier(score, scale)]
 }

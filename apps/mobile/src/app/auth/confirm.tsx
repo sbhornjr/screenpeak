@@ -1,0 +1,36 @@
+import * as Linking from 'expo-linking'
+import { router, type Href } from 'expo-router'
+import { useEffect, useState } from 'react'
+import { Platform, Text } from 'react-native'
+
+import { AuthScaffold } from '@/components/auth-scaffold'
+import { authConfigError } from '@/lib/auth-config'
+import { useAuth } from '@/lib/auth'
+import { RESET_LINK_HINT } from '@/lib/password-reset'
+import { text } from '@/theme'
+
+export default function ConfirmResetScreen() {
+  const linked = Linking.useLinkingURL()
+  const { openRecoveryLink, configured } = useAuth()
+  const [exchangeError, setExchangeError] = useState<string | null>(null)
+  const href = Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.href : linked
+  const error = !href ? RESET_LINK_HINT : exchangeError
+
+  useEffect(() => {
+    if (!configured || !href) return
+    let live = true
+    openRecoveryLink(href).then((destination) => {
+      if (live) router.replace(destination as Href)
+    }).catch((err: unknown) => {
+      if (live) setExchangeError(err instanceof Error ? err.message : RESET_LINK_HINT)
+    })
+    return () => { live = false }
+  }, [configured, href, openRecoveryLink])
+
+  return (
+    <AuthScaffold title="Reset link">
+      {configured ? null : <Text style={text.error}>{authConfigError()}</Text>}
+      {error ? <Text style={text.notice}>{error}</Text> : <Text style={text.notice}>Checking your link…</Text>}
+    </AuthScaffold>
+  )
+}

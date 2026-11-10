@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react';
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import FilterSelect from "@/app/components/util/FilterSelect"
-import SearchInput from '../util/SearchInput';
-import SearchableDropdown from '../util/SearchableDropdown';
+import SearchInput from '../util/SearchInput'
+import SearchableDropdown from '../util/SearchableDropdown'
 import { ArrowDownWideNarrow, ArrowUpNarrowWide } from "lucide-react"
 import { defaultOrder } from "@/lib/game-catalog-sort"
 

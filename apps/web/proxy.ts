@@ -1,8 +1,16 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { corsPreflight, isV1ApiPath } from '@/lib/api'
 import { createLoggingFetch } from '@/lib/supabase-logging'
 
 export async function proxy(request: NextRequest) {
+    // /api/v1 is bearer-only. Refreshing the website session here would read
+    // and rewrite the cookie on a cross-origin call.
+    if (isV1ApiPath(request.nextUrl.pathname)) {
+        if (request.method === 'OPTIONS') return corsPreflight()
+        return NextResponse.next()
+    }
+
     let supabaseResponse = NextResponse.next({ request })
 
     const supabase = createServerClient(

@@ -343,7 +343,7 @@ it('does not call Steam when another run holds the lease', async () => {
     try {
         await started
         const result = await runSteamImportBatch(userId, { retry: false, cursor: null })
-        expect(result).toMatchObject({ notice: 'Matching is already running for your library.' })
+        expect(result).toMatchObject({ charged: false, batch: { notice: 'Matching is already running for your library.' } })
         expect(fetchSpy).not.toHaveBeenCalled()
     } finally {
         fetchSpy.mockRestore()

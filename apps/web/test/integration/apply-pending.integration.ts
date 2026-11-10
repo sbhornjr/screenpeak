@@ -41,11 +41,11 @@ it('applies the whole chain on an empty database and records every file', async 
         const before = await inspectMigrations(sql)
         expect(before.baseline).toBe('empty')
         expect(before.pending[0]).toBe('0000_illegal_kinsey_walden')
-        expect(before.pending.at(-1)).toBe('0008_steam_import_lease')
+        expect(before.pending.at(-1)).toBe('0012_user_reviews_total_order')
         expect(await fresh`select to_regclass('drizzle.__drizzle_migrations') as journal`).toEqual([{ journal: null }])
         const applied = await applyPending(sql)
         expect(applied[0]).toBe('0000_illegal_kinsey_walden')
-        expect(applied.at(-1)).toBe('0008_steam_import_lease')
+        expect(applied.at(-1)).toBe('0012_user_reviews_total_order')
         expect(await applyPending(sql)).toEqual([])
         const recorded = await inspectMigrations(sql)
         expect(recorded.baseline).toBe('recorded')
@@ -55,7 +55,11 @@ it('applies the whole chain on an empty database and records every file', async 
         const dropped = await fresh`select column_name from information_schema.columns where table_schema = 'public' and column_name in ('rawg_id', 'metacritic_score', 'steam_appid')`
         expect(dropped).toEqual([])
         const [count] = await fresh`select count(*)::int as n from drizzle.__drizzle_migrations`
-        expect(count.n).toBe(9)
+        expect(count.n).toBe(13)
+        const [limits] = await fresh`select to_regclass('public.api_rate_limits') as name`
+        expect(limits.name).toBe('api_rate_limits')
+        const [intents] = await fresh`select to_regclass('public.steam_link_intents') as name`
+        expect(intents.name).toBe('steam_link_intents')
     } finally {
         await fresh.end()
     }

@@ -1,7 +1,8 @@
 # ScreenPeak
 
-**Screen-peeking at what your friends play.** ScreenPeak is a gaming-profile web
-app: track your library, rate and review what you've played, build lists, follow
+**Screen-peeking at what your friends play.** ScreenPeak is a gaming-profile
+app — a Next.js website and a native iOS/Android app sharing one backend:
+track your library, rate and review what you've played, build lists, follow
 other players, and get an AI-written "Loadout" that describes who you are as a
 gamer.
 
@@ -14,19 +15,65 @@ both out of 10, side by side: the ScreenPeak community average, and yours.
 > RPC field `avg_ngplus_rating`, and the sort key `ngplus_rating`. These are
 > wiring, never surfaced in the UI; renaming them needs a DB migration.
 
+## Screenshots
+
+Web on the left, the native app on the right — same backend, same "you vs.
+community" idea, two different screens.
+
+<table>
+<tr><th>Web</th><th>Mobile</th></tr>
+<tr>
+<td><img src="docs/screenshots/web/game-detail.jpg" width="420"></td>
+<td><img src="docs/screenshots/mobile/game-detail.jpg" width="220"></td>
+</tr>
+<tr><td colspan="2"><strong>Game detail — the Scoreboard.</strong> Your score and the community's, side by side.</td></tr>
+<tr>
+<td><img src="docs/screenshots/web/explore.jpg" width="420"></td>
+<td><img src="docs/screenshots/mobile/explore.jpg" width="220"></td>
+</tr>
+<tr><td colspan="2"><strong>Explore.</strong> Trending games this week, with a featured card up top.</td></tr>
+<tr>
+<td><img src="docs/screenshots/web/library.jpg" width="420"></td>
+<td><img src="docs/screenshots/mobile/library.jpg" width="220"></td>
+</tr>
+<tr><td colspan="2"><strong>Library.</strong> What you've played, rated, and finished.</td></tr>
+<tr>
+<td><img src="docs/screenshots/web/profile.jpg" width="420"></td>
+<td><img src="docs/screenshots/mobile/profile.jpg" width="220"></td>
+</tr>
+<tr><td colspan="2"><strong>Profile.</strong> Bio, favorites, stats, and the Loadout/Lists split.</td></tr>
+</table>
+
+<img src="docs/screenshots/web/loadout.jpg" width="420">
+
+**Loadout** — an AI-written paragraph (Claude) describing who you are as a
+gamer, generated from your ratings, library, and favorites.
+
 ## Tech stack
+
+This is an npm-workspaces monorepo: a Next.js website (`apps/web`), a native
+Expo app (`apps/mobile`), and a dependency-free package of code shared between
+them (`packages/shared` — types, Zod schemas, constants, design tokens). The
+rest of this README documents `apps/web`; see `apps/mobile/AGENTS.md` for the
+mobile app's own conventions.
+
+| Area | Web (`apps/web`) | Mobile (`apps/mobile`) |
+|------|-------------------|------------------------|
+| Framework | Next.js 16 (App Router, React 19, Server Components) | Expo (React Native), Expo Router |
+| Language | TypeScript (strict) | TypeScript (strict) |
+| Styling | Tailwind CSS v4 (config-less, `@import "tailwindcss"` + CSS custom properties) | `StyleSheet` + design tokens (`packages/shared/tokens.ts`) |
+| Data | TanStack Query against the website's `/api/v1` routes | same |
+| Tests | Vitest + Testing Library | Vitest + Testing Library |
+
+Shared across both:
 
 | Area | Choice |
 |------|--------|
-| Framework | Next.js 16 (App Router, React 19, Server Components) |
-| Language | TypeScript (strict) |
-| Styling | Tailwind CSS v4 (config-less, `@import "tailwindcss"` + CSS custom properties) |
 | Backend | Supabase (Postgres, Auth, Storage) — Auth/Storage via `@supabase/ssr`, everything else via Drizzle |
 | ORM | Drizzle ORM (`drizzle-orm`, `postgres`) — direct Postgres access outside Auth/Storage |
 | AI | Anthropic SDK (`@anthropic-ai/sdk`) — Loadout identity text |
 | Validation | Zod |
 | Auth (Steam) | `openid` (Steam OpenID 2.0) |
-| Tests | Vitest + Testing Library |
 | Lint | ESLint (`eslint-config-next`, core-web-vitals + TypeScript) |
 
 ## Getting started
@@ -120,6 +167,8 @@ npx tsc --noEmit    # type-check (no dedicated script)
 
 ## Project structure
 
+Paths below are relative to `apps/web/` unless stated otherwise.
+
 ```
 app/                     Next.js App Router
   page.tsx               landing (logged out) / activity feed (logged in)
@@ -173,12 +222,13 @@ lib/
   schemas.ts             shared Zod schemas (forms + query-layer input checks)
   queries/               all DB access, grouped by domain — most files are
                          Drizzle-backed (user, game, library, list, review,
-                         feed, explore, stats, steam); user-auth.ts,
-                         game-search.ts, and feed-constants.ts stay on
-                         supabase-js/plain exports instead, split into their
-                         own files so a client component importing them never
+                         feed, explore, stats, steam). user-auth.ts stays on
+                         supabase-js so a client component importing it never
                          pulls Drizzle's postgres() client into the browser
-                         bundle (see Architecture notes)
+                         bundle. Catalogue search is Drizzle in game.ts and
+                         is reached from client components through
+                         app/search-actions.ts. FEED_PAGE_SIZE lives in
+                         @screenpeak/shared/constants (see Architecture notes)
 
 scripts/
   seed-igdb.ts           IGDB catalogue seed (npm run seed:igdb)
@@ -189,7 +239,7 @@ types/                   shared TypeScript types, mirroring lib/queries domains
 test/                    Vitest characterization suite (see test/README.md)
 ```
 
-Path alias: `@/*` maps to the project root. Single package — no monorepo.
+Path alias: `@/*` maps to `apps/web/` (not the repo root).
 
 ## Architecture notes
 
@@ -246,10 +296,12 @@ top-level import graph — including side-effecting imports like Drizzle's
 that imports even one `supabase-js`-only helper from a file that also does
 `import { db } from '@/lib/db'` drags Drizzle's Node-only dependencies
 (`fs`/`net`/`tls`) into the browser bundle, breaking the build with
-`Module not found: Can't resolve 'fs'`. That's why `lib/queries/user-auth.ts`,
-`lib/queries/game-search.ts`, and `lib/queries/feed-constants.ts` exist as
-separate files instead of living inside `user.ts`/`game.ts`/`feed.ts` — see
-`lib/queries/` in the project structure above.
+`Module not found: Can't resolve 'fs'`. That's why `lib/queries/user-auth.ts`
+stays separate from `user.ts`. Catalogue search lives in `lib/queries/game.ts`
+and client components reach it through `app/search-actions.ts` (`'use server'`),
+not by importing `game.ts`. `FEED_PAGE_SIZE` lives in
+`@screenpeak/shared/constants`. See `lib/queries/` in the project structure
+above.
 
 ### Auth & session refresh
 

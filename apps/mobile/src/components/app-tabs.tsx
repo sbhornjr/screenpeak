@@ -1,9 +1,16 @@
-import { NativeTabs } from 'expo-router/unstable-native-tabs';
+import { NativeTabs } from 'expo-router/native-tabs'
 
-import { colors } from '@/theme';
+import { colors } from '@/theme'
 
-// The OS-drawn tab bar. Each Trigger's `name` must match a file in src/app/.
-// The real tabs (feed, games, explore, profile) arrive with their screens.
+// Four tabs. No drawer. A side rail may come later for tablet and web only.
+// Games is a stack screen opened from Explore and the welcome Browse button.
+const TABS = [
+  { name: 'index', label: 'Feed', sf: { default: 'house', selected: 'house.fill' }, md: 'home' },
+  { name: 'explore', label: 'Explore', sf: { default: 'magnifyingglass', selected: 'magnifyingglass' }, md: 'search' },
+  { name: 'library', label: 'Library', sf: { default: 'books.vertical', selected: 'books.vertical.fill' }, md: 'menu_book' },
+  { name: 'profile', label: 'Profile', sf: { default: 'person', selected: 'person.fill' }, md: 'person' },
+] as const
+
 export default function AppTabs() {
   return (
     <NativeTabs
@@ -12,10 +19,12 @@ export default function AppTabs() {
       tintColor={colors.accent}
       iconColor={{ default: colors.muted, selected: colors.accent }}
       labelStyle={{ default: { color: colors.muted }, selected: { color: colors.accent } }}>
-      <NativeTabs.Trigger name="index">
-        <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf={{ default: 'house', selected: 'house.fill' }} md="home" />
-      </NativeTabs.Trigger>
+      {TABS.map((tab) => (
+        <NativeTabs.Trigger key={tab.name} name={tab.name}>
+          <NativeTabs.Trigger.Label>{tab.label}</NativeTabs.Trigger.Label>
+          <NativeTabs.Trigger.Icon sf={tab.sf} md={tab.md} />
+        </NativeTabs.Trigger>
+      ))}
     </NativeTabs>
-  );
+  )
 }

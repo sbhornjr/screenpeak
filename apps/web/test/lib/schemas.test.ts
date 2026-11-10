@@ -9,6 +9,8 @@ import {
     selectedTitleSchema,
     favoriteGameIdsSchema,
     privacyTypeSchema,
+    libraryEntryWriteSchema,
+    steamLibraryImportSchema,
     parseOrError,
 } from '@screenpeak/shared/schemas'
 
@@ -177,5 +179,40 @@ describe('parseOrError', () => {
         expect(result.success).toBe(false)
         expect(result.data).toBeNull()
         expect(result.error).toMatch(/at least 8/)
+    })
+})
+
+describe('libraryEntryWriteSchema', () => {
+    it('accepts a status-only body and hours that fit numeric(8,1)', () => {
+        expect(libraryEntryWriteSchema.safeParse({ status: 'completed' }).success).toBe(true)
+        expect(libraryEntryWriteSchema.safeParse({ status: 'playing', hours_played: 9999999.9, play_count: 32767 }).success).toBe(true)
+    })
+
+    it('rejects a play count above smallint and hours that do not fit numeric(8,1)', () => {
+        const play = libraryEntryWriteSchema.safeParse({ status: 'playing', play_count: 32768 })
+        const hours = libraryEntryWriteSchema.safeParse({ status: 'playing', hours_played: 12.55 })
+        const huge = libraryEntryWriteSchema.safeParse({ status: 'playing', hours_played: 10000000 })
+        expect(play.success).toBe(false)
+        expect(hours.success).toBe(false)
+        expect(huge.success).toBe(false)
+    })
+})
+
+describe('steamLibraryImportSchema', () => {
+    const row = {
+        gameId: '11111111-1111-4111-8111-111111111111',
+        playtimeSelected: 3,
+        status: 'playing',
+        selected: true,
+        coverImageUrl: null,
+        gameName: 'Hades',
+        gameDeveloper: 'Supergiant',
+        gameReleased: null,
+        completedAllAchievements: false,
+    }
+
+    it('rejects negative hours and does not cap the selection at 500 rows', () => {
+        expect(steamLibraryImportSchema.safeParse([{ ...row, playtimeSelected: -1 }]).success).toBe(false)
+        expect(steamLibraryImportSchema.safeParse(Array.from({ length: 501 }, () => row)).success).toBe(true)
     })
 })

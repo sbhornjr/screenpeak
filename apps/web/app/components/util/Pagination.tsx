@@ -1,6 +1,6 @@
 "use client"
 
-import Link from 'next/link';
+import Link from 'next/link'
 import { ChevronLeft, ChevronRight } from "lucide-react"
 
 export default function Pagination({ page, maxPages, params, url }: { page: number, maxPages: number, params: Record<string, string>, url: string }) {

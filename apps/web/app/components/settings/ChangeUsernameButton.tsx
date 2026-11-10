@@ -1,10 +1,10 @@
 "use client"
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import Modal from "@/app/components/util/Modal";
-import EditTriggerButton from "@/app/components/util/EditTriggerButton";
-import { saveUsername } from "@/app/user-actions";
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import Modal from "@/app/components/util/Modal"
+import EditTriggerButton from "@/app/components/util/EditTriggerButton"
+import { saveUsername } from "@/app/user-actions"
 
 export default function ChangeUsernameButton({ currentUsername } : { currentUsername: string }) {
     const [isChangeUsernameModalOpen, setIsChangeUsernameModalOpen] = useState(false)

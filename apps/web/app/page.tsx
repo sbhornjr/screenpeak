@@ -1,38 +1,31 @@
-import FeedList from "@/app/components/feed/FeedList";
-import FeedReview from "@/app/components/feed/FeedReview";
-import GameCard from "@/app/components/game/GameCard";
-import Seal from "@/app/components/game/Seal";
-import Avatar from "@/app/components/user/Avatar";
-import LandingCTA from "@/app/components/util/LandingCTA";
-import EmptyState from "@/app/components/util/EmptyState";
-import StatCompare from "@/app/components/game/StatCompare";
-import Eyebrow from "@/app/components/util/Eyebrow";
-import Image from "next/image";
-import Link from "next/link";
-import { getOptionalUser } from "@/lib/auth";
-import { getFeed } from "@/lib/queries/feed";
-import { FEED_PAGE_SIZE } from "@screenpeak/shared/constants";
-import { getHeroGame } from "@/lib/queries/game";
-import { getTrendingGames } from "@/lib/queries/explore";
-import { getRecentReviewsGlobal } from "@/lib/queries/review";
-import { parseDbTimestamp } from "@/lib/dates";
-import { getFeaturedLoadout } from "@/lib/queries/user";
-import { resolveHeroVisual } from "@/lib/catalog/images";
-
-// Whose real, saved Loadout the logged-out landing page shows as its sample.
-const FEATURED_LOADOUT_USERNAME = "hornflakes"
+import FeedList from "@/app/components/feed/FeedList"
+import FeedReview from "@/app/components/feed/FeedReview"
+import GameCard from "@/app/components/game/GameCard"
+import Seal from "@/app/components/game/Seal"
+import Avatar from "@/app/components/user/Avatar"
+import LandingCTA from "@/app/components/util/LandingCTA"
+import EmptyState from "@/app/components/util/EmptyState"
+import StatCompare from "@/app/components/game/StatCompare"
+import Eyebrow from "@/app/components/util/Eyebrow"
+import Image from "next/image"
+import Link from "next/link"
+import { getOptionalUser } from "@/lib/auth"
+import { loadFeed } from "@/lib/loaders/feed"
+import { loadHomeLanding } from "@/lib/loaders/home"
+import { parseDbTimestamp } from "@screenpeak/shared/dates"
+import { FEED_EMPTY } from "@screenpeak/shared/feed-copy"
+import { resolveHeroVisual } from "@/lib/catalog/images"
 
 export default async function Home() {
 
     const viewer = await getOptionalUser()
 
     if (!viewer) {
-        const [heroGame, trendingGames, recentReviews, featuredLoadout] = await Promise.all([
-            getHeroGame(),
-            getTrendingGames(null, 30),
-            getRecentReviewsGlobal(3),
-            getFeaturedLoadout(FEATURED_LOADOUT_USERNAME),
-        ])
+        const landing = await loadHomeLanding()
+        const heroGame = landing.hero
+        const trendingGames = landing.trending_games
+        const recentReviews = landing.recent_reviews
+        const featuredLoadout = landing.featured_loadout
 
         const heroVisual = heroGame ? await resolveHeroVisual(heroGame) : null
 
@@ -49,7 +42,7 @@ export default async function Home() {
                                 <StatCompare
                                     signedIn={false}
                                     you={null}
-                                    community={heroGame.avg_ngplus_rating}
+                                    community={heroGame.avg_rating}
                                     communityCount={heroGame.rating_count}
                                 />
                             </div>
@@ -71,7 +64,7 @@ export default async function Home() {
                                 sizes="(max-width: 768px) 80vw, 640px"
                                 priority
                             />
-                            <Seal label="SP" score={heroGame.avg_ngplus_rating} side="right" />
+                            <Seal label="SP" score={heroGame.avg_rating} side="right" />
                         </div>
                     )}
                 </section>
@@ -115,11 +108,11 @@ export default async function Home() {
 
                     {trendingGames.length > 0 && (
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-6">
-                            {trendingGames.slice(0, 5).map(game => (
+                            {trendingGames.map(game => (
                                 <GameCard
-                                    key={game.game_id}
-                                    game={{ id: game.game_id, name: game.game_name, slug: game.game_slug, cover_image_url: game.game_cover_image_url, released: game.game_released }}
-                                    developer={game.game_developer}
+                                    key={game.id}
+                                    game={{ id: game.id, name: game.name, slug: game.slug, cover_image_url: game.cover_image_url, released: game.released }}
+                                    developer={game.developer}
                                     ngplusRating={game.avg_rating}
                                     userRating={null}
                                 />
@@ -158,7 +151,12 @@ export default async function Home() {
         )
     }
 
-    const feed = await getFeed(viewer?.id, FEED_PAGE_SIZE, 0)
+    let feed: Awaited<ReturnType<typeof loadFeed>>['items'] = []
+    try {
+        feed = (await loadFeed(viewer.id, 0)).items
+    } catch {
+        feed = []
+    }
 
     return (
         <main>
@@ -172,10 +170,10 @@ export default async function Home() {
                     <FeedList initialItems={feed} />
                 ) : (
                     <EmptyState
-                        title="Your feed is quiet"
-                        description="Follow other players and their ratings, reviews, and lists will show up here."
+                        title={FEED_EMPTY.title}
+                        description={FEED_EMPTY.description}
                         actionHref="/explore"
-                        actionLabel="Find people to follow"
+                        actionLabel={FEED_EMPTY.actionLabel}
                     />
                 )}
             </div>

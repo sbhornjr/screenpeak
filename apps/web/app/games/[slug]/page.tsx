@@ -1,27 +1,30 @@
-import { notFound } from "next/navigation";
+import { notFound } from "next/navigation"
 import Image from 'next/image'
 import Link from 'next/link'
-import ScreenshotCarousel from "@/app/components/game/ScreenshotCarousel";
-import LibraryButton from "@/app/components/library/LibraryButton";
-import RateReviewButton from "@/app/components/game/RateReviewButton";
-import GameReviewsFilters from "@/app/components/game/GameReviewsFilters";
-import Pagination from "@/app/components/util/Pagination";
-import StatCompare from "@/app/components/game/StatCompare";
-import StickyGameActions from "@/app/components/game/StickyGameActions";
-import AddToListButton from "@/app/components/lists/AddToListButton";
-import Avatar from "@/app/components/user/Avatar";
-import ExpandableText from "@/app/components/util/ExpandableText";
-import SectionHead from "@/app/components/util/SectionHead";
-import Panel from "@/app/components/util/Panel";
-import { GameRatingsStats } from "@screenpeak/shared/types";
-import { getOptionalUser } from "@/lib/auth";
-import { loadGamePage } from "@/lib/loaders/game-page";
-import { parseGameReviewsQueryLenient } from "@/lib/game-reviews-query";
-import { displayCoverUrl, displayLandscapeUrl } from "@/lib/catalog/images";
-import { getGameBySlug } from "@/lib/queries/game";
-import { getGameReviewsForPage } from "@/lib/queries/review";
-import { Metadata } from "next";
-import { ChevronLeft } from "lucide-react"
+import ScreenshotCarousel from "@/app/components/game/ScreenshotCarousel"
+import LibraryButton from "@/app/components/library/LibraryButton"
+import RateReviewButton from "@/app/components/game/RateReviewButton"
+import GameReviewsFilters from "@/app/components/game/GameReviewsFilters"
+import Pagination from "@/app/components/util/Pagination"
+import StatCompare from "@/app/components/game/StatCompare"
+import StickyGameActions from "@/app/components/game/StickyGameActions"
+import AddToListButton from "@/app/components/lists/AddToListButton"
+import Avatar from "@/app/components/user/Avatar"
+import ExpandableText from "@/app/components/util/ExpandableText"
+import SectionHead from "@/app/components/util/SectionHead"
+import { tierColor } from "@/lib/rating-tier"
+import Panel from "@/app/components/util/Panel"
+import { LIBRARY_SECTION_TITLE, libraryEmptyLine, libraryScoreText, libraryStats, type LibraryStatKey } from "@screenpeak/shared/library-copy"
+import { GameRatingsStats } from "@screenpeak/shared/types"
+import { getOptionalUser } from "@/lib/auth"
+import { loadGamePage } from "@/lib/loaders/game-page"
+import { parseGameReviewsQueryLenient } from "@/lib/game-reviews-query"
+import { displayCoverUrl, displayLandscapeUrl } from "@/lib/catalog/images"
+import { getGameBySlug } from "@/lib/queries/game"
+import { getGameReviewsForPage } from "@/lib/queries/review"
+import { Metadata } from "next"
+import { ChevronLeft, Clock, Repeat, Trophy } from "lucide-react"
+import { releaseYear } from "@screenpeak/shared/dates"
 
 type GamePageProps = {
     params: Promise<{ slug: string }>
@@ -37,10 +40,6 @@ function relTime(iso: string) {
     return `${Math.floor(days / 365)}y ago`
 }
 
-function tierInk(n: number) {
-    return n >= 8 ? "var(--color-good)" : n >= 6 ? "var(--color-mid)" : "var(--color-bad)"
-}
-
 type LogRow = {
     rating: number
     review: string
@@ -50,6 +49,7 @@ type LogRow = {
 }
 
 const label = "font-mono text-[0.5625rem] uppercase tracking-[0.2em] text-(--color-muted)"
+const libraryStatIcon = { hours: Clock, plays: Repeat, complete: Trophy } satisfies Record<LibraryStatKey, typeof Clock>
 const metaLink = "text-sm text-(--color-text) underline decoration-(--color-border) underline-offset-2 hover:decoration-(--color-accent) hover:text-(--color-accent) transition-colors duration-200"
 const tag = "inline-flex px-2 py-0.5 rounded text-[0.6875rem] font-mono tracking-[0.06em] border border-(--color-border) text-(--color-muted) hover:text-(--color-accent) hover:border-(--color-border-bright) transition-colors duration-200"
 
@@ -74,7 +74,7 @@ function Log({ row, own = false }: { row: LogRow, own?: boolean }) {
                     {own ? "You" : row.users?.username}
                 </Link>
                 <span className="font-mono text-[0.5625rem] uppercase tracking-[0.13em] text-(--color-muted)">{relTime(row.created_at)}</span>
-                <span className="ml-auto font-mono text-[0.8125rem] font-bold" style={{ color: tierInk(row.rating) }}>
+                <span className="ml-auto font-mono text-[0.8125rem] font-bold" style={{ color: tierColor(row.rating) }}>
                     {row.rating}<span className="text-(--color-muted) font-normal text-[0.7em]"> / 10</span>
                 </span>
             </div>
@@ -86,7 +86,7 @@ function Log({ row, own = false }: { row: LogRow, own?: boolean }) {
 }
 
 export default async function GamePage({ params, searchParams }: GamePageProps) {
-    const { slug } = await params;
+    const { slug } = await params
     // Lenient: a bad value in a hand-edited URL falls back to its default
     const reviewsQuery = parseGameReviewsQueryLenient(await searchParams)
     const { page: pageQuery, pageSize: pageSizeQuery, sort: sortQuery, order: orderQuery } = reviewsQuery
@@ -127,7 +127,7 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
 
     const lists = viewer?.lists ?? []
 
-    const year = game.released ? new Date(game.released).getFullYear() : null
+    const year = releaseYear(game.released)
     const cover = displayCoverUrl(game.cover_image_url, 'large')
     const screenshots = (game.screenshots ?? []).flatMap(url => {
         const landscape = displayLandscapeUrl(url)
@@ -177,17 +177,46 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
                             )}
                         </div>
                         <Panel className="p-4">
-                            <p className={`${label} mb-2.5`}>Your save</p>
+                            <p className={`${label} mb-2.5`}>{LIBRARY_SECTION_TITLE}</p>
                             {inFile ? (
-                                <ul className="flex flex-col gap-1 text-[0.8125rem]">
-                                    {statusLabel && <li className="flex items-baseline gap-2"><span className={label}>Status</span> {statusLabel}</li>}
-                                    {userReview?.rating != null && <li className="flex items-baseline gap-2"><span className={label}>Your score</span> {userReview.rating} / 10</li>}
-                                    {userReview?.updated_at && <li className="flex items-baseline gap-2"><span className={label}>Scored</span> {relTime(userReview.updated_at)}</li>}
-                                    {!statusLabel && !userReview && <li className="text-(--color-muted)">Saved, not scored yet</li>}
-                                </ul>
+                                <div className="flex flex-col gap-3">
+                                    <div className="flex items-center justify-between gap-3">
+                                        {statusLabel && (
+                                            <span className="inline-flex items-center rounded-full border border-(--color-border) bg-(--color-surface-light) px-2.5 py-1 font-mono text-[0.6875rem] uppercase tracking-[0.08em] text-(--color-text)">
+                                                {statusLabel}
+                                            </span>
+                                        )}
+                                        {userReview?.rating != null && (
+                                            <span
+                                                className="ml-auto font-(family-name:--font-display) text-[1.75rem] font-semibold leading-none tabular-nums"
+                                                style={{ color: tierColor(userReview.rating) }}
+                                                aria-label={`Your score ${userReview.rating} out of 10`}
+                                            >
+                                                {libraryScoreText(userReview.rating)}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {libraryEntry && libraryStats(libraryEntry).length > 0 && (
+                                        <ul className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                                            {libraryStats(libraryEntry).map(stat => {
+                                                const Icon = libraryStatIcon[stat.key]
+                                                return (
+                                                    <li key={stat.key} className="inline-flex items-center gap-1.5 font-mono text-sm tabular-nums text-(--color-text)">
+                                                        <Icon size={16} className="text-(--color-muted)" aria-label={stat.label} />
+                                                        <span aria-hidden="true">{stat.value}</span>
+                                                    </li>
+                                                )
+                                            })}
+                                        </ul>
+                                    )}
+                                    {userReview?.updated_at && (
+                                        <p className="font-mono text-xs text-(--color-muted)">Scored {relTime(userReview.updated_at)}</p>
+                                    )}
+                                    {!statusLabel && !userReview && <p className="text-sm text-(--color-muted)">Saved, not scored yet</p>}
+                                </div>
                             ) : (
                                 <p className="text-sm text-(--color-muted) leading-relaxed">
-                                    Not in your save yet. Hit <span className="text-(--color-accent) font-mono">+ Save Game</span> to add it.
+                                    {libraryEmptyLine(!!user)}
                                 </p>
                             )}
                         </Panel>
@@ -207,10 +236,7 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
                                 <p className={label}>Your turn</p>
                                 <RateReviewButton game_id={game.id} existing_rating_review={userReview} />
                                 <StickyGameActions gameName={game.name}>
-                                    {/* LibraryButton's game_id prop is typed number, but games.id is a uuid
-                                        string — a pre-existing mismatch predating this conversion (library.ts
-                                        still on supabase-js). Cast preserves the existing runtime behavior. */}
-                                    <LibraryButton game_id={game.id as unknown as number} />
+                                    <LibraryButton game_id={game.id} />
                                     <AddToListButton
                                         gameId={game.id}
                                         lists={lists.map(l => ({ listId: l.id, listName: l.name, listCount: l.game_count }))}

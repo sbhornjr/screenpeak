@@ -1,7 +1,7 @@
 // Port of apps/web/app/components/game/Seal.tsx
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native'
 
-import { colors, face, overlays, radius, space, tierColor, tracking, trackingPx } from '@/theme';
+import { colors, face, overlays, radius, space, tierColor, tracking, trackingPx } from '@/theme'
 
 /** HUD-style score tag riding on a cover: near-opaque fill, tier-coloured bottom hairline. */
 export function Seal({ label, score, side, scale = 10 }: {
@@ -10,7 +10,7 @@ export function Seal({ label, score, side, scale = 10 }: {
   side: 'left' | 'right';
   scale?: 10 | 100;
 }) {
-  const color = tierColor(score, scale);
+  const color = tierColor(score, scale)
   return (
     <View style={[styles.box, side === 'right' ? styles.right : styles.left, { borderBottomColor: color }]}>
       {label && <Text style={styles.label}>{label}</Text>}
@@ -18,7 +18,7 @@ export function Seal({ label, score, side, scale = 10 }: {
         {score}
       </Text>
     </View>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -35,7 +35,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderBright,
     borderBottomWidth: 2,
-    boxShadow: '0 1px 4px rgba(0, 0, 0, 0.5)',
+    boxShadow: overlays.sealShadow,
   },
   left: { left: space[2] },
   right: { right: space[2] },
@@ -50,4 +50,4 @@ const styles = StyleSheet.create({
   score: { fontFamily: face.mono[600], fontVariant: ['tabular-nums'] },
   scoreUnderLabel: { fontSize: 14, lineHeight: 14, marginTop: space[1] },
   scoreAlone: { fontSize: 16, lineHeight: 16 },
-});
+})

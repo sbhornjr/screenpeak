@@ -6,8 +6,18 @@
   "exports": {
     "./api/*": "./api/*.ts",
     "./constants": "./constants.ts",
+    "./dates": "./dates.ts",
+    "./feed-copy": "./feed-copy.ts",
+    "./ratings-copy": "./ratings-copy.ts",
+    "./images": "./images.ts",
+    "./library-copy": "./library-copy.ts",
+    "./titles": "./titles.ts",
     "./tokens": "./tokens.ts",
+    "./rating-copy": "./rating-copy.ts",
+    "./redirect": "./redirect.ts",
     "./schemas": "./schemas.ts",
+    "./sentry": "./sentry.ts",
+    "./testing/*": "./testing/*.ts",
     "./types": "./types/index.ts",
     "./types/*": "./types/*.ts"
   },

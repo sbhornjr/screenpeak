@@ -43,7 +43,7 @@ describe('catalogue sort controls', () => {
 
     it('switches a library from name ascending to date and score sorts descending', async () => {
         const current = { query: '', genre: '', platform: '', developer: '', publisher: '', esrb: '', sort: 'name', order: 'asc', status: '', is100: '' }
-        const lists = { genres: [], platforms: [], developers: [], publishers: [], esrb_ratings: [], username: 'ada' }
+        const lists = { genres: [], platforms: [], esrb_ratings: [], username: 'ada' }
         const user = userEvent.setup()
         const { unmount } = render(<LibraryFilters current={current} {...lists} />)
 

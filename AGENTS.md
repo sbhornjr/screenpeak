@@ -22,7 +22,7 @@ npm workspaces (`"workspaces": ["apps/*", "packages/*"]` in the root `package.js
 - `apps/web/` — the Next.js site (`@screenpeak/web`). Every tool config
   (`next.config.ts`, `tsconfig.json`, ESLint, PostCSS, Vitest, Drizzle, Sentry)
   and `.env.local` live here, next to its `package.json`.
-- `apps/mobile/` — the Expo app (`@screenpeak/mobile`, Expo SDK 57, Expo Router).
+- `apps/mobile/` — the Expo app (`@screenpeak/mobile`, Expo SDK 58, Expo Router).
   Its own `AGENTS.md` covers Expo rules. Screens in `src/app/`, the tab bar in
   `src/components/app-tabs.tsx`, and `@/` there means `apps/mobile/src/`.
   **Styling is `StyleSheet` + tokens** (NativeWind was rejected in the Phase 0
@@ -75,6 +75,11 @@ role must be allowed to `CREATE DATABASE`. The integration config is
 `apps/web/vitest.igdb-integration.config.mts`. Unit tests do not need a database.
 See `apps/web/test/README.md` for what each suite covers.
 
+Agent skills live in `.cursor/skills/` (Cursor automations read only that folder).
+`.claude/skills/<name>` is a symlink to each one, for Claude Code. Add a skill
+there and link it; never copy it. There is no `.agents/skills/`, because Cursor
+also reads that folder and would load every skill twice.
+
 Before calling work done, run the verify-screenpeak skill and attach its evidence.
 When you add or change a user-facing feature, update verify-screenpeak's feature map using the maintain-verification-skill skill, and include the new flow's evidence in the PR.
 
@@ -123,7 +128,7 @@ uuid strings.
 ## Rules for agents
 
 - Talk to IGDB only through `lib/igdb/` and `scripts/seed-igdb.ts`. Talk to Steam only through `lib/steam.ts`, `lib/steam-openid.ts`, and `lib/catalog/steam-import.ts`. Do not call those APIs from a new client.
-- Never put `SUPABASE_SECRET_KEY` (the service role key) in client code, `NEXT_PUBLIC_*` env, or a module imported by a `'use client'` component. The admin client stays in `app/api/delete-account`.
+- Never put `SUPABASE_SECRET_KEY` (the service role key) in client code, `NEXT_PUBLIC_*` env, or a module imported by a `'use client'` component. The admin client is created only in `lib/account-deletion.ts` (`deleteAccount`), which the website's `DELETE /api/delete-account` and the phone's `DELETE /api/v1/me` call with their own authenticated user id.
 - Cloud agents never connect to the hosted database.
 
 ## Test account
@@ -160,8 +165,10 @@ Use that harness, or another fixture user you insert the same way, for local run
 
 - `app/` — Next.js App Router pages and API routes
   - `app/components/` — UI components organized by domain (user, game, library, lists, feed, settings, util)
-  - `app/api/` — route handlers: `loadout` (POST, generates the Loadout paragraph),
-    `steam/link` + `steam/callback` (Steam OpenID sign-in), `delete-account` (DELETE)
+  - `app/api/` — route handlers: `loadout` (POST, generates the Loadout paragraph for the website;
+    the phone calls `POST /api/v1/me/loadout`, and both use `generateReadout` in `lib/loadout-readout.ts`),
+    `steam/link` + `steam/callback` (Steam OpenID sign-in), `delete-account` (DELETE, the website's;
+    the phone calls `DELETE /api/v1/me`, and both use `deleteAccount` in `lib/account-deletion.ts`)
   - `app/auth/confirm/` — landing route for every Supabase auth email link
   - `app/feed-actions.ts` — server action, paginates the activity feed
 - `db/` — Drizzle schema (`schema.ts`, `relations.ts`) and hand-authored SQL
@@ -192,8 +199,9 @@ Do **not** mix them. The server client is async (`await createClient()`). The br
 
 Functions that intentionally stay on `supabase-js` instead of `db` live in their own dedicated files, never mixed into a Drizzle-backed `lib/queries/*` file — importing a single named export pulls in a module's *entire* top-level import graph, so one `supabase-js`-only function sharing a file with `import { db } from '@/lib/db'` drags Drizzle's `postgres()` client (and its `fs`/`net`/`tls` Node built-ins) into any client bundle that imports the file, breaking the build with `Module not found: Can't resolve 'fs'`. That's why these are split out:
 - `lib/queries/user-auth.ts` — genuine Auth calls (`signInWithPassword`, `signOut`, etc.) — avatar uploads moved to `lib/r2.ts` + `app/user-actions.ts`. "Who's signed in?" is *not* here: see "Who's calling" below
-- `lib/queries/game-search.ts` — read-only search functions called directly from `'use client'` components (`searchGamesByName`, `searchTaxonomyTable`, `getTaxonomyNameBySlug`)
 - `FEED_PAGE_SIZE` — a plain constant client callers need, split out of `feed.ts` for the same reason; it now lives in `@screenpeak/shared/constants` (dependency-free by design, like everything in `packages/shared`)
+
+Game and taxonomy typeahead lives on `db` in `lib/queries/game.ts` (`searchGamesByName`, `searchTaxonomyTable`, `getTaxonomyNameBySlug`). Client components call `app/search-actions.ts`. `GET /api/v1/games/search` and `GET /api/v1/taxonomy/[table]/search` call the same functions. Do not import those queries from a `'use client'` file — that pulls `lib/db` into the browser bundle.
 
 Adding a new client-callable helper to `user.ts`, `game.ts`, or `feed.ts` reintroduces this bug — add it to the matching dedicated file instead, or create a new one for a different domain.
 
@@ -201,7 +209,7 @@ Client-side mutations that used to call `lib/queries/*` directly with the browse
 
 ### Drizzle gotchas
 
-- **Timestamps**: `postgres`-js returns `timestamptz` columns as `"YYYY-MM-DD HH:MM:SS.sss+00"` (space separator, 2-digit offset) instead of `supabase-js`/PostgREST's ISO-8601 `"YYYY-MM-DDTHH:MM:SS.sssZ"` — some engines' `Date` parsers (notably Safari) reject the former. Always parse a Drizzle-sourced timestamp through `parseDbTimestamp()` (`lib/dates.ts`) before doing date math or calling `.toISOString()`/`new Date(...)` on it directly.
+- **Timestamps**: `postgres`-js returns `timestamptz` columns as `"YYYY-MM-DD HH:MM:SS.sss+00"` (space separator, 2-digit offset) instead of `supabase-js`/PostgREST's ISO-8601 `"YYYY-MM-DDTHH:MM:SS.sssZ"` — some engines' `Date` parsers (notably Safari) reject the former. Always parse a Drizzle-sourced timestamp through `parseDbTimestamp()` (`@screenpeak/shared/dates`) before doing date math or calling `.toISOString()`/`new Date(...)` on it directly.
 - **Array params to raw RPC calls**: interpolating a plain JS array into drizzle-orm's `sql` template tag (e.g. `` sql`select * from some_fn(p_ids => ${idsArray})` ``) expands it into an `IN`-list (`($1, $2)`), not a native Postgres array — that silently breaks any function parameter typed `uuid[]` (the query throws, and if it's wrapped in the usual `catch { return [] }`, the failure is invisible: no error, just an empty result). Use `uuidArrayParam()` (`lib/sql-helpers.ts`) to build a real `ARRAY[...]::uuid[]` literal instead. `lib/queries/game.ts`'s `queryGames` and `lib/queries/review.ts`'s `getAvgRatingsForGames` both hit this; check any new raw SQL RPC call that takes an array parameter.
 - **`bigint` / `numeric` come back as strings by default**: postgres-js returns both (every RPC's `COUNT(*)` and `AVG()`) as strings, and a raw `db.execute(...)` result cast `as unknown as T` hides it — `"9.67"` then fails `typeof x === "number"` and `x === 1` checks while loose `>`/`/` math quietly works. `lib/db.ts` registers parsers that turn both into JS numbers, so don't add per-call `Number()` coercion; Drizzle's typed `numeric()` columns (`hours_played`) still come back as strings.
 - **`SECURITY DEFINER` RPC functions bypass RLS and must repeat its checks by hand**: `get_feed()` (`db/migrations/0002_fix_get_feed_library_privacy.sql`) is the precedent — it joins against `users.library_public` before including a followed user's library activity, mirroring `library_entries`' own RLS policy, because as a `SECURITY DEFINER` function it never goes through RLS in the first place. Any new or modified RPC function that reads a privacy-gated table (`library_entries`, `lists`/`list_games` when `is_public = false`, etc.) needs the same manual check — there is no policy backstopping it.
@@ -227,6 +235,59 @@ link formats.
   locally, so sign-out / account deletion take effect immediately. (The project
   signs with ES256, so `getClaims()` could verify locally and skip the round trip —
   at the cost of revoked tokens working until they expire.)
+- **`/api/v1` handlers call `getBearerUser()`**, which reads only
+  `Authorization: Bearer`. No header means signed out (`null`), even when the
+  browser also sent a session cookie. Pages and Server Actions keep
+  `getOptionalUser()` / `requireUser()` (bearer, else cookie).
+  `GET /api/v1/me` returns `{ user: null }` with no email. `GET /api/v1/me/settings`
+  is 401 without a bearer and never includes a Steam id (`steam_linked` only).
+- **`/api/v1` writes call `requireBearerUser()`.** It is `getBearerUser()` plus a
+  401 `unauthenticated` when the Bearer header is absent. It never reads the
+  session cookie and it does not spend the write budget. Reads stay on
+  `getBearerUser()` so a missing token is the signed-out payload, not an error.
+  `GET /api/v1/me/library/[gameId]` calls `requireBearerUser()` and does not
+  spend a write token. POST, PUT, PATCH, and DELETE call
+  `consumeWriteRateLimit` (`lib/rate-limit.ts`) after that: 60 requests per 60
+  seconds per user, stored in `api_rate_limits` (migration 0009). Over the
+  budget is 429 `rate_limited` with `Retry-After` and `retry_after` in the
+  body. Search routes and `app/search-actions.ts` call
+  `consumeSearchRateLimit` after the query parses: 120 per 60 seconds. The
+  bucket is `search:user:<uuid>` when the caller is signed in (bearer on the
+  route, cookie on the action), otherwise `search:ip:<address>`. The address
+  is the first `x-vercel-forwarded-for` hop, then `x-real-ip`, then the last
+  `x-forwarded-for` hop, else `local`. A 401 does not spend the search budget.
+  `test/api/v1-routes-auth.test.ts` requires `requireBearerUser` and
+  `consumeWriteRateLimit` on POST, PUT, PATCH, and DELETE, and fails if a GET
+  calls `consumeWriteRateLimit`. A nested function with the helper's name does
+  not count. The same file fails if a non-test module calls
+  `searchGamesByName`, `searchTaxonomyTable`, or `searchLibraryTaxonomy` from
+  `lib/queries/game.ts` without calling the imported `consumeSearchRateLimit`.
+  Stale buckets (window older than a day) are deleted by
+  `GET /api/cron/rate-limits`, which requires `Authorization: Bearer`
+  `CRON_SECRET`. `apps/web/vercel.json` schedules that daily.
+- Files under `app/api/v1/` cannot import cookie auth. `eslint/v1-bearer-only.mjs`
+  (rule `screenpeak/v1-bearer-only`) fails lint on `getOptionalUser`,
+  `requireUser`, `cookies` from `next/headers` (including a `.cookies()` call),
+  and `@/lib/supabase-server`. Scope analysis also flags an alias
+  (`import { getOptionalUser as readSession }`, `const readSession = getOptionalUser`),
+  a member call (`auth.getOptionalUser()`), a namespace import of `@/lib/auth`
+  or `next/headers`, and `import('@/lib/auth')`, `import('next/headers')`, or
+  `import('@/lib/supabase-server')`. `test/api/v1-routes-auth.test.ts` parses
+  every route file with the TypeScript compiler. Comments do not count.
+  `withAuth` must be imported from `@/lib/api`, and the handler must call
+  `getBearerUser` or `requireBearerUser` imported from `@/lib/auth`. A local
+  function with those names does not count. `GET /home` and
+  `GET /user/[username]/ratings_reviews` have no caller. `GET /app-config` is
+  the other exception: the phone reads it before sign-in, including with a
+  stale bearer, so it must not touch the session. Their tests lock that. A new
+  route is not in that set.
+- **A route's `@/lib` imports, and one level of functions those imports call,
+  must not swallow a failed read** as `[]`, `null`, `new Set()`, `new Map()`,
+  `catch { return fallback() }`, `const empty = []; return empty`, or
+  `.catch(() => ({ ...[] }))` (`test/api/v1-reads-throw.test.ts`). The walk
+  includes same-module helpers. `getDeveloperNameMap` and `getHeroGame` are
+  the exception: characterization tests lock their empty fallback, and an
+  outage inside those two can still look empty.
 - **A bad bearer token fails closed** — 401 `invalid_token`, never a fallback to a
   cookie, and it throws even from `getOptionalUser()`. An unreachable Auth
   server is **503 `auth_unavailable`, never 401** (a 401 makes the app sign the user out);
@@ -272,9 +333,13 @@ return the contract type itself is called directly by both the page and the rout
   for the web page (per-field `.catch(default)`, as hand-edited URLs always have been) —
   `lib/game-reviews-query.ts` is the reference. Shared limits go in
   `@screenpeak/shared/constants`.
-- The route: `withAuth` → `getOptionalUser()`/`requireUser()` → loader → `404
-  not_found` or `Response.json(data)` with `Cache-Control: private, no-store` when
-  it contains viewer data.
+- The route: `withAuth` → `getBearerUser()` → loader → `404 not_found` or
+  `Response.json(data)` with `Cache-Control: private, no-store`. Paths mirror the
+  site: `/api/v1/user/[username]/library`, `/lists`, `/lists/[listId]`,
+  `/ratings_reviews`, `/loadout`, plus `/games`, `/feed`, `/explore`, `/home`,
+  `/me`, and `/me/settings`. A missing player and a private library, loadout, or
+  list are the same 404. Response types and `createApiClient` live in
+  `@screenpeak/shared/api`.
 
 ## External APIs
 
@@ -283,9 +348,35 @@ return the contract type itself is called directly by both the page and the rout
   `claude-sonnet-4-6`. `new Anthropic()` reads `ANTHROPIC_API_KEY` from env implicitly.
   Failures degrade to `''` — the paragraph is optional page content.
 - **Steam** — Web API for owned games + achievement completion (`lib/steam.ts`), behind
-  Steam OpenID 2.0 sign-in (`lib/steam-openid.ts`); powers the `/steamlink` import flow
+  Steam OpenID 2.0 sign-in (`lib/steam-openid.ts`); powers the `/steamlink` import flow.
+  Phone linking does not use the website session. `POST /api/v1/me/steam/link-intent`
+  takes an S256 PKCE `codeChallenge` and returns a 5-minute HMAC `state` bound
+  to the bearer user (`STEAM_LINK_INTENT_SECRET`, at least 32 characters). The
+  signature is not stored. The phone opens the relative `path`
+  (`GET /api/steam/link?state=…&client=mobile`). When `state` is present, that
+  request and `GET /api/steam/callback` must not read cookies. The callback
+  checks that `openid.return_to`'s `state` equals the request state (both
+  absent on the website flow) and only then stores the Steam id on the intent.
+  It redirects to `screenpeak://steamlink?code=<one-time>`. A bad, expired, or
+  reused state, or a missing secret, redirects to `screenpeak://steamlink?ok=0`.
+  `POST /api/v1/me/steam/link-complete` (bearer + write budget) commits the link
+  when the bearer user, the intent user, and the PKCE verifier all match.
+  Realm and `return_to` use `NEXT_PUBLIC_SITE_URL`, not the request host. The
+  website button omits `state` and still uses the session cookie.
+  `POST /api/v1/me/steam/import` is the batch cursor (`runSteamImportBatch`,
+  lease heartbeat 5s, takeover 30s). A busy lease does not spend the write
+  budget. There is no whole-library GET. `POST /api/v1/me/library/import` still
+  confirms the selection.
+  The phone links from Settings › Connections (`apps/mobile/src/lib/steam-link.ts`,
+  S256 via `expo-crypto`) and imports on `/steamlink` (`lib/steam-import.ts`,
+  the website's batch loop and merge). It tells a private Steam library apart by
+  `STEAM_NOT_PUBLIC_MESSAGE` (`@screenpeak/shared/api/steam`), so keep the
+  server's `not_public` copy on that constant.
 - **Cloudflare R2** — user avatars, via a presigned direct-to-R2 upload (`lib/r2.ts`,
-  `createAvatarUploadUrl` in `app/user-actions.ts`). Game cover art is IGDB-hosted, never
+  `createAvatarUploadUrl` in `app/user-actions.ts`). The R2 env is read when an
+  upload URL is signed, not when the module loads: `user-actions.ts` shares a
+  page with other server actions, and a missing bucket must not fail those.
+  Game cover art is IGDB-hosted, never
   uploaded anywhere (remote patterns: `images.igdb.com`, plus the R2 custom domain — derived
   from `R2_PUBLIC_URL` in `next.config.ts`, not hardcoded).
 
@@ -293,12 +384,13 @@ return the contract type itself is called directly by both the page and the rout
 
 Required in `apps/web/.env.local` (gitignored):
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SECRET_KEY` (admin client in `delete-account`)
+- `SUPABASE_SECRET_KEY` (admin client in `lib/account-deletion.ts`, for account deletion)
 - `DATABASE_URL` (session pooler — read by `apps/web/drizzle.config.ts`. Apply schema changes with `migrate:journal`, not `drizzle-kit push`. See `docs/igdb.md`)
 - `DATABASE_POOL_URL` (transaction pooler — the app's runtime Drizzle client, `lib/db.ts`; throws at module load if unset)
 - `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET` (IGDB seed and Steam-app matching)
 - `ANTHROPIC_API_KEY` (for loadout generation)
 - `STEAM_API_KEY` (Steam library import + achievements)
+- `STEAM_LINK_INTENT_SECRET` (phone Steam OpenID state; at least 32 characters. The website Steam button does not read it. Missing or short, `POST /api/v1/me/steam/link-intent` is 500. The mobile callback and link GET redirect to `screenpeak://steamlink?ok=0` instead of throwing)
 - `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL`
   (Cloudflare R2 — avatar uploads)
 - `NEXT_PUBLIC_SITE_URL` (metadataBase / OG tags; defaults to `http://localhost:3000`)

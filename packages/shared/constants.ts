@@ -10,3 +10,24 @@ export const FEED_PAGE_SIZE = 12
  *  "Results" menu offers 10 / 25 / 50 / 100). */
 export const GAME_REVIEWS_PAGE_SIZE = 10
 export const GAME_REVIEWS_MAX_PAGE_SIZE = 100
+
+/** Typeahead search. The query is trimmed. `limit` defaults to this cap. */
+export const SEARCH_QUERY_MAX_LENGTH = 100
+export const SEARCH_MAX_PAGE_SIZE = 20
+/** The longest developer or publisher slug a lookup accepts. */
+export const TAXONOMY_SLUG_MAX_LENGTH = 120
+
+/** `ids` on taxonomy search, comma-separated on the API. */
+export const TAXONOMY_SEARCH_ID_CAP = 200
+
+export const TAXONOMY_SEARCH_TABLES = ['developers', 'publishers'] as const
+
+/** A library row's status, in the order both apps list them. */
+export const LIBRARY_STATUSES = ['backlog', 'playing', 'completed', 'abandoned'] as const
+export type LibraryStatus = (typeof LIBRARY_STATUSES)[number]
+
+/** The largest avatar the presigned upload accepts, in bytes. */
+export const AVATAR_MAX_BYTES = 2 * 1024 * 1024
+
+/** The most favorite games a profile pins. */
+export const FAVORITE_GAMES_MAX = 5

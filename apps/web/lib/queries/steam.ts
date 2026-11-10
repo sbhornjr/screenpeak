@@ -1,25 +1,23 @@
+import 'server-only'
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { steamAccounts } from '@/db/schema'
 import { logger } from '@/lib/logger'
 
 export async function getSteamAccount(userId: string) {
-    try {
-        const rows = await db
-            .select({
-                steam_id: steamAccounts.steamId,
-                linked_at: steamAccounts.linkedAt,
-                last_synced_at: steamAccounts.lastSyncedAt,
-                profile_public: steamAccounts.profilePublic,
-            })
-            .from(steamAccounts)
-            .where(eq(steamAccounts.userId, userId))
-            .limit(1)
+    // A database error must reject. Null is "Steam is not linked", not an outage.
+    const rows = await db
+        .select({
+            steam_id: steamAccounts.steamId,
+            linked_at: steamAccounts.linkedAt,
+            last_synced_at: steamAccounts.lastSyncedAt,
+            profile_public: steamAccounts.profilePublic,
+        })
+        .from(steamAccounts)
+        .where(eq(steamAccounts.userId, userId))
+        .limit(1)
 
-        return rows[0] ?? null
-    } catch {
-        return null
-    }
+    return rows[0] ?? null
 }
 
 export async function upsertSteamAccount(userId: string, steamId64: string) {

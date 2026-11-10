@@ -14,17 +14,22 @@ function requireEnv(name: string): string {
     return value
 }
 
-const accountId = requireEnv('R2_ACCOUNT_ID')
-const accessKeyId = requireEnv('R2_ACCESS_KEY_ID')
-const secretAccessKey = requireEnv('R2_SECRET_ACCESS_KEY')
-const bucketName = requireEnv('R2_BUCKET_NAME')
-const r2PublicUrl = requireEnv('R2_PUBLIC_URL')
-
-const s3Client = new S3Client({
-    region: 'auto',
-    endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
-    credentials: { accessKeyId, secretAccessKey },
-})
+// Read at call time. user-actions.ts imports this module, and Next evaluates
+// that module when any server action on the same page runs. A missing avatar
+// bucket must not take down search or the other profile actions.
+function r2Config() {
+    const accountId = requireEnv('R2_ACCOUNT_ID')
+    const accessKeyId = requireEnv('R2_ACCESS_KEY_ID')
+    const secretAccessKey = requireEnv('R2_SECRET_ACCESS_KEY')
+    const bucketName = requireEnv('R2_BUCKET_NAME')
+    const r2PublicUrl = requireEnv('R2_PUBLIC_URL')
+    const client = new S3Client({
+        region: 'auto',
+        endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+        credentials: { accessKeyId, secretAccessKey },
+    })
+    return { client, bucketName, r2PublicUrl }
+}
 
 const AVATAR_UPLOAD_TTL_SECONDS = 300
 
@@ -37,6 +42,7 @@ export async function createPresignedAvatarUploadUrl(
     if (!key) return { error: 'unsupported_type' }
     if (!isValidAvatarSize(contentLength)) return { error: 'too_large' }
 
+    const { client, bucketName, r2PublicUrl } = r2Config()
     const command = new PutObjectCommand({
         Bucket: bucketName,
         Key: key,
@@ -44,7 +50,7 @@ export async function createPresignedAvatarUploadUrl(
         ContentLength: contentLength,
     })
 
-    const uploadUrl = await getSignedUrl(s3Client, command, { expiresIn: AVATAR_UPLOAD_TTL_SECONDS })
+    const uploadUrl = await getSignedUrl(client, command, { expiresIn: AVATAR_UPLOAD_TTL_SECONDS })
 
     // The object key is stable per user (overwrite in place, no orphaned
     // objects — including across a content-type switch, since the key no

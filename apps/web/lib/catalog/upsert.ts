@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { and, eq, sql } from 'drizzle-orm'
 import { db, type DB } from '@/lib/db'
 import { games, gameExternalIds } from '@/db/schema'
-import { parseDbTimestamp } from '@/lib/dates'
+import { parseDbTimestamp } from '@screenpeak/shared/dates'
 import type { CatalogGame, CatalogTaxon } from './types'
 
 const positiveId = z.number().int().positive().max(2_147_483_647)
@@ -24,6 +24,15 @@ export const catalogGameSchema = z.object({
     providerUpdatedAt: z.string().datetime().nullable(), genres: taxaSchema, platforms: taxaSchema,
     developers: taxaSchema, publishers: taxaSchema, steamAppIds: z.array(positiveId),
 }).strict()
+
+/** Static path segments under `app/games/`, beside `[slug]`. Add the next one here. */
+export const RESERVED_GAME_SLUGS = ['search'] as const
+
+/** A reserved or already-used base becomes `base-id`, so `search` is never stored. */
+export function storedGameSlug(baseSlug: string, id: string, slugTaken: boolean): string {
+    if (slugTaken || (RESERVED_GAME_SLUGS as readonly string[]).includes(baseSlug)) return `${baseSlug}-${id}`
+    return baseSlug
+}
 
 export function catalogSlug(providerSlug: string): string {
     // No provider-id suffix. A games.slug conflict appends the local games.id instead.
@@ -109,7 +118,7 @@ export async function writeCatalogGame(
     if (!existing) {
         await tx.execute(sql`select pg_advisory_xact_lock(1936745320, hashtext(${baseSlug}))`)
         const taken = await tx.execute(sql`select 1 as one from public.games where slug = ${baseSlug} limit 1`)
-        if (taken.length) localSlug = `${baseSlug}-${id}`
+        localSlug = storedGameSlug(baseSlug, id, taken.length > 0)
     }
     const now = new Date().toISOString()
     const columns = [

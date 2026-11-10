@@ -1,11 +1,11 @@
 "use client"
 
-import { useState } from "react";
-import { getTitles } from "@/lib/titles";
-import { useRouter } from "next/navigation";
-import Modal from "@/app/components/util/Modal";
-import EditTriggerButton from "@/app/components/util/EditTriggerButton";
-import { saveSelectedTitle } from "@/app/user-actions";
+import { useState } from "react"
+import { getTitles } from "@screenpeak/shared/titles"
+import { useRouter } from "next/navigation"
+import Modal from "@/app/components/util/Modal"
+import EditTriggerButton from "@/app/components/util/EditTriggerButton"
+import { saveSelectedTitle } from "@/app/user-actions"
 
 export default function TitleSelectButton({ currentTitle, topGames, topDevelopers } : { currentTitle : string, topGames : string[], topDevelopers : string[] }) {
     const [isTitleSelectModalOpen, setIsTitleSelectModalOpen] = useState(false)

@@ -2,14 +2,14 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { parseDbTimestamp } from "@/lib/dates"
+import { parseDbTimestamp, releaseYear } from "@screenpeak/shared/dates"
 import { displayCoverUrl } from "@/lib/catalog/images"
+import { tierColor } from "@/lib/rating-tier"
 
 export default function Rating({ slug, name, cover, released, developer, rating, createdAt } : 
     { slug: string, name: string, cover: string, released: string, developer?: string | null, rating: number, createdAt: string}
 ) {
 
-    const scoreColor = (score: number) => score >= 8 ? 'var(--color-good)' : score >= 6 ? 'var(--color-mid)' : 'var(--color-bad)'
     const image = displayCoverUrl(cover, 'small')
 
     return (
@@ -28,7 +28,7 @@ export default function Rating({ slug, name, cover, released, developer, rating,
                 </span>
                 {released && (
                     <span className="text-xs text-(--color-muted) shrink-0">
-                        {new Date(released).getFullYear()}
+                        {releaseYear(released)}
                     </span>
                 )}
                     {developer && (
@@ -39,7 +39,7 @@ export default function Rating({ slug, name, cover, released, developer, rating,
             </div>
             <div className="flex items-center gap-3 shrink-0">
                 <span className="text-sm font-bold font-mono"
-                style={{ color: scoreColor(rating) }}>
+                style={{ color: tierColor(rating) }}>
                 {rating}<span className="text-xs text-(--color-muted) font-normal">/10</span>
                 </span>
                 <span className="text-xs text-(--color-muted)">{parseDbTimestamp(createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>

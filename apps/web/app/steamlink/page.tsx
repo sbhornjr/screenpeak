@@ -1,10 +1,10 @@
-import type { Metadata } from "next";
-import { redirect } from "next/navigation";
-import { getOptionalUser } from "@/lib/auth";
-import { getSteamAccount } from "@/lib/queries/steam";
-import { getOwnedGames } from "@/lib/steam";
-import { loadSteamImportPreview } from "@/lib/catalog/steam-import";
-import SteamLinkGamesSection from "../components/settings/SteamLinkGamesSection";
+import type { Metadata } from "next"
+import { redirect } from "next/navigation"
+import { getOptionalUser } from "@/lib/auth"
+import { getSteamAccount } from "@/lib/queries/steam"
+import { getOwnedGames } from "@/lib/steam"
+import { loadSteamImportPreview } from "@/lib/catalog/steam-import"
+import SteamLinkGamesSection from "../components/settings/SteamLinkGamesSection"
 
 export const metadata: Metadata = {
     title: "Import from Steam",

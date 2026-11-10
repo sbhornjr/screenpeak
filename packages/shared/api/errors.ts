@@ -12,6 +12,10 @@ export type ApiErrorCode =
     | 'auth_unavailable'
     /** 400 — a query parameter or body field is missing or out of range; `message` says which */
     | 'invalid_request'
+    /** 429 — the caller exceeded the write or search budget. Retry-After is seconds. */
+    | 'rate_limited'
+    /** 503 — Steam or matching is temporarily down. Retry-After is seconds. The caller's rows are unchanged. */
+    | 'unavailable'
     /** 404 */
     | 'not_found'
     /** 500 — unexpected server error (details are in the server logs only) */
@@ -21,5 +25,7 @@ export type ApiErrorBody = {
     error: {
         code: ApiErrorCode
         message: string
+        /** Seconds until the caller may retry. Present on `rate_limited` and `unavailable` when Retry-After is a number. */
+        retry_after?: number
     }
 }

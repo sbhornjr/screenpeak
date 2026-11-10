@@ -1,11 +1,11 @@
 "use client"
 
-import { SteamImportBatch, SteamImportCursor, SteamLinkEntry } from "@screenpeak/shared/types";
-import GameFromSteam, { type SteamLinkEdit } from "../game/GameFromSteam";
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { importSteamLibraryEntries } from "@/app/library-actions";
-import { resolveSteamImportBatch } from "@/app/steam-actions";
+import { SteamImportBatch, SteamImportCursor, SteamLinkEntry } from "@screenpeak/shared/types"
+import GameFromSteam, { type SteamLinkEdit } from "../game/GameFromSteam"
+import { useEffect, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
+import { importSteamLibraryEntries } from "@/app/library-actions"
+import { resolveSteamImportBatch } from "@/app/steam-actions"
 
 function mergeEntries(previous: SteamLinkEntry[], incoming: SteamLinkEntry[], edited: Map<string, Set<SteamLinkEdit>>) {
     const prior = new Map(previous.map(entry => [entry.gameId, entry]))

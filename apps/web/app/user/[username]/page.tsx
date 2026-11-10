@@ -1,25 +1,21 @@
-import { notFound } from "next/navigation";
-import TitleSelectButton from "@/app/components/user/TitleSelectButton";
-import AvatarUploader from "@/app/components/user/AvatarUploader";
-import Avatar from "@/app/components/user/Avatar";
-import FavoriteGamePicker from "@/app/components/game/FavoriteGamePicker";
-import GameCard from "@/app/components/game/GameCard";
-import Review from "@/app/components/game/Review";
-import Link from "next/link";
-import FollowButton from "@/app/components/user/FollowButton";
-import BioButton from "@/app/components/user/BioButton";
-import StatGrid from "@/app/components/util/StatGrid";
-import SectionHead from "@/app/components/util/SectionHead";
-import Eyebrow from "@/app/components/util/Eyebrow";
-import EmptyState from "@/app/components/util/EmptyState";
-import { GameData } from "@screenpeak/shared/types";
-import { getOptionalUser } from "@/lib/auth";
-import { getFullProfile, getFollowers, getFollowing } from "@/lib/queries/user";
-import { queryGames, getDeveloperNameMap } from "@/lib/queries/game";
-import { getLibraryStatusBreakdown } from "@/lib/queries/library";
-import { getRecentReviews, getUserRatings } from "@/lib/queries/review";
-import { getLoadoutDeveloperStats } from "@/lib/queries/stats";
-import { Metadata } from "next";
+import { notFound } from "next/navigation"
+import TitleSelectButton from "@/app/components/user/TitleSelectButton"
+import AvatarUploader from "@/app/components/user/AvatarUploader"
+import Avatar from "@/app/components/user/Avatar"
+import FavoriteGamePicker from "@/app/components/game/FavoriteGamePicker"
+import GameCard from "@/app/components/game/GameCard"
+import Review from "@/app/components/game/Review"
+import Link from "next/link"
+import FollowButton from "@/app/components/user/FollowButton"
+import BioButton from "@/app/components/user/BioButton"
+import StatGrid from "@/app/components/util/StatGrid"
+import SectionHead from "@/app/components/util/SectionHead"
+import Eyebrow from "@/app/components/util/Eyebrow"
+import EmptyState from "@/app/components/util/EmptyState"
+import { getOptionalUser } from "@/lib/auth"
+import { loadProfilePage } from "@/lib/loaders/profile-page"
+import { getProfileSummaryByUsername } from "@/lib/queries/user"
+import { Metadata } from "next"
 
 type ProfilePageProps = {
     params: Promise<{ username: string }>
@@ -27,7 +23,7 @@ type ProfilePageProps = {
 
 export async function generateMetadata({ params }: { params: Promise<{ username: string }> }): Promise<Metadata> {
     const { username } = await params
-    const profile = await getFullProfile(username)
+    const profile = await getProfileSummaryByUsername(username)
     if (!profile) return {}
     return {
         title: username,
@@ -40,45 +36,33 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
 }
 
 export default async function ProfilePage({ params }: ProfilePageProps) {
-    const { username } = await params;
-
-    const profile = await getFullProfile(username)
-
-    if (!profile) notFound()
+    const { username } = await params
 
     const viewer = await getOptionalUser()
-    const isOwnProfile = viewer?.id === profile.id
+    let data
+    try {
+        data = await loadProfilePage(username, viewer?.id ?? null)
+    } catch {
+        return (
+            <main>
+                <div className="w-full max-w-6xl mx-auto px-6 sm:px-8 pt-8 pb-16">
+                    <EmptyState title="Couldn't load this profile" description="Try again in a moment." />
+                </div>
+            </main>
+        )
+    }
+    if (!data) notFound()
 
-    const canSeeLibrary = isOwnProfile || profile.library_public
-    const { entries: libraryEntries, totalCount: totalGames } = canSeeLibrary
-        ? await getLibraryStatusBreakdown(profile.id)
-        : { entries: [], totalCount: 0 }
-
-    const favoriteGameIds = profile.favorite_game_ids ?? []
-    const favoriteGamesData = favoriteGameIds.length > 0
-        ? await queryGames({ userId: viewer ? viewer.id : null, gameIds: favoriteGameIds })
-        : []
-    const favoriteGames = favoriteGamesData as GameData[]
-    const orderedFavorites = favoriteGameIds.map((id: string) => favoriteGames?.find(g => String(g.id) === id)).filter(Boolean).reverse() as GameData[]
-
-    const developerMap = await getDeveloperNameMap(favoriteGameIds)
-
-    const recentReviews = await getRecentReviews(profile.id)
-
-    const developerStats = await getLoadoutDeveloperStats(profile.id)
-    const topDeveloperNames = developerStats.slice(0, 6).map(d => d.developer_name)
-
-    const ratingStats = await getUserRatings(profile.id)
-
-    const avgRating = ratingStats.length > 0 ? ratingStats.reduce((acc, r) => { return acc + r.rating }, 0) / ratingStats.length : 0
-
+    const profile = data.profile
+    const isOwnProfile = data.viewer?.is_owner ?? false
+    const favoriteGames = data.favorites
+    const recentReviews = data.recent_reviews
+    const topDeveloperNames = data.viewer?.top_developer_names ?? []
+    const ratingCount = data.rating_count
+    const avgRating = data.avg_rating ?? 0
     const currentTitle = profile.selected_title ? profile.selected_title : "Title-less Noob"
-
-    const followersData = await getFollowers(profile.id)
-    const followersCount = followersData.length
-
-    const followingData = await getFollowing(profile.id)
-    const followingCount = followingData.length
+    const followersCount = profile.follower_count
+    const followingCount = profile.following_count
 
     return (
         <main>
@@ -101,7 +85,7 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
                     </div>
                     {!isOwnProfile && viewer && (
                         <div className="sm:ml-auto">
-                            <FollowButton targetUserId={profile.id} initialIsFollowing={!!followersData?.find(f => f.follower_id === viewer?.id)} />
+                            <FollowButton targetUserId={profile.id} initialIsFollowing={data.viewer?.is_following ?? false} />
                         </div>
                     )}
                 </div>
@@ -124,10 +108,12 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
                 </nav>
 
                 <StatGrid stats={[
-                    { label: 'Games', value: totalGames },
-                    { label: 'Completed', value: libraryEntries?.filter(l => l.status === "completed").length },
-                    { label: 'Rated', value: ratingStats?.length },
-                    { label: 'Avg Rating', value: ratingStats?.length
+                    ...(data.library_stats ? [
+                        { label: 'Games', value: data.library_stats.total_games },
+                        { label: 'Completed', value: data.library_stats.completed },
+                    ] : []),
+                    { label: 'Rated', value: ratingCount },
+                    { label: 'Avg Rating', value: ratingCount
                         ? <>{Math.trunc(avgRating * 100) / 100}<span className="text-base text-(--color-muted)"> / 10</span></>
                         : <span className="text-(--color-muted)">&mdash;</span> },
                 ]} />
@@ -141,16 +127,16 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
                 {profile.user_bio
                     ? <p className="text-(--color-text) leading-relaxed max-w-2xl">{profile.user_bio}</p>
                     : <p className="text-(--color-muted) text-sm">{isOwnProfile ? "You haven't written a bio yet." : "No bio yet."}</p>}
-                <SectionHead action={isOwnProfile && <FavoriteGamePicker currentGames={favoriteGames.map(g => ({ id: String(g.id), name: g.name, slug: g.slug, cover_image_url: g.cover_image_url, released: g.released }))}/>}>Favorite Games</SectionHead>
-                {orderedFavorites.length > 0 ? (
+                <SectionHead action={isOwnProfile && <FavoriteGamePicker currentGames={favoriteGames.map(g => ({ id: g.id, name: g.name, slug: g.slug, cover_image_url: g.cover_image_url, released: g.released }))}/>}>Favorite Games</SectionHead>
+                {favoriteGames.length > 0 ? (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
-                        {orderedFavorites.map((g: GameData) =>
+                        {favoriteGames.map(g =>
                             <GameCard
                                 key={g.id}
-                                game={{ id: String(g.id), name: g.name, slug: g.slug, cover_image_url: g.cover_image_url, released: g.released }}
-                                developer={developerMap.get(String(g.id))}
+                                game={{ id: g.id, name: g.name, slug: g.slug, cover_image_url: g.cover_image_url, released: g.released }}
+                                developer={g.developer}
                                 userRating={g.user_rating}
-                                ngplusRating={g.avg_ngplus_rating}
+                                ngplusRating={g.avg_rating}
                             />
                         )}
                     </div>

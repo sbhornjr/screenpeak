@@ -61,10 +61,31 @@ async function userFromCookies(): Promise<AuthedUser | null> {
 
 /** The caller, or `null` when signed out. A *bad* bearer token still throws 401
  *  (so the app refreshes instead of silently seeing the signed-out view); an Auth
- *  outage throws 503. */
+ *  outage throws 503. The website uses this: a missing Bearer header falls
+ *  through to the session cookie. */
 export async function getOptionalUser(): Promise<AuthedUser | null> {
     const token = await bearerToken()
     return token === undefined ? userFromCookies() : userFromBearer(token)
+}
+
+/** `/api/v1` only. Null when the request has no Bearer token. Never reads the
+ *  session cookie, so a cross-origin call cannot pick up the website session.
+ *  A bad bearer token still throws 401; an Auth outage still throws 503. */
+export async function getBearerUser(): Promise<AuthedUser | null> {
+    const token = await bearerToken()
+    if (token === undefined) return null
+    return userFromBearer(token)
+}
+
+/** `/api/v1` writes and the caller's own library row. 401 `unauthenticated`
+ *  when no Bearer token was sent. Never reads the session cookie. A bad
+ *  token is 401 `invalid_token`. This does not spend the write budget —
+ *  mutating handlers call `consumeWriteRateLimit` themselves, so
+ *  `GET /api/v1/me/library/[gameId]` can require a bearer without charging. */
+export async function requireBearerUser(): Promise<AuthedUser> {
+    const user = await getBearerUser()
+    if (!user) throw new UnauthenticatedError()
+    return user
 }
 
 /** The caller, or throws UnauthenticatedError (401) / AuthUnavailableError (503). */

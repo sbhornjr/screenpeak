@@ -2,13 +2,14 @@
 
 import { requireUser } from '@/lib/auth'
 import { updateAvatarUrl, updateFavoriteGames, updatePrivacy, updateUsername, updateSelectedTitle, updateBio, updateLoadoutBio, clearLoadoutIdentity, followUser, unfollowUser } from '@/lib/queries/user'
+import { avatarUploadErrorMessage } from '@/lib/avatar-upload'
 import { createPresignedAvatarUploadUrl } from '@/lib/r2'
 
 export async function createAvatarUploadUrl(contentType: string, contentLength: number) {
     const user = await requireUser()
     const result = await createPresignedAvatarUploadUrl(user.id, contentType, contentLength)
     if ('error' in result) {
-        return { error: result.error === 'too_large' ? 'Image must be under 2MB' : 'Unsupported image type' }
+        return { error: avatarUploadErrorMessage(result.error) }
     }
     return result
 }

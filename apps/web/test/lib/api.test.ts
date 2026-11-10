@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const { ApiError, UnauthenticatedError, AuthUnavailableError, apiError, withAuth } = await import('@/lib/api')
+const { ApiError, UnauthenticatedError, AuthUnavailableError, apiError, corsPreflight, withAuth } = await import('@/lib/api')
 
 const req = () => new NextRequest('http://localhost/api/v1/anything')
 const ctx = { params: Promise.resolve({ slug: 'baldurs-gate-3' }) }
@@ -15,6 +15,18 @@ describe('apiError', () => {
     })
 })
 
+describe('corsPreflight', () => {
+    it('lets a browser on another origin, including a phone on the LAN, call /api/v1', () => {
+        const res = corsPreflight()
+
+        expect(res.status).toBe(204)
+        expect(res.headers.get('access-control-allow-origin')).toBe('*')
+        expect(res.headers.get('access-control-allow-headers')).toBe('Authorization, Content-Type, Accept')
+        expect(res.headers.get('access-control-allow-methods')).toBe('GET, POST, PUT, PATCH, DELETE, OPTIONS')
+        expect(res.headers.get('access-control-allow-credentials')).toBeNull()
+    })
+})
+
 describe('withAuth', () => {
     it('passes the request and route context through and returns the handler response', async () => {
         const handler = vi.fn(async (_req: NextRequest, c: typeof ctx) => Response.json({ slug: (await c.params).slug }))
@@ -24,6 +36,8 @@ describe('withAuth', () => {
 
         expect(handler).toHaveBeenCalledWith(r, ctx)
         expect(await res.json()).toEqual({ slug: 'baldurs-gate-3' })
+        expect(res.headers.get('access-control-allow-origin')).toBe('*')
+        expect(res.headers.get('access-control-allow-credentials')).toBeNull()
     })
 
     it('turns an unauthenticated error into a 401 with a Bearer challenge', async () => {
@@ -50,11 +64,26 @@ describe('withAuth', () => {
         expect((await res.json()).error.code).toBe('auth_unavailable')
     })
 
+    it('puts retry_after on a rate-limited body and exposes Retry-After to the browser', async () => {
+        const res = await withAuth(async () => {
+            throw new ApiError(429, 'rate_limited', 'Too many requests. Try again soon.', { 'Retry-After': '8' })
+        })(req(), ctx)
+
+        expect(res.status).toBe(429)
+        expect(res.headers.get('retry-after')).toBe('8')
+        expect(res.headers.get('access-control-expose-headers')).toBe('Retry-After')
+        expect(await res.json()).toEqual({
+            error: { code: 'rate_limited', message: 'Too many requests. Try again soon.', retry_after: 8 },
+        })
+    })
+
     it('renders any ApiError a handler throws, e.g. a 404', async () => {
         const res = await withAuth(async () => { throw new ApiError(404, 'not_found', 'No such game') })(req(), ctx)
 
         expect(res.status).toBe(404)
         expect(await res.json()).toEqual({ error: { code: 'not_found', message: 'No such game' } })
+        expect(res.headers.get('access-control-allow-origin')).toBe('*')
+        expect(res.headers.get('access-control-allow-headers')).toContain('Authorization')
     })
 
     it('hides unexpected errors behind a generic 500 and logs the detail server-side', async () => {

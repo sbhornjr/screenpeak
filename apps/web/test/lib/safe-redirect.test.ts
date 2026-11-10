@@ -31,6 +31,12 @@ describe('safeNextPath', () => {
         expect(safeNextPath(raw, origin)).toBe('/')
     })
 
+    it('returns "/" when parsing normalizes a path into a protocol-relative URL', () => {
+        expect(safeNextPath('/foo/..//evil.com', origin)).toBe('/')
+        expect(safeNextPath('/%2e%2e//evil.com', origin)).toBe('/')
+        expect(safeNextPath('/auth%09/..//evil.com', origin)).toBe('/')
+    })
+
     it('keeps every accepted result safe to append to the origin', () => {
         for (const raw of ['/a', '/auth/update-password', '/x?y=//evil.com']) {
             const dest = new URL(`${origin}${safeNextPath(raw, origin)}`)

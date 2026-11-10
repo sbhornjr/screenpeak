@@ -1,4 +1,4 @@
-import { pgTable, pgSchema, unique, pgPolicy, uuid, integer, text, timestamp, date, foreignKey, check, boolean, numeric, smallint, primaryKey, index } from "drizzle-orm/pg-core"
+import { pgTable, pgSchema, unique, pgPolicy, uuid, integer, text, timestamp, date, foreignKey, check, boolean, numeric, smallint, primaryKey, index, uniqueIndex } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 // Reference-only stub for the auth schema Supabase provisions and owns.
@@ -20,7 +20,7 @@ export const genres = pgTable("genres", {
 	unique("genres_slug_key").on(table.slug),
 	check("genres_igdb_id_positive", sql`${table.igdbId} > 0`),
 	pgPolicy("Public read access", { as: "permissive", for: "select", to: ["public"], using: sql`true` }),
-]);
+])
 
 export const platforms = pgTable("platforms", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
@@ -33,7 +33,7 @@ export const platforms = pgTable("platforms", {
 	unique("platforms_slug_key").on(table.slug),
 	check("platforms_igdb_id_positive", sql`${table.igdbId} > 0`),
 	pgPolicy("Public read access", { as: "permissive", for: "select", to: ["public"], using: sql`true` }),
-]);
+])
 
 export const developers = pgTable("developers", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
@@ -46,7 +46,7 @@ export const developers = pgTable("developers", {
 	unique("developers_slug_key").on(table.slug),
 	check("developers_igdb_id_positive", sql`${table.igdbId} > 0`),
 	pgPolicy("Public read access", { as: "permissive", for: "select", to: ["public"], using: sql`true` }),
-]);
+])
 
 export const games = pgTable("games", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
@@ -71,7 +71,7 @@ export const games = pgTable("games", {
 	check("games_igdb_id_positive", sql`${table.igdbId} > 0`),
 	unique("games_slug_key").on(table.slug),
 	pgPolicy("Public read access", { as: "permissive", for: "select", to: ["public"], using: sql`true` }),
-]);
+])
 
 export const publishers = pgTable("publishers", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
@@ -84,7 +84,7 @@ export const publishers = pgTable("publishers", {
 	unique("publishers_slug_key").on(table.slug),
 	check("publishers_igdb_id_positive", sql`${table.igdbId} > 0`),
 	pgPolicy("Public read access", { as: "permissive", for: "select", to: ["public"], using: sql`true` }),
-]);
+])
 
 export const ratingsReviews = pgTable("ratings_reviews", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
@@ -112,7 +112,7 @@ export const ratingsReviews = pgTable("ratings_reviews", {
 	pgPolicy("Users can update own ratings and reviews", { as: "permissive", for: "update", to: ["authenticated"], using: sql`(auth.uid() = user_id)`, withCheck: sql`(auth.uid() = user_id)` }),
 	check("rating_range", sql`(rating >= 1) AND (rating <= 10)`),
 	check("review_length", sql`char_length(COALESCE(review, ''::text)) <= 5000`),
-]);
+])
 
 export const libraryEntries = pgTable("library_entries", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
@@ -147,7 +147,7 @@ export const libraryEntries = pgTable("library_entries", {
 	pgPolicy("Users can insert own library", { as: "permissive", for: "insert", to: ["authenticated"], withCheck: sql`(auth.uid() = user_id)` }),
 	pgPolicy("Users can update own library", { as: "permissive", for: "update", to: ["authenticated"], using: sql`(auth.uid() = user_id)`, withCheck: sql`(auth.uid() = user_id)` }),
 	check("library_entries_source_check", sql`source = ANY (ARRAY['manual'::text, 'steam'::text])`),
-]);
+])
 
 export const lists = pgTable("lists", {
 	id: uuid().defaultRandom().primaryKey().notNull(),
@@ -171,7 +171,7 @@ export const lists = pgTable("lists", {
 	pgPolicy("Users can update own lists", { as: "permissive", for: "update", to: ["authenticated"], using: sql`(auth.uid() = user_id)`, withCheck: sql`(auth.uid() = user_id)` }),
 	check("list_description_length", sql`char_length(COALESCE(description, ''::text)) <= 500`),
 	check("list_name_length", sql`(char_length(name) >= 1) AND (char_length(name) <= 80)`),
-]);
+])
 
 export const steamAccounts = pgTable("steam_accounts", {
 	userId: uuid("user_id").default(sql`auth.uid()`).primaryKey().notNull(),
@@ -190,7 +190,7 @@ export const steamAccounts = pgTable("steam_accounts", {
 	pgPolicy("Users can delete own steam profiles", { as: "permissive", for: "delete", to: ["authenticated"], using: sql`(auth.uid() = user_id)` }),
 	pgPolicy("Users can insert own steam profiles", { as: "permissive", for: "insert", to: ["authenticated"], withCheck: sql`(auth.uid() = user_id)` }),
 	pgPolicy("Users can update own steam profiles", { as: "permissive", for: "update", to: ["authenticated"], using: sql`(auth.uid() = user_id)`, withCheck: sql`(auth.uid() = user_id)` }),
-]);
+])
 
 export const users = pgTable("users", {
 	id: uuid().primaryKey().notNull(),
@@ -220,7 +220,7 @@ export const users = pgTable("users", {
 	check("favorite_games_max", sql`(favorite_game_ids IS NULL) OR (cardinality(favorite_game_ids) <= 5)`),
 	check("user_bio_length", sql`char_length(COALESCE(user_bio, ''::text)) <= 500`),
 	check("username_format", sql`username ~ '^[A-Za-z0-9_]{3,20}$'::text`),
-]);
+])
 
 export const gameGenres = pgTable("game_genres", {
 	gameId: uuid("game_id").notNull(),
@@ -238,7 +238,7 @@ export const gameGenres = pgTable("game_genres", {
 		}).onDelete("cascade"),
 	primaryKey({ columns: [table.gameId, table.genreId], name: "game_genres_pkey"}),
 	pgPolicy("Public read access", { as: "permissive", for: "select", to: ["public"], using: sql`true` }),
-]);
+])
 
 export const gamePlatforms = pgTable("game_platforms", {
 	gameId: uuid("game_id").notNull(),
@@ -256,7 +256,7 @@ export const gamePlatforms = pgTable("game_platforms", {
 		}).onDelete("cascade"),
 	primaryKey({ columns: [table.gameId, table.platformId], name: "game_platforms_pkey"}),
 	pgPolicy("Public read access", { as: "permissive", for: "select", to: ["public"], using: sql`true` }),
-]);
+])
 
 export const gameDevelopers = pgTable("game_developers", {
 	gameId: uuid("game_id").notNull(),
@@ -274,7 +274,7 @@ export const gameDevelopers = pgTable("game_developers", {
 		}).onDelete("cascade"),
 	primaryKey({ columns: [table.gameId, table.developerId], name: "game_developers_pkey"}),
 	pgPolicy("Public read access", { as: "permissive", for: "select", to: ["public"], using: sql`true` }),
-]);
+])
 
 export const gamePublishers = pgTable("game_publishers", {
 	gameId: uuid("game_id").notNull(),
@@ -292,7 +292,7 @@ export const gamePublishers = pgTable("game_publishers", {
 		}).onDelete("cascade"),
 	primaryKey({ columns: [table.gameId, table.publisherId], name: "game_publishers_pkey"}),
 	pgPolicy("Public read access", { as: "permissive", for: "select", to: ["public"], using: sql`true` }),
-]);
+])
 
 export const listLikes = pgTable("list_likes", {
 	userId: uuid("user_id").notNull(),
@@ -313,7 +313,7 @@ export const listLikes = pgTable("list_likes", {
 	pgPolicy("Anyone can see likes", { as: "permissive", for: "select", to: ["public"], using: sql`true` }),
 	pgPolicy("Users can like lists", { as: "permissive", for: "insert", to: ["authenticated"], withCheck: sql`(auth.uid() = user_id)` }),
 	pgPolicy("Users can unlike lists", { as: "permissive", for: "delete", to: ["authenticated"], using: sql`(auth.uid() = user_id)` }),
-]);
+])
 
 export const follows = pgTable("follows", {
 	followerId: uuid("follower_id").notNull(),
@@ -335,7 +335,7 @@ export const follows = pgTable("follows", {
 	pgPolicy("Users can follow others", { as: "permissive", for: "insert", to: ["authenticated"], withCheck: sql`(auth.uid() = follower_id)` }),
 	pgPolicy("Users can unfollow", { as: "permissive", for: "delete", to: ["authenticated"], using: sql`(auth.uid() = follower_id)` }),
 	check("follows_check", sql`follower_id <> following_id`),
-]);
+])
 
 export const listGames = pgTable("list_games", {
 	listId: uuid("list_id").notNull(),
@@ -363,7 +363,7 @@ export const listGames = pgTable("list_games", {
 	pgPolicy("Users can remove games from own lists", { as: "permissive", for: "delete", to: ["authenticated"], using: sql`(EXISTS ( SELECT 1
    FROM lists
   WHERE ((lists.id = list_games.list_id) AND (lists.user_id = auth.uid()))))` }),
-]);
+])
 
 
 // Non-exposed operational schema. Runtime role owns/bypasses RLS; browser roles
@@ -414,6 +414,34 @@ export const steamImportRuns = igdbPrivate.table('steam_import_runs', {
 }).enableRLS()
 // 0004 created this table. The reset command is gone; the table stays so
 // schema.ts still matches the applied migration.
+// 0009. Fixed-window /api/v1 counters. Browser roles have no grants.
+export const apiRateLimits = pgTable('api_rate_limits', {
+    bucket: text().primaryKey(),
+    windowStart: timestamp('window_start', { withTimezone: true, mode: 'string' }).notNull(),
+    hits: integer().notNull(),
+}, table => [
+    check('api_rate_limits_bucket_length', sql`char_length(${table.bucket}) between 1 and 200`),
+    check('api_rate_limits_hits_nonnegative', sql`${table.hits} >= 0`),
+]).enableRLS()
+// 0010. Phone Steam OpenID intents. The raw token and completion code are not stored.
+export const steamLinkIntents = pgTable('steam_link_intents', {
+    id: uuid().primaryKey(),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    codeChallenge: text('code_challenge').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'string' }).notNull(),
+    consumedAt: timestamp('consumed_at', { withTimezone: true, mode: 'string' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
+    steamId: text('steam_id'),
+    completionCodeHash: text('completion_code_hash'),
+}, table => [
+    index('steam_link_intents_user_id_idx').on(table.userId),
+    uniqueIndex('steam_link_intents_one_live_idx').on(table.userId).where(sql`${table.consumedAt} is null`),
+    check('steam_link_intents_expires_after_create', sql`${table.expiresAt} > ${table.createdAt}`),
+    check('steam_link_intents_challenge_shape', sql`${table.codeChallenge} ~ '^[A-Za-z0-9_-]{43,128}$'`),
+    check('steam_link_intents_steam_id_shape', sql`${table.steamId} is null or ${table.steamId} ~ '^[0-9]{17}$'`),
+    check('steam_link_intents_code_hash_shape', sql`${table.completionCodeHash} is null or ${table.completionCodeHash} ~ '^[A-Za-z0-9_-]{43}$'`),
+]).enableRLS()
+
 export const catalogResetRuns = igdbPrivate.table('catalog_reset_runs', {
     runId: uuid('run_id').primaryKey(),
     manifestChecksum: text('manifest_checksum').notNull(),

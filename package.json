@@ -10,10 +10,13 @@
     "build": "npm run build -w @screenpeak/web --",
     "test": "npm test -w @screenpeak/web --",
     "lint": "npm run lint -w @screenpeak/web --",
-    "mobile": "npm start -w @screenpeak/mobile --"
+    "mobile": "npm start -w @screenpeak/mobile --",
+    "mobile:web": "npm run web -w @screenpeak/mobile --"
   },
   "overrides": {
-    "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-native": "0.88.1",
+    "react-native-svg": "15.16.0"
   }
 }

@@ -7,9 +7,13 @@ import { useRouter } from "next/navigation"
 import Modal from "@/app/components/util/Modal"
 import { addOrUpdateLibraryEntry, removeLibraryEntry, fetchLibraryEntry } from "@/app/library-actions"
 import { plus1 } from "@/lib/plus1"
-import { Check, Layers, Play, X } from "lucide-react"
+import { Check, Layers, Play, X, type LucideIcon } from "lucide-react"
+import { LIBRARY_STATUSES, type LibraryStatus } from "@screenpeak/shared/constants"
+import { LIBRARY_STATUS_COPY } from "@screenpeak/shared/library-copy"
 
-export default function LibraryButton({ game_id }: { game_id: number }) {
+const STATUS_ICONS: Record<LibraryStatus, LucideIcon> = { backlog: Layers, playing: Play, completed: Check, abandoned: X }
+
+export default function LibraryButton({ game_id }: { game_id: string }) {
     const { user } = useUser()
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
     const [isLibraryModalOpen, setIsLibraryModalOpen] = useState(false)
@@ -111,30 +115,29 @@ export default function LibraryButton({ game_id }: { game_id: number }) {
             {isLibraryModalOpen && (
                 <Modal onClose={() => setIsLibraryModalOpen(false)} title={libraryEntry ? "Manage Game" : "Add to Library"}>
                         <div className="grid grid-cols-2 gap-4 items-center">
-                        {[
-                        { status: 'backlog', icon: Layers, label: 'Backlog', description: "I'll get to it..." },
-                        { status: 'playing', icon: Play, label: 'Playing', description: 'Currently playing it' },
-                        { status: 'completed', icon: Check, label: 'Completed', description: 'Done and satisfied' },
-                        { status: 'abandoned', icon: X, label: 'Abandoned', description: "Couldn't get into it" },
-                        ].map(({ status, icon: Icon, label, description }) => (
-                        <button
-                            key={status}
-                            onClick={() => setStatus(status)}
-                            className={`w-full flex items-center gap-4 px-4 py-3 rounded-[3px]
-                            border border-(--color-border) hover:border-(--color-accent) hover:bg-(--color-accent)/5
-                            transition-all duration-200 group text-left ${status === currentStatus && "border-(--color-accent) bg-(--color-accent)/5"}`}
-                        >
-                            <Icon size={20} aria-hidden className={`w-6 ${status === currentStatus ? "text-(--color-accent)" : "text-(--color-muted)"} group-hover:text-(--color-accent) transition-colors duration-200`} />
-                            <div className="flex flex-col">
-                            <span className="text-sm font-semibold text-(--color-text)
-                                group-hover:text-(--color-accent) transition-colors duration-200
-                                font-(family-name:--font-display)">
-                                {label}
-                            </span>
-                            <span className="text-xs text-(--color-muted)">{description}</span>
-                            </div>
-                        </button>
-                        ))}
+                        {LIBRARY_STATUSES.map(status => {
+                        const Icon = STATUS_ICONS[status]
+                        const { label, description } = LIBRARY_STATUS_COPY[status]
+                        return (
+                            <button
+                                key={status}
+                                onClick={() => setStatus(status)}
+                                className={`w-full flex items-center gap-4 px-4 py-3 rounded-[3px]
+                                border border-(--color-border) hover:border-(--color-accent) hover:bg-(--color-accent)/5
+                                transition-all duration-200 group text-left ${status === currentStatus && "border-(--color-accent) bg-(--color-accent)/5"}`}
+                            >
+                                <Icon size={20} aria-hidden className={`w-6 ${status === currentStatus ? "text-(--color-accent)" : "text-(--color-muted)"} group-hover:text-(--color-accent) transition-colors duration-200`} />
+                                <div className="flex flex-col">
+                                <span className="text-sm font-semibold text-(--color-text)
+                                    group-hover:text-(--color-accent) transition-colors duration-200
+                                    font-(family-name:--font-display)">
+                                    {label}
+                                </span>
+                                <span className="text-xs text-(--color-muted)">{description}</span>
+                                </div>
+                            </button>
+                        )
+                        })}
                         </div>
                         <button onClick={() => addToLibrary()} className="w-full rounded-[3px] bg-(--color-accent) text-(--color-bg) border mt-3 my-2 py-4">
                             {libraryEntry ? "Update Library Entry" : "Add to Library"}

@@ -64,6 +64,34 @@
       "when": 1791491677097,
       "tag": "0008_steam_import_lease",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791491677098,
+      "tag": "0009_api_rate_limits",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791491677099,
+      "tag": "0010_steam_link_intents",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791491677100,
+      "tag": "0011_feed_total_order",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791578077100,
+      "tag": "0012_user_reviews_total_order",
+      "breakpoints": true
     }
   ]
 }

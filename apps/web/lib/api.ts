@@ -48,7 +48,38 @@ export class AuthUnavailableError extends ApiError {
 }
 
 export function apiError(status: number, code: ApiErrorCode, message: string, headers?: Record<string, string>) {
-    return NextResponse.json<ApiErrorBody>({ error: { code, message } }, { status, headers })
+    const retryHeader = headers?.['Retry-After']
+    const retry = retryHeader == null ? Number.NaN : Number(retryHeader)
+    const body: ApiErrorBody = (code === 'rate_limited' || code === 'unavailable') && Number.isFinite(retry)
+        ? { error: { code, message, retry_after: retry } }
+        : { error: { code, message } }
+    return NextResponse.json<ApiErrorBody>(body, { status, headers })
+}
+
+// Expo web is a browser on another origin (Metro, usually :8081) calling
+// /api/v1. Native fetch ignores CORS; a browser will not read the body without
+// these headers. They are not applied to cookie routes (delete-account,
+// steam/link): those still honor the website session. `*` stays credential-less
+// — the phone sends a bearer token and fetches with credentials: 'omit'.
+const CORS_HEADERS: Record<string, string> = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type, Accept',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+    'Access-Control-Expose-Headers': 'Retry-After',
+}
+
+export function isV1ApiPath(pathname: string): boolean {
+    return pathname === '/api/v1' || pathname.startsWith('/api/v1/')
+}
+
+export function applyCors(res: Response): Response {
+    for (const [key, value] of Object.entries(CORS_HEADERS)) res.headers.set(key, value)
+    return res
+}
+
+/** Preflight for Expo web. Answered from proxy.ts so each route doesn't export OPTIONS. */
+export function corsPreflight(): NextResponse {
+    return new NextResponse(null, { status: 204, headers: CORS_HEADERS })
 }
 
 /**
@@ -58,17 +89,21 @@ export function apiError(status: number, code: ApiErrorCode, message: string, he
  *
  *     export const GET = withAuth(async (req, ctx: RouteContext<'/api/v1/games/[slug]'>) => { … })
  */
+function finish(req: NextRequest, res: Response): Response {
+    return isV1ApiPath(req.nextUrl.pathname) ? applyCors(res) : res
+}
+
 export function withAuth<Ctx>(handler: (req: NextRequest, ctx: Ctx) => Promise<Response>) {
     return async (req: NextRequest, ctx: Ctx): Promise<Response> => {
         try {
-            return await handler(req, ctx)
+            return finish(req, await handler(req, ctx))
         } catch (err) {
-            if (err instanceof ApiError) return apiError(err.status, err.code, err.message, err.headers)
+            if (err instanceof ApiError) return finish(req, apiError(err.status, err.code, err.message, err.headers))
 
             logger.error('api', `Unhandled error in ${req.method} ${req.nextUrl.pathname}`, {
                 error: err instanceof Error ? { name: err.name, message: err.message, stack: err.stack } : String(err),
             })
-            return apiError(500, 'internal', 'Something went wrong.')
+            return finish(req, apiError(500, 'internal', 'Something went wrong.'))
         }
     }
 }

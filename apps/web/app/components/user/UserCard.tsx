@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import Avatar from "@/app/components/user/Avatar"
-import { parseDbTimestamp } from "@/lib/dates"
+import { parseDbTimestamp } from "@screenpeak/shared/dates"
 
 export default function UserCard({ username, avatarUrl, title, createdAt, followerCount, followingCount, gameCount, avgRating } : 
     { username: string, avatarUrl: string | null, title: string | null, createdAt: string, followerCount: number, followingCount: number, gameCount: number, avgRating: number }) {

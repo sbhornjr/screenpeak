@@ -2,6 +2,7 @@
 
 import { requireUser } from '@/lib/auth'
 import { unlinkSteamAccount } from '@/lib/queries/steam'
+import { steamImportClientMessage } from '@/lib/catalog/steam-import-errors'
 import { parseSteamImportRequest, runSteamImportBatch, SteamImportInputError } from '@/lib/catalog/steam-import'
 import type { SteamImportBatch } from '@screenpeak/shared/types'
 
@@ -15,7 +16,9 @@ export async function resolveSteamImportBatch(input?: unknown): Promise<SteamImp
     const user = await requireUser()
     try {
         const request = parseSteamImportRequest(input)
-        return await runSteamImportBatch(user.id, request)
+        const outcome = await runSteamImportBatch(user.id, request)
+        if ('error' in outcome) return { error: steamImportClientMessage(outcome.error) }
+        return outcome.batch
     } catch (error) {
         if (error instanceof SteamImportInputError) return { error: error.message }
         throw error
