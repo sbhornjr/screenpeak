@@ -1079,22 +1079,30 @@ and check it on a small phone (iPhone SE size) and with the keyboard open.
   > the one gap was the `expo-status-bar` config plugin itself, which now
   > also gets `{ "style": "light" }` so the correct status-bar content color
   > is set natively before JS runs, instead of only once React mounts.
-  > **Not done**: a real device/Simulator screenshot of the installed app.
-  > `expo prebuild --clean` + `pod install` succeeded, but the first real
-  > `xcodebuild` compile this project has ever done (every earlier
-  > Simulator run in this session went through Metro/a dev client, which
-  > never touches Xcode build phases) failed in an unrelated phase: Sentry's
-  > generated "Upload Debug Symbols" script calls bare `node` without
-  > sourcing `.xcode.env`, and Xcode's build-phase PATH doesn't include
-  > nvm's node, so it's not on PATH there even though `.xcode.env.local`
-  > sets `NODE_BINARY` correctly for the phases that source it. That's a
-  > pre-existing local Sentry/Xcode/nvm PATH gap, not something this change
-  > introduced, and not a CNG-safe thing to hand-patch in the generated
-  > Xcode project (prebuild would just overwrite it). Verification instead
-  > leaned on composited previews of every generated asset (icon, each
-  > Android layer, splash) plus the adaptive-icon safe-zone circle-mask
-  > check above, and `expo config` / `expo-doctor` to confirm the plugin
-  > config itself resolves cleanly.
+  > **Also fixed**: the first real `xcodebuild` compile this project has
+  > ever done (every earlier Simulator run in this session went through
+  > Metro/a dev client, which never touches Xcode build phases) failed in
+  > an unrelated phase — Sentry's generated "Upload Debug Symbols to
+  > Sentry" script calls bare `node` without ever sourcing `.xcode.env`
+  > first (unlike "Bundle React Native code and images", which does), so
+  > `NODE_BINARY` is unset there and it's not on Xcode's build-phase PATH
+  > for an nvm-managed install. Not a CNG-safe thing to hand-patch in the
+  > generated Xcode project — `expo prebuild` regenerates `ios/` from
+  > scratch — so the fix is a local Expo config plugin,
+  > `apps/mobile/plugins/with-sentry-node-env.js`, that finds that phase
+  > via `withXcodeProject` and prepends the same two `source` lines the
+  > bundle phase already uses successfully. One real gotcha: it has to be
+  > registered *before* `@sentry/react-native/expo` in app.json's
+  > `plugins` array, not after — `@expo/config-plugins`' mod chaining runs
+  > each newly-registered `withXcodeProject` callback *before* the one
+  > registered ahead of it (an onion, not a pipeline), so the last plugin
+  > registered for a given mod type is the first to execute; registering
+  > this one first makes it the inner link, running after Sentry's
+  > callback has already added the phase it's patching. Confirmed with a
+  > real `xcodebuild` + Simulator launch: the splash (glowing seam on
+  > graphite) and status bar (light content) both render exactly as
+  > designed, and the icon shows correctly on the springboard, properly
+  > corner-masked, right next to the stock app icons.
 
 ### Phase 5 — Release (≈1–2 weeks, partly waiting on review)
 
