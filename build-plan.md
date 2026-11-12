@@ -980,6 +980,35 @@ and check it on a small phone (iPhone SE size) and with the keyboard open.
   > This also needs the site actually hosted (Phase 5) before a real device can
   > fetch either file.
 - **Share sheet**: share a game, list, or profile (as its web URL).
+  > **Done.** `AppHeader` (`src/components/app-header.tsx`) gained an optional
+  > `trailing` slot — the mirror of the `onBack` slot it already had — so a
+  > per-screen action can sit beside the centered wordmark without each screen
+  > re-laying out its own header. `ShareButton` (`src/components/share-button.tsx`)
+  > fills that slot on the game page, the profile hub, and list detail, each
+  > passing its own already-built web URL (`src/lib/share.ts`:
+  > `gameShareUrl`/`profileShareUrl`/`listShareUrl`, all `${SITE_ORIGIN}${...Href(...)}`
+  > — reusing the `routes.ts` href builders and the `SITE_ORIGIN` constant Steam
+  > linking already defined, so the Universal Links paths and the share links
+  > can't drift apart). `shareUrl()` opens the native share sheet
+  > (`react-native`'s `Share.share`, `url` on iOS and `message` on Android,
+  > since Android has no `url` field); web has no share sheet, so it tries the
+  > Web Share API, then falls back to `navigator.clipboard.writeText`, and the
+  > button itself shows "Link copied" for two seconds only for that fallback —
+  > a real native sheet or the Web Share API already confirms itself. List
+  > detail's `shareUrl` prop is a plain string built one level up in
+  > `lists-browser.tsx`, where the list id is already in scope, rather than
+  > recomputing it from a username/listId pair passed down. **Found in manual
+  > verification, not by the unit tests**: the first pass let a denied
+  > `navigator.clipboard.writeText()` (e.g. a permissions-policy block)
+  > propagate as an uncaught promise rejection, crashing the screen with Expo's
+  > red error overlay instead of just doing nothing; `shareOnWeb` now catches
+  > that and returns `'unsupported'`, with a regression test
+  > (`src/lib/share.test.ts`) locking it in. Verified signed in as `peek`
+  > against the local dev server on Expo web: the icon renders in the header's
+  > trailing slot on `/games/elden-ring`, `/user/peek`, and `/user/peek/lists/<id>`,
+  > each with the right accessible name (`Share Elden Ring`, `Share peek's
+  > profile`, `Share Wishlist`), and list/game-page skeletons correctly render
+  > no Share button before there's a URL to share.
 - **Haptics** on rate / like / follow; port the `screenpeak:plus1` tic as a
   native animation (Reanimated).
 - **Optimistic updates** for like / follow / library status.

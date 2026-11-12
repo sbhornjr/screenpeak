@@ -65,6 +65,7 @@ vi.mock('lucide-react-native', () => {
     Pencil: Icon,
     Pin: Icon,
     Repeat: Icon,
+    Share2: Icon,
     SlidersHorizontal: Icon,
     Trophy: Icon,
     X: Icon,

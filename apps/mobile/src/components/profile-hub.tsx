@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import type { ProfileHubModel } from '@/lib/profile-hub'
 import { averageText, reviewDateLabel } from '@/lib/profile-hub'
 import { gameHref } from '@/lib/routes'
+import { profileShareUrl } from '@/lib/share'
 import { colors, face, hitTarget, radius, seam, space, text, tierColor, tracking, trackingPx, typeScale } from '@/theme'
 
 import { Avatar } from './avatar'
@@ -18,6 +19,7 @@ import { Panel } from './panel'
 import { AppHeader } from './app-header'
 import { PanelRow } from './screen-scroll'
 import { SectionHead } from './section-head'
+import { ShareButton } from './share-button'
 
 function libraryCopy(library: NonNullable<ProfileHubModel['library']>): { label: string, text: string } {
   if (library.totalGames == null || library.completed == null) {
@@ -146,7 +148,10 @@ export function ProfileHub({
 
   return (
     <SafeAreaView style={styles.screen}>
-      <AppHeader onBack={onBack} />
+      <AppHeader
+        onBack={onBack}
+        trailing={<ShareButton url={profileShareUrl(model.username)} title={model.displayName} label={`Share ${model.username}'s profile`} />}
+      />
       <ScrollView
         contentContainerStyle={[styles.content, compact && styles.contentCompact]}
         refreshControl={onRefresh

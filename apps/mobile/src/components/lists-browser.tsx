@@ -10,6 +10,7 @@ import { patchViewerGames, useCachedWrite } from '@/lib/cached-write'
 import { loadFailure } from '@/lib/failure'
 import { withListMembership } from '@/lib/game-page'
 import { back, go } from '@/lib/go'
+import { listShareUrl } from '@/lib/share'
 import {
   listShowChoices,
   listsHeading,
@@ -194,6 +195,7 @@ export function ListDetail({ username, listId }: { username: string, listId: str
       games={page.games}
       refreshing={refreshing || detailQuery.isFetching}
       loadError={failure?.body ?? null}
+      shareUrl={listShareUrl(page.profile.username, listId)}
       onOpen={go}
       onBack={back}
       onRefresh={refresh}

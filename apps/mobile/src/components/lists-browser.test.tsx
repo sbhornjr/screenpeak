@@ -88,7 +88,7 @@ vi.mock('lucide-react-native', () => {
       'data-size': props.size,
     })
   }
-  return { ChevronDown: Icon, Heart: Icon, Lock: Icon, Pin: Icon, X: Icon }
+  return { ChevronDown: Icon, Heart: Icon, Lock: Icon, Pin: Icon, Share2: Icon, X: Icon }
 })
 
 vi.mock('react-native-safe-area-context', () => ({
