@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react'
 
 import { AppErrorBoundary, RouteErrorBoundary } from '@/components/app-error-boundary'
 import { ClearListsOnSignOut } from '@/components/clear-lists-on-sign-out'
+import { Plus1Layer } from '@/components/plus1-layer'
 import { AuthProvider } from '@/lib/auth'
 import { startMobileSentry, wrapRoot } from '@/lib/sentry'
 import { colors, fontFiles } from '@/theme'
@@ -58,6 +59,7 @@ function RootLayout() {
                 contentStyle: { backgroundColor: colors.bg },
               }}
             />
+            <Plus1Layer />
           </ThemeProvider>
         </AuthProvider>
       </QueryClientProvider>

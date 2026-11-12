@@ -7,7 +7,9 @@ import { useAuth } from '@/lib/auth'
 import { useCachedWrite } from '@/lib/cached-write'
 import { actionFailure } from '@/lib/failure'
 import { back, go } from '@/lib/go'
-import { profileHubModel, withFollowing } from '@/lib/profile-hub'
+import { tapHaptic } from '@/lib/haptics'
+import { plus1 } from '@/lib/plus1'
+import { addedNewFavorite, profileHubModel, withFollowing } from '@/lib/profile-hub'
 import { queryKeys, scopes } from '@/lib/query-keys'
 import { useSingleFlight } from '@/lib/single-flight'
 import { useRefresh } from '@/lib/use-refresh'
@@ -43,6 +45,7 @@ function ProfileFollowSession({ username, showBack }: { username: string, showBa
   function changeFollow(following: boolean) {
     const current = remote.query.data
     if (!current || current.following == null) return
+    tapHaptic()
     void flight(async () => {
       setFollowBusy(true)
       setFollowNote(null)
@@ -74,9 +77,12 @@ function ProfileFollowSession({ username, showBack }: { username: string, showBa
   // The cards need each game's developer and scores, so the profile refetches
   // rather than patching the cache. Settings' title choices read the same page.
   async function saveFavorites(gameIds: string[]) {
+    const addedNew = addedNewFavorite(model.favorites, gameIds)
     try {
       await api.me.patch({ favoriteGames: gameIds })
       await queryClient.invalidateQueries({ queryKey: scopes.profile })
+      // +1 only when a game was newly pinned, not on reorder/removal
+      if (addedNew) plus1('FAVORITED')
       return null
     } catch (error) {
       return actionFailure(error)

@@ -82,6 +82,11 @@ function filled(value: string | null | undefined): string | null {
   return value?.trim() || null
 }
 
+/** +1 only when a game was newly pinned, not on reorder/removal. */
+export function addedNewFavorite(current: ProfilePageData['favorites'], gameIds: string[]): boolean {
+  return gameIds.some(id => !current.some(game => game.id === id))
+}
+
 export function profileHubModel(data: ProfilePageData): ProfileHubModel {
   const username = data.profile.username
   const isOwner = data.viewer?.is_owner ?? false

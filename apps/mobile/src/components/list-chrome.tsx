@@ -1,6 +1,7 @@
 import { Heart, Lock } from 'lucide-react-native'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 
+import { tapHaptic } from '@/lib/haptics'
 import { gamesLabel, likeActionLabel, likesCountLabel } from '@/lib/lists-page'
 import { calendarLabel } from '@/lib/profile-hub'
 import { colors, face, hitTarget, space, typeScale } from '@/theme'
@@ -44,7 +45,10 @@ export function ListLike({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={likeActionLabel(liked, count)}
-      onPress={onPress}
+      onPress={() => {
+        tapHaptic()
+        onPress?.()
+      }}
       hitSlop={{ top: slop, right: slop, bottom: slop, left: slop }}
       style={styles.hit}
     >

@@ -9,11 +9,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { ProfileHubScreen } from './profile-hub-screen'
 
-const { getProfile, follow, unfollow } = vi.hoisted(() => ({
+const { getProfile, follow, unfollow, tapHaptic } = vi.hoisted(() => ({
   getProfile: vi.fn(),
   follow: vi.fn(),
   unfollow: vi.fn(),
+  tapHaptic: vi.fn(),
 }))
+
+vi.mock('@/lib/haptics', () => ({ tapHaptic }))
 
 vi.mock('expo-router', () => ({
   router: { push: vi.fn(), back: vi.fn(), replace: vi.fn(), navigate: vi.fn(), dismissTo: vi.fn(), canGoBack: () => false, canDismiss: () => false },
@@ -130,6 +133,7 @@ afterEach(() => {
   getProfile.mockReset()
   follow.mockReset()
   unfollow.mockReset()
+  tapHaptic.mockReset()
 })
 
 function peek(followingCount: number): ProfilePageData {
@@ -186,6 +190,7 @@ describe('profile follow', () => {
     fireEvent.click(button)
     await waitFor(() => expect(follow).toHaveBeenCalledTimes(1))
     expect(follow).toHaveBeenCalledWith(ADA)
+    expect(tapHaptic).toHaveBeenCalled()
     expect(screen.getByRole('button', { name: 'Unfollow ada' }).textContent).toBe('Following…')
     expect(screen.getByText('5 followers · 2 following').textContent).toBe('5 followers · 2 following')
 

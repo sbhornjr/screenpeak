@@ -1011,6 +1011,47 @@ and check it on a small phone (iPhone SE size) and with the keyboard open.
   > no Share button before there's a URL to share.
 - **Haptics** on rate / like / follow; port the `screenpeak:plus1` tic as a
   native animation (Reanimated).
+  > **Done.** `lib/haptics.ts`'s `tapHaptic()` (`Haptics.impactAsync(Light)`,
+  > fire-and-forget) fires on every Rate submit, every list like/unlike
+  > (inside `ListLike` itself, in `list-chrome.tsx`, since all three of its
+  > call sites — list detail, the shared list card, the feed's read-only
+  > card — funnel through there), and every follow/unfollow tap, regardless
+  > of whether the write itself succeeds.
+  >
+  > The +1 tic is `lib/plus1.ts` (`plus1(label?, n?)` + a plain `Set`-based
+  > subscribe, no event bus needed without `window`) and `Plus1Layer`
+  > (mounted once in `_layout.tsx`, alongside `<Stack />`), ported call site
+  > for call site from the website's `lib/plus1.ts` writers: RATED (first
+  > score only), SAVED/COMPLETED (new library entry, or an existing one's
+  > first "completed"), NEW LIST (both the Lists tab's own create and the
+  > game page's create-and-add — one chip for the latter, not also LISTED),
+  > LISTED (adding to an existing list), FAVORITED (a newly pinned favorite,
+  > via the new `addedNewFavorite()` in `lib/profile-hub.ts`). Never list
+  > likes or follows — those are about other people, same as the website.
+  > Each "was this new" check reads the pre-write cached page already in the
+  > closure, mirroring the website's own `wasNew` pattern, and fires only
+  > after the write actually succeeds.
+  >
+  > The chip itself: a single Reanimated `progress` value (0→1,
+  > `withTiming` + the website's exact cubic-bezier) drives opacity,
+  > translateY, and scale via `interpolate()` at the same percentages as
+  > the CSS `sp-plus1` keyframes; `useReducedMotion()` swaps to the
+  > `sp-plus1-rm` fallback (stay visible, cut opacity at the end) instead of
+  > skipping the animation outright, since the chip is the only feedback a
+  > write gets. Vitest can't parse real `react-native`/`react-native-reanimated`
+  > (Flow syntax) any more than it could `lucide-react-native`; `expo-haptics`
+  > hit the same wall a different way (`__DEV__` undefined under Node), so
+  > `test/expo-haptics.ts` joins `test/lucide-react-native.tsx` as a global
+  > vitest alias, and `plus1-layer.test.tsx` mocks `react-native-reanimated`
+  > locally (Reanimated's own official `mock.js` still imports real
+  > `react-native`, so it doesn't sidestep the problem on its own).
+  >
+  > **Found live, not by a screenshot of the chip** (its tool round-trips run
+  > slower than the 1s animation): no crashes across repeated rate-amend,
+  > library-save, and remove cycles against the local dev server, console
+  > clean throughout. The chip's own correctness — mount, stacked text,
+  > timed removal — is asserted with fake timers in `plus1-layer.test.tsx`
+  > instead, the right tool for something this fast.
 - **Optimistic updates** for like / follow / library status.
 - **Push notifications** (optional for v1): new follower, list liked. Needs an
   Expo push token table + sending from the server.
