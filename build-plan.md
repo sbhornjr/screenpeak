@@ -958,6 +958,27 @@ and check it on a small phone (iPhone SE size) and with the keyboard open.
 - **Deep links / Universal Links**: `screenpeak.app/games/elden-ring` opens the
   game screen in the app if installed. Requires an `apple-app-site-association`
   file and Android `assetlinks.json` served from the web app's `public/.well-known/`.
+  > **Done, modulo two placeholders.** `apps/web/public/.well-known/apple-app-site-association`
+  > and `assetlinks.json` cover every mobile route that mirrors a web one: `/explore`,
+  > `/games`, `/games/*`, `/user/*` (not `/settings`, `/auth/*`, `/steamlink`, or the
+  > legal pages — those aren't symmetric between the two clients). `next.config.ts`
+  > adds a `Content-Type: application/json` header for the extensionless AASA file;
+  > `assetlinks.json` gets it from its own extension. `apps/mobile/app.json` gained
+  > `android.package` (missing before this — required for any Android build, not
+  > just App Links), `ios.associatedDomains: ["applinks:screenpeak.app"]`, and a
+  > matching `android.intentFilters` entry with `autoVerify: true`. Expo Router
+  > needs no extra linking code: deep linking is automatic for every screen once
+  > these are set. `test/lib/well-known.test.ts` checks both files' shape.
+  > **Still open:** the AASA's `appID` is `REPLACE_WITH_APPLE_TEAM_ID.com.steventpot.screenpeak`
+  > (the real 10-character Apple Developer Team ID isn't known yet — Apple Developer
+  > account → Membership, or `eas credentials -p ios` after first signed build) and
+  > `assetlinks.json`'s `sha256_cert_fingerprints` is `REPLACE_WITH_SHA256_CERT_FINGERPRINT`
+  > (only exists once a signed Android build has run — `eas credentials -p android`).
+  > Both are guarded by a test that fails once they're filled in, as a reminder to
+  > update the test alongside them. Apple only re-fetches the AASA at install/update
+  > time, so a real device won't pick up a later path change without a fresh install.
+  > This also needs the site actually hosted (Phase 5) before a real device can
+  > fetch either file.
 - **Share sheet**: share a game, list, or profile (as its web URL).
 - **Haptics** on rate / like / follow; port the `screenpeak:plus1` tic as a
   native animation (Reanimated).
