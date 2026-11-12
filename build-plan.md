@@ -1056,6 +1056,45 @@ and check it on a small phone (iPhone SE size) and with the keyboard open.
 - **Push notifications** (optional for v1): new follower, list liked. Needs an
   Expo push token table + sending from the server.
 - App icon, splash screen, dark-only status bar styling.
+  > **Done.** The app shipped with Expo's own template placeholder — the
+  > stock blue "A" mark (`assets/images/icon.png`, the Android adaptive
+  > layers, and `assets/expo.icon`'s untouched Icon Composer bundle) — never
+  > actually designed for ScreenPeak. The new icon and splash are the seam
+  > (DESIGN.md §6, "the recurring structural marker") at app-icon scale: a
+  > glowing cyan bar on the graphite ground, generated from one parametric
+  > SVG (`sharp`, not hand-drawn) so every size — the 1024 icon, the Android
+  > adaptive foreground/background/monochrome layers, the splash glyph — is
+  > the same shape at the right proportions, not five separately-eyeballed
+  > exports. Checked: legible at a 64×64 downscale, and the foreground still
+  > sits clear of the Android adaptive icon's ~61%-diameter safe-zone circle
+  > under every mask shape. `ios.icon` now falls back to the same flat PNG
+  > instead of the default `expo.icon` bundle (deleted) — that bundle is
+  > Apple's new multi-layer "Icon Composer" format for the iOS 18+ Liquid
+  > Glass effect, and hand-authoring one correctly without a way to preview
+  > it in Xcode was a worse bet than a flat icon that's guaranteed to render
+  > right everywhere; revisit it once someone can check it in Xcode.
+  > Status bar: `userInterfaceStyle: "dark"` and root `backgroundColor`
+  > (`expo-system-ui` is already a dependency, which both need) were already
+  > set, and `<StatusBar style="light" />` was already called at runtime —
+  > the one gap was the `expo-status-bar` config plugin itself, which now
+  > also gets `{ "style": "light" }` so the correct status-bar content color
+  > is set natively before JS runs, instead of only once React mounts.
+  > **Not done**: a real device/Simulator screenshot of the installed app.
+  > `expo prebuild --clean` + `pod install` succeeded, but the first real
+  > `xcodebuild` compile this project has ever done (every earlier
+  > Simulator run in this session went through Metro/a dev client, which
+  > never touches Xcode build phases) failed in an unrelated phase: Sentry's
+  > generated "Upload Debug Symbols" script calls bare `node` without
+  > sourcing `.xcode.env`, and Xcode's build-phase PATH doesn't include
+  > nvm's node, so it's not on PATH there even though `.xcode.env.local`
+  > sets `NODE_BINARY` correctly for the phases that source it. That's a
+  > pre-existing local Sentry/Xcode/nvm PATH gap, not something this change
+  > introduced, and not a CNG-safe thing to hand-patch in the generated
+  > Xcode project (prebuild would just overwrite it). Verification instead
+  > leaned on composited previews of every generated asset (icon, each
+  > Android layer, splash) plus the adaptive-icon safe-zone circle-mask
+  > check above, and `expo config` / `expo-doctor` to confirm the plugin
+  > config itself resolves cleanly.
 
 ### Phase 5 — Release (≈1–2 weeks, partly waiting on review)
 
