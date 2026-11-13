@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react'
 import { AppErrorBoundary, RouteErrorBoundary } from '@/components/app-error-boundary'
 import { ClearListsOnSignOut } from '@/components/clear-lists-on-sign-out'
 import { Plus1Layer } from '@/components/plus1-layer'
+import { PushNotificationNavigation, PushNotificationRegistration } from '@/components/push-notifications'
 import { AuthProvider } from '@/lib/auth'
 import { startMobileSentry, wrapRoot } from '@/lib/sentry'
 import { colors, fontFiles } from '@/theme'
@@ -51,6 +52,7 @@ function RootLayout() {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <ClearListsOnSignOut />
+          <PushNotificationRegistration />
           <ThemeProvider value={navigationTheme}>
             <StatusBar style="light" />
             <Stack
@@ -60,6 +62,7 @@ function RootLayout() {
               }}
             />
             <Plus1Layer />
+            <PushNotificationNavigation />
           </ThemeProvider>
         </AuthProvider>
       </QueryClientProvider>

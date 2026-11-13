@@ -1055,6 +1055,54 @@ and check it on a small phone (iPhone SE size) and with the keyboard open.
 - **Optimistic updates** for like / follow / library status.
 - **Push notifications** (optional for v1): new follower, list liked. Needs an
   Expo push token table + sending from the server.
+  > **Done, modulo one manual step.** `push_tokens` (migration `0013`, same
+  > shape as `steam_link_intents`: server-role-only, RLS enabled, browser
+  > roles revoked) holds one row per device, keyed uniquely on the Expo push
+  > token itself — a re-login on the same device moves the row to the new
+  > user rather than duplicating it. `POST`/`DELETE /api/v1/me/push-token`
+  > register and unregister a token (bearer + write budget, like every other
+  > `/me` write). `lib/queries/push.ts`'s `sendPushNotification` posts to
+  > Expo's push HTTP API directly (no `expo-server-sdk` — one `fetch`, no
+  > batching/receipt-polling infrastructure a v1-optional feature doesn't
+  > need) and prunes any token Expo's response reports as
+  > `DeviceNotRegistered`. It never throws, and its callers `await` it anyway
+  > (not fire-and-forget) rather than leave an un-awaited promise a
+  > serverless function's response could cut off mid-send.
+  >
+  > Both notification types hook the one write that was already the single
+  > path for both clients: `followUser`/`likeList` in `lib/queries/*`, which
+  > the website's Server Actions and the phone's `/api/v1` routes already
+  > both called. Each checks its insert's own `.returning()` so a retried
+  > follow or like (the `onConflictDoNothing` no-op) never double-notifies.
+  > Mobile: `expo-notifications` installed, config-plugin entry added.
+  > `registerForPushNotificationsAsync()` (`lib/push-notifications.ts`) asks
+  > permission (a no-op if already granted or denied — the OS only ever
+  > prompts once) and returns `null` — never throws — on web, a refused
+  > permission, no EAS project, or a failed token request. Two components
+  > mounted in the root layout: `PushNotificationRegistration` registers on
+  > sign-in and unregisters on sign-out (mirroring `ClearListsOnSignOut`'s
+  > own sign-in/out-edge pattern), `PushNotificationNavigation` opens a
+  > tapped notification's `data.url` via `useLastNotificationResponse()` —
+  > the current SDK 58 API; the imperative `getLastNotificationResponse()`/
+  > `clearLastNotificationResponse()` the docs still describe no longer
+  > exist in this SDK.
+  >
+  > Getting a real device token needs an EAS project, which this app didn't
+  > have — linked it to `@steventpot/screenpeak` (`eas init`, confirmed with
+  > the user first, since it touches their external Expo account).
+  >
+  > Confirmed with a real `xcodebuild` + Simulator launch, Metro attached:
+  > the permission dialog appeared, Allow was granted, a genuine
+  > `ExponentPushToken[...]` came back (so this Simulator/Xcode version does
+  > support real tokens), and `POST /api/v1/me/push-token` fired with the
+  > right bearer and body. It 500'd — not a code bug: this is a fresh
+  > migration (`0013`) nobody has applied to the local dev database yet, and
+  > applying it needs `LOCAL_DATABASE_URL`/`DATABASE_POOL_URL`, which this
+  > agent can't read (`.env.local` is sandboxed) and isn't allowed to run
+  > migrations against blind (a `DATABASE_POOL_URL` dry run was refused by
+  > the host's own permission classifier: "Production Reads"). Run before
+  > this is end-to-end testable:
+  > `npm run migrate:journal -w @screenpeak/web -- --database-env LOCAL_DATABASE_URL --apply-pending`.
 - App icon, splash screen, dark-only status bar styling.
   > **Done.** The app shipped with Expo's own template placeholder — the
   > stock blue "A" mark (`assets/images/icon.png`, the Android adaptive

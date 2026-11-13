@@ -157,6 +157,18 @@ export const steamImportBatchSchema = z.object({
     }).strict().nullable().optional(),
 }).strict()
 
+/** POST /api/v1/me/push-token. No format assumed for the token itself — Expo
+ *  documents none — only that it's present. */
+export const pushTokenRegisterSchema = z.object({
+    token: z.string().trim().min(1, 'Enter a push token.').max(400, 'That token is too long.'),
+    platform: z.enum(['ios', 'android']),
+}).strict()
+
+/** DELETE /api/v1/me/push-token. */
+export const pushTokenUnregisterSchema = z.object({
+    token: z.string().trim().min(1, 'Enter a push token.').max(400, 'That token is too long.'),
+}).strict()
+
 export const steamLibraryImportSchema = z.array(z.object({
     gameId: uuidIdSchema,
     playtimeSelected: hoursPlayedSchema,

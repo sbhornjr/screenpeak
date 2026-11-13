@@ -14,6 +14,7 @@ import type { ProfilePageData } from './profile'
 import type { UserReviewsPage, UserReviewsQuery } from './user-reviews'
 import type { GameSearchPage, TaxonomySearchPage, TaxonomySearchTable } from './search'
 import type { AppConfig } from './app-config'
+import type { PushTokenRegisterRequest, PushTokenUnregisterRequest } from './push'
 import type { SteamImportBatch, SteamImportBatchRequest, SteamLinkCompleteRequest, SteamLinkIntent, SteamLinkIntentRequest } from './steam'
 import type {
     AvatarSave,
@@ -191,6 +192,8 @@ export function createApiClient(opts: {
             steamLinkComplete: (body: SteamLinkCompleteRequest) => send<OkResult>('POST', '/api/v1/me/steam/link-complete', body),
             steamImportBatch: (body: SteamImportBatchRequest = {}) =>
                 send<SteamImportBatch>('POST', '/api/v1/me/steam/import', body),
+            registerPushToken: (body: PushTokenRegisterRequest) => send<OkResult>('POST', '/api/v1/me/push-token', body),
+            unregisterPushToken: (body: PushTokenUnregisterRequest) => send<OkResult>('DELETE', '/api/v1/me/push-token', body),
         },
         appConfig: () => get<AppConfig>('/api/v1/app-config'),
         lists: {
