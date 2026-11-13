@@ -101,4 +101,17 @@ describe('PushNotificationNavigation', () => {
 
     expect(go).not.toHaveBeenCalled()
   })
+
+  it.each([
+    '//evil.com',
+    'https://evil.com',
+    'http://evil.com',
+    '/\\evil.com',
+  ])('refuses to navigate to %s', (url) => {
+    useLastNotificationResponse.mockReturnValue({ notification: { request: { content: { data: { url } } } } })
+
+    render(<PushNotificationNavigation />)
+
+    expect(go).not.toHaveBeenCalled()
+  })
 })

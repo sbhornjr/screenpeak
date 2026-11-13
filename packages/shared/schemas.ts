@@ -157,10 +157,15 @@ export const steamImportBatchSchema = z.object({
     }).strict().nullable().optional(),
 }).strict()
 
-/** POST /api/v1/me/push-token. No format assumed for the token itself — Expo
- *  documents none — only that it's present. */
+const EXPO_PUSH_TOKEN_RE = /^Expo(nent)?PushToken\[[^\]]+\]$/
+
+/** POST /api/v1/me/push-token. Expo's own token shape — loose on the id inside
+ *  the brackets (Expo doesn't document its format), but rejecting anything
+ *  that isn't an Expo push token keeps this endpoint from being used to spam
+ *  arbitrary strings at another user's device-id column. */
 export const pushTokenRegisterSchema = z.object({
-    token: z.string().trim().min(1, 'Enter a push token.').max(400, 'That token is too long.'),
+    token: z.string().trim().min(1, 'Enter a push token.').max(400, 'That token is too long.')
+        .regex(EXPO_PUSH_TOKEN_RE, 'That doesn\'t look like an Expo push token.'),
     platform: z.enum(['ios', 'android']),
 }).strict()
 

@@ -32,7 +32,7 @@ vi.mock('@/lib/db', () => ({
 
 // The notification side effect has its own test; this file is about
 // likeList's ownership/privacy rules, so it never sends a real push.
-vi.mock('@/lib/queries/push', () => ({ sendPushNotification: vi.fn() }))
+vi.mock('@/lib/queries/push', () => ({ sendPushNotification: vi.fn(), notifyOncePerWindow: vi.fn(async () => true) }))
 
 import { likeList } from '@/lib/queries/list'
 

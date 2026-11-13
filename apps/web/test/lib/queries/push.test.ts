@@ -7,21 +7,33 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({
     tokens: [] as { token: string }[],
+    excessTokenIds: [] as { id: string }[],
     upserted: [] as { userId: string, expoPushToken: string, platform: string }[],
+    upsertConfig: null as { setWhere?: unknown } | null,
     deleteCalls: 0,
 }))
 
 vi.mock('@/lib/db', () => ({
     db: {
-        select: () => ({
+        // registerPushToken's prune step selects { id } to find excess rows;
+        // sendPushNotification selects { token }. Dispatch on that shape so
+        // one mock serves both without the two sharing an array.
+        select: (fields?: Record<string, unknown>) => ({
             from: () => ({
-                where: async () => state.tokens,
+                where: () => {
+                    const rows = fields && 'id' in fields ? state.excessTokenIds : state.tokens
+                    return {
+                        then: (resolve: (v: unknown[]) => void) => resolve(rows),
+                        orderBy: () => ({ offset: async () => rows }),
+                    }
+                },
             }),
         }),
         insert: () => ({
             values: (row: { userId: string, expoPushToken: string, platform: string }) => ({
-                onConflictDoUpdate: async () => {
+                onConflictDoUpdate: async (config: { setWhere?: unknown }) => {
                     state.upserted.push(row)
+                    state.upsertConfig = config
                 },
             }),
         }),
@@ -33,6 +45,8 @@ vi.mock('@/lib/db', () => ({
     },
 }))
 
+vi.mock('@/lib/rate-limit', () => ({ consumeApiRateLimit: vi.fn() }))
+
 function jsonResponse(body: unknown, init?: ResponseInit) {
     return new Response(JSON.stringify(body), {
         headers: { 'content-type': 'application/json' },
@@ -40,20 +54,68 @@ function jsonResponse(body: unknown, init?: ResponseInit) {
     })
 }
 
-import { registerPushToken, sendPushNotification, unregisterPushToken } from '@/lib/queries/push'
+import { consumeApiRateLimit } from '@/lib/rate-limit'
+import { ApiError } from '@/lib/api'
+import { notifyOncePerWindow, registerPushToken, sendPushNotification, unregisterPushToken } from '@/lib/queries/push'
 
 const USER = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+const consumeApiRateLimitMock = vi.mocked(consumeApiRateLimit)
 
 beforeEach(() => {
     state.tokens = []
+    state.excessTokenIds = []
     state.upserted = []
+    state.upsertConfig = null
     state.deleteCalls = 0
+    consumeApiRateLimitMock.mockReset()
 })
 
 describe('registerPushToken', () => {
     it('upserts the token for this user and platform', async () => {
         await registerPushToken(USER, 'ExponentPushToken[abc]', 'ios')
         expect(state.upserted).toEqual([{ userId: USER, expoPushToken: 'ExponentPushToken[abc]', platform: 'ios' }])
+    })
+
+    it('only reassigns a conflicting token when the other owner has gone idle', async () => {
+        await registerPushToken(USER, 'ExponentPushToken[abc]', 'ios')
+        expect(state.upsertConfig?.setWhere).toBeDefined()
+    })
+
+    it('prunes rows beyond the per-user cap after registering', async () => {
+        state.excessTokenIds = [{ id: 'old-1' }, { id: 'old-2' }]
+
+        await registerPushToken(USER, 'ExponentPushToken[abc]', 'ios')
+
+        expect(state.deleteCalls).toBe(1)
+    })
+
+    it('does not delete anything when the user is under the cap', async () => {
+        state.excessTokenIds = []
+
+        await registerPushToken(USER, 'ExponentPushToken[abc]', 'ios')
+
+        expect(state.deleteCalls).toBe(0)
+    })
+})
+
+describe('notifyOncePerWindow', () => {
+    it('returns true and lets the caller send when the bucket has budget', async () => {
+        consumeApiRateLimitMock.mockResolvedValue(undefined)
+
+        await expect(notifyOncePerWindow('follow:a:b')).resolves.toBe(true)
+        expect(consumeApiRateLimitMock).toHaveBeenCalledWith('notify:follow:a:b', 1, 60 * 60)
+    })
+
+    it('returns false without throwing when the window is already spent', async () => {
+        consumeApiRateLimitMock.mockRejectedValue(new ApiError(429, 'rate_limited', 'Too many requests.'))
+
+        await expect(notifyOncePerWindow('follow:a:b')).resolves.toBe(false)
+    })
+
+    it('rethrows a non-rate-limit error', async () => {
+        consumeApiRateLimitMock.mockRejectedValue(new Error('db offline'))
+
+        await expect(notifyOncePerWindow('follow:a:b')).rejects.toThrow('db offline')
     })
 })
 

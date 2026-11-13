@@ -42,13 +42,23 @@ export function PushNotificationRegistration() {
   return null
 }
 
+// A notification's `data.url` round-trips through the server and Expo's
+// push service, so it's untrusted by the time it reaches the device. `go()`
+// never calls `Linking.openURL` — it's Expo Router's own, `Href`-typed
+// navigation — so this isn't a classic external-redirect phishing vector,
+// but a relative-looking path can still smuggle a protocol-relative or
+// absolute URL (`//evil.com`, `https://evil.com`) past a careless check.
+function isSafeInternalPath(url: string): boolean {
+  return url.startsWith('/') && !url.startsWith('//') && !url.includes('://') && !url.includes('\\')
+}
+
 /** Opens the screen a tapped notification's `data.url` names. */
 export function PushNotificationNavigation() {
   const response = Notifications.useLastNotificationResponse()
 
   useEffect(() => {
     const url = response?.notification.request.content.data?.url
-    if (typeof url === 'string') go(url)
+    if (typeof url === 'string' && isSafeInternalPath(url)) go(url)
   }, [response])
 
   return null

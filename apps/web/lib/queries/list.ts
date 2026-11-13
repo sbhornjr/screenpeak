@@ -5,7 +5,7 @@ import { db } from '@/lib/db'
 import { lists, listGames, listLikes, games, users } from '@/db/schema'
 import { GameCover, ListDetail, ListGameEntry } from '@screenpeak/shared/types'
 import { listFieldsSchema, parseOrError } from '@screenpeak/shared/schemas'
-import { sendPushNotification } from '@/lib/queries/push'
+import { notifyOncePerWindow, sendPushNotification } from '@/lib/queries/push'
 import { WRITE_REFUSED, writeErrorText } from '@/lib/write-http'
 
 export async function getUserLists(userId: string | null | undefined, includePrivate: boolean) {
@@ -288,7 +288,7 @@ export async function likeList(listId: string, userId: string) {
         const inserted = await db.insert(listLikes).values({ listId, userId })
             .onConflictDoNothing()
             .returning({ userId: listLikes.userId })
-        if (inserted.length > 0) {
+        if (inserted.length > 0 && await notifyOncePerWindow(`like:${userId}:${listId}`)) {
             const [liker] = await db.select({ username: users.username }).from(users).where(eq(users.id, userId)).limit(1)
             const [owner] = await db.select({ username: users.username }).from(users).where(eq(users.id, row.userId)).limit(1)
             if (liker && owner) {

@@ -14,7 +14,10 @@ const state = vi.hoisted(() => ({
     insertReturns: [{ userId: 'viewer' }] as { userId: string }[],
 }))
 
-const { sendPushNotification } = vi.hoisted(() => ({ sendPushNotification: vi.fn() }))
+const { sendPushNotification, notifyOncePerWindow } = vi.hoisted(() => ({
+    sendPushNotification: vi.fn(),
+    notifyOncePerWindow: vi.fn(async () => true),
+}))
 
 vi.mock('@/lib/db', () => ({
     db: {
@@ -38,7 +41,7 @@ vi.mock('@/lib/db', () => ({
     },
 }))
 
-vi.mock('@/lib/queries/push', () => ({ sendPushNotification }))
+vi.mock('@/lib/queries/push', () => ({ sendPushNotification, notifyOncePerWindow }))
 
 import { likeList } from '@/lib/queries/list'
 
@@ -51,6 +54,8 @@ beforeEach(() => {
     state.inserted = 0
     state.insertReturns = [{ userId: VIEWER }]
     sendPushNotification.mockReset()
+    notifyOncePerWindow.mockReset()
+    notifyOncePerWindow.mockResolvedValue(true)
 })
 
 describe('likeList notifications', () => {
@@ -78,6 +83,17 @@ describe('likeList notifications', () => {
         const result = await likeList(LIST, VIEWER)
 
         expect(result).toEqual({ error: null })
+        expect(sendPushNotification).not.toHaveBeenCalled()
+    })
+
+    it('skips the send when the per-pair notification window is still open', async () => {
+        state.selectQueue = [[{ id: LIST, name: 'Roguelikes', isPublic: true, userId: OWNER }]]
+        notifyOncePerWindow.mockResolvedValue(false)
+
+        const result = await likeList(LIST, VIEWER)
+
+        expect(result).toEqual({ error: null })
+        expect(notifyOncePerWindow).toHaveBeenCalledWith(`like:${VIEWER}:${LIST}`)
         expect(sendPushNotification).not.toHaveBeenCalled()
     })
 })

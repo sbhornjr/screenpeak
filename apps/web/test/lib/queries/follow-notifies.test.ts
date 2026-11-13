@@ -9,7 +9,10 @@ const state = vi.hoisted(() => ({
     selectReturns: [] as { username: string }[],
 }))
 
-const { sendPushNotification } = vi.hoisted(() => ({ sendPushNotification: vi.fn() }))
+const { sendPushNotification, notifyOncePerWindow } = vi.hoisted(() => ({
+    sendPushNotification: vi.fn(),
+    notifyOncePerWindow: vi.fn(async () => true),
+}))
 
 vi.mock('@/lib/db', () => ({
     db: {
@@ -30,7 +33,7 @@ vi.mock('@/lib/db', () => ({
     },
 }))
 
-vi.mock('@/lib/queries/push', () => ({ sendPushNotification }))
+vi.mock('@/lib/queries/push', () => ({ sendPushNotification, notifyOncePerWindow }))
 
 import { followUser } from '@/lib/queries/user'
 
@@ -41,6 +44,8 @@ beforeEach(() => {
     state.insertReturns = []
     state.selectReturns = []
     sendPushNotification.mockReset()
+    notifyOncePerWindow.mockReset()
+    notifyOncePerWindow.mockResolvedValue(true)
 })
 
 describe('followUser notifications', () => {
@@ -62,6 +67,17 @@ describe('followUser notifications', () => {
 
         await followUser(FOLLOWER, FOLLOWING)
 
+        expect(sendPushNotification).not.toHaveBeenCalled()
+    })
+
+    it('skips the send when the per-pair notification window is still open', async () => {
+        state.insertReturns = [{ followerId: FOLLOWER }]
+        state.selectReturns = [{ username: 'ada' }]
+        notifyOncePerWindow.mockResolvedValue(false)
+
+        await followUser(FOLLOWER, FOLLOWING)
+
+        expect(notifyOncePerWindow).toHaveBeenCalledWith(`follow:${FOLLOWER}:${FOLLOWING}`)
         expect(sendPushNotification).not.toHaveBeenCalled()
     })
 })

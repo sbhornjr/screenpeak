@@ -7,7 +7,7 @@ import {
     selectedTitleSchema, favoriteGameIdsSchema, privacyTypeSchema, parseOrError,
 } from '@screenpeak/shared/schemas'
 import { isOwnAvatarUrl } from '@/lib/avatar-upload'
-import { sendPushNotification } from '@/lib/queries/push'
+import { notifyOncePerWindow, sendPushNotification } from '@/lib/queries/push'
 import { writeErrorText } from '@/lib/write-http'
 
 export async function getProfileSummaryByUsername(username: string) {
@@ -306,6 +306,7 @@ export async function followUser(followerId: string, followingId: string) {
         .onConflictDoNothing()
         .returning({ followerId: follows.followerId })
     if (inserted.length === 0) return
+    if (!await notifyOncePerWindow(`follow:${followerId}:${followingId}`)) return
     const [follower] = await db.select({ username: users.username }).from(users).where(eq(users.id, followerId)).limit(1)
     if (!follower) return
     await sendPushNotification(followingId, {
