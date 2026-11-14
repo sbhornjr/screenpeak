@@ -19,13 +19,20 @@ vi.mock('@/lib/db', () => ({
         }),
         insert: () => ({
             values: () => ({
-                onConflictDoNothing: async () => {
-                    state.inserted += 1
-                },
+                onConflictDoNothing: () => ({
+                    returning: async () => {
+                        state.inserted += 1
+                        return [{ userId: 'mock' }]
+                    },
+                }),
             }),
         }),
     },
 }))
+
+// The notification side effect has its own test; this file is about
+// likeList's ownership/privacy rules, so it never sends a real push.
+vi.mock('@/lib/queries/push', () => ({ sendPushNotification: vi.fn(), notifyOncePerWindow: vi.fn(async () => true) }))
 
 import { likeList } from '@/lib/queries/list'
 

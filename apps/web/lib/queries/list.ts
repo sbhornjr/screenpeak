@@ -2,9 +2,10 @@ import 'server-only'
 import { eq, and, inArray, desc, sql } from 'drizzle-orm'
 import { uuidArrayParam } from '@/lib/sql-helpers'
 import { db } from '@/lib/db'
-import { lists, listGames, listLikes, games } from '@/db/schema'
+import { lists, listGames, listLikes, games, users } from '@/db/schema'
 import { GameCover, ListDetail, ListGameEntry } from '@screenpeak/shared/types'
 import { listFieldsSchema, parseOrError } from '@screenpeak/shared/schemas'
+import { notifyOncePerWindow, sendPushNotification } from '@/lib/queries/push'
 import { WRITE_REFUSED, writeErrorText } from '@/lib/write-http'
 
 export async function getUserLists(userId: string | null | undefined, includePrivate: boolean) {
@@ -274,7 +275,7 @@ export async function syncListGames(listId: string, { toAdd, toRemove }: { toAdd
 export async function likeList(listId: string, userId: string) {
     try {
         const list = await db
-            .select({ id: lists.id, isPublic: lists.isPublic, userId: lists.userId })
+            .select({ id: lists.id, name: lists.name, isPublic: lists.isPublic, userId: lists.userId })
             .from(lists)
             .where(eq(lists.id, listId))
             .limit(1)
@@ -282,8 +283,22 @@ export async function likeList(listId: string, userId: string) {
         // Someone else's private list is the same answer as a missing list, and no like row is written.
         if (!row || (!row.isPublic && row.userId !== userId)) return { error: WRITE_REFUSED.listNotFound }
         if (row.userId === userId) return { error: WRITE_REFUSED.ownList }
-        // A retry must stay liked. The primary key makes a second insert a no-op.
-        await db.insert(listLikes).values({ listId, userId }).onConflictDoNothing()
+        // A retry must stay liked. The primary key makes a second insert a no-op,
+        // so only a genuinely new like notifies the list's owner.
+        const inserted = await db.insert(listLikes).values({ listId, userId })
+            .onConflictDoNothing()
+            .returning({ userId: listLikes.userId })
+        if (inserted.length > 0 && await notifyOncePerWindow(`like:${userId}:${listId}`)) {
+            const [liker] = await db.select({ username: users.username }).from(users).where(eq(users.id, userId)).limit(1)
+            const [owner] = await db.select({ username: users.username }).from(users).where(eq(users.id, row.userId)).limit(1)
+            if (liker && owner) {
+                await sendPushNotification(row.userId, {
+                    title: 'List liked',
+                    body: `${liker.username} liked your list "${row.name}"`,
+                    data: { url: `/user/${owner.username}/lists/${listId}` },
+                })
+            }
+        }
         return { error: null }
     } catch (error) {
         return { error: writeErrorText(error) }

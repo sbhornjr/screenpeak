@@ -35,6 +35,11 @@ const nextConfig: NextConfig = {
                 { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
                 { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
             ],
+        }, {
+            // No file extension, so Next can't infer a MIME type from the static
+            // file alone — iOS Universal Links expect this served as JSON.
+            source: '/.well-known/apple-app-site-association',
+            headers: [{ key: 'Content-Type', value: 'application/json' }],
         }]
     },
 }

@@ -10,6 +10,8 @@ import { patchViewerGames, useCachedWrite } from '@/lib/cached-write'
 import { loadFailure } from '@/lib/failure'
 import { withListMembership } from '@/lib/game-page'
 import { back, go } from '@/lib/go'
+import { plus1 } from '@/lib/plus1'
+import { listShareUrl } from '@/lib/share'
 import {
   listShowChoices,
   listsHeading,
@@ -116,7 +118,10 @@ export function UserLists({ username }: { username: string }) {
             game_count: 0,
           }))
         })
-        if (!error) setTab('user')
+        if (!error) {
+          setTab('user')
+          plus1('NEW LIST')
+        }
         return error
       } : undefined}
       onLike={(listId, liked) => commit(
@@ -194,6 +199,7 @@ export function ListDetail({ username, listId }: { username: string, listId: str
       games={page.games}
       refreshing={refreshing || detailQuery.isFetching}
       loadError={failure?.body ?? null}
+      shareUrl={listShareUrl(page.profile.username, listId)}
       onOpen={go}
       onBack={back}
       onRefresh={refresh}

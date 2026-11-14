@@ -958,13 +958,199 @@ and check it on a small phone (iPhone SE size) and with the keyboard open.
 - **Deep links / Universal Links**: `screenpeak.app/games/elden-ring` opens the
   game screen in the app if installed. Requires an `apple-app-site-association`
   file and Android `assetlinks.json` served from the web app's `public/.well-known/`.
+  > **Done, modulo two placeholders.** `apps/web/public/.well-known/apple-app-site-association`
+  > and `assetlinks.json` cover every mobile route that mirrors a web one: `/explore`,
+  > `/games`, `/games/*`, `/user/*` (not `/settings`, `/auth/*`, `/steamlink`, or the
+  > legal pages — those aren't symmetric between the two clients). `next.config.ts`
+  > adds a `Content-Type: application/json` header for the extensionless AASA file;
+  > `assetlinks.json` gets it from its own extension. `apps/mobile/app.json` gained
+  > `android.package` (missing before this — required for any Android build, not
+  > just App Links), `ios.associatedDomains: ["applinks:screenpeak.app"]`, and a
+  > matching `android.intentFilters` entry with `autoVerify: true`. Expo Router
+  > needs no extra linking code: deep linking is automatic for every screen once
+  > these are set. `test/lib/well-known.test.ts` checks both files' shape.
+  > **Still open:** the AASA's `appID` is `REPLACE_WITH_APPLE_TEAM_ID.com.steventpot.screenpeak`
+  > (the real 10-character Apple Developer Team ID isn't known yet — Apple Developer
+  > account → Membership, or `eas credentials -p ios` after first signed build) and
+  > `assetlinks.json`'s `sha256_cert_fingerprints` is `REPLACE_WITH_SHA256_CERT_FINGERPRINT`
+  > (only exists once a signed Android build has run — `eas credentials -p android`).
+  > Both are guarded by a test that fails once they're filled in, as a reminder to
+  > update the test alongside them. Apple only re-fetches the AASA at install/update
+  > time, so a real device won't pick up a later path change without a fresh install.
+  > This also needs the site actually hosted (Phase 5) before a real device can
+  > fetch either file.
 - **Share sheet**: share a game, list, or profile (as its web URL).
+  > **Done.** `AppHeader` (`src/components/app-header.tsx`) gained an optional
+  > `trailing` slot — the mirror of the `onBack` slot it already had — so a
+  > per-screen action can sit beside the centered wordmark without each screen
+  > re-laying out its own header. `ShareButton` (`src/components/share-button.tsx`)
+  > fills that slot on the game page, the profile hub, and list detail, each
+  > passing its own already-built web URL (`src/lib/share.ts`:
+  > `gameShareUrl`/`profileShareUrl`/`listShareUrl`, all `${SITE_ORIGIN}${...Href(...)}`
+  > — reusing the `routes.ts` href builders and the `SITE_ORIGIN` constant Steam
+  > linking already defined, so the Universal Links paths and the share links
+  > can't drift apart). `shareUrl()` opens the native share sheet
+  > (`react-native`'s `Share.share`, `url` on iOS and `message` on Android,
+  > since Android has no `url` field); web has no share sheet, so it tries the
+  > Web Share API, then falls back to `navigator.clipboard.writeText`, and the
+  > button itself shows "Link copied" for two seconds only for that fallback —
+  > a real native sheet or the Web Share API already confirms itself. List
+  > detail's `shareUrl` prop is a plain string built one level up in
+  > `lists-browser.tsx`, where the list id is already in scope, rather than
+  > recomputing it from a username/listId pair passed down. **Found in manual
+  > verification, not by the unit tests**: the first pass let a denied
+  > `navigator.clipboard.writeText()` (e.g. a permissions-policy block)
+  > propagate as an uncaught promise rejection, crashing the screen with Expo's
+  > red error overlay instead of just doing nothing; `shareOnWeb` now catches
+  > that and returns `'unsupported'`, with a regression test
+  > (`src/lib/share.test.ts`) locking it in. Verified signed in as `peek`
+  > against the local dev server on Expo web: the icon renders in the header's
+  > trailing slot on `/games/elden-ring`, `/user/peek`, and `/user/peek/lists/<id>`,
+  > each with the right accessible name (`Share Elden Ring`, `Share peek's
+  > profile`, `Share Wishlist`), and list/game-page skeletons correctly render
+  > no Share button before there's a URL to share.
 - **Haptics** on rate / like / follow; port the `screenpeak:plus1` tic as a
   native animation (Reanimated).
+  > **Done.** `lib/haptics.ts`'s `tapHaptic()` (`Haptics.impactAsync(Light)`,
+  > fire-and-forget) fires on every Rate submit, every list like/unlike
+  > (inside `ListLike` itself, in `list-chrome.tsx`, since all three of its
+  > call sites — list detail, the shared list card, the feed's read-only
+  > card — funnel through there), and every follow/unfollow tap, regardless
+  > of whether the write itself succeeds.
+  >
+  > The +1 tic is `lib/plus1.ts` (`plus1(label?, n?)` + a plain `Set`-based
+  > subscribe, no event bus needed without `window`) and `Plus1Layer`
+  > (mounted once in `_layout.tsx`, alongside `<Stack />`), ported call site
+  > for call site from the website's `lib/plus1.ts` writers: RATED (first
+  > score only), SAVED/COMPLETED (new library entry, or an existing one's
+  > first "completed"), NEW LIST (both the Lists tab's own create and the
+  > game page's create-and-add — one chip for the latter, not also LISTED),
+  > LISTED (adding to an existing list), FAVORITED (a newly pinned favorite,
+  > via the new `addedNewFavorite()` in `lib/profile-hub.ts`). Never list
+  > likes or follows — those are about other people, same as the website.
+  > Each "was this new" check reads the pre-write cached page already in the
+  > closure, mirroring the website's own `wasNew` pattern, and fires only
+  > after the write actually succeeds.
+  >
+  > The chip itself: a single Reanimated `progress` value (0→1,
+  > `withTiming` + the website's exact cubic-bezier) drives opacity,
+  > translateY, and scale via `interpolate()` at the same percentages as
+  > the CSS `sp-plus1` keyframes; `useReducedMotion()` swaps to the
+  > `sp-plus1-rm` fallback (stay visible, cut opacity at the end) instead of
+  > skipping the animation outright, since the chip is the only feedback a
+  > write gets. Vitest can't parse real `react-native`/`react-native-reanimated`
+  > (Flow syntax) any more than it could `lucide-react-native`; `expo-haptics`
+  > hit the same wall a different way (`__DEV__` undefined under Node), so
+  > `test/expo-haptics.ts` joins `test/lucide-react-native.tsx` as a global
+  > vitest alias, and `plus1-layer.test.tsx` mocks `react-native-reanimated`
+  > locally (Reanimated's own official `mock.js` still imports real
+  > `react-native`, so it doesn't sidestep the problem on its own).
+  >
+  > **Found live, not by a screenshot of the chip** (its tool round-trips run
+  > slower than the 1s animation): no crashes across repeated rate-amend,
+  > library-save, and remove cycles against the local dev server, console
+  > clean throughout. The chip's own correctness — mount, stacked text,
+  > timed removal — is asserted with fake timers in `plus1-layer.test.tsx`
+  > instead, the right tool for something this fast.
 - **Optimistic updates** for like / follow / library status.
 - **Push notifications** (optional for v1): new follower, list liked. Needs an
   Expo push token table + sending from the server.
+  > **Done, modulo one manual step.** `push_tokens` (migration `0013`, same
+  > shape as `steam_link_intents`: server-role-only, RLS enabled, browser
+  > roles revoked) holds one row per device, keyed uniquely on the Expo push
+  > token itself — a re-login on the same device moves the row to the new
+  > user rather than duplicating it. `POST`/`DELETE /api/v1/me/push-token`
+  > register and unregister a token (bearer + write budget, like every other
+  > `/me` write). `lib/queries/push.ts`'s `sendPushNotification` posts to
+  > Expo's push HTTP API directly (no `expo-server-sdk` — one `fetch`, no
+  > batching/receipt-polling infrastructure a v1-optional feature doesn't
+  > need) and prunes any token Expo's response reports as
+  > `DeviceNotRegistered`. It never throws, and its callers `await` it anyway
+  > (not fire-and-forget) rather than leave an un-awaited promise a
+  > serverless function's response could cut off mid-send.
+  >
+  > Both notification types hook the one write that was already the single
+  > path for both clients: `followUser`/`likeList` in `lib/queries/*`, which
+  > the website's Server Actions and the phone's `/api/v1` routes already
+  > both called. Each checks its insert's own `.returning()` so a retried
+  > follow or like (the `onConflictDoNothing` no-op) never double-notifies.
+  > Mobile: `expo-notifications` installed, config-plugin entry added.
+  > `registerForPushNotificationsAsync()` (`lib/push-notifications.ts`) asks
+  > permission (a no-op if already granted or denied — the OS only ever
+  > prompts once) and returns `null` — never throws — on web, a refused
+  > permission, no EAS project, or a failed token request. Two components
+  > mounted in the root layout: `PushNotificationRegistration` registers on
+  > sign-in and unregisters on sign-out (mirroring `ClearListsOnSignOut`'s
+  > own sign-in/out-edge pattern), `PushNotificationNavigation` opens a
+  > tapped notification's `data.url` via `useLastNotificationResponse()` —
+  > the current SDK 58 API; the imperative `getLastNotificationResponse()`/
+  > `clearLastNotificationResponse()` the docs still describe no longer
+  > exist in this SDK.
+  >
+  > Getting a real device token needs an EAS project, which this app didn't
+  > have — linked it to `@steventpot/screenpeak` (`eas init`, confirmed with
+  > the user first, since it touches their external Expo account).
+  >
+  > Confirmed with a real `xcodebuild` + Simulator launch, Metro attached:
+  > the permission dialog appeared, Allow was granted, a genuine
+  > `ExponentPushToken[...]` came back (so this Simulator/Xcode version does
+  > support real tokens), and `POST /api/v1/me/push-token` fired with the
+  > right bearer and body. It 500'd — not a code bug: this is a fresh
+  > migration (`0013`) nobody has applied to the local dev database yet, and
+  > applying it needs `LOCAL_DATABASE_URL`/`DATABASE_POOL_URL`, which this
+  > agent can't read (`.env.local` is sandboxed) and isn't allowed to run
+  > migrations against blind (a `DATABASE_POOL_URL` dry run was refused by
+  > the host's own permission classifier: "Production Reads"). Run before
+  > this is end-to-end testable:
+  > `npm run migrate:journal -w @screenpeak/web -- --database-env LOCAL_DATABASE_URL --apply-pending`.
 - App icon, splash screen, dark-only status bar styling.
+  > **Done.** The app shipped with Expo's own template placeholder — the
+  > stock blue "A" mark (`assets/images/icon.png`, the Android adaptive
+  > layers, and `assets/expo.icon`'s untouched Icon Composer bundle) — never
+  > actually designed for ScreenPeak. The new icon and splash are the seam
+  > (DESIGN.md §6, "the recurring structural marker") at app-icon scale: a
+  > glowing cyan bar on the graphite ground, generated from one parametric
+  > SVG (`sharp`, not hand-drawn) so every size — the 1024 icon, the Android
+  > adaptive foreground/background/monochrome layers, the splash glyph — is
+  > the same shape at the right proportions, not five separately-eyeballed
+  > exports. Checked: legible at a 64×64 downscale, and the foreground still
+  > sits clear of the Android adaptive icon's ~61%-diameter safe-zone circle
+  > under every mask shape. `ios.icon` now falls back to the same flat PNG
+  > instead of the default `expo.icon` bundle (deleted) — that bundle is
+  > Apple's new multi-layer "Icon Composer" format for the iOS 18+ Liquid
+  > Glass effect, and hand-authoring one correctly without a way to preview
+  > it in Xcode was a worse bet than a flat icon that's guaranteed to render
+  > right everywhere; revisit it once someone can check it in Xcode.
+  > Status bar: `userInterfaceStyle: "dark"` and root `backgroundColor`
+  > (`expo-system-ui` is already a dependency, which both need) were already
+  > set, and `<StatusBar style="light" />` was already called at runtime —
+  > the one gap was the `expo-status-bar` config plugin itself, which now
+  > also gets `{ "style": "light" }` so the correct status-bar content color
+  > is set natively before JS runs, instead of only once React mounts.
+  > **Also fixed**: the first real `xcodebuild` compile this project has
+  > ever done (every earlier Simulator run in this session went through
+  > Metro/a dev client, which never touches Xcode build phases) failed in
+  > an unrelated phase — Sentry's generated "Upload Debug Symbols to
+  > Sentry" script calls bare `node` without ever sourcing `.xcode.env`
+  > first (unlike "Bundle React Native code and images", which does), so
+  > `NODE_BINARY` is unset there and it's not on Xcode's build-phase PATH
+  > for an nvm-managed install. Not a CNG-safe thing to hand-patch in the
+  > generated Xcode project — `expo prebuild` regenerates `ios/` from
+  > scratch — so the fix is a local Expo config plugin,
+  > `apps/mobile/plugins/with-sentry-node-env.js`, that finds that phase
+  > via `withXcodeProject` and prepends the same two `source` lines the
+  > bundle phase already uses successfully. One real gotcha: it has to be
+  > registered *before* `@sentry/react-native/expo` in app.json's
+  > `plugins` array, not after — `@expo/config-plugins`' mod chaining runs
+  > each newly-registered `withXcodeProject` callback *before* the one
+  > registered ahead of it (an onion, not a pipeline), so the last plugin
+  > registered for a given mod type is the first to execute; registering
+  > this one first makes it the inner link, running after Sentry's
+  > callback has already added the phase it's patching. Confirmed with a
+  > real `xcodebuild` + Simulator launch: the splash (glowing seam on
+  > graphite) and status bar (light content) both render exactly as
+  > designed, and the icon shows correctly on the springboard, properly
+  > corner-masked, right next to the stock app icons.
 
 ### Phase 5 — Release (≈1–2 weeks, partly waiting on review)
 

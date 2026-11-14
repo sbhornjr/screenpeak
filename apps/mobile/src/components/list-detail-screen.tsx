@@ -20,6 +20,7 @@ import { EmptyState } from './empty-state'
 import { GameCard } from './game-card'
 import { ListLike, ListMeta } from './list-chrome'
 import { ListFormSheet, type ListFormValues } from './list-form-sheet'
+import { ShareButton } from './share-button'
 import { Sheet } from './sheet'
 import { TextField } from './text-field'
 
@@ -40,6 +41,8 @@ export type ListDetailScreenProps = {
   games?: GameCardData[]
   refreshing?: boolean
   loadError?: string | null
+  /** The list's web URL, already built by the caller, who knows the list id. */
+  shareUrl?: string
   onOpen: (href: string) => void
   onBack?: () => void
   onLike?: (liked: boolean) => Promise<string | null>
@@ -113,6 +116,7 @@ export function ListDetailScreen({
   games = [],
   refreshing = false,
   loadError = null,
+  shareUrl,
   onOpen,
   onBack,
   onLike,
@@ -229,7 +233,10 @@ export function ListDetailScreen({
 
   return (
     <SafeAreaView style={styles.screen}>
-      <AppHeader onBack={onBack} />
+      <AppHeader
+        onBack={onBack}
+        trailing={shareUrl ? <ShareButton url={shareUrl} title={name} label={`Share ${name}`} /> : undefined}
+      />
       <FlatList
         data={games}
         keyExtractor={game => game.id}

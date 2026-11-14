@@ -10,6 +10,7 @@ import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWi
 import { igdbImageUri } from '@/lib/catalog-image'
 import { asStatus, communityScore, relTime, scoreGap, statusLabel, type ReviewListQuery } from '@/lib/game-page'
 import type { CatalogueFilter } from '@/lib/routes'
+import { gameShareUrl } from '@/lib/share'
 import { alpha, colors, face, radius, seam, space, text, tierColor, tracking, trackingPx, typeScale } from '@/theme'
 
 import { AppHeader } from './app-header'
@@ -24,6 +25,7 @@ import { ListPickerSheet } from './list-picker-sheet'
 import { Panel } from './panel'
 import { RateSheet } from './rate-sheet'
 import { SectionHead } from './section-head'
+import { ShareButton } from './share-button'
 import { Sheet, useSheetDismiss } from './sheet'
 import { StatusTag } from './status-tag'
 import { Tag } from './tag'
@@ -205,7 +207,10 @@ export function GameDetail({
 
   return (
     <View style={styles.screen}>
-      <AppHeader onBack={onBack} />
+      <AppHeader
+        onBack={onBack}
+        trailing={<ShareButton url={gameShareUrl(game.slug)} title={game.name} label={`Share ${game.name}`} />}
+      />
       <ScrollView
         style={styles.fill}
         contentContainerStyle={[styles.content, compact && styles.contentCompact]}

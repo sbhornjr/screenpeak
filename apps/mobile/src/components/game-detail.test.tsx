@@ -122,7 +122,7 @@ vi.mock('lucide-react-native', () => {
   function Icon() {
     return React.createElement('span', { 'aria-hidden': 'true' })
   }
-  return { Clock: Icon, Repeat: Icon, Trophy: Icon }
+  return { Clock: Icon, Repeat: Icon, Share2: Icon, Trophy: Icon }
 })
 
 vi.mock('expo-image', () => ({

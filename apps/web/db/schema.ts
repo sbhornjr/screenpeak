@@ -441,6 +441,21 @@ export const steamLinkIntents = pgTable('steam_link_intents', {
     check('steam_link_intents_steam_id_shape', sql`${table.steamId} is null or ${table.steamId} ~ '^[0-9]{17}$'`),
     check('steam_link_intents_code_hash_shape', sql`${table.completionCodeHash} is null or ${table.completionCodeHash} ~ '^[A-Za-z0-9_-]{43}$'`),
 ]).enableRLS()
+// 0013. One row per device. A re-login on the same device updates the row
+// (see the unique index on expoPushToken) instead of duplicating it.
+export const pushTokens = pgTable('push_tokens', {
+    id: uuid().defaultRandom().primaryKey(),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    expoPushToken: text('expo_push_token').notNull(),
+    platform: text().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
+}, table => [
+    uniqueIndex('push_tokens_token_idx').on(table.expoPushToken),
+    index('push_tokens_user_id_idx').on(table.userId),
+    check('push_tokens_platform_check', sql`${table.platform} in ('ios', 'android')`),
+    check('push_tokens_token_not_blank', sql`char_length(${table.expoPushToken}) between 1 and 400`),
+]).enableRLS()
 
 export const catalogResetRuns = igdbPrivate.table('catalog_reset_runs', {
     runId: uuid('run_id').primaryKey(),

@@ -14,6 +14,8 @@ import { withCreatedList, withLibraryWrite, withListMembership, withViewerReview
 import { useAuth } from '@/lib/auth'
 import { actionFailure } from '@/lib/failure'
 import { back, go } from '@/lib/go'
+import { tapHaptic } from '@/lib/haptics'
+import { plus1 } from '@/lib/plus1'
 import { gameScope, queryKeys, scopes } from '@/lib/query-keys'
 import { catalogueHref, profileHref } from '@/lib/routes'
 import { useRefresh } from '@/lib/use-refresh'
@@ -85,33 +87,57 @@ export default function GameScreen() {
           onReviewsQuery={query => setReviewState({ slug, query })}
           onOpenProfile={username => go(profileHref(username))}
           onOpenCatalogue={filter => go(catalogueHref(filter))}
-          onRate={signedIn ? (rating, review) => commit(
-            () => api.games.putReview(gameId, { rating, review }),
-            data => withViewerReview(data, rating, review, userId),
-          ) : undefined}
-          onSave={signedIn ? (write: LibraryWrite) => commit(
-            () => api.me.library.put(gameId, write),
-            data => withLibraryWrite(data, write),
-          ) : undefined}
+          onRate={signedIn ? async (rating, review) => {
+            tapHaptic()
+            const hadReview = !!game.data?.viewer?.review
+            const error = await commit(
+              () => api.games.putReview(gameId, { rating, review }),
+              data => withViewerReview(data, rating, review, userId),
+            )
+            // +1 fires only the first time you score a game, not on amendments
+            if (!error && !hadReview) plus1('RATED')
+            return error
+          } : undefined}
+          onSave={signedIn ? async (write: LibraryWrite) => {
+            const before = game.data?.viewer?.libraryEntry ?? null
+            const error = await commit(
+              () => api.me.library.put(gameId, write),
+              data => withLibraryWrite(data, write),
+            )
+            // +1 fires on a new entry, or when an existing one first reaches "completed"
+            if (!error) {
+              if (!before) plus1(write.status === 'completed' ? 'COMPLETED' : 'SAVED')
+              else if (write.status === 'completed' && before.status !== 'completed') plus1('COMPLETED')
+            }
+            return error
+          } : undefined}
           onRemoveLibrary={signedIn ? () => commit(
             () => api.me.library.delete(gameId),
             withoutLibraryEntry,
           ) : undefined}
-          onAddToList={signedIn ? (listId) => commit(
-            () => api.lists.addGame(listId, gameId),
-            data => withListMembership(data, listId, true),
-          ) : undefined}
+          onAddToList={signedIn ? async (listId) => {
+            const error = await commit(
+              () => api.lists.addGame(listId, gameId),
+              data => withListMembership(data, listId, true),
+            )
+            if (!error) plus1('LISTED')
+            return error
+          } : undefined}
           onRemoveFromList={signedIn ? (listId) => commit(
             () => api.lists.removeGame(listId, gameId),
             data => withListMembership(data, listId, false),
           ) : undefined}
-          onCreateList={signedIn ? (input) => commit(async () => {
-            const created = await api.lists.create({ ...input, gameId })
-            await queryClient.cancelQueries({ queryKey: gameKey, exact: true })
-            queryClient.setQueryData<GamePageData>(gameKey, current =>
-              current ? withCreatedList(current, { id: created.id, name: input.name.trim() }) : current,
-            )
-          }) : undefined}
+          onCreateList={signedIn ? async (input) => {
+            const error = await commit(async () => {
+              const created = await api.lists.create({ ...input, gameId })
+              await queryClient.cancelQueries({ queryKey: gameKey, exact: true })
+              queryClient.setQueryData<GamePageData>(gameKey, current =>
+                current ? withCreatedList(current, { id: created.id, name: input.name.trim() }) : current,
+              )
+            })
+            if (!error) plus1('NEW LIST')
+            return error
+          } : undefined}
         />
       ) : null}
     </SafeAreaView>

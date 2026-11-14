@@ -11,6 +11,7 @@ import {
     privacyTypeSchema,
     libraryEntryWriteSchema,
     steamLibraryImportSchema,
+    pushTokenRegisterSchema,
     parseOrError,
 } from '@screenpeak/shared/schemas'
 
@@ -214,5 +215,23 @@ describe('steamLibraryImportSchema', () => {
     it('rejects negative hours and does not cap the selection at 500 rows', () => {
         expect(steamLibraryImportSchema.safeParse([{ ...row, playtimeSelected: -1 }]).success).toBe(false)
         expect(steamLibraryImportSchema.safeParse(Array.from({ length: 501 }, () => row)).success).toBe(true)
+    })
+})
+
+describe('pushTokenRegisterSchema', () => {
+    it.each([
+        'ExponentPushToken[abc123]',
+        'ExpoPushToken[abc123]',
+    ])('accepts %s', (token) => {
+        expect(pushTokenRegisterSchema.safeParse({ token, platform: 'ios' }).success).toBe(true)
+    })
+
+    it.each([
+        'not-a-push-token',
+        'ExponentPushToken(abc123)',
+        '<script>alert(1)</script>',
+        '',
+    ])('rejects %s', (token) => {
+        expect(pushTokenRegisterSchema.safeParse({ token, platform: 'ios' }).success).toBe(false)
     })
 })

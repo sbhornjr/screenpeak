@@ -20,6 +20,7 @@ export const Pencil = Icon
 export const Pin = Icon
 export const Plus = Icon
 export const Repeat = Icon
+export const Share2 = Icon
 export const SlidersHorizontal = Icon
 export const Star = Icon
 export const Trophy = Icon

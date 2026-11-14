@@ -29,7 +29,7 @@ const push = vi.hoisted(() => vi.fn())
 const back = vi.hoisted(() => vi.fn())
 const viewport = vi.hoisted(() => ({ width: 375, height: 667, scale: 1, fontScale: 1 }))
 
-const { getLists, getList, createList, updateList, deleteList, likeList, unlikeList, searchGames, syncGames, removeGame } = vi.hoisted(() => ({
+const { getLists, getList, createList, updateList, deleteList, likeList, unlikeList, searchGames, syncGames, removeGame, plus1 } = vi.hoisted(() => ({
   getLists: vi.fn(),
   getList: vi.fn(),
   createList: vi.fn(),
@@ -40,7 +40,10 @@ const { getLists, getList, createList, updateList, deleteList, likeList, unlikeL
   searchGames: vi.fn(),
   syncGames: vi.fn(),
   removeGame: vi.fn(),
+  plus1: vi.fn(),
 }))
+
+vi.mock('@/lib/plus1', () => ({ plus1 }))
 
 vi.mock('expo-router', () => ({
   router: {
@@ -88,7 +91,7 @@ vi.mock('lucide-react-native', () => {
       'data-size': props.size,
     })
   }
-  return { ChevronDown: Icon, Heart: Icon, Lock: Icon, Pin: Icon, X: Icon }
+  return { ChevronDown: Icon, Heart: Icon, Lock: Icon, Pin: Icon, Share2: Icon, X: Icon }
 })
 
 vi.mock('react-native-safe-area-context', () => ({
@@ -364,6 +367,7 @@ afterEach(() => {
   searchGames.mockReset()
   syncGames.mockReset()
   removeGame.mockReset()
+  plus1.mockReset()
 })
 
 describe('UserLists', () => {
@@ -479,6 +483,7 @@ describe('UserLists', () => {
     })
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Saving…' })).toBeNull())
     expect(screen.getByRole('link', { name: 'Night runs' })).toBeTruthy()
+    expect(plus1).toHaveBeenCalledWith('NEW LIST')
   })
 
   it('shows the rate-limit message and loads lists after Retry', async () => {
