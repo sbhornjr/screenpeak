@@ -130,7 +130,11 @@ hr{border:0;border-top:1px solid var(--border);margin:2.5rem 0}
   <p class="usenote">Check items off as you go — your progress is saved in this browser only (no account, nothing sent anywhere). Three tiers: <strong style="color:var(--blocker)">Blocker</strong> = fix before anyone can reach the site · <strong style="color:var(--soon)">Soon</strong> = want it in v1, a few days' slip harms no one · <strong style="color:var(--polish)">Polish</strong> = safe to ship without, do soon after. Items tagged <strong style="color:var(--done)">✓ Done</strong> are built and verified. The deploy runbook at the end is an ordered sequence.</p>
   <div style="margin-top:1.6rem;border:1px solid var(--soon);border-radius:6px;padding:1rem 1.25rem;max-width:var(--maxw)">
     <p style="margin:0 0 .4rem;font-family:var(--font-mono);font-size:.68rem;letter-spacing:.18em;text-transform:uppercase;color:var(--soon)">▶ Name settled — ScreenPeak</p>
-    <p style="margin:0;color:var(--ink-dim);font-size:.95rem">The name is now <strong>ScreenPeak</strong> (renamed from "NG+" over a trademark conflict) and the UI rebrand is done. <strong>Done so far:</strong> all four Blockers (B1–B4), Soon items S1–S7, Polish P1–P3, and the ScreenPeak rebrand. <strong>In progress:</strong> S8 (Privacy Policy live at <code>/policy</code>, signup consent checkbox live, Terms being drafted — LLC formation + DMCA agent registration + <code>privacy@screenpeak.gg</code> still needed before publishing live). <strong>Still open:</strong> P4 (real icons + full web manifest — a placeholder <code>app/icon.svg</code> now exists), and the deploy runbook (needs a domain).</p>
+    <p style="margin:0;color:var(--ink-dim);font-size:.95rem">The name is now <strong>ScreenPeak</strong> (renamed from "NG+" over a trademark conflict) and the UI rebrand is done. <strong>Done so far:</strong> all four Blockers (B1–B4), Soon items S1–S7, Polish P1–P3, and the ScreenPeak rebrand. <strong>In progress:</strong> S8 (Privacy Policy live at <code>/policy</code>, signup consent checkbox live and already linking to <code>/terms</code> — the page itself is still a content-free placeholder; LLC formation + DMCA agent registration + <code>privacy@screenpeak.gg</code> still needed before publishing live). <strong>Still open:</strong> P4 (a real icon mark now exists — <code>app/icon.svg</code> + <code>apple-icon.tsx</code> — only <code>manifest.ts</code> is left), and the deploy runbook (needs a domain).</p>
+  </div>
+  <div style="margin-top:1rem;border:1px solid var(--brass);border-radius:6px;padding:1rem 1.25rem;max-width:var(--maxw)">
+    <p style="margin:0 0 .4rem;font-family:var(--font-mono);font-size:.68rem;letter-spacing:.18em;text-transform:uppercase;color:var(--brass)">▶ Since this was first written</p>
+    <p style="margin:0;color:var(--ink-dim);font-size:.95rem">The project moved into an <code>apps/web</code> / <code>apps/mobile</code> / <code>packages/shared</code> monorepo. Writes moved off direct browser→Supabase calls onto Server Actions and <code>/api/v1</code> routes backed by Drizzle, which changes what <a href="#B4">B4</a> means today — see the correction inline there. Avatars moved to Cloudflare R2. A real migration-journal system (<code>migrate:journal</code>) replaced ad-hoc SQL-editor changes — see the new step before <a href="#D6">D6</a>. And a ScreenPeak <strong>mobile app</strong> (Expo/React Native) now exists, with its own pre-launch list in the new <a href="#mobile">Mobile</a> section. Corrections below are called out inline, not silently rewritten.</p>
   </div>
 </header>
 
@@ -163,14 +167,24 @@ hr{border:0;border-top:1px solid var(--border);margin:2.5rem 0}
       <h2>Deploy runbook</h2>
       <a href="#deploy"><span class="k">§D</span>Overview</a>
       <a href="#D1"><span class="k">D1</span>Clean local build</a>
-      <a href="#D2"><span class="k">D2</span>Confirm secrets never committed</a>
+      <a href="#D2"><span class="k">D2</span>✓ Confirm secrets never committed</a>
       <a href="#D3"><span class="k">D3</span>.env.example + push repo</a>
       <a href="#D4"><span class="k">D4</span>Import into Vercel</a>
       <a href="#D5"><span class="k">D5</span>Set env vars on the host</a>
+      <a href="#D5b"><span class="k">D5b</span>Apply the migration journal, hosted</a>
       <a href="#D6"><span class="k">D6</span>Point Supabase at prod URL</a>
       <a href="#D7"><span class="k">D7</span>Deploy + smoke test</a>
       <a href="#D8"><span class="k">D8</span>Custom domain</a>
       <a href="#D9"><span class="k">D9</span>Production housekeeping</a>
+      <h2>Mobile — before an app-store link</h2>
+      <a href="#mobile"><span class="k">§M</span>Overview</a>
+      <a href="#M1"><span class="k">M1</span>Privacy policy must cover the app</a>
+      <a href="#M2"><span class="k">M2</span>Store privacy declarations</a>
+      <a href="#M3"><span class="k">M3</span>Point the build at production</a>
+      <a href="#M4"><span class="k">M4</span>Developer accounts + IGDB</a>
+      <a href="#M5"><span class="k">M5</span>Push credentials for production</a>
+      <a href="#M6"><span class="k">M6</span>Listing, review, TestFlight</a>
+      <a href="#M7"><span class="k">M7</span>✓ Already shipped</a>
       <h2>Finish</h2>
       <a href="#gate"><span class="k">§F</span>Final gate</a>
     </nav>
@@ -209,7 +223,8 @@ hr{border:0;border-top:1px solid var(--border);margin:2.5rem 0}
     <div class="concept">
       <h3>Row Level Security (RLS)</h3>
       <p>A PostgreSQL feature Supabase is built on. Each table carries <em>policies</em> — small SQL rules evaluated per row that decide whether the current request may <code>select</code> / <code>insert</code> / <code>update</code> / <code>delete</code> that row. <code>auth.uid()</code> inside a policy returns the logged-in user's id.</p>
-      <p>This app sends every write straight from the browser to Supabase (see <code>lib/queries/*</code>). Those functions pass a row id and trust the database to refuse the write if the row isn't yours. So these policies are not a backstop — they are the <em>only</em> thing enforcing "you can only edit your own stuff." If a table has RLS off, or a policy that's too loose, any logged-in user can edit anyone's data by calling the same query with a different id.</p>
+      <p>This was true of the app's original design: every write went straight from the browser to Supabase (<code>lib/queries/*</code>), passing a row id and trusting the database to refuse the write if the row wasn't the caller's. RLS was the <em>only</em> thing enforcing "you can only edit your own stuff."</p>
+      <p><strong>That's no longer the whole picture.</strong> Writes mostly go through Server Actions and <code>/api/v1</code> routes now, backed directly by Postgres via Drizzle (<code>lib/db.ts</code>) — and that connection's pooler role has <code>BYPASSRLS</code>, so RLS policies are never even consulted on that path. Authorization for those writes lives in application code instead: <code>requireUser()</code> / <code>requireBearerUser()</code> identifies the caller, and each query function in <code>lib/queries/*</code> is expected to check ownership itself. RLS still matters for whatever genuinely goes through <code>supabase-js</code> (sign-in/out, token verification) — but for the Drizzle path, a permissive or missing RLS policy no longer protects anything, and a missing ownership check in a query function is the equivalent gap. See the correction on <a href="#B4">B4</a>.</p>
     </div>
 
     <div class="concept">
@@ -391,8 +406,12 @@ const canGenerate = loadoutInput.totalRatings &gt;= 5</code></pre>
         <label for="chk-B4"><span class="tag">✓ Done</span>B4 · Audit your RLS policies</label>
       </div>
       <div class="item-body">
+        <div class="field" style="border-top:0;padding-top:0">
+          <span class="flabel" style="color:var(--blocker)">Update — the architecture this was audited under has changed</span>
+          <p>This audit (below) covered the app's original design, where every write went straight from the browser to Supabase and RLS was the only thing stopping user A from editing user B's row. That's not the current picture: writes mostly go through Server Actions and <code>/api/v1</code> routes backed by Drizzle now, whose pooler role has <code>BYPASSRLS</code> — RLS policies on those tables aren't consulted on that path at all. Authorization is enforced in application code instead (<code>requireUser()</code> / <code>requireBearerUser()</code> plus an explicit ownership check inside each <code>lib/queries/*</code> function). The audit below is still accurate for what genuinely goes through <code>supabase-js</code> (sign-in/out, token verification), but the current equivalent of this item is a fresh pass confirming every Drizzle mutation checks ownership itself rather than assuming "RLS will catch it" — <code>test/api/v1-reads-throw.test.ts</code> and the loader privacy tests (e.g. <code>test/lib/loaders/list-like-privacy.test.ts</code>) already cover part of this by construction.</p>
+        </div>
         <div class="field">
-          <span class="flabel">Status — audited &amp; hardened</span>
+          <span class="flabel">Status — audited &amp; hardened (historical)</span>
           <p>Full policy dump reviewed (<code>pg_policies</code>). RLS is enabled on all 17 tables; every INSERT/DELETE is scoped to <code>auth.uid()</code>; <code>list_games</code> correctly hops to the parent list; reference tables (<code>games</code>, <code>genres</code>, …) are read-only-locked. Two gaps were found and fixed.</p>
         </div>
         <div class="field">
@@ -403,12 +422,12 @@ const canGenerate = loadoutInput.totalRatings &gt;= 5</code></pre>
           <span class="flabel">What was fixed</span>
           <ul>
             <li><strong>Missing <code>WITH CHECK</code> on every UPDATE policy</strong> (<code>users</code>, <code>lists</code>, <code>library_entries</code>, <code>ratings_reviews</code>, <code>steam_accounts</code>). <code>USING</code> gated which rows could be updated but nothing validated the row afterward, so a user could reassign their own row to another <code>user_id</code>. Added <code>with check (auth.uid() = user_id)</code> to each via <code>ALTER POLICY</code>.</li>
-            <li><strong>The <code>avatars</code> storage bucket had no policies.</strong> <code>uploadAvatarImage()</code> writes <code>&lt;user_id&gt;/avatar.&lt;ext&gt;</code>; without policies any logged-in user could overwrite anyone's avatar. Added public read + owner-folder-scoped insert/update/delete on <code>storage.objects</code> (<code>(storage.foldername(name))[1] = auth.uid()::text</code>).</li>
+            <li><strong>The <code>avatars</code> storage bucket had no policies.</strong> <code>uploadAvatarImage()</code> writes <code>&lt;user_id&gt;/avatar.&lt;ext&gt;</code>; without policies any logged-in user could overwrite anyone's avatar. Added public read + owner-folder-scoped insert/update/delete on <code>storage.objects</code> (<code>(storage.foldername(name))[1] = auth.uid()::text</code>). <strong>No longer applicable</strong> — avatar uploads moved to Cloudflare R2 (<code>lib/r2.ts</code>, a presigned direct-to-R2 PUT), not Supabase Storage. There's nothing to audit here now; R2 access is scoped by the presigned URL itself, signed server-side with a short expiry.</li>
           </ul>
         </div>
         <div class="field">
-          <span class="flabel">Optional hardening not yet applied</span>
-          <p>SELECT on <code>library_entries</code> and <code>steam_accounts</code> is <code>using (true)</code>, so the <code>library_public</code> toggle and Steam-ID visibility are enforced only in the app UI, not the REST API. Tighten with an <code>EXISTS</code> check against the owner's flag if you want the DB to enforce them — behavior-changing, so test public profiles first.</p>
+          <span class="flabel">Optional hardening not yet applied (historical)</span>
+          <p>SELECT on <code>library_entries</code> and <code>steam_accounts</code> is <code>using (true)</code>, so the <code>library_public</code> toggle and Steam-ID visibility were enforced only in the app UI, not the REST API, at the time of this audit. That read path is Drizzle now too, so this SELECT policy is no longer what's protecting those columns — the gate moved into the loaders (<code>lib/loaders/*</code>), which <code>AGENTS.md</code> calls out explicitly: "Privacy gates live in the loader, never in <code>page.tsx</code> — <code>db</code> bypasses RLS and the route would skip a page-level check." Worth confirming each privacy-gated loader actually does that check, same spirit as this item, different mechanism.</p>
         </div>
         <div class="field">
           <span class="flabel">Verify</span>
@@ -782,7 +801,7 @@ alter table ratings_reviews validate constraint review_length;</code></pre>
       <div class="item-body">
         <div class="field">
           <span class="flabel">Status — Privacy Policy live, Terms in progress</span>
-          <p>Generated both through Termly (free tier — HTML export only). <strong>Privacy Policy is done and live at <code>/policy</code></strong> (<span class="code">app/policy/page.tsx</span> renders the exported <span class="code">app/policy/policy.html</span> inside a light card, since Termly's stylesheet assumes a white background). Reviewed line-by-line against the actual app and hand-corrected four things the free-tier export got wrong or left as unresolved template artifacts: a claimed mobile app that doesn't exist yet, a generic "marketing partners" sourcing paragraph that should've described Steam import, a false claim of permitting third-party ad-tracking cookies, and a literal unfilled address blank. Minimum age unified at 16 across the policy and the signup checkbox. <strong>Signup consent checkbox is live</strong> in <code>AuthModal</code> — blocks Sign Up until checked, links to <code>/policy</code>, references Terms as plain text pending the page below. <strong>Terms and Conditions — in progress</strong>, being built the same way (Termly export reviewed against the app, not published as-is).</p>
+          <p>Generated both through Termly (free tier — HTML export only). <strong>Privacy Policy is done and live at <code>/policy</code></strong> (<span class="code">app/policy/page.tsx</span> renders the exported <span class="code">app/policy/policy.html</span> inside a light card, since Termly's stylesheet assumes a white background). Reviewed line-by-line against the actual app and hand-corrected four things the free-tier export got wrong or left as unresolved template artifacts: a claimed mobile app that doesn't exist yet, a generic "marketing partners" sourcing paragraph that should've described Steam import, a false claim of permitting third-party ad-tracking cookies, and a literal unfilled address blank. Minimum age unified at 16 across the policy and the signup checkbox. <strong>Signup consent checkbox is live</strong> in <code>AuthModal</code> — blocks Sign Up until checked, and links both to <code>/policy</code> and to <code>/terms</code> (the markup already treats Terms as a real link, not plain text — <code>app/terms/page.tsx</code> itself is the piece still missing: it renders only an <code>Eyebrow</code>, no body copy, and is deliberately <code>noindex</code>'d and left out of the sitemap until there's content). <strong>Terms and Conditions — in progress</strong>, being built the same way (Termly export reviewed against the app, not published as-is) — the user said they'll handle the Terms content directly in Termly rather than have it drafted here.</p>
         </div>
         <div class="field">
           <span class="flabel">Outstanding, not blocked on the name anymore</span>
@@ -790,7 +809,8 @@ alter table ratings_reviews validate constraint review_length;</code></pre>
             <li><strong>Register a DMCA designated agent with the U.S. Copyright Office once the LLC exists.</strong> $6 fee, fully online (<a href="https://www.copyright.gov/dmca-directory/" target="_blank" rel="noopener">copyright.gov/dmca-directory</a>), renews every 3 years. Worth doing (not just the generic "email us about copyright" clause) specifically because the app hosts user-uploaded avatars — the DMCA safe harbor requires actual registration, a ToS clause alone doesn't get you the liability shield. Needs the LLC's name/address, so it's gated on formation.</li>
             <li>Form "I'm a Teapot LLC" — gates the DMCA registration above, the privacy policy's legal name (currently accurate to draft, not yet accurate to publish live), and the corporate address.</li>
             <li>Get <code>privacy@screenpeak.gg</code> actually working before publishing live — both documents reference it as the contact channel.</li>
-            <li>Build <span class="code">app/terms/page.tsx</span> once the Terms review is finished, then update the <code>AuthModal</code> checkbox's plain-text "Terms" into a real link.</li>
+            <li>Finish <span class="code">app/terms/page.tsx</span>'s content (Termly, same review pass as the Privacy Policy got), then drop its <code>robots: { index: false }</code> and add <code>/terms</code> to <code>app/sitemap.ts</code>.</li>
+            <li><strong>Now that a mobile app exists, the Privacy Policy needs another review pass</strong> — it was previously hand-corrected to <em>remove</em> a line claiming a mobile app that didn't exist yet. It needs to describe the real one instead: push notification tokens, platform, and timestamps are now stored and sent to Expo's push service on the user's behalf. See <a href="#M1">M1</a>.</li>
           </ul>
         </div>
       </div>
@@ -890,12 +910,12 @@ alter table ratings_reviews validate constraint review_length;</code></pre>
       </div>
       <div class="item-body">
         <div class="field">
-          <span class="flabel">Status — deferred until the name is settled</span>
-          <p>These are the app's logo shown tiny (16–180px), so there's nothing to make until the name and a basic mark exist. Nothing is broken meanwhile — <code>favicon.ico</code> already covers the tab. When you're back, either drop in a 512×512 <code>icon.png</code> + 180×180 <code>apple-icon.png</code> + <code>manifest.ts</code>, or generate placeholder versions from code with <code>app/icon.tsx</code> / <code>app/apple-icon.tsx</code> (Next's <code>ImageResponse</code>) that swap out in one commit later.</p>
+          <span class="flabel">Status — icons done, only the manifest is left</span>
+          <p>The name and mark are settled now. <code>app/icon.svg</code> is the real seam-mark icon (not a placeholder), and <code>app/apple-icon.tsx</code> generates the iOS home-screen icon from it via Next's <code>ImageResponse</code> — confirmed in the build's route list (<code>○ /apple-icon</code>, <code>○ /icon.svg</code>). What's still missing is <code>app/manifest.ts</code>, the one piece that lets the site be "added to home screen" as a basic PWA with the right name/theme colour. Small, one file, can land independent of everything else here.</p>
         </div>
         <div class="field">
           <span class="flabel">What it is</span>
-          <p>You have <code>app/favicon.ico</code> but no <code>app/icon.png</code> (higher-res icon modern browsers and bookmarks use) or <code>app/apple-icon.png</code> (iOS home-screen icon). <code>app/manifest.ts</code> generates the web app manifest — name, theme colour, icons — which lets the site be "added to home screen" as a basic PWA.</p>
+          <p><code>app/manifest.ts</code> generates the web app manifest — name, theme colour, icons — referencing the icon files that already exist.</p>
         </div>
         <div class="field">
           <span class="flabel">Why it matters</span>
@@ -907,13 +927,13 @@ alter table ratings_reviews validate constraint review_length;</code></pre>
 import type { MetadataRoute } from 'next'
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'NG+', short_name: 'NG+',
+    name: 'ScreenPeak', short_name: 'ScreenPeak',
     start_url: '/', display: 'standalone',
-    background_color: '#17140f', theme_color: '#17140f',
-    icons: [{ src: '/icon.png', sizes: '512x512', type: 'image/png' }],
+    background_color: '#101215', theme_color: '#101215',
+    icons: [{ src: '/icon.svg', sizes: 'any', type: 'image/svg+xml' }],
   }
 }</code></pre>
-          <p>Drop a 512×512 <code>icon.png</code> and a 180×180 <code>apple-icon.png</code> into <code>app/</code> — Next picks them up by filename.</p>
+          <p><code>icon.svg</code> and <code>apple-icon.tsx</code> already exist — this just points the manifest at the real one instead of a placeholder <code>icon.png</code>. Colours match <code>--color-bg</code> from <code>app/globals.css</code>, not the old dossier's brass theme.</p>
         </div>
         <div class="field">
           <span class="flabel">Verify</span>
@@ -943,32 +963,40 @@ export default function manifest(): MetadataRoute.Manifest {
       </div>
       <div class="item-body">
         <div class="field">
-          <span class="flabel">Do this</span>
-          <pre><code>npm run lint
-npx tsc --noEmit
-npm test
-npm run build</code></pre>
+          <span class="flabel">Do this (now a monorepo — run per workspace)</span>
+          <pre><code>npm run lint                              # web
+npx tsc --noEmit -p apps/web
+npx tsc --noEmit -p apps/mobile
+npx tsc --noEmit -p packages/shared
+npm test -w @screenpeak/web
+npm test -w @screenpeak/mobile
+npm run build -w @screenpeak/web</code></pre>
+          <p>Last confirmed clean: all of the above pass, including a full <code>npm run build -w @screenpeak/web</code>.</p>
         </div>
         <div class="field">
           <span class="flabel">Why</span>
-          <p>All four must pass. <code>npm run build</code> is the one that matters most — it runs the exact compile the host will run and catches things <code>dev</code> never does: type errors in rarely-hit files, a broken <code>generateMetadata</code>, an invalid <code>sitemap.ts</code>. Fix everything red here before pushing anywhere.</p>
+          <p>The build is the one that matters most — it runs the exact compile the host will run and catches things <code>dev</code> never does: type errors in rarely-hit files, a broken <code>generateMetadata</code>, an invalid <code>sitemap.ts</code>. Fix everything red here before pushing anywhere.</p>
         </div>
       </div>
     </article>
 
-    <article class="item" data-sev="deploy" id="D2">
+    <article class="item complete" data-sev="deploy" id="D2">
       <div class="item-head">
         <input type="checkbox" class="chk" id="chk-D2">
-        <label for="chk-D2"><span class="tag">Deploy</span>D2 · Confirm secrets were never committed</label>
+        <label for="chk-D2"><span class="tag">✓ Done</span>D2 · Confirm secrets were never committed</label>
       </div>
       <div class="item-body">
         <div class="field">
-          <span class="flabel">Do this</span>
-          <pre><code>git log --all --full-history -- .env.local .env</code></pre>
+          <span class="flabel">Status — checked, clean</span>
+          <p>Re-run this any time you touch the env file, not just once — it's a fact about the current history, not a permanent state.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">Do this (path moved into the monorepo)</span>
+          <pre><code>git log --all --full-history -- apps/web/.env.local apps/web/.env</code></pre>
         </div>
         <div class="field">
           <span class="flabel">Why / what if it's not clean</span>
-          <p>Must print nothing. If it prints commits, your keys are in git history and stay there even after deleting the file — <strong>rotate every key before the repo goes anywhere</strong>: Supabase → Settings → API → roll the <code>service_role</code> / secret key; regenerate the Anthropic, Twitch, and Steam keys in their dashboards; update <code>.env.local</code>.</p>
+          <p>Must print nothing. If it prints commits, your keys are in git history and stay there even after deleting the file — <strong>rotate every key before the repo goes anywhere</strong>: Supabase → Settings → API → roll the <code>service_role</code> / secret key; regenerate the Anthropic, Twitch, and Steam keys in their dashboards; update <code>.env.local</code>. (A separate, unrelated reminder: if a database password or other secret ever ends up pasted into a chat transcript instead of committed to git, rotate it the same way — chat history isn't git history, but it's still a copy of the secret outside your own machine.)</p>
         </div>
       </div>
     </article>
@@ -980,17 +1008,26 @@ npm run build</code></pre>
       </div>
       <div class="item-body">
         <div class="field">
-          <span class="flabel">Do this</span>
-          <pre><code># .env.example  — committed, all values blank
+          <span class="flabel">Do this — list grew since this was written; still doesn't exist</span>
+          <pre><code># apps/web/.env.example  — committed, all values blank
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 NEXT_PUBLIC_SITE_URL=
 SUPABASE_SECRET_KEY=
-ANTHROPIC_API_KEY=
+DATABASE_URL=
+DATABASE_POOL_URL=
 TWITCH_CLIENT_ID=
 TWITCH_CLIENT_SECRET=
-STEAM_API_KEY=</code></pre>
-          <p>Confirm <code>.gitignore</code> still lists <code>.env*.local</code>. Commit <code>.env.example</code>. Push to a GitHub repo — private is fine.</p>
+ANTHROPIC_API_KEY=
+STEAM_API_KEY=
+STEAM_LINK_INTENT_SECRET=
+R2_ACCOUNT_ID=
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+R2_BUCKET_NAME=
+R2_PUBLIC_URL=
+CRON_SECRET=</code></pre>
+          <p>The file this describes now lives at <code>apps/web/.env.example</code> (the monorepo move), next to <code>apps/web/.env.local</code> — not the repo root. Confirm <code>.gitignore</code> still lists <code>.env*.local</code>. Commit <code>.env.example</code>. Push to a GitHub repo — private is fine. This full list is also in <code>AGENTS.md</code>'s "Env Vars" section — keep both in sync if either changes.</p>
         </div>
         <div class="field">
           <span class="flabel">Why</span>
@@ -1023,14 +1060,44 @@ STEAM_API_KEY=</code></pre>
           <p>Project → <strong>Settings → Environment Variables</strong>. Add each key from your <code>.env.local</code>, ticking "Production" (and "Preview" if you want preview deploys to work):</p>
           <ul>
             <li><code>NEXT_PUBLIC_SUPABASE_URL</code>, <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> — public; safe here, they're in the browser bundle by design.</li>
-            <li><code>NEXT_PUBLIC_SITE_URL</code> — your production URL, e.g. <code>https://ngplus.vercel.app</code> (or your custom domain). Used by <code>metadataBase</code> (S3), <code>robots.ts</code>/<code>sitemap.ts</code> (S4), and the auth <code>redirectTo</code> (B2).</li>
-            <li><code>SUPABASE_SECRET_KEY</code>, <code>ANTHROPIC_API_KEY</code>, <code>TWITCH_CLIENT_ID</code>, <code>TWITCH_CLIENT_SECRET</code>, <code>STEAM_API_KEY</code> — secret; server-only, never prefixed <code>NEXT_PUBLIC</code>.</li>
+            <li><code>NEXT_PUBLIC_SITE_URL</code> — your production URL, e.g. <code>https://screenpeak.vercel.app</code> (or your custom domain). Used by <code>metadataBase</code> (S3), <code>robots.ts</code>/<code>sitemap.ts</code> (S4), the auth <code>redirectTo</code> (B2), and Steam OpenID's realm/return-to — <code>lib/steam-openid.ts</code> throws outright if this is unset, so a missing value here fails loud, not silently.</li>
+            <li><code>SUPABASE_SECRET_KEY</code>, <code>DATABASE_URL</code>, <code>DATABASE_POOL_URL</code>, <code>ANTHROPIC_API_KEY</code>, <code>TWITCH_CLIENT_ID</code>, <code>TWITCH_CLIENT_SECRET</code>, <code>STEAM_API_KEY</code>, <code>STEAM_LINK_INTENT_SECRET</code> — secret; server-only, never prefixed <code>NEXT_PUBLIC</code>. <code>DATABASE_POOL_URL</code> is read at module load by <code>lib/db.ts</code> and throws immediately if unset, so the very first request after deploy will tell you if you missed it.</li>
+            <li><code>R2_ACCOUNT_ID</code>, <code>R2_ACCESS_KEY_ID</code>, <code>R2_SECRET_ACCESS_KEY</code>, <code>R2_BUCKET_NAME</code>, <code>R2_PUBLIC_URL</code> — Cloudflare R2, added since this was written; avatar uploads replaced the old Supabase Storage path. <code>R2_PUBLIC_URL</code> is also read by <code>next.config.ts</code> at build time (it derives the image <code>remotePatterns</code> hostname from it) — missing, the build itself fails, not just the upload feature.</li>
+            <li><code>CRON_SECRET</code> — authenticates <code>GET /api/cron/rate-limits</code>, which <code>vercel.json</code> schedules nightly. Without it the cron 401s every night; harmless (the rate-limit table just grows a bit faster) but worth setting correctly from day one.</li>
             <li><code>SENTRY_AUTH_TOKEN</code> (see <a href="#S6">S6</a>) — locally it's read from the gitignored <code>.env.sentry-build-plugin</code>, which won't exist on the host. Without it here, builds still succeed but source maps never upload, so Sentry stack traces point at minified code.</li>
           </ul>
         </div>
         <div class="field">
           <span class="flabel">Key concept</span>
           <p><code>NEXT_PUBLIC_*</code> values are baked into the JS bundle <em>at build time</em> — change one later and you must redeploy for it to take effect. Secret vars are read at runtime on the server, so rotating one only needs a redeploy, no code change.</p>
+        </div>
+      </div>
+    </article>
+
+    <article class="item" data-sev="deploy" id="D5b">
+      <div class="item-head">
+        <input type="checkbox" class="chk" id="chk-D5b">
+        <label for="chk-D5b"><span class="tag">Deploy</span>D5b · Apply the migration journal to the hosted database</label>
+      </div>
+      <div class="item-body">
+        <div class="field">
+          <span class="flabel">What's new since this runbook was written</span>
+          <p>There was no formal migration system when D1–D9 were first drafted — schema changes went through the Supabase SQL editor by hand. There's a real one now (<code>migrate:journal</code>, <code>docs/igdb.md</code>), and it won't run against a hosted database unless you explicitly confirm the host and database name — a safety gate, not an oversight, so don't try to script around it.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">Do this — dry run first, always</span>
+          <pre><code>export HOSTED_DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DBNAME"
+npm run migrate:journal -w @screenpeak/web -- \
+  --database-env HOSTED_DATABASE_URL \
+  --target-hosted \
+  --confirm-host HOST-FROM-THE-URL \
+  --confirm-database DATABASE-NAME-FROM-THE-URL</code></pre>
+          <p><code>--database-env</code> takes the <em>name</em> of an environment variable holding the URL, never the URL itself. <code>--confirm-host</code> is the bare hostname with no port (e.g. <code>aws-0-us-west-2.pooler.supabase.com</code>, not <code>…:5432</code>) — it's checked against <code>new URL(url).hostname</code>, which never includes the port. Both must be typed by hand from the URL, on purpose: it's what catches a copy-paste pointing this at the wrong project before it runs, not boilerplate to skip.</p>
+          <p>The dry run prints <code>{ applied, pending, baseline }</code> as JSON with nothing written. Once <code>pending</code> looks right, add <code>--apply-pending</code> to the same command to actually apply it.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">Why this has to happen before D6/D7</span>
+          <p>The app throws at request time on a schema it doesn't recognise (missing tables/columns), not a friendly error page. Do this before the first real deploy, and again after every migration you add post-launch — same two commands, dry run then apply.</p>
         </div>
       </div>
     </article>
@@ -1046,7 +1113,7 @@ STEAM_API_KEY=</code></pre>
           <p>Supabase dashboard → <strong>Authentication → URL Configuration</strong>:</p>
           <ul>
             <li>"Site URL" → your production URL.</li>
-            <li>"Redirect URLs" → add <code>https://your-site/auth/callback</code> and, if you use preview deploys, <code>https://*.vercel.app/auth/callback</code> (tighten later).</li>
+            <li>"Redirect URLs" → add <code>https://your-site/**</code> (the actual route is <code>/auth/confirm</code>, not <code>/auth/callback</code> — see <a href="#B3">B3</a> — but the wildcard is simplest since it covers <code>/auth/confirm</code> and <code>/auth/update-password</code> both). If you use preview deploys, add <code>https://*.vercel.app/**</code> too (tighten later).</li>
           </ul>
           <p>Then <strong>Authentication → Providers → Email</strong>: confirm whether "Confirm email" is on (recommended). If on, B3's callback route is mandatory for signup to complete.</p>
           <p>And <strong>Storage → Policies</strong>: your avatar/image bucket needs public <code>select</code> and authenticated <code>insert</code>/<code>update</code>/<code>delete</code> scoped to the user's own folder — the same RLS thinking as B4, on <code>storage.objects</code>.</p>
@@ -1108,7 +1175,162 @@ STEAM_API_KEY=</code></pre>
             <li><strong>Anthropic spend limit</strong> — set a monthly cap / alert on your Anthropic account so a B1 regression can't surprise you with a bill.</li>
             <li><strong>Vercel deploy branch</strong> — Settings → Git: confirm production deploys track the branch you expect (usually <code>main</code>).</li>
             <li><strong>Preview protection</strong> — Settings → Deployment Protection: require auth for preview URLs so half-built features aren't publicly linkable.</li>
-            <li><strong>IGDB</strong> — catalogue seeding is a manual command, not a request path. Keep <code>TWITCH_CLIENT_ID</code> and <code>TWITCH_CLIENT_SECRET</code> on the server. A written commercial agreement is required before public launch; see <code>docs/igdb.md</code> and <code>docs/backlog.md</code>.</li>
+            <li><strong>IGDB — still an open blocker, checked as of this update.</strong> Catalogue seeding is a manual command, not a request path. Keep <code>TWITCH_CLIENT_ID</code> and <code>TWITCH_CLIENT_SECRET</code> on the server. <code>docs/backlog.md</code> still lists this unresolved: "A written partnership has to cover storage, caching, and attribution. The Twitch Developer Agreement defaults to 24-hour caching. The free noncommercial documentation is not permission to ship." This applies to the mobile app too (see <a href="#M4">M4</a>) — it's the same catalogue data either way, not a per-platform agreement.</li>
+          </ul>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <hr>
+
+  <!-- ============ MOBILE ============ -->
+  <section class="section" id="mobile">
+    <h2 class="sec"><span class="n">M</span>Mobile — before an app-store link exists</h2>
+    <p class="sec-intro">Didn't exist when this dossier was first written. The ScreenPeak mobile app (Expo/React Native, <code>apps/mobile</code>) now does, and store submission has its own first-ship list — separate from, and not blocking, the web deploy runbook above. Severity tiers reuse the same meaning as B/S/P: <strong style="color:var(--blocker)">Blocker</strong> = before anyone can submit to a store · <strong style="color:var(--soon)">Soon</strong> = want it for the first release, a slip doesn't hurt a user · ✓ = already shipped.</p>
+
+    <article class="item" data-sev="blocker" id="M1">
+      <div class="item-head">
+        <input type="checkbox" class="chk" id="chk-M1">
+        <label for="chk-M1"><span class="tag">Mobile</span>M1 · Privacy policy has to describe the app for real</label>
+      </div>
+      <div class="item-body">
+        <div class="field">
+          <span class="flabel">What it is</span>
+          <p>The live Privacy Policy at <code>/policy</code> was reviewed and hand-corrected specifically to <em>remove</em> a Termly template line claiming a mobile app that didn't exist yet (see <a href="#S8">S8</a>). One now does, and it collects data the policy doesn't currently describe: an Expo push token, its platform (<code>ios</code>/<code>android</code>), and registration/last-seen timestamps (<code>push_tokens</code> table), sent on to Expo's push service to deliver notifications. The app also reads/writes the same account data the website does through the same backend.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">Why it matters</span>
+          <p>A policy that doesn't mention data the app actually collects isn't just inaccurate — both app stores' review process (and M2 below) check your stated data use against what the app's binary actually does. A mismatch here is a plausible rejection reason on its own, independent of anything else.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">How to do it</span>
+          <p>Same process S8 already used once: regenerate or hand-edit the Termly export to add a section (or extend the existing "information we collect" section) naming the push token, platform, and timestamps, who it's shared with (Expo's push service, which forwards to Apple/Google), and that it's deleted when the device unregisters or the account is deleted. Keep the age (16) and contact-email (<code>privacy@screenpeak.gg</code>) requirements S8 already tracks.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">Verify</span>
+          <p>Read the published policy start to finish against <code>apps/mobile/src/lib/push-notifications.ts</code> and <code>apps/web/lib/queries/push.ts</code> — everything either file touches should be named somewhere in the policy.</p>
+        </div>
+      </div>
+    </article>
+
+    <article class="item" data-sev="blocker" id="M2">
+      <div class="item-head">
+        <input type="checkbox" class="chk" id="chk-M2">
+        <label for="chk-M2"><span class="tag">Mobile</span>M2 · App Store "App Privacy" and Play "Data Safety" declarations</label>
+      </div>
+      <div class="item-body">
+        <div class="field">
+          <span class="flabel">What it is</span>
+          <p>Both stores require a structured, per-category declaration of what the app collects — filled out in App Store Connect ("App Privacy" / the privacy "nutrition label") and the Google Play Console ("Data Safety" section) — separate from, and in addition to, the Privacy Policy text itself (M1).</p>
+        </div>
+        <div class="field">
+          <span class="flabel">Why it matters</span>
+          <p>This is one of the more common, very mundane app-store rejection reasons: declaring "no data collected" (the default) while the app sends an email, a username, and a push token to a server is an easy, automatic-looking flag. It has nothing to do with code quality.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">What to declare, concretely</span>
+          <ul>
+            <li>Identifiers: push token (device identifier category on both stores).</li>
+            <li>Contact info: email (account creation).</li>
+            <li>User content: ratings, reviews, lists, avatar image.</li>
+            <li>Usage data: if Sentry's performance tracing is enabled in production — check <code>apps/mobile</code>'s Sentry config for sample rates before deciding whether to declare this.</li>
+            <li>None of this is sold or used for third-party advertising (confirm that's still true before checking that box) — Steam linking is the one place a third-party account connects, worth a line of its own.</li>
+          </ul>
+        </div>
+        <div class="field">
+          <span class="flabel">Verify</span>
+          <p>Cross-check the declaration against M1's policy text — they should tell the same story in two formats, not drift into two different claims about the same app.</p>
+        </div>
+      </div>
+    </article>
+
+    <article class="item" data-sev="blocker" id="M3">
+      <div class="item-head">
+        <input type="checkbox" class="chk" id="chk-M3">
+        <label for="chk-M3"><span class="tag">Mobile</span>M3 · Point the production build at the real API, not localhost</label>
+      </div>
+      <div class="item-body">
+        <div class="field">
+          <span class="flabel">What it is</span>
+          <p>The mobile analog of <a href="#D5">D5</a>/<a href="#D6">D6</a>. <code>EXPO_PUBLIC_API_URL</code> and the <code>EXPO_PUBLIC_SUPABASE_*</code> vars currently point at local dev (<code>apps/mobile/.env</code>) — an EAS production build needs these set to the deployed website's real URL, via EAS's own environment variables (<code>eas env:create</code> or the project dashboard), not the local <code>.env</code> file, which never ships inside the binary the store distributes.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">Why it matters</span>
+          <p>Unlike most misconfigurations here, this one wouldn't 500 or crash — the app would just silently try to reach <code>localhost</code> from a user's phone, fail every request, and look completely broken with no obvious cause in the logs you'd be looking at.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">Verify</span>
+          <p>After an EAS production build, check the bundled config (or just use the app on a real device off your home network) and confirm every network request goes to your real domain, not <code>localhost</code> or your dev machine's LAN IP.</p>
+        </div>
+      </div>
+    </article>
+
+    <article class="item" data-sev="blocker" id="M4">
+      <div class="item-head">
+        <input type="checkbox" class="chk" id="chk-M4">
+        <label for="chk-M4"><span class="tag">Mobile</span>M4 · Developer program accounts, and the IGDB agreement applies here too</label>
+      </div>
+      <div class="item-body">
+        <div class="field">
+          <span class="flabel">What it is</span>
+          <ul>
+            <li>Apple Developer Program membership active ($99/yr) under the account the bundle id <code>com.steventpot.screenpeak</code> and the EAS project (<code>@steventpot/screenpeak</code>) were created with.</li>
+            <li>Google Play Console developer account ($25 one-time) if targeting Android at all.</li>
+            <li><strong>The IGDB commercial agreement in <a href="#D9">D9</a> is not web-specific</strong> — the mobile app shows the same catalogue data through the same backend, so it's covered (or not) by the same agreement, not a separate mobile-only exemption.</li>
+          </ul>
+        </div>
+      </div>
+    </article>
+
+    <article class="item" data-sev="soon" id="M5">
+      <div class="item-head">
+        <input type="checkbox" class="chk" id="chk-M5">
+        <label for="chk-M5"><span class="tag">Mobile</span>M5 · Confirm push notification credentials work outside Expo Go</label>
+      </div>
+      <div class="item-body">
+        <div class="field">
+          <span class="flabel">What it is</span>
+          <p>Push notifications were built and verified this session against Expo's push service with a real device token (see <code>apps/mobile/src/lib/push-notifications.ts</code>, <code>apps/web/lib/queries/push.ts</code>), but that verification ran in a development build. A standalone production build needs its own push credentials — iOS needs an APNs key, which <code>eas credentials</code> can provision automatically; Android typically works through Expo's own shared FCM credentials unless you've opted into your own Firebase project.</p>
+        </div>
+        <div class="field">
+          <span class="flabel">Verify</span>
+          <p>After an EAS production (or at least a TestFlight/internal) build, register a device and send yourself a test follow/like notification end to end — a working dev-build token is necessary but not sufficient proof this works in the shipped build.</p>
+        </div>
+      </div>
+    </article>
+
+    <article class="item" data-sev="soon" id="M6">
+      <div class="item-head">
+        <input type="checkbox" class="chk" id="chk-M6">
+        <label for="chk-M6"><span class="tag">Mobile</span>M6 · Store listing, review, and a TestFlight/internal-testing round</label>
+      </div>
+      <div class="item-body">
+        <div class="field">
+          <span class="flabel">What it is</span>
+          <ul>
+            <li>Screenshots, description, keywords, support URL, and the age-rating questionnaire for each store.</li>
+            <li>A TestFlight (iOS) or internal-testing (Android) round before the public release, catching anything the Simulator/Expo Go verification this session couldn't (real push delivery, real App Tracking Transparency / permission prompts, real crash reporting).</li>
+            <li>App review turnaround is typically 1–3 days on iOS, a few hours to a couple days on Android — budget for it, and for at least one rejection-and-resubmit cycle on a first submission.</li>
+          </ul>
+        </div>
+      </div>
+    </article>
+
+    <article class="item complete" data-sev="soon" id="M7">
+      <div class="item-head">
+        <input type="checkbox" class="chk" id="chk-M7">
+        <label for="chk-M7"><span class="tag">✓ Done</span>M7 · Already shipped — don't re-check these</label>
+      </div>
+      <div class="item-body">
+        <div class="field">
+          <span class="flabel">Confirmed this session</span>
+          <ul>
+            <li>App icon, splash screen, and status bar replaced with ScreenPeak's own mark (not a generic Expo default).</li>
+            <li>Sentry is installed and configured in <code>apps/mobile</code> (package + app config), the same monitoring story as the web app's S6.</li>
+            <li>In-app account deletion is wired on the Settings screen (<code>DeleteSheet</code> in <code>settings-screen.tsx</code>, confirm-then-delete through <code>DELETE /api/v1/me</code>) — Apple requires this for any app that supports account creation, and it's already there.</li>
+            <li>Universal Links' <code>apple-app-site-association</code> is already served with the correct <code>Content-Type: application/json</code> header from <code>next.config.ts</code> (needed because the file has no extension for Next to infer a MIME type from).</li>
+            <li>Push notifications: token format validation, a 24-hour idle guard + 10-token cap before reassigning a device to a different user, a once-per-hour throttle on follow/like pushes, and a safe-path check before the app navigates from a tapped notification.</li>
           </ul>
         </div>
       </div>
@@ -1128,7 +1350,7 @@ STEAM_API_KEY=</code></pre>
       <li><strong>The ScreenPeak rebrand.</strong> Name settled, trademark conflict resolved.</li>
       <li><strong>S8 (partial).</strong> Privacy Policy drafted, reviewed against the actual app, and live at <code>/policy</code>; signup consent checkbox live in <code>AuthModal</code>; Terms and Conditions in progress.</li>
     </ul>
-    <p><strong style="color:var(--soon)">Still open:</strong> P4 (real icons + manifest — needs a logo mark) and the deploy runbook (D1–D9 — needs a domain).</p>
+    <p><strong style="color:var(--soon)">Still open:</strong> P4 (just <code>manifest.ts</code> now — the icon mark itself is done), the web deploy runbook (D1–D9, including the new <a href="#D5b">D5b</a> migration-apply step — needs a domain), and, once web is live, the separate <a href="#mobile">Mobile</a> section (M1–M6) before an app-store link exists. B4's RLS audit needs a fresh pass under the current Drizzle architecture — see the correction inline on <a href="#B4">B4</a>.</p>
     <p><strong>Before S8's documents can actually go live (not just exist as drafts):</strong></p>
     <ul>
       <li><strong>Form "I'm a Teapot LLC."</strong> The policy currently names it as the operating entity — until it's formed, that's not accurate, and you're personally the operating entity by default.</li>
