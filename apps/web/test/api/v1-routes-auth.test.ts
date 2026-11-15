@@ -221,7 +221,11 @@ describe('/api/v1 route auth', () => {
     })
 })
 
-const SEARCH_QUERY_EXPORTS = ['searchGamesByName', 'searchTaxonomyTable', 'searchLibraryTaxonomy'] as const
+const SEARCH_QUERY_MODULES = [
+    { module: '@/lib/queries/game', exports: ['searchGamesByName', 'searchTaxonomyTable', 'searchLibraryTaxonomy'] },
+    { module: '@/lib/queries/user', exports: ['searchUsersByUsername'] },
+    { module: '@/lib/queries/list', exports: ['searchListsByName'] },
+] as const satisfies readonly { module: string, exports: readonly string[] }[]
 const webRoot = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const SKIP_DIRS = new Set(['node_modules', '.next', 'test', 'coverage', 'dist'])
 
@@ -237,8 +241,9 @@ function appSourceFiles(dir: string): string[] {
 }
 
 function searchBudgetProblems(source: ts.SourceFile, label: string): string[] {
-    const searchNames = SEARCH_QUERY_EXPORTS
-        .map(exported => namedImport(source, '@/lib/queries/game', exported))
+    const searchNames = SEARCH_QUERY_MODULES
+        .flatMap(({ module, exports: moduleExports }) => moduleExports
+            .map(exported => namedImport(source, module, exported)))
         .filter((name): name is string => !!name)
     if (searchNames.length === 0) return []
     const limitName = namedImport(source, '@/lib/rate-limit', 'consumeSearchRateLimit')
@@ -270,6 +275,14 @@ describe('search budget', () => {
         const file = join(dirname(fileURLToPath(import.meta.url)), 'fixtures/nested-search-limit.ts')
         const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
         const problems = searchBudgetProblems(source, 'fixtures/nested-search-limit.ts')
+        expect(problems.length).toBeGreaterThan(0)
+        expect(problems.join('\n')).toMatch(/consumeSearchRateLimit/)
+    })
+
+    it('catches a caller of searchUsersByUsername that skips the imported consumeSearchRateLimit', () => {
+        const file = join(dirname(fileURLToPath(import.meta.url)), 'fixtures/nested-search-limit-user.ts')
+        const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
+        const problems = searchBudgetProblems(source, 'fixtures/nested-search-limit-user.ts')
         expect(problems.length).toBeGreaterThan(0)
         expect(problems.join('\n')).toMatch(/consumeSearchRateLimit/)
     })
