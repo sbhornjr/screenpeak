@@ -176,6 +176,12 @@ Use that harness, or another fixture user you insert the same way, for local run
     the phone calls `POST /api/v1/me/loadout`, and both use `generateReadout` in `lib/loadout-readout.ts`),
     `steam/link` + `steam/callback` (Steam OpenID sign-in), `delete-account` (DELETE, the website's;
     the phone calls `DELETE /api/v1/me`, and both use `deleteAccount` in `lib/account-deletion.ts`)
+  - `app/api/v1/user/[username]/block` (POST/DELETE, block/unblock a user — the
+    segment is the target's account id, not their username), `app/api/v1/me/blocked`
+    (GET, the caller's blocked-user list), and `app/api/v1/reports` (POST, file a
+    report on a review, list, or profile) are the moderation plan's routes; they
+    call `blockUser`/`unblockUser`/`createReport` in `lib/queries/user.ts` /
+    `lib/queries/report.ts`
   - `app/auth/confirm/` — landing route for every Supabase auth email link
   - `app/feed-actions.ts` — server action, paginates the activity feed
 - `db/` — Drizzle schema (`schema.ts`, `relations.ts`) and hand-authored SQL
@@ -212,7 +218,7 @@ Game and taxonomy typeahead lives on `db` in `lib/queries/game.ts` (`searchGames
 
 Adding a new client-callable helper to `user.ts`, `game.ts`, or `feed.ts` reintroduces this bug — add it to the matching dedicated file instead, or create a new one for a different domain.
 
-Client-side mutations that used to call `lib/queries/*` directly with the browser client now go through Server Actions (`app/library-actions.ts`, `app/review-actions.ts`, `app/list-actions.ts`, `app/user-actions.ts`, `app/steam-actions.ts`), which derive the caller's identity from `requireUser()` (`lib/auth.ts`) instead of trusting a client-supplied id. If you find a component still doing `supabase.from(...).update(...)` with a client-supplied user id, that's a straggler from the pre-Drizzle architecture — move it onto a Server Action instead of leaving it, even if the table's RLS policy happens to make it non-exploitable today (ownership checks belong in one place, not "wherever RLS backstops a shortcut").
+Client-side mutations that used to call `lib/queries/*` directly with the browser client now go through Server Actions (`app/library-actions.ts`, `app/review-actions.ts`, `app/list-actions.ts`, `app/user-actions.ts`, `app/steam-actions.ts`, `app/report-actions.ts`), which derive the caller's identity from `requireUser()` (`lib/auth.ts`) instead of trusting a client-supplied id. If you find a component still doing `supabase.from(...).update(...)` with a client-supplied user id, that's a straggler from the pre-Drizzle architecture — move it onto a Server Action instead of leaving it, even if the table's RLS policy happens to make it non-exploitable today (ownership checks belong in one place, not "wherever RLS backstops a shortcut").
 
 ### Drizzle gotchas
 
@@ -257,16 +263,22 @@ link formats.
   `consumeWriteRateLimit` (`lib/rate-limit.ts`) after that: 60 requests per 60
   seconds per user, stored in `api_rate_limits` (migration 0009). Over the
   budget is 429 `rate_limited` with `Retry-After` and `retry_after` in the
-  body. Search routes and `app/search-actions.ts` call
-  `consumeSearchRateLimit` after the query parses: 120 per 60 seconds. The
-  bucket is `search:user:<uuid>` when the caller is signed in (bearer on the
-  route, cookie on the action), otherwise `search:ip:<address>`. The address
-  is the first `x-vercel-forwarded-for` hop, then `x-real-ip`, then the last
+  body. `POST /api/v1/reports` is the one write route that does not use that
+  shared budget: it calls `consumeReportRateLimit` instead, a dedicated,
+  tighter bucket (`report:<reporterId>`, 5 per hour — `REPORT_RATE_LIMIT`
+  /`REPORT_RATE_WINDOW_SECONDS` in `lib/rate-limit.ts`), because the general
+  60-per-60-seconds write budget is too loose for a moderation report. Search
+  routes and `app/search-actions.ts` call `consumeSearchRateLimit` after the
+  query parses: 120 per 60 seconds. The bucket is `search:user:<uuid>` when
+  the caller is signed in (bearer on the route, cookie on the action),
+  otherwise `search:ip:<address>`. The address is the first
+  `x-vercel-forwarded-for` hop, then `x-real-ip`, then the last
   `x-forwarded-for` hop, else `local`. A 401 does not spend the search budget.
-  `test/api/v1-routes-auth.test.ts` requires `requireBearerUser` and
-  `consumeWriteRateLimit` on POST, PUT, PATCH, and DELETE, and fails if a GET
-  calls `consumeWriteRateLimit`. A nested function with the helper's name does
-  not count. The same file fails if a non-test module calls
+  `test/api/v1-routes-auth.test.ts` requires `requireBearerUser` on POST, PUT,
+  PATCH, and DELETE, plus `consumeWriteRateLimit` *or* `consumeReportRateLimit`
+  on those methods (only `POST /api/v1/reports` uses the latter), and fails if
+  a GET calls either. A nested function with the helper's name does not
+  count. The same file fails if a non-test module calls
   `searchGamesByName`, `searchTaxonomyTable`, or `searchLibraryTaxonomy` from
   `lib/queries/game.ts` without calling the imported `consumeSearchRateLimit`.
   Stale buckets (window older than a day) are deleted by
