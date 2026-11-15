@@ -12,7 +12,7 @@ import type { LoadoutPageData } from './loadout'
 import type { MeData, SettingsData } from './me'
 import type { ProfilePageData } from './profile'
 import type { UserReviewsPage, UserReviewsQuery } from './user-reviews'
-import type { GameSearchPage, TaxonomySearchPage, TaxonomySearchTable } from './search'
+import type { GameSearchPage, ListSearchPage, TaxonomySearchPage, TaxonomySearchTable, UserSearchPage } from './search'
 import type { AppConfig } from './app-config'
 import type { PushTokenRegisterRequest, PushTokenUnregisterRequest } from './push'
 import type { SteamImportBatch, SteamImportBatchRequest, SteamLinkCompleteRequest, SteamLinkIntent, SteamLinkIntentRequest } from './steam'
@@ -209,6 +209,7 @@ export function createApiClient(opts: {
                 send<OkResult>('DELETE', `${listIdPath(listId)}/games/${gameIdPath(gameId)}`),
             syncGames: (listId: string, body: ListGameSync) =>
                 send<OkResult>('POST', `${listIdPath(listId)}/games/sync`, body),
+            search: (q: string, limit?: number) => get<ListSearchPage>(`/api/v1/lists/search${qs({ q, limit })}`),
         },
         taxonomy: {
             search: (table: TaxonomySearchTable, q: string, options?: { ids?: string[], limit?: number }) =>
@@ -231,6 +232,7 @@ export function createApiClient(opts: {
             loadout: (username: string) => get<LoadoutPageData>(`${user(username)}/loadout`),
             follow: (userId: string) => send<FollowResult>('POST', `/api/v1/user/${encodeURIComponent(userId)}/follow`),
             unfollow: (userId: string) => send<FollowResult>('DELETE', `/api/v1/user/${encodeURIComponent(userId)}/follow`),
+            search: (q: string, limit?: number) => get<UserSearchPage>(`/api/v1/users/search${qs({ q, limit })}`),
         },
     }
 }
