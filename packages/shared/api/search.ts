@@ -1,5 +1,4 @@
 // GET /api/v1/games/search?q=&limit=
-// GET /api/v1/games/search?q=&limit=
 // GET /api/v1/taxonomy/[table]/search?q=&limit=&ids=
 // GET /api/v1/users/search?q=&limit=   -> UserSearchPage
 // GET /api/v1/lists/search?q=&limit=   -> ListSearchPage

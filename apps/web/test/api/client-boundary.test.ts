@@ -94,7 +94,7 @@ describe('client bundle boundary', () => {
         expect(problems).toEqual([])
     })
 
-    it('sends the search boxes through the server actions', () => {
+    it('sends the four search boxes through the server actions', () => {
         const problems: string[] = []
         for (const label of SEARCH_COMPONENTS) {
             const source = parse(join(webRoot, label))

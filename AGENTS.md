@@ -201,7 +201,7 @@ Functions that intentionally stay on `supabase-js` instead of `db` live in their
 - `lib/queries/user-auth.ts` — genuine Auth calls (`signInWithPassword`, `signOut`, etc.) — avatar uploads moved to `lib/r2.ts` + `app/user-actions.ts`. "Who's signed in?" is *not* here: see "Who's calling" below
 - `FEED_PAGE_SIZE` — a plain constant client callers need, split out of `feed.ts` for the same reason; it now lives in `@screenpeak/shared/constants` (dependency-free by design, like everything in `packages/shared`)
 
-Game and taxonomy typeahead lives on `db` in `lib/queries/game.ts` (`searchGamesByName`, `searchTaxonomyTable`, `getTaxonomyNameBySlug`). Client components call `app/search-actions.ts`. `GET /api/v1/games/search` and `GET /api/v1/taxonomy/[table]/search` call the same functions. Do not import those queries from a `'use client'` file — that pulls `lib/db` into the browser bundle.
+Game and taxonomy typeahead lives on `db` in `lib/queries/game.ts` (`searchGamesByName`, `searchTaxonomyTable`, `getTaxonomyNameBySlug`). Player and list typeahead live the same way in `lib/queries/user.ts` (`searchUsersByUsername`) and `lib/queries/list.ts` (`searchListsByName`). Client components call `app/search-actions.ts`. `GET /api/v1/games/search`, `GET /api/v1/taxonomy/[table]/search`, `GET /api/v1/users/search`, and `GET /api/v1/lists/search` call the matching functions. Do not import those queries from a `'use client'` file — that pulls `lib/db` into the browser bundle.
 
 Adding a new client-callable helper to `user.ts`, `game.ts`, or `feed.ts` reintroduces this bug — add it to the matching dedicated file instead, or create a new one for a different domain.
 
@@ -261,7 +261,9 @@ link formats.
   calls `consumeWriteRateLimit`. A nested function with the helper's name does
   not count. The same file fails if a non-test module calls
   `searchGamesByName`, `searchTaxonomyTable`, or `searchLibraryTaxonomy` from
-  `lib/queries/game.ts` without calling the imported `consumeSearchRateLimit`.
+  `lib/queries/game.ts`, or `searchUsersByUsername` (`lib/queries/user.ts`) or
+  `searchListsByName` (`lib/queries/list.ts`), without calling the imported
+  `consumeSearchRateLimit`.
   Stale buckets (window older than a day) are deleted by
   `GET /api/cron/rate-limits`, which requires `Authorization: Bearer`
   `CRON_SECRET`. `apps/web/vercel.json` schedules that daily.
