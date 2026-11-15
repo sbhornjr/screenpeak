@@ -7,6 +7,7 @@ import { GameCover, ListDetail, ListGameEntry } from '@screenpeak/shared/types'
 import { listFieldsSchema, parseOrError } from '@screenpeak/shared/schemas'
 import { notifyOncePerWindow, sendPushNotification } from '@/lib/queries/push'
 import { WRITE_REFUSED, writeErrorText } from '@/lib/write-http'
+import { containsPattern, searchBounds } from '@/lib/queries/game'
 
 export async function getUserLists(userId: string | null | undefined, includePrivate: boolean) {
     // A database error must reject. Returning [] makes an outage look like
@@ -112,6 +113,82 @@ export async function getListLikeStats(listIds: string[], viewerId: string | nul
         })
     }
     return stats
+}
+
+export type ListSearchRow = {
+    id: string
+    name: string
+    description: string | null
+    last_activity: string
+    game_count: number
+    owner_username: string
+    covers: { cover_image_url: string | null, slug: string | null }[]
+    like_count: number
+    viewer_has_liked: boolean
+}
+
+type ListSearchBaseRow = {
+    id: string
+    name: string
+    description: string | null
+    last_activity: string
+    game_count: string | number
+    owner_username: string
+}
+
+/**
+ * Name contains-query for list search. Mirrors `get_user_lists`'s derivation
+ * of `last_activity` (most recent game added, else the list's creation date)
+ * and `game_count`. A private list is visible only to its own owner — when
+ * `viewerId` is null the ownership clause is omitted entirely rather than
+ * compared against null, so a signed-out caller never matches any private list.
+ */
+export async function searchListsByName(query: string, limit: number, viewerId: string | null): Promise<ListSearchRow[]> {
+    const { q, take } = searchBounds(query, limit)
+    const pattern = containsPattern(q)
+    const viewerClause = viewerId ? sql`or l.user_id = ${viewerId}` : sql``
+    const rows = await db.execute(sql`
+        select
+            l.id,
+            l.name,
+            l.description,
+            coalesce(max(lg.added_at), l.created_at) as last_activity,
+            count(lg.game_id) as game_count,
+            u.username as owner_username
+        from lists l
+        join users u on u.id = l.user_id
+        left join list_games lg on lg.list_id = l.id
+        where l.name ilike ${pattern} escape ${'\\'}
+          and (l.is_public = true ${viewerClause})
+        group by l.id, u.username
+        order by l.name asc, l.id asc
+        limit ${take}
+    `) as unknown as ListSearchBaseRow[]
+
+    const ids = rows.map(row => String(row.id))
+    const [covers, likes] = await Promise.all([
+        ids.length > 0 ? getListCoverMap(ids) : Promise.resolve(new Map<string, GameCover[]>()),
+        getListLikeStats(ids, viewerId),
+    ])
+
+    return rows.map(row => {
+        const id = String(row.id)
+        const likeStat = likes.get(id)
+        return {
+            id,
+            name: String(row.name),
+            description: row.description ?? null,
+            last_activity: String(row.last_activity),
+            game_count: Number(row.game_count),
+            owner_username: String(row.owner_username),
+            covers: (covers.get(id) ?? []).map(item => ({
+                cover_image_url: item.coverImageUrl,
+                slug: item.slug,
+            })),
+            like_count: likeStat?.like_count ?? 0,
+            viewer_has_liked: likeStat?.viewer_has_liked ?? false,
+        }
+    })
 }
 
 export async function getListLikes(listIds: (string | number)[]) {
