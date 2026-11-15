@@ -9,6 +9,8 @@ import {
 import { isOwnAvatarUrl } from '@/lib/avatar-upload'
 import { notifyOncePerWindow, sendPushNotification } from '@/lib/queries/push'
 import { writeErrorText } from '@/lib/write-http'
+import { searchBounds, containsPattern } from '@/lib/queries/game'
+import { SEARCH_MAX_PAGE_SIZE } from '@screenpeak/shared/constants'
 
 export async function getProfileSummaryByUsername(username: string) {
     // A database error must reject. Returning null makes an outage look like an unknown player.
@@ -345,4 +347,37 @@ export async function getCurrentLoadoutIdentity(userId: string) {
         .limit(1)
 
     return rows[0] ?? null
+}
+
+export type UserNameHit = {
+    id: string
+    username: string
+    avatar_url: string | null
+    follower_count: number
+}
+
+// Username contains-query for the typeahead. Throws on a database error.
+// `follower_count` is a bulk count via the follows join, not a per-row lookup.
+export async function searchUsersByUsername(query: string, limit = SEARCH_MAX_PAGE_SIZE): Promise<UserNameHit[]> {
+    const { q, take } = searchBounds(query, limit)
+    const pattern = containsPattern(q)
+    const rows = await db.execute(sql`
+        select
+            u.id,
+            u.username,
+            u.avatar_url,
+            count(f.follower_id) as follower_count
+        from users u
+        left join follows f on f.following_id = u.id
+        where u.username ilike ${pattern} escape ${'\\'}
+        group by u.id
+        order by u.username asc, u.id asc
+        limit ${take}
+    `) as unknown as UserNameHit[]
+    return rows.map(row => ({
+        id: String(row.id),
+        username: String(row.username),
+        avatar_url: row.avatar_url ?? null,
+        follower_count: Number(row.follower_count),
+    }))
 }

@@ -232,7 +232,7 @@ export function containsPattern(query: string): string {
     return `%${query.replace(/[\\%_]/g, char => `\\${char}`)}%`
 }
 
-function searchBounds(query: string, limit: number): { q: string, take: number } {
+export function searchBounds(query: string, limit: number): { q: string, take: number } {
     const q = query.trim()
     if (!q) throw new SearchInputError('Enter a search.')
     if (q.length > SEARCH_QUERY_MAX_LENGTH) throw new SearchInputError(`Search is limited to ${SEARCH_QUERY_MAX_LENGTH} characters.`)
