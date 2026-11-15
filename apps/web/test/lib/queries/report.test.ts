@@ -87,7 +87,7 @@ describe('createReport', () => {
     })
 
     it('omits details from the insert when not provided', async () => {
-        state.existsResult = [{ id: TARGET }]
+        state.existsResult = [{ id: TARGET, isPublic: true, userId: 'someone-else' }]
 
         await createReport({
             reporterId: REPORTER,
@@ -115,12 +115,45 @@ describe('createReport', () => {
     })
 
     it('checks the list target against lists', async () => {
-        state.existsResult = [{ id: TARGET }]
+        state.existsResult = [{ id: TARGET, isPublic: true, userId: 'someone-else' }]
 
         await createReport({ reporterId: REPORTER, targetType: 'list', targetId: TARGET, reason: 'Spam' })
 
         expect(state.selectFromTable).toBe(lists)
         expect(state.selectWhere).toEqual(eq(lists.id, TARGET))
+    })
+
+    it('rejects a private list belonging to someone else the same way as a missing list', async () => {
+        state.existsResult = [{ id: TARGET, isPublic: false, userId: 'someone-else' }]
+
+        await expect(createReport({
+            reporterId: REPORTER,
+            targetType: 'list',
+            targetId: TARGET,
+            reason: 'Spam',
+        })).rejects.toThrow(ReportTargetNotFoundError)
+
+        expect(state.insertCalls).toHaveLength(0)
+    })
+
+    it('accepts a private list belonging to the reporter themselves', async () => {
+        state.existsResult = [{ id: TARGET, isPublic: false, userId: REPORTER }]
+
+        await createReport({
+            reporterId: REPORTER,
+            targetType: 'list',
+            targetId: TARGET,
+            reason: 'Spam',
+        })
+
+        expect(state.insertCalls).toHaveLength(1)
+        expect(state.insertCalls[0].values).toEqual({
+            reporterId: REPORTER,
+            targetType: 'list',
+            targetId: TARGET,
+            reason: 'Spam',
+            details: undefined,
+        })
     })
 
     it('checks the profile target against users', async () => {
