@@ -16,6 +16,7 @@ const SEARCH_COMPONENTS = [
     'app/components/util/SearchableDropdown.tsx',
     'app/components/game/FavoriteGamePicker.tsx',
     'app/components/lists/AddToListFromListButton.tsx',
+    'app/components/explore/UnifiedSearch.tsx',
 ]
 
 function sourceFiles(dir: string): string[] {

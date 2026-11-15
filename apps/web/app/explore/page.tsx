@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { Suspense } from "react"
 import GameCard from "@/app/components/game/GameCard"
 import Link from "next/link"
 import ListPreview from "../components/lists/ListPreview"
@@ -8,6 +9,7 @@ import SectionHead from "@/app/components/util/SectionHead"
 import Eyebrow from "@/app/components/util/Eyebrow"
 import { loadExplore } from "@/lib/loaders/explore"
 import { parseExploreQueryLenient } from "@/lib/screen-query"
+import UnifiedSearch from "@/app/components/explore/UnifiedSearch"
 
 type ExplorePageProps = {
     searchParams: Promise<{ range?: string }>
@@ -40,6 +42,11 @@ export default async function Explore({ searchParams }: ExplorePageProps) {
             </div>
 
             <div className="flex flex-col pt-4 pb-8 w-full max-w-6xl mx-auto px-6 sm:px-8">
+                {/* useSearchParams reads ?type= (the empty feed links /explore?type=users). */}
+                <Suspense fallback={null}>
+                    <UnifiedSearch />
+                </Suspense>
+
                 <div className="flex gap-1 mb-8">
                     {["week", "month", "year", "alltime"].map(r => (
                         <Link
