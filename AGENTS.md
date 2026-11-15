@@ -393,6 +393,11 @@ Required in `apps/web/.env.local` (gitignored):
 - `STEAM_LINK_INTENT_SECRET` (phone Steam OpenID state; at least 32 characters. The website Steam button does not read it. Missing or short, `POST /api/v1/me/steam/link-intent` is 500. The mobile callback and link GET redirect to `screenpeak://steamlink?ok=0` instead of throwing)
 - `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL`
   (Cloudflare R2 — avatar uploads)
+- `RESEND_API_KEY` (Resend — `sendReportEmail` in `lib/email.ts`, the report-tool
+  notification to `support@screenpeak.gg`. Read at call time, not module load,
+  same as the R2 vars above. Missing or rejected, `sendReportEmail` never
+  throws: it resolves `{ ok: false, error }`, so a Resend outage can't take
+  down the report flow's DB write)
 - `NEXT_PUBLIC_SITE_URL` (metadataBase / OG tags; defaults to `http://localhost:3000`)
 
 ## Conventions
