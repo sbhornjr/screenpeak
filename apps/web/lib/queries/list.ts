@@ -142,6 +142,9 @@ type ListSearchBaseRow = {
  * and `game_count`. A private list is visible only to its own owner — when
  * `viewerId` is null the ownership clause is omitted entirely rather than
  * compared against null, so a signed-out caller never matches any private list.
+ * Every signed-up user gets a default "Wishlist" (`handle_new_user()`); like
+ * `get_trending_lists` and `get_feed`, this excludes `is_default` lists
+ * unconditionally so a broad query isn't flooded with near-identical defaults.
  */
 export async function searchListsByName(query: string, limit: number, viewerId: string | null): Promise<ListSearchRow[]> {
     const { q, take } = searchBounds(query, limit)
@@ -160,6 +163,7 @@ export async function searchListsByName(query: string, limit: number, viewerId: 
         left join list_games lg on lg.list_id = l.id
         where l.name ilike ${pattern} escape ${'\\'}
           and (l.is_public = true ${viewerClause})
+          and l.is_default = false
         group by l.id, u.username
         order by l.name asc, l.id asc
         limit ${take}

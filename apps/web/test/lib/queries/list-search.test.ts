@@ -141,6 +141,14 @@ describe('searchListsByName', () => {
         ])
     })
 
+    it('excludes default lists unconditionally, even for the list\'s own owner', async () => {
+        execute.mockResolvedValueOnce([])
+        await searchListsByName('wishlist', 20, OWNER)
+
+        const rendered = new PgDialect().sqlToQuery(execute.mock.calls[0][0] as SQL)
+        expect(rendered.sql.toLowerCase()).toContain('l.is_default = false')
+    })
+
     it('returns an empty array without querying covers/likes when there are no matches', async () => {
         execute.mockResolvedValueOnce([])
         const results = await searchListsByName('nomatch', 20, OWNER)
