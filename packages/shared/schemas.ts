@@ -174,6 +174,18 @@ export const pushTokenUnregisterSchema = z.object({
     token: z.string().trim().min(1, 'Enter a push token.').max(400, 'That token is too long.'),
 }).strict()
 
+/** POST /api/v1/reports and the website report action. `reason` is a preset
+ *  from REPORT_REASONS, validated here only for shape/length — not checked
+ *  against the list, same as selectedTitleSchema. */
+export const reportTargetTypeSchema = z.enum(['review', 'list', 'profile'])
+
+export const reportSchema = z.object({
+    targetType: reportTargetTypeSchema,
+    targetId: uuidIdSchema,
+    reason: z.string().trim().min(1, 'Choose a reason.').max(200, 'Reason is limited to 200 characters.'),
+    details: z.string().max(2000, 'Details are limited to 2000 characters.').optional(),
+}).strict()
+
 export const steamLibraryImportSchema = z.array(z.object({
     gameId: uuidIdSchema,
     playtimeSelected: hoursPlayedSchema,

@@ -11,6 +11,18 @@ import { ProfileHub } from './profile-hub'
 
 process.env.TZ = 'America/Los_Angeles'
 
+// The report flag and sheet have their own test (report-sheet.test.tsx).
+vi.mock('./report-sheet', () => ({
+  ReportButton: () => null,
+}))
+
+// The block confirm sheet has its own test (block-button.test.tsx). This stand-in
+// shows where the hub mounts it and what it hands back.
+vi.mock('./block-button', () => ({
+  BlockButton: ({ blocked, onUnblock }: { blocked: boolean, onUnblock: () => Promise<string | null> }) =>
+    React.createElement('button', { type: 'button', 'aria-label': blocked ? 'stub-unblock' : 'stub-block', onClick: () => { void onUnblock() } }),
+}))
+
 vi.mock('react-native', () => {
   function flatStyle(style: unknown): Record<string, unknown> {
     if (!style) return {}
@@ -376,5 +388,29 @@ describe('profile page', () => {
     />)
     const note = screen.getByText('Too many requests. Try again in 8 seconds.')
     expect(note.getAttribute('aria-live')).toBe('polite')
+  })
+
+  it('mounts Block beside Report only on someone else\'s profile once the blocked state is known', () => {
+    const handlers = { onBlock: vi.fn(async () => null), onUnblock: vi.fn(async () => null) }
+    const { unmount } = render(<ProfileHub model={profileHubModel(page({ viewer: 'other' }))} onOpen={vi.fn()} {...handlers} />)
+    expect(screen.queryByRole('button', { name: /stub-/ })).toBeNull()
+    unmount()
+    render(<ProfileHub model={profileHubModel(page({ viewer: 'owner' }))} onOpen={vi.fn()} blocked={false} {...handlers} />)
+    expect(screen.queryByRole('button', { name: /stub-/ })).toBeNull()
+    cleanup()
+    render(<ProfileHub model={profileHubModel(page({ viewer: 'other' }))} onOpen={vi.fn()} blocked={false} {...handlers} />)
+    expect(screen.getByRole('button', { name: 'stub-block' })).toBeTruthy()
+  })
+
+  it('shows an unblock failure under the actions', async () => {
+    render(<ProfileHub
+      model={profileHubModel(page({ viewer: 'other' }))}
+      onOpen={vi.fn()}
+      blocked
+      onBlock={vi.fn(async () => null)}
+      onUnblock={vi.fn(async () => 'Too many requests. Try again soon.')}
+    />)
+    fireEvent.click(screen.getByRole('button', { name: 'stub-unblock' }))
+    expect(await screen.findByText('Too many requests. Try again soon.')).toBeTruthy()
   })
 })

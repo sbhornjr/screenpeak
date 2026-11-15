@@ -12,6 +12,14 @@ export type GameRatingReview = {
     }
 }
 
+// One row of a game's paged review list (GET /api/v1/games/[slug]/reviews).
+// Carries the review's own id so a reader can report it. Kept off
+// GameRatingReview itself: the viewer's own review (`viewer.review`) and the
+// phone's optimistic copy of it have no use for an id.
+export type GameReview = GameRatingReview & {
+    id: string
+}
+
 // Row returned by get_user_ratings_reviews RPC (user's ratings/reviews page)
 export type RatingReviewData = {
     rating: number

@@ -315,6 +315,13 @@ export const listLikes = pgTable("list_likes", {
 	pgPolicy("Users can unlike lists", { as: "permissive", for: "delete", to: ["authenticated"], using: sql`(auth.uid() = user_id)` }),
 ])
 
+// 0015: dropped the three original Supabase RLS policies (including an
+// INSERT policy that let a signed-in user re-create a follow row directly
+// through PostgREST, bypassing followUser()'s block check). Nothing uses
+// PostgREST for follows — only `db` (Drizzle), which bypasses RLS via the
+// pooler role's BYPASSRLS — so there are no policies left, same as
+// push_tokens/steam_link_intents/blocks/reports. Every write must go through
+// followUser()/unfollowUser() in lib/queries/user.ts; see AGENTS.md.
 export const follows = pgTable("follows", {
 	followerId: uuid("follower_id").notNull(),
 	followingId: uuid("following_id").notNull(),
@@ -331,11 +338,8 @@ export const follows = pgTable("follows", {
 			name: "follows_following_id_fkey"
 		}).onDelete("cascade"),
 	primaryKey({ columns: [table.followerId, table.followingId], name: "follows_pkey"}),
-	pgPolicy("Anyone can see follows", { as: "permissive", for: "select", to: ["public"], using: sql`true` }),
-	pgPolicy("Users can follow others", { as: "permissive", for: "insert", to: ["authenticated"], withCheck: sql`(auth.uid() = follower_id)` }),
-	pgPolicy("Users can unfollow", { as: "permissive", for: "delete", to: ["authenticated"], using: sql`(auth.uid() = follower_id)` }),
 	check("follows_check", sql`follower_id <> following_id`),
-])
+]).enableRLS()
 
 export const listGames = pgTable("list_games", {
 	listId: uuid("list_id").notNull(),
@@ -455,6 +459,33 @@ export const pushTokens = pgTable('push_tokens', {
     index('push_tokens_user_id_idx').on(table.userId),
     check('push_tokens_platform_check', sql`${table.platform} in ('ios', 'android')`),
     check('push_tokens_token_not_blank', sql`char_length(${table.expoPushToken}) between 1 and 400`),
+]).enableRLS()
+// 0014. No PostgREST path for either table — app code (Task 3/4) is the only
+// caller, same reasoning as push_tokens/steam_link_intents (and, as of 0015,
+// follows — whose original public-read/insert/delete policies predated the
+// Drizzle-bypasses-RLS rearchitecture and have since been dropped).
+export const blocks = pgTable('blocks', {
+    blockerId: uuid('blocker_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    blockedId: uuid('blocked_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
+}, table => [
+    primaryKey({ columns: [table.blockerId, table.blockedId] }),
+    check('blocks_check', sql`${table.blockerId} <> ${table.blockedId}`),
+]).enableRLS()
+
+export const reports = pgTable('reports', {
+    id: uuid().defaultRandom().primaryKey(),
+    reporterId: uuid('reporter_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    targetType: text('target_type').notNull(),
+    targetId: uuid('target_id').notNull(),
+    reason: text().notNull(),
+    details: text(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
+}, table => [
+    index('reports_reporter_id_idx').on(table.reporterId),
+    check('reports_target_type_check', sql`${table.targetType} in ('review', 'list', 'profile')`),
+    check('reports_reason_length', sql`char_length(${table.reason}) between 1 and 200`),
+    check('reports_details_length', sql`char_length(coalesce(${table.details}, '')) <= 2000`),
 ]).enableRLS()
 
 export const catalogResetRuns = igdbPrivate.table('catalog_reset_runs', {

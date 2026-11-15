@@ -28,6 +28,8 @@ export const queryKeys = {
   feed: (viewer: Viewer) => ['feed', viewer] as const,
   me: (viewer: Viewer) => ['me', viewer] as const,
   settings: (viewer: Viewer) => ['settings', viewer] as const,
+  /** The viewer's blocked users: Settings lists them, and the profile's Block control reads it. */
+  blocked: (viewer: Viewer) => ['blocked', viewer] as const,
   explore: (range: ExploreRange, viewer: Viewer) => ['explore', range, viewer] as const,
   /** The welcome screen's trending rail: this week, falling back to all time. */
   welcomeTrending: (viewer: Viewer) => ['welcome-trending', viewer] as const,

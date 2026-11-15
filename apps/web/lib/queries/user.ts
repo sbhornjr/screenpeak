@@ -1,7 +1,7 @@
 import 'server-only'
-import { eq, and, sql } from 'drizzle-orm'
+import { eq, and, or, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { users, follows } from '@/db/schema'
+import { users, follows, blocks } from '@/db/schema'
 import {
     usernameSchema, bioSchema,
     selectedTitleSchema, favoriteGameIdsSchema, privacyTypeSchema, parseOrError,
@@ -298,16 +298,64 @@ export async function userExists(userId: string): Promise<boolean> {
     return Boolean(rows[0])
 }
 
+// Order-independent key for a (userA, userB) pair, so blockUser(A,B) and
+// followUser(B,A) contend for the same advisory-lock slot regardless of
+// which argument order either call used.
+function pairLockKey(a: string, b: string): string {
+    return a < b ? `${a}:${b}` : `${b}:${a}`
+}
+
+// pg_advisory_xact_lock is transaction-scoped: it auto-releases on commit or
+// rollback, no explicit unlock needed. Must be the first statement in the
+// caller's transaction, before any read that decides whether to write.
+function lockPair(tx: { execute: typeof db.execute }, a: string, b: string) {
+    return tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${pairLockKey(a, b)}, 0))`)
+}
+
+function blockedEitherWayCondition(a: string, b: string) {
+    return or(
+        and(eq(blocks.blockerId, a), eq(blocks.blockedId, b)),
+        and(eq(blocks.blockerId, b), eq(blocks.blockedId, a)),
+    )
+}
+
 /**
  * Idempotent. A database error rejects. The caller rejects a self-follow
  * before this. Notifies the followed player only on a genuinely new follow,
- * not a retry of one that already exists.
+ * not a retry of one that already exists. Silently no-ops (no insert, no
+ * notification) when either party has blocked the other.
+ *
+ * The transaction covers only the lock, the block re-check, and the insert —
+ * it must not span the notification path below. `notifyOncePerWindow` and
+ * `sendPushNotification` are a network round trip to Expo's push API with no
+ * timeout of its own; holding the transaction (and the advisory lock) open
+ * across that call risked the 15s idle-in-transaction timeout
+ * (`lib/db-timeouts.ts`) killing the session mid-transaction — rolling back
+ * the insert while `notifyOncePerWindow`'s own write (a separate connection)
+ * had already committed, silently wasting the notification window on a
+ * follow that never happened — plus pool starvation under concurrent follows
+ * and an advisory lock held for the whole external call.
+ *
+ * Takes the same pair-scoped advisory lock `blockUser` takes, so a
+ * `followUser` racing a concurrent `blockUser` for the same pair can't land
+ * its insert after the block's transaction commits — whichever of the two
+ * acquires the lock first finishes before the other proceeds, and the
+ * losing `followUser` re-checks blocks post-lock, inside its own
+ * transaction, before inserting.
  */
 export async function followUser(followerId: string, followingId: string) {
-    const inserted = await db.insert(follows).values({ followerId, followingId })
-        .onConflictDoNothing()
-        .returning({ followerId: follows.followerId })
-    if (inserted.length === 0) return
+    const inserted = await db.transaction(async (tx) => {
+        await lockPair(tx, followerId, followingId)
+        const blocked = await tx.select({ blockerId: blocks.blockerId }).from(blocks)
+            .where(blockedEitherWayCondition(followerId, followingId))
+            .limit(1)
+        if (blocked.length > 0) return false
+        const rows = await tx.insert(follows).values({ followerId, followingId })
+            .onConflictDoNothing()
+            .returning({ followerId: follows.followerId })
+        return rows.length > 0
+    })
+    if (!inserted) return
     if (!await notifyOncePerWindow(`follow:${followerId}:${followingId}`)) return
     const [follower] = await db.select({ username: users.username }).from(users).where(eq(users.id, followerId)).limit(1)
     if (!follower) return
@@ -321,6 +369,53 @@ export async function followUser(followerId: string, followingId: string) {
 /** Idempotent. A database error rejects. */
 export async function unfollowUser(followerId: string, followingId: string) {
     await db.delete(follows).where(and(eq(follows.followerId, followerId), eq(follows.followingId, followingId)))
+}
+
+/**
+ * Idempotent. A database error rejects. Self-block is rejected by the caller
+ * (route/action layer), not here — the `blocks_check` constraint is the
+ * backstop. Also removes any existing follow between the two in either
+ * direction, atomically with the block insert.
+ *
+ * Takes the same pair-scoped advisory lock `followUser` takes, first inside
+ * this transaction, so a `followUser` racing this block for the same pair
+ * either finishes first and gets cleaned up by the delete below, or waits
+ * behind this transaction and re-checks blocks once it commits.
+ */
+export async function blockUser(blockerId: string, blockedId: string): Promise<void> {
+    await db.transaction(async (tx) => {
+        await lockPair(tx, blockerId, blockedId)
+        await tx.insert(blocks).values({ blockerId, blockedId }).onConflictDoNothing()
+        await tx.delete(follows).where(or(
+            and(eq(follows.followerId, blockerId), eq(follows.followingId, blockedId)),
+            and(eq(follows.followerId, blockedId), eq(follows.followingId, blockerId)),
+        ))
+    })
+}
+
+/** Idempotent. A database error rejects. Scoped to this specific blocker. */
+export async function unblockUser(blockerId: string, blockedId: string): Promise<void> {
+    await db.delete(blocks).where(and(eq(blocks.blockerId, blockerId), eq(blocks.blockedId, blockedId)))
+}
+
+/** True regardless of which of the two actually did the blocking. A database error rejects. */
+export async function isBlockedEitherWay(a: string, b: string): Promise<boolean> {
+    const rows = await db
+        .select({ blockerId: blocks.blockerId })
+        .from(blocks)
+        .where(blockedEitherWayCondition(a, b))
+        .limit(1)
+    return rows.length > 0
+}
+
+/** The users this blocker has blocked — never who has blocked them. A database error rejects. */
+export async function getBlockedUsers(blockerId: string): Promise<{ id: string, username: string, avatar_url: string | null }[]> {
+    return await db
+        .select({ id: users.id, username: users.username, avatar_url: users.avatarUrl })
+        .from(blocks)
+        .innerJoin(users, eq(users.id, blocks.blockedId))
+        .where(eq(blocks.blockerId, blockerId))
+        .orderBy(users.username, users.id)
 }
 
 // The landing page's sample Loadout. `db` bypasses RLS, so the loadout_public

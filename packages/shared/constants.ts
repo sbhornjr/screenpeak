@@ -31,3 +31,10 @@ export const AVATAR_MAX_BYTES = 2 * 1024 * 1024
 
 /** The most favorite games a profile pins. */
 export const FAVORITE_GAMES_MAX = 5
+
+/** Preset reasons offered per report target type. 'Other' is always last. */
+export const REPORT_REASONS: Record<'review' | 'list' | 'profile', readonly string[]> = {
+    review: ['Inappropriate language', 'Harassment or hate speech', 'Spam', 'Other'],
+    list: ['Inappropriate list name', 'Inappropriate list description', 'Spam', 'Other'],
+    profile: ['Inappropriate username', 'Inappropriate bio', 'Inappropriate avatar', 'Harassment or hate speech', 'Other'],
+}

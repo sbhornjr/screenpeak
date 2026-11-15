@@ -31,7 +31,7 @@ const { getGameReviewsForPage } = await import('@/lib/queries/review')
 
 const dialect = new PgDialect()
 const render = (s: SQL) => dialect.sqlToQuery(s)
-const ROW = { user_id: 'u-1', rating: 9, review: 'Great', created_at: 't', updated_at: 't', users: { username: 'ana', display_name: 'Ana', avatar_url: 'x' } }
+const ROW = { id: 'r-1', user_id: 'u-1', rating: 9, review: 'Great', created_at: 't', updated_at: 't', users: { username: 'ana', display_name: 'Ana', avatar_url: 'x' } }
 const Q = { page: 1, pageSize: 10, sort: 'date', order: 'desc' } as const
 
 beforeEach(() => {
@@ -46,6 +46,13 @@ describe('getGameReviewsForPage', () => {
         expect(await getGameReviewsForPage('game-1', { ...Q, page: 2 }, null)).toEqual({
             reviews: [ROW], total: 23, totalPages: 3,
         })
+    })
+
+    it('selects exactly the GameReview contract columns, including the review id (reports target it)', async () => {
+        await getGameReviewsForPage('game-1', Q, null)
+
+        const rowSelect = mockDb.select.mock.calls.map(c => c[0]).find(f => !('count' in f))
+        expect(Object.keys(rowSelect ?? {}).sort()).toEqual(['created_at', 'id', 'rating', 'review', 'updated_at', 'user_id', 'users'])
     })
 
     it('turns page + pageSize into LIMIT / OFFSET', async () => {

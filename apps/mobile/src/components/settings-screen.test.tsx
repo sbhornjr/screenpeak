@@ -102,6 +102,7 @@ function renderScreen(props: Partial<SettingsScreenProps> = {}) {
     onLinkSteam: vi.fn(async () => null as string | null),
     onResyncSteam: vi.fn(),
     onUnlinkSteam: vi.fn(async () => null as string | null),
+    onUnblock: vi.fn(async (_userId: string) => null as string | null),
   }
   render(
     <SettingsScreen
@@ -109,6 +110,7 @@ function renderScreen(props: Partial<SettingsScreenProps> = {}) {
       bio="Roguelikes, mostly."
       titles={['Soulslike Sicko', '#1 Hades Fan']}
       onBack={() => undefined}
+      blockedUsers={[]}
       {...handlers}
       {...props}
     />,
@@ -119,6 +121,42 @@ function renderScreen(props: Partial<SettingsScreenProps> = {}) {
 function type(label: string, value: string) {
   fireEvent.change(screen.getByLabelText(label), { target: { value } })
 }
+
+describe('settings blocked users', () => {
+  it('says when nobody is blocked', () => {
+    renderScreen()
+    expect(screen.getByRole('heading', { name: 'Blocked users' })).toBeTruthy()
+    expect(screen.getByText("You haven't blocked anyone.")).toBeTruthy()
+  })
+
+  it('shows why the list failed to load', () => {
+    renderScreen({ blockedUsers: null, blockedError: 'Something went wrong.' })
+    expect(screen.getByText('Something went wrong.')).toBeTruthy()
+  })
+
+  it('lists each blocked player and unblocks one without asking', async () => {
+    const onUnblock = vi.fn(async (_userId: string) => null as string | null)
+    renderScreen({
+      onUnblock,
+      blockedUsers: [
+        { id: 'u1', username: 'rival', avatar_url: null },
+        { id: 'u2', username: 'troll', avatar_url: null },
+      ],
+    })
+    expect(screen.getByText('rival')).toBeTruthy()
+    expect(screen.getByText('troll')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Unblock troll' }))
+    await waitFor(() => expect(onUnblock).toHaveBeenCalledWith('u2'))
+    expect(onUnblock).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows why an unblock failed', async () => {
+    const onUnblock = vi.fn(async (_userId: string) => 'Too many requests. Try again soon.' as string | null)
+    renderScreen({ onUnblock, blockedUsers: [{ id: 'u1', username: 'rival', avatar_url: null }] })
+    fireEvent.click(screen.getByRole('button', { name: 'Unblock rival' }))
+    expect(await screen.findByText('Too many requests. Try again soon.')).toBeTruthy()
+  })
+})
 
 describe('settings Steam connection', () => {
   it('links Steam when it is not linked, and shows why linking failed', async () => {

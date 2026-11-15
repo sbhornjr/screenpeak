@@ -85,6 +85,12 @@ export type AvatarSave = { url: string }
  */
 export type FollowResult = { following: boolean }
 
+/**
+ * POST and DELETE /api/v1/user/[username]/block. Same path-segment convention
+ * as FollowResult: the segment is the target user's uuid.
+ */
+export type BlockResult = { blocked: boolean }
+
 export type SteamLibraryImportEntry = {
     gameId: string
     playtimeSelected: number

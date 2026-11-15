@@ -10,6 +10,7 @@ import type { LibraryPageData, LibraryQuery } from './library'
 import type { ListPageData, ListsPageData, ListsTab } from './lists'
 import type { LoadoutPageData } from './loadout'
 import type { MeData, SettingsData } from './me'
+import type { BlockedUsersPage, ReportInput } from './moderation'
 import type { ProfilePageData } from './profile'
 import type { UserReviewsPage, UserReviewsQuery } from './user-reviews'
 import type { GameSearchPage, ListSearchPage, TaxonomySearchPage, TaxonomySearchTable, UserSearchPage } from './search'
@@ -20,6 +21,7 @@ import type {
     AvatarSave,
     AvatarUploadRequest,
     AvatarUploadResult,
+    BlockResult,
     FollowResult,
     LibraryWrite,
     LibraryWriteResult,
@@ -194,6 +196,7 @@ export function createApiClient(opts: {
                 send<SteamImportBatch>('POST', '/api/v1/me/steam/import', body),
             registerPushToken: (body: PushTokenRegisterRequest) => send<OkResult>('POST', '/api/v1/me/push-token', body),
             unregisterPushToken: (body: PushTokenUnregisterRequest) => send<OkResult>('DELETE', '/api/v1/me/push-token', body),
+            blocked: () => get<BlockedUsersPage>('/api/v1/me/blocked'),
         },
         appConfig: () => get<AppConfig>('/api/v1/app-config'),
         lists: {
@@ -233,6 +236,11 @@ export function createApiClient(opts: {
             follow: (userId: string) => send<FollowResult>('POST', `/api/v1/user/${encodeURIComponent(userId)}/follow`),
             unfollow: (userId: string) => send<FollowResult>('DELETE', `/api/v1/user/${encodeURIComponent(userId)}/follow`),
             search: (q: string, limit?: number) => get<UserSearchPage>(`/api/v1/users/search${qs({ q, limit })}`),
+            block: (userId: string) => send<BlockResult>('POST', `/api/v1/user/${encodeURIComponent(userId)}/block`),
+            unblock: (userId: string) => send<BlockResult>('DELETE', `/api/v1/user/${encodeURIComponent(userId)}/block`),
+        },
+        reports: {
+            create: (body: ReportInput) => send<OkResult>('POST', '/api/v1/reports', body),
         },
     }
 }

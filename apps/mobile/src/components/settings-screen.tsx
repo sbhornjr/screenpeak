@@ -2,6 +2,7 @@
 // editors (TitleSelectButton, BioButton), which the phone keeps here. Steam
 // linking is a later screen.
 import type { SettingsData } from '@screenpeak/shared/api/me'
+import type { BlockedUser } from '@screenpeak/shared/api/moderation'
 import { useState } from 'react'
 import { RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -51,6 +52,10 @@ export type SettingsScreenProps = {
   /** Opens the import screen. */
   onResyncSteam: () => void
   onUnlinkSteam: Write
+  /** The players you've blocked; null while the list loads or when it failed (`blockedError`). */
+  blockedUsers: BlockedUser[] | null
+  blockedError?: string | null
+  onUnblock: (userId: string) => Promise<string | null>
   refreshing?: boolean
   onRefresh?: () => void
   refreshError?: string | null
@@ -77,6 +82,27 @@ function Row({ label, value, action, onPress }: { label: string, value: string, 
         <Text numberOfLines={3} style={styles.rowValue}>{value}</Text>
       </View>
       <Button label={action} accessibilityLabel={`${action} ${label.toLowerCase()}`} variant="secondary" onPress={onPress} />
+    </View>
+  )
+}
+
+/** One blocked player. Unblocking needs no confirmation: it is reversible. */
+function BlockedRow({ user, onUnblock }: { user: BlockedUser, onUnblock: (userId: string) => Promise<string | null> }) {
+  const unblock = useAction()
+  return (
+    <View style={styles.stack}>
+      <View style={styles.row}>
+        <Avatar src={user.avatar_url} alt={user.username} size="sm" />
+        <Text numberOfLines={1} style={[styles.rowValue, styles.rowText]}>{user.username}</Text>
+        <Button
+          label={unblock.busy ? 'Unblocking…' : 'Unblock'}
+          accessibilityLabel={`Unblock ${user.username}`}
+          variant="secondary"
+          disabled={unblock.busy}
+          onPress={() => { void unblock.run(() => onUnblock(user.id)) }}
+        />
+      </View>
+      <ActionError error={unblock.error} onRetry={unblock.canRetry ? unblock.retry : undefined} />
     </View>
   )
 }
@@ -320,6 +346,9 @@ export function SettingsScreen({
   onLinkSteam,
   onResyncSteam,
   onUnlinkSteam,
+  blockedUsers,
+  blockedError = null,
+  onUnblock,
   refreshing = false,
   onRefresh,
   refreshError = null,
@@ -415,6 +444,16 @@ export function SettingsScreen({
             />
           )}
           <ActionError error={steam.error} />
+        </Section>
+
+        <Section title="Blocked users">
+          {blockedUsers == null ? (
+            blockedError
+              ? <ActionError error={blockedError} />
+              : <Text style={text.muted}>Loading…</Text>
+          ) : blockedUsers.length === 0 ? (
+            <Text style={text.muted}>You haven&apos;t blocked anyone.</Text>
+          ) : blockedUsers.map(user => <BlockedRow key={user.id} user={user} onUnblock={onUnblock} />)}
         </Section>
 
         <Button

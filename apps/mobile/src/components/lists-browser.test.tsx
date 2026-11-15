@@ -43,6 +43,11 @@ const { getLists, getList, createList, updateList, deleteList, likeList, unlikeL
   plus1: vi.fn(),
 }))
 
+// The report flag and sheet have their own test (report-sheet.test.tsx).
+vi.mock('./report-sheet', () => ({
+  ReportButton: () => null,
+}))
+
 vi.mock('@/lib/plus1', () => ({ plus1 }))
 
 vi.mock('expo-router', () => ({

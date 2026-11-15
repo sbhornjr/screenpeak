@@ -7,14 +7,16 @@ import GameCard from "@/app/components/game/GameCard"
 import Review from "@/app/components/game/Review"
 import Link from "next/link"
 import FollowButton from "@/app/components/user/FollowButton"
+import BlockButton from "@/app/components/user/BlockButton"
 import BioButton from "@/app/components/user/BioButton"
 import StatGrid from "@/app/components/util/StatGrid"
 import SectionHead from "@/app/components/util/SectionHead"
 import Eyebrow from "@/app/components/util/Eyebrow"
 import EmptyState from "@/app/components/util/EmptyState"
+import { ReportButton } from "@/app/components/util/ReportModal"
 import { getOptionalUser } from "@/lib/auth"
 import { loadProfilePage } from "@/lib/loaders/profile-page"
-import { getProfileSummaryByUsername } from "@/lib/queries/user"
+import { getBlockedUsers, getProfileSummaryByUsername } from "@/lib/queries/user"
 import { Metadata } from "next"
 
 type ProfilePageProps = {
@@ -63,6 +65,12 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
     const currentTitle = profile.selected_title ? profile.selected_title : "Title-less Noob"
     const followersCount = profile.follower_count
     const followingCount = profile.following_count
+    // Only blocks the viewer made: if this player blocked the viewer, the
+    // button still offers Block, never Unblock. A failed read degrades to
+    // "not blocked" rather than taking the whole profile down.
+    const viewerHasBlocked = viewer && !isOwnProfile
+        ? (await getBlockedUsers(viewer.id).catch(() => [])).some(u => u.id === profile.id)
+        : false
 
     return (
         <main>
@@ -84,8 +92,10 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
                         <p className="text-md font-semibold font-(family-name:--font-display) text-(--color-muted)">{followersCount} Followers | {followingCount} Following</p>
                     </div>
                     {!isOwnProfile && viewer && (
-                        <div className="sm:ml-auto">
+                        <div className="sm:ml-auto flex items-center gap-2">
                             <FollowButton targetUserId={profile.id} initialIsFollowing={data.viewer?.is_following ?? false} />
+                            <ReportButton targetType="profile" targetId={profile.id} />
+                            <BlockButton targetUserId={profile.id} username={username} initialIsBlocked={viewerHasBlocked} />
                         </div>
                     )}
                 </div>

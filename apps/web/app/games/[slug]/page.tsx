@@ -12,6 +12,7 @@ import AddToListButton from "@/app/components/lists/AddToListButton"
 import Avatar from "@/app/components/user/Avatar"
 import ExpandableText from "@/app/components/util/ExpandableText"
 import SectionHead from "@/app/components/util/SectionHead"
+import { ReportButton } from "@/app/components/util/ReportModal"
 import { tierColor } from "@/lib/rating-tier"
 import Panel from "@/app/components/util/Panel"
 import { LIBRARY_SECTION_TITLE, libraryEmptyLine, libraryScoreText, libraryStats, type LibraryStatKey } from "@screenpeak/shared/library-copy"
@@ -41,6 +42,8 @@ function relTime(iso: string) {
 }
 
 type LogRow = {
+    /** The review's id. Absent on the viewer's own review, which is never reportable. */
+    id?: string
     rating: number
     review: string
     user_id: string
@@ -65,7 +68,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     }
 }
 
-function Log({ row, own = false }: { row: LogRow, own?: boolean }) {
+function Log({ row, own = false, canReport = false }: { row: LogRow, own?: boolean, canReport?: boolean }) {
     return (
         <Panel className="px-4 pt-[0.95rem] pb-4">
             <div className="flex items-center gap-2.5 flex-wrap pb-2.5 mb-2.5 border-b border-(--color-border)">
@@ -77,6 +80,7 @@ function Log({ row, own = false }: { row: LogRow, own?: boolean }) {
                 <span className="ml-auto font-mono text-[0.8125rem] font-bold" style={{ color: tierColor(row.rating) }}>
                     {row.rating}<span className="text-(--color-muted) font-normal text-[0.7em]"> / 10</span>
                 </span>
+                {canReport && !own && row.id && <ReportButton targetType="review" targetId={row.id} className="-my-1 -mr-1.5" />}
             </div>
             {row.review
                 ? <p className="text-[0.9rem] leading-relaxed text-(--color-text)">&ldquo;{row.review}&rdquo;</p>
@@ -329,7 +333,7 @@ export default async function GamePage({ params, searchParams }: GamePageProps) 
                 )}
                 <div className="flex flex-col gap-3">
                     {userReview && user && userReview.review !== "" && <Log row={userReview as unknown as LogRow} own />}
-                    {pagedReviews.map(r => <Log key={r.user_id} row={r as unknown as LogRow} />)}
+                    {pagedReviews.map(r => <Log key={r.id} row={r} canReport={!!user} />)}
                     {reviewCount === 0 && <p className="text-(--color-muted) italic text-sm">No written reviews yet.</p>}
                 </div>
                 {otherReviewsCount > 0 && (

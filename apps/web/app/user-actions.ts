@@ -1,7 +1,8 @@
 'use server'
 
 import { requireUser } from '@/lib/auth'
-import { updateAvatarUrl, updateFavoriteGames, updatePrivacy, updateUsername, updateSelectedTitle, updateBio, updateLoadoutBio, clearLoadoutIdentity, followUser, unfollowUser } from '@/lib/queries/user'
+import { consumeWriteRateLimit } from '@/lib/rate-limit'
+import { updateAvatarUrl, updateFavoriteGames, updatePrivacy, updateUsername, updateSelectedTitle, updateBio, updateLoadoutBio, clearLoadoutIdentity, followUser, unfollowUser, blockUser, unblockUser } from '@/lib/queries/user'
 import { avatarUploadErrorMessage } from '@/lib/avatar-upload'
 import { createPresignedAvatarUploadUrl } from '@/lib/r2'
 
@@ -57,4 +58,14 @@ export async function clearLoadout() {
 export async function toggleFollow(targetUserId: string, isFollowing: boolean) {
     const user = await requireUser()
     return isFollowing ? unfollowUser(user.id, targetUserId) : followUser(user.id, targetUserId)
+}
+
+// Unlike toggleFollow above, this web action path has no /api/v1 route or
+// shared withAuth wrapper enforcing a rate limit for it, so it must consume
+// the write budget itself before mutating. See
+// test/app/moderation-actions-rate-limit.test.ts.
+export async function toggleBlock(targetUserId: string, isBlocked: boolean) {
+    const user = await requireUser()
+    await consumeWriteRateLimit(user.id)
+    return isBlocked ? unblockUser(user.id, targetUserId) : blockUser(user.id, targetUserId)
 }

@@ -16,6 +16,13 @@ function flatStyle(style: unknown): Record<string, string | number> {
   return {}
 }
 
+// The report flag and sheet have their own test (report-sheet.test.tsx).
+// Here it only marks which review it would report.
+vi.mock('./report-sheet', () => ({
+  ReportButton: ({ targetType, targetId }: { targetType: string, targetId: string }) =>
+    React.createElement('span', { 'data-testid': `report-${targetType}-${targetId}` }),
+}))
+
 vi.mock('react-native', () => ({
   Linking: { openURL: vi.fn(() => Promise.resolve()) },
   Platform: { OS: 'web' },
@@ -166,6 +173,7 @@ const DATA: GamePageData = {
 
 const REVIEWS: GameReviewsPage = {
   reviews: [{
+    id: 'review-1',
     user_id: 'user-1',
     rating: 10,
     review: 'One more run.',
@@ -209,6 +217,7 @@ describe('GameDetail', () => {
     expect(screen.getAllByText('Supergiant Games').map(node => node.textContent)).toEqual(['Supergiant Games'])
     expect(screen.getAllByText('1 · 25%').map(node => node.textContent)).toEqual(['1 · 25%', '1 · 25%'])
     expect(screen.getByRole('link', { name: 'Game data and images from IGDB' }).textContent).toBe('Game data and images from IGDB')
+    expect(screen.queryByTestId(/^report-/)).toBeNull()
   })
 
   it('ignores a viewer payload when the player is signed out', () => {
@@ -315,6 +324,8 @@ describe('GameDetail', () => {
       />,
     )
 
+    // Someone else's review is reportable by its review id; your own is not.
+    expect(screen.getAllByTestId(/^report-/).map(node => node.dataset.testid)).toEqual(['report-review-review-1'])
     expect(screen.getByLabelText('Hours played 12').textContent).toContain('12')
     expect(screen.getByText('12').textContent).toBe('12')
     expect(screen.getByLabelText('Times played 1').textContent).toContain('1')

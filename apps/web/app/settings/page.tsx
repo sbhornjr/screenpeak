@@ -8,6 +8,9 @@ import DeleteAccountButton from "../components/settings/DeleteUserButton"
 import ChangePrivacyButton from "../components/settings/ChangePrivacyButton"
 import { getOptionalUser } from "@/lib/auth"
 import { loadSettings } from "@/lib/loaders/me"
+import { getBlockedUsers } from "@/lib/queries/user"
+import Avatar from "../components/user/Avatar"
+import UnblockUserButton from "../components/settings/UnblockUserButton"
 import UnlinkSteamAccountButton from "../components/settings/UnlinkSteamAccountButton"
 import Link from "next/link"
 import Eyebrow from "@/app/components/util/Eyebrow"
@@ -27,7 +30,12 @@ export default async function Settings({ searchParams } : SettingsPageProps) {
 
     if (!viewer) redirect("/")
 
-    const user = await loadSettings({ id: viewer.id, email: viewer.email })
+    // Blocked users stay out of SettingsData: that type is also the phone's
+    // /api/v1/me/settings contract, and the phone has GET /api/v1/me/blocked.
+    const [user, blockedUsers] = await Promise.all([
+        loadSettings({ id: viewer.id, email: viewer.email }),
+        getBlockedUsers(viewer.id),
+    ])
 
     if (!user) {
         redirect("/")
@@ -115,6 +123,27 @@ export default async function Settings({ searchParams } : SettingsPageProps) {
                         )}
                         {steam_error === "2" && (
                             <p className="text-sm text-(--color-bad) mt-3">Your Steam games library is private. To import Steam games, go to Steam Profile -{'>'} Edit Profile -{'>'} Privacy Settings -{'>'} set &apos;Game Details&apos; to Public.</p>
+                        )}
+                    </section>
+
+                    {/* Blocked users */}
+                    <section className="border border-(--color-border) rounded-[3px] bg-(--color-surface) p-6">
+                        <h2 className="text-xl font-semibold mb-1">Blocked users</h2>
+                        <p className="text-sm text-(--color-muted) mb-4">Blocked players can&apos;t follow you, and you can&apos;t follow them.</p>
+                        {blockedUsers.length > 0 ? (
+                            <ul className="divide-y divide-(--color-border)">
+                                {blockedUsers.map(b => (
+                                    <li key={b.id} className="flex items-center justify-between gap-4 py-3">
+                                        <Link href={`/user/${b.username}`} className="flex items-center gap-3 min-w-0 hover:text-(--color-accent) transition-colors duration-200">
+                                            <Avatar src={b.avatar_url} alt={b.username} size="sm" />
+                                            <span className="truncate">{b.username}</span>
+                                        </Link>
+                                        <UnblockUserButton userId={b.id} username={b.username} />
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : (
+                            <p className="text-(--color-muted)">You haven&apos;t blocked anyone.</p>
                         )}
                     </section>
 
