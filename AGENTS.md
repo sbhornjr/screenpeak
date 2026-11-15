@@ -129,6 +129,13 @@ uuid strings.
 
 - Talk to IGDB only through `lib/igdb/` and `scripts/seed-igdb.ts`. Talk to Steam only through `lib/steam.ts`, `lib/steam-openid.ts`, and `lib/catalog/steam-import.ts`. Do not call those APIs from a new client.
 - Never put `SUPABASE_SECRET_KEY` (the service role key) in client code, `NEXT_PUBLIC_*` env, or a module imported by a `'use client'` component. The admin client is created only in `lib/account-deletion.ts` (`deleteAccount`), which the website's `DELETE /api/delete-account` and the phone's `DELETE /api/v1/me` call with their own authenticated user id.
+- Every write to `follows` must go through `followUser`/`unfollowUser` in
+  `lib/queries/user.ts`, never a new direct `db.insert(follows)`/`db.delete(follows)`
+  elsewhere or a client-side PostgREST call — `followUser` is the only place the
+  block check lives. `follows` has no RLS policies (migration 0015 dropped the
+  originals, including an INSERT policy that let a blocked user re-follow
+  through PostgREST, bypassing that check entirely), so nothing backstops a
+  new call site the way a policy might.
 - Cloud agents never connect to the hosted database.
 
 ## Test account
