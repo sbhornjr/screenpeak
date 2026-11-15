@@ -173,6 +173,23 @@ describe('UnifiedSearch', () => {
         expect(screen.getByRole('alert')).toHaveTextContent(/couldn.t search/i)
     })
 
+    it('clears a previous tab\'s stale error as soon as the tab switches, not when the new answer lands', async () => {
+        searchGamesByName.mockRejectedValue(new Error('down'))
+        const slowUsers = deferred<UserSearchHit[]>()
+        searchUsers.mockReturnValue(slowUsers.promise)
+        render(<UnifiedSearch />)
+
+        type('hades')
+        await elapse()
+        expect(screen.getByRole('alert')).toHaveTextContent(/couldn.t search/i)
+
+        fireEvent.click(screen.getByRole('button', { name: 'Players' }))
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+        await act(async () => { slowUsers.resolve([user()]) })
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
     it('keeps Browse all to games, pointing at the catalogue with the query', async () => {
         searchGamesByName.mockResolvedValue([])
         render(<UnifiedSearch />)

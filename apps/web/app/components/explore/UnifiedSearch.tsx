@@ -130,6 +130,16 @@ export default function UnifiedSearch() {
     const [error, setError] = useState(false)
     const latest = useRef(0)
 
+    // Clear a previous tab's or query's stale error the moment either changes,
+    // during this render rather than in the effect below (react-hooks forbids a
+    // synchronous setState in an effect body) — so switching tabs or typing never
+    // shows the old error's wording until this request's own answer lands.
+    const [clearedFor, setClearedFor] = useState({ query, type })
+    if (clearedFor.query !== query || clearedFor.type !== type) {
+        setClearedFor({ query, type })
+        if (error) setError(false)
+    }
+
     useEffect(() => {
         // Claim an id now, so any answer already in flight is stale from this moment.
         const id = ++latest.current
