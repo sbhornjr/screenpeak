@@ -456,6 +456,33 @@ export const pushTokens = pgTable('push_tokens', {
     check('push_tokens_platform_check', sql`${table.platform} in ('ios', 'android')`),
     check('push_tokens_token_not_blank', sql`char_length(${table.expoPushToken}) between 1 and 400`),
 ]).enableRLS()
+// 0014. No PostgREST path for either table — app code (Task 3/4) is the only
+// caller, same reasoning as push_tokens/steam_link_intents, not follows'
+// public-read-policy precedent (which predates the Drizzle-bypasses-RLS
+// rearchitecture).
+export const blocks = pgTable('blocks', {
+    blockerId: uuid('blocker_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    blockedId: uuid('blocked_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
+}, table => [
+    primaryKey({ columns: [table.blockerId, table.blockedId] }),
+    check('blocks_check', sql`${table.blockerId} <> ${table.blockedId}`),
+]).enableRLS()
+
+export const reports = pgTable('reports', {
+    id: uuid().defaultRandom().primaryKey(),
+    reporterId: uuid('reporter_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    targetType: text('target_type').notNull(),
+    targetId: uuid('target_id').notNull(),
+    reason: text().notNull(),
+    details: text(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
+}, table => [
+    index('reports_reporter_id_idx').on(table.reporterId),
+    check('reports_target_type_check', sql`${table.targetType} in ('review', 'list', 'profile')`),
+    check('reports_reason_length', sql`char_length(${table.reason}) between 1 and 200`),
+    check('reports_details_length', sql`char_length(coalesce(${table.details}, '')) <= 2000`),
+]).enableRLS()
 
 export const catalogResetRuns = igdbPrivate.table('catalog_reset_runs', {
     runId: uuid('run_id').primaryKey(),
