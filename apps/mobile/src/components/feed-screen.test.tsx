@@ -189,7 +189,7 @@ describe('feed', () => {
     render(<FeedScreen signedIn items={[]} onOpen={onOpen} />)
     expect(screen.getByRole('heading', { name: 'Your feed is quiet' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Find people to follow' }))
-    expect(onOpen).toHaveBeenCalledWith('/explore')
+    expect(onOpen).toHaveBeenCalledWith('/explore?type=users')
   })
 
   it('shows the next page loading, and a failed page with Retry', () => {
