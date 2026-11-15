@@ -11,6 +11,8 @@ export const WRITE_RATE_LIMIT = 60
 export const WRITE_RATE_WINDOW_SECONDS = 60
 export const SEARCH_RATE_LIMIT = 120
 export const SEARCH_RATE_WINDOW_SECONDS = 60
+export const REPORT_RATE_LIMIT = 5
+export const REPORT_RATE_WINDOW_SECONDS = 3600
 
 const BUCKET = /^[a-z0-9:._-]{1,180}$/
 
@@ -96,4 +98,9 @@ export async function consumeSearchRateLimit(
     headerList: { get(name: string): string | null },
 ): Promise<void> {
     await consumeApiRateLimit(searchBucket(userId, headerList), SEARCH_RATE_LIMIT, SEARCH_RATE_WINDOW_SECONDS)
+}
+
+/** Per-reporter, not per-reporter-per-target: one bucket keyed only on the reporter id. */
+export async function consumeReportRateLimit(reporterId: string): Promise<void> {
+    await consumeApiRateLimit(`report:${reporterId.toLowerCase()}`, REPORT_RATE_LIMIT, REPORT_RATE_WINDOW_SECONDS)
 }
