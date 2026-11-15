@@ -2,7 +2,7 @@ import 'server-only'
 import { eq, and, ne, desc, asc, avg, count, inArray, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { ratingsReviews, users, games } from '@/db/schema'
-import { GameRatingReview, RatingReviewData, RatingReviewCounts, AvgRatingsData, GameRatingsStats } from '@screenpeak/shared/types'
+import { GameRatingReview, GameReview, RatingReviewData, RatingReviewCounts, AvgRatingsData, GameRatingsStats } from '@screenpeak/shared/types'
 import type { GameReviewsPage } from '@screenpeak/shared/api/games'
 import type { GameReviewsQuery } from '@/lib/game-reviews-query'
 import { ratingReviewSchema, parseOrError } from '@screenpeak/shared/schemas'
@@ -63,6 +63,7 @@ export async function getGameReviewsForPage(gameId: string, query: GameReviewsQu
         db
             // Exactly the contract's fields — this select is what the API sends
             .select({
+                id: ratingsReviews.id,
                 user_id: ratingsReviews.userId,
                 rating: ratingsReviews.rating,
                 review: ratingsReviews.review,
@@ -89,7 +90,7 @@ export async function getGameReviewsForPage(gameId: string, query: GameReviewsQu
 
     const total = countRows[0]?.count ?? 0
     return {
-        reviews: rows as unknown as GameRatingReview[],
+        reviews: rows as unknown as GameReview[],
         total,
         totalPages: Math.ceil(total / pageSize),
     }

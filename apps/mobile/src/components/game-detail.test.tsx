@@ -166,6 +166,7 @@ const DATA: GamePageData = {
 
 const REVIEWS: GameReviewsPage = {
   reviews: [{
+    id: 'review-1',
     user_id: 'user-1',
     rating: 10,
     review: 'One more run.',

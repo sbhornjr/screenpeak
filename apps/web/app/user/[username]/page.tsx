@@ -12,6 +12,7 @@ import StatGrid from "@/app/components/util/StatGrid"
 import SectionHead from "@/app/components/util/SectionHead"
 import Eyebrow from "@/app/components/util/Eyebrow"
 import EmptyState from "@/app/components/util/EmptyState"
+import { ReportButton } from "@/app/components/util/ReportModal"
 import { getOptionalUser } from "@/lib/auth"
 import { loadProfilePage } from "@/lib/loaders/profile-page"
 import { getProfileSummaryByUsername } from "@/lib/queries/user"
@@ -84,8 +85,9 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
                         <p className="text-md font-semibold font-(family-name:--font-display) text-(--color-muted)">{followersCount} Followers | {followingCount} Following</p>
                     </div>
                     {!isOwnProfile && viewer && (
-                        <div className="sm:ml-auto">
+                        <div className="sm:ml-auto flex items-center gap-2">
                             <FollowButton targetUserId={profile.id} initialIsFollowing={data.viewer?.is_following ?? false} />
+                            <ReportButton targetType="profile" targetId={profile.id} />
                         </div>
                     )}
                 </div>

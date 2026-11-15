@@ -9,7 +9,7 @@
 //
 // Field names follow the database (snake_case). Timestamps are Postgres text
 // ("2026-09-23 04:16:14.25+00"), not ISO — parse them with parseDbTimestamp().
-import type { GameRatingReview, GameRatingsStats } from '../types'
+import type { GameRatingReview, GameReview, GameRatingsStats } from '../types'
 
 export type GameDetail = {
     id: string
@@ -104,7 +104,7 @@ export type GamePageData = {
 export type SortOrder = 'asc' | 'desc'
 
 export type GameReviewsPage = {
-    reviews: GameRatingReview[]
+    reviews: GameReview[]
     /** Written reviews across all pages (excluding the viewer's own) */
     total: number
     totalPages: number

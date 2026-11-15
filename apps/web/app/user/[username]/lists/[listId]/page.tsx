@@ -8,6 +8,7 @@ import RemoveFromListButton from "@/app/components/lists/RemoveFromListButton"
 import LikeListButton from "@/app/components/lists/LikeListButton"
 import CreateListButton from "@/app/components/lists/CreateListButton"
 import EmptyState from "@/app/components/util/EmptyState"
+import { ReportButton } from "@/app/components/util/ReportModal"
 import { getOptionalUser } from "@/lib/auth"
 import { loadListPage } from "@/lib/loaders/list-page"
 import { getListById } from "@/lib/queries/list"
@@ -77,6 +78,7 @@ export default async function ListPage({ params }: ListPageProps) {
                     <span className="font-mono">Updated {new Date(list.updated_at).getMonth() + 1}/{new Date(list.updated_at).getDate()}/{new Date(list.updated_at).getFullYear()}</span>
                     <span className="text-(--color-border)">/</span>
                     <LikeListButton listId={listId} initialLiked={userHasLiked} initialCount={likeCount} userId={viewer?.id ?? null} />
+                    {viewer && !isOwnProfile && <ReportButton targetType="list" targetId={listId} />}
                 </div>
                 {list.description && (
                     <p className="text-(--color-muted) max-w-2xl leading-relaxed mb-6">{list.description}</p>
