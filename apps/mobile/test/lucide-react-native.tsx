@@ -11,6 +11,7 @@ export const Bookmark = Icon
 export const ChevronDown = Icon
 export const Clock = Icon
 export const Crosshair = Icon
+export const Flag = Icon
 export const Heart = Icon
 export const Library = Icon
 export const List = Icon

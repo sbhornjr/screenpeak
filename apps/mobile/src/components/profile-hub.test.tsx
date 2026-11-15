@@ -11,6 +11,11 @@ import { ProfileHub } from './profile-hub'
 
 process.env.TZ = 'America/Los_Angeles'
 
+// The report flag and sheet have their own test (report-sheet.test.tsx).
+vi.mock('./report-sheet', () => ({
+  ReportButton: () => null,
+}))
+
 vi.mock('react-native', () => {
   function flatStyle(style: unknown): Record<string, unknown> {
     if (!style) return {}

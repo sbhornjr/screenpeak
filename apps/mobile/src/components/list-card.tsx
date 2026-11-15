@@ -8,6 +8,7 @@ import { colors, face, hitTarget, radius, space, text, typeScale } from '@/theme
 
 import { CoverStrip } from './cover-strip'
 import { ListLike, ListMeta } from './list-chrome'
+import { ReportButton } from './report-sheet'
 
 /** What a card shows. Explore's lists have no privacy or pin, so those are optional. */
 export type ListCardFields = Pick<
@@ -15,12 +16,13 @@ export type ListCardFields = Pick<
   'id' | 'name' | 'description' | 'owner_username' | 'last_activity' | 'game_count' | 'like_count' | 'viewer_has_liked' | 'covers'
 > & Partial<Pick<ListCard, 'is_public' | 'is_pinned'>>
 
-/** One list: covers, name, meta, description, the owner link, the like heart, and Pin when it is yours. */
+/** One list: covers, name, meta, description, the owner link, the like heart, Pin when it is yours, and Report when it is not. */
 export function ListCardView({
   list,
   username,
   canLike,
   canPin,
+  canReport = canLike,
   onOpen,
   onLike,
   onPin,
@@ -31,6 +33,8 @@ export function ListCardView({
   username: string
   canLike: boolean
   canPin: boolean
+  /** Signed in and not the owner. Both callers' canLike already means that, so it is the default. */
+  canReport?: boolean
   onOpen: (href: string) => void
   onLike?: (listId: string, liked: boolean) => Promise<string | null>
   onPin?: (listId: string, pinned: boolean) => Promise<string | null>
@@ -96,6 +100,11 @@ export function ListCardView({
               <Pin size={18} color={list.is_pinned ? colors.accent : colors.muted} />
             </Pressable>
           ) : null}
+          {canReport && !canPin ? (
+            <View style={styles.report}>
+              <ReportButton targetType="list" targetId={list.id} />
+            </View>
+          ) : null}
         </View>
       </View>
     </View>
@@ -141,4 +150,5 @@ const styles = StyleSheet.create({
     color: colors.accent,
   },
   pin: { alignItems: 'center', justifyContent: 'center', zIndex: 1 },
+  report: { zIndex: 1 },
 })

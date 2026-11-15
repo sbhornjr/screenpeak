@@ -14,6 +14,11 @@ import { WelcomeScreen } from './welcome-screen'
 import { screenGate } from './screen-state'
 import { profileHubModel } from '@/lib/profile-hub'
 
+// The report flag and sheet have their own test (report-sheet.test.tsx).
+vi.mock('./report-sheet', () => ({
+  ReportButton: () => null,
+}))
+
 vi.mock('expo-router/native-tabs', () => {
   function Label({ children }: { children?: React.ReactNode }) {
     return React.createElement('span', null, children)

@@ -17,6 +17,7 @@ import { FavoritesSheet } from './favorites-sheet'
 import { GameCard } from './game-card'
 import { Panel } from './panel'
 import { AppHeader } from './app-header'
+import { ReportButton } from './report-sheet'
 import { PanelRow } from './screen-scroll'
 import { SectionHead } from './section-head'
 import { ShareButton } from './share-button'
@@ -150,7 +151,13 @@ export function ProfileHub({
     <SafeAreaView style={styles.screen}>
       <AppHeader
         onBack={onBack}
-        trailing={<ShareButton url={profileShareUrl(model.username)} title={model.displayName} label={`Share ${model.username}'s profile`} />}
+        trailing={(
+          <View style={styles.headerActions}>
+            {/* Signed in on someone else's profile: following is null otherwise. Block is its own control. */}
+            {model.following != null ? <ReportButton targetType="profile" targetId={model.userId} /> : null}
+            <ShareButton url={profileShareUrl(model.username)} title={model.displayName} label={`Share ${model.username}'s profile`} />
+          </View>
+        )}
       />
       <ScrollView
         contentContainerStyle={[styles.content, compact && styles.contentCompact]}
@@ -309,6 +316,7 @@ export function ProfileHubSkeleton() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
+  headerActions: { alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', gap: space[3] },
   content: { paddingHorizontal: space[6], paddingTop: space[6], paddingBottom: space[12], gap: space[3] },
   contentCompact: { paddingHorizontal: space[4] },
   header: { flexDirection: 'row', alignItems: 'center', gap: space[4] },

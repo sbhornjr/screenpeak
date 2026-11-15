@@ -24,6 +24,7 @@ import { LibraryStatRow } from './library-stat-row'
 import { ListPickerSheet } from './list-picker-sheet'
 import { Panel } from './panel'
 import { RateSheet } from './rate-sheet'
+import { ReportButton } from './report-sheet'
 import { SectionHead } from './section-head'
 import { ShareButton } from './share-button'
 import { Sheet, useSheetDismiss } from './sheet'
@@ -124,13 +125,15 @@ function About({ description }: { description: string }) {
   )
 }
 
-function ReviewCard({ name, avatarUrl, date, rating, body, onOpenProfile }: {
+function ReviewCard({ name, avatarUrl, date, rating, body, onOpenProfile, reportId }: {
   name: string
   avatarUrl: string
   date: string
   rating: number
   body: string
   onOpenProfile?: () => void
+  /** The review's id when the viewer may report it: signed in, and not their own. */
+  reportId?: string
 }) {
   const nameText = <Text style={styles.reviewName}>{name}</Text>
   return (
@@ -142,6 +145,11 @@ function ReviewCard({ name, avatarUrl, date, rating, body, onOpenProfile }: {
         ) : nameText}
         <Text style={text.caption}>{relTime(date)}</Text>
         <Text style={[styles.reviewUser, { color: tierColor(rating) }]}>{rating} / 10</Text>
+        {reportId ? (
+          <View style={styles.reviewReport}>
+            <ReportButton targetType="review" targetId={reportId} />
+          </View>
+        ) : null}
       </View>
       <Text style={text.body}>{body}</Text>
     </Panel>
@@ -473,13 +481,14 @@ export function GameDetail({
         ) : null}
         {reviews?.reviews.map(review => (
           <ReviewCard
-            key={review.user_id}
+            key={review.id}
             name={review.users.username}
             avatarUrl={review.users.avatar_url}
             date={review.created_at}
             rating={review.rating}
             body={review.review ? `“${review.review}”` : 'Scored it, no note.'}
             onOpenProfile={() => onOpenProfile?.(review.users.username)}
+            reportId={signedIn ? review.id : undefined}
           />
         ))}
         {stats.total_reviews === 0 ? <EmptyState dense title="No written reviews yet." /> : null}
@@ -648,6 +657,7 @@ const styles = StyleSheet.create({
   review: { padding: space[3], gap: space[2] },
   reviewHead: { flexDirection: 'row', alignItems: 'center', gap: space[3], flexWrap: 'wrap' },
   reviewUser: { fontFamily: face.mono[600], fontSize: typeScale.sm.size, lineHeight: typeScale.sm.line },
+  reviewReport: { marginLeft: 'auto' },
   reviewName: { fontFamily: face.body[600], fontSize: typeScale.sm.size, color: colors.text },
   boneTitle: { height: 36, width: '70%', backgroundColor: colors.surfaceLight, borderRadius: radius.base },
   boneCover: { width: 180, height: 240, backgroundColor: colors.surfaceLight, borderRadius: radius.base },

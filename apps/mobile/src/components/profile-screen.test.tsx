@@ -16,6 +16,11 @@ const { getProfile, follow, unfollow, tapHaptic } = vi.hoisted(() => ({
   tapHaptic: vi.fn(),
 }))
 
+// The report flag and sheet have their own test (report-sheet.test.tsx).
+vi.mock('./report-sheet', () => ({
+  ReportButton: () => null,
+}))
+
 vi.mock('@/lib/haptics', () => ({ tapHaptic }))
 
 vi.mock('expo-router', () => ({

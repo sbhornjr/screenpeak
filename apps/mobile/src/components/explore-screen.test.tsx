@@ -6,6 +6,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { ExploreScreen, ExploreSkeleton, type ExploreScreenProps } from './explore-screen'
 
+// The report flag and sheet have their own test (report-sheet.test.tsx).
+vi.mock('./report-sheet', () => ({
+  ReportButton: () => null,
+}))
+
 vi.mock('expo-image', () => ({
   Image: () => null,
 }))
