@@ -11,6 +11,7 @@ import { profileShareUrl } from '@/lib/share'
 import { colors, face, hitTarget, radius, seam, space, text, tierColor, tracking, trackingPx, typeScale } from '@/theme'
 
 import { Avatar } from './avatar'
+import { BlockButton } from './block-button'
 import { Button } from './button'
 import { EmptyState } from './empty-state'
 import { FavoritesSheet } from './favorites-sheet'
@@ -118,6 +119,9 @@ export function ProfileHub({
   onRefresh,
   onSearchGames,
   onSaveFavorites,
+  blocked,
+  onBlock,
+  onUnblock,
 }: {
   model: ProfileHubModel
   onOpen: (href: string) => void
@@ -131,9 +135,15 @@ export function ProfileHub({
   onSearchGames?: (query: string) => Promise<GameSearchHit[]>
   /** Saves the ids in order. The failure sentence, or null. */
   onSaveFavorites?: (gameIds: string[]) => Promise<string | null>
+  /** Whether the viewer has blocked this player; undefined (not known yet, or not someone else's profile) hides Block. */
+  blocked?: boolean
+  /** Each resolves to null, or the sentence to show. */
+  onBlock?: () => Promise<string | null>
+  onUnblock?: () => Promise<string | null>
 }) {
   const { width } = useWindowDimensions()
   const [pickingFavorites, setPickingFavorites] = useState(false)
+  const [unblockNote, setUnblockNote] = useState<string | null>(null)
   // Captured at click time: model.following has already flipped optimistically
   // by the time followBusy settles, so it can't tell which direction is in flight.
   const [followDirection, setFollowDirection] = useState<'follow' | 'unfollow' | null>(null)
@@ -155,6 +165,21 @@ export function ProfileHub({
           <View style={styles.headerActions}>
             {/* Signed in on someone else's profile: following is null otherwise. Block is its own control. */}
             {model.following != null ? <ReportButton targetType="profile" targetId={model.userId} /> : null}
+            {model.following != null && blocked != null && onBlock && onUnblock ? (
+              <BlockButton
+                username={model.username}
+                blocked={blocked}
+                onBlock={async () => {
+                  setUnblockNote(null)
+                  return onBlock()
+                }}
+                onUnblock={async () => {
+                  const note = await onUnblock()
+                  setUnblockNote(note)
+                  return note
+                }}
+              />
+            ) : null}
             <ShareButton url={profileShareUrl(model.username)} title={model.displayName} label={`Share ${model.username}'s profile`} />
           </View>
         )}
@@ -205,6 +230,7 @@ export function ProfileHub({
           ) : null}
         </View>
         {followNote ? <Text accessibilityLiveRegion="polite" style={styles.note}>{followNote}</Text> : null}
+        {unblockNote ? <Text accessibilityLiveRegion="polite" style={styles.note}>{unblockNote}</Text> : null}
         <Text style={model.bio ? text.body : text.muted}>
           {model.bio ?? (model.isOwner ? "You haven't written a bio yet." : 'No bio yet.')}
         </Text>

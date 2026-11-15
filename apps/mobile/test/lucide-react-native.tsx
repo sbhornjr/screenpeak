@@ -7,6 +7,7 @@ function Icon({ accessibilityLabel }: { accessibilityLabel?: string }) {
 export const ArrowDownWideNarrow = Icon
 export const ArrowLeft = Icon
 export const ArrowUpNarrowWide = Icon
+export const Ban = Icon
 export const Bookmark = Icon
 export const ChevronDown = Icon
 export const Clock = Icon

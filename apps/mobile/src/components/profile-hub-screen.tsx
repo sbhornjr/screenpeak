@@ -1,5 +1,6 @@
+import type { BlockedUsersPage } from '@screenpeak/shared/api/moderation'
 import type { ProfilePageData } from '@screenpeak/shared/api/profile'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { api } from '@/lib/api'
@@ -41,6 +42,47 @@ function ProfileFollowSession({ username, showBack }: { username: string, showBa
   const { refreshing, refresh } = useRefresh(remote.query.refetch)
   const [followNote, setFollowNote] = useState<string | null>(null)
   const [followBusy, setFollowBusy] = useState(false)
+  // Block's state is the viewer's own blocked list (as on the website), so a
+  // player who blocked the viewer still shows Block. Only someone else's
+  // profile, signed in, asks for it.
+  const blockedKey = queryKeys.blocked(viewerId)
+  const otherUserId = remote.query.data?.following != null ? remote.query.data.userId : null
+  const blockedList = useQuery({
+    queryKey: blockedKey,
+    queryFn: () => api.me.blocked(),
+    enabled: otherUserId != null && viewerId != null,
+  })
+  const blocked = otherUserId != null && blockedList.data
+    ? blockedList.data.users.some(user => user.id === otherUserId)
+    : undefined
+
+  async function changeBlock(block: boolean): Promise<string | null> {
+    const current = remote.query.data
+    if (!current) return null
+    try {
+      if (block) await api.users.block(current.userId)
+      else await api.users.unblock(current.userId)
+    } catch (error) {
+      return actionFailure(error)
+    }
+    tapHaptic()
+    queryClient.setQueryData<BlockedUsersPage>(blockedKey, page => {
+      if (!page) return page
+      const rest = page.users.filter(user => user.id !== current.userId)
+      return {
+        users: block
+          ? [...rest, { id: current.userId, username: current.username, avatar_url: current.avatarUrl }]
+          : rest,
+      }
+    })
+    // A block drops the follow both ways: the counts, the Follow button, and the feed change.
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: blockedKey }),
+      queryClient.invalidateQueries({ queryKey: scopes.profile }),
+      queryClient.invalidateQueries({ queryKey: scopes.feed }),
+    ])
+    return null
+  }
 
   function changeFollow(following: boolean) {
     const current = remote.query.data
@@ -102,6 +144,9 @@ function ProfileFollowSession({ username, showBack }: { username: string, showBa
       onRefresh={refresh}
       onSearchGames={model.isOwner ? async query => (await api.games.search(query)).games : undefined}
       onSaveFavorites={model.isOwner ? saveFavorites : undefined}
+      blocked={blocked}
+      onBlock={() => changeBlock(true)}
+      onUnblock={() => changeBlock(false)}
     />
   )
 }

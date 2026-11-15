@@ -1,4 +1,5 @@
 import type { SettingsData } from '@screenpeak/shared/api/me'
+import type { BlockedUsersPage } from '@screenpeak/shared/api/moderation'
 import type { ProfilePageData } from '@screenpeak/shared/api/profile'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 
@@ -45,8 +46,15 @@ export default function SettingsRoute() {
     queryFn: () => api.users.get(username),
     enabled: username.length > 0 && ready && configured,
   })
+  // Read separately so SettingsData, the /api/v1/me/settings contract, stays as it is.
+  const blockedKey = queryKeys.blocked(viewerId)
+  const blocked = useQuery({
+    queryKey: blockedKey,
+    queryFn: () => api.me.blocked(),
+    enabled: session != null && ready && configured,
+  })
   const commitPrivacy = useCachedWrite<SettingsData>(settingsKey, { viewerId, invalidate: PRIVACY_SCOPES })
-  const { refreshing, refresh } = useRefresh(settings.refetch, profile.refetch)
+  const { refreshing, refresh } = useRefresh(settings.refetch, profile.refetch, blocked.refetch)
 
   if (ready && !session) {
     return (
@@ -149,6 +157,24 @@ export default function SettingsRoute() {
         // The account is gone, so Auth has no session to end; drop it here.
         await auth.forgetSession()
         leave()
+        return null
+      }}
+      blockedUsers={blocked.data?.users ?? null}
+      blockedError={blocked.isError ? actionFailure(blocked.error) : null}
+      onUnblock={async (userId) => {
+        try {
+          await api.users.unblock(userId)
+        } catch (error) {
+          return actionFailure(error)
+        }
+        queryClient.setQueryData<BlockedUsersPage>(blockedKey, current => current
+          ? { users: current.users.filter(user => user.id !== userId) }
+          : current)
+        // That player's profile shows Block again and Follow is allowed.
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: blockedKey }),
+          queryClient.invalidateQueries({ queryKey: scopes.profile }),
+        ])
         return null
       }}
       refreshing={refreshing}
