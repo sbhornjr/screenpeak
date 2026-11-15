@@ -323,31 +323,44 @@ function blockedEitherWayCondition(a: string, b: string) {
  * not a retry of one that already exists. Silently no-ops (no insert, no
  * notification) when either party has blocked the other.
  *
- * Runs inside its own transaction, taking the same pair-scoped advisory lock
- * `blockUser` takes, so a `followUser` racing a concurrent `blockUser` for
- * the same pair can't land its insert after the block's transaction commits
- * — whichever of the two acquires the lock first finishes before the other
- * proceeds, and the losing `followUser` re-checks blocks post-lock.
+ * The transaction covers only the lock, the block re-check, and the insert —
+ * it must not span the notification path below. `notifyOncePerWindow` and
+ * `sendPushNotification` are a network round trip to Expo's push API with no
+ * timeout of its own; holding the transaction (and the advisory lock) open
+ * across that call risked the 15s idle-in-transaction timeout
+ * (`lib/db-timeouts.ts`) killing the session mid-transaction — rolling back
+ * the insert while `notifyOncePerWindow`'s own write (a separate connection)
+ * had already committed, silently wasting the notification window on a
+ * follow that never happened — plus pool starvation under concurrent follows
+ * and an advisory lock held for the whole external call.
+ *
+ * Takes the same pair-scoped advisory lock `blockUser` takes, so a
+ * `followUser` racing a concurrent `blockUser` for the same pair can't land
+ * its insert after the block's transaction commits — whichever of the two
+ * acquires the lock first finishes before the other proceeds, and the
+ * losing `followUser` re-checks blocks post-lock, inside its own
+ * transaction, before inserting.
  */
 export async function followUser(followerId: string, followingId: string) {
-    await db.transaction(async (tx) => {
+    const inserted = await db.transaction(async (tx) => {
         await lockPair(tx, followerId, followingId)
         const blocked = await tx.select({ blockerId: blocks.blockerId }).from(blocks)
             .where(blockedEitherWayCondition(followerId, followingId))
             .limit(1)
-        if (blocked.length > 0) return
-        const inserted = await tx.insert(follows).values({ followerId, followingId })
+        if (blocked.length > 0) return false
+        const rows = await tx.insert(follows).values({ followerId, followingId })
             .onConflictDoNothing()
             .returning({ followerId: follows.followerId })
-        if (inserted.length === 0) return
-        if (!await notifyOncePerWindow(`follow:${followerId}:${followingId}`)) return
-        const [follower] = await tx.select({ username: users.username }).from(users).where(eq(users.id, followerId)).limit(1)
-        if (!follower) return
-        await sendPushNotification(followingId, {
-            title: 'New follower',
-            body: `${follower.username} started following you`,
-            data: { url: `/user/${follower.username}` },
-        })
+        return rows.length > 0
+    })
+    if (!inserted) return
+    if (!await notifyOncePerWindow(`follow:${followerId}:${followingId}`)) return
+    const [follower] = await db.select({ username: users.username }).from(users).where(eq(users.id, followerId)).limit(1)
+    if (!follower) return
+    await sendPushNotification(followingId, {
+        title: 'New follower',
+        body: `${follower.username} started following you`,
+        data: { url: `/user/${follower.username}` },
     })
 }
 
