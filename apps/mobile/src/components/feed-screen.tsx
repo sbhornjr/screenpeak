@@ -227,7 +227,7 @@ export function FeedScreen({
             title={FEED_EMPTY.title}
             description={FEED_EMPTY.description}
             actionLabel={FEED_EMPTY.actionLabel}
-            onAction={() => onOpen('/explore')}
+            onAction={() => onOpen('/explore?type=users')}
           />
         )}
         ListFooterComponent={<MoreFooter loadingLabel="Loading more activity" loadingMore={loadingMore} loadMoreError={loadMoreError} onLoadMore={onLoadMore} />}

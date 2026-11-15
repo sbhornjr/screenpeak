@@ -172,7 +172,7 @@ export default async function Home() {
                     <EmptyState
                         title={FEED_EMPTY.title}
                         description={FEED_EMPTY.description}
-                        actionHref="/explore"
+                        actionHref="/explore?type=users"
                         actionLabel={FEED_EMPTY.actionLabel}
                     />
                 )}
