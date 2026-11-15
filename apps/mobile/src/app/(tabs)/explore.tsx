@@ -1,11 +1,13 @@
 import type { ExplorePageData, ExploreRange } from '@screenpeak/shared/api/explore'
 import { useQuery } from '@tanstack/react-query'
+import { useLocalSearchParams } from 'expo-router'
 import { useState } from 'react'
 
 import { api, apiConfigured } from '@/lib/api'
 import { useAuth } from '@/lib/auth'
 import { useCachedWrite } from '@/lib/cached-write'
 import { withExploreListLike } from '@/lib/explore-page'
+import { searchTypeParam, useExploreSearch, type SearchType } from '@/lib/explore-search'
 import { actionFailure } from '@/lib/failure'
 import { go } from '@/lib/go'
 import { keepSameScope, queryKeys, scopes } from '@/lib/query-keys'
@@ -23,6 +25,16 @@ export default function ExploreRoute() {
   const configured = apiConfigured()
   const viewerId = session?.user.id ?? null
   const [range, setRange] = useState<ExploreRange>('week')
+  // `/explore?type=users` (the empty feed's link) preselects the filter, on mount
+  // and when the tab is already open.
+  const { type: typeParam } = useLocalSearchParams<{ type?: string }>()
+  const [searchType, setSearchType] = useState<SearchType>(() => searchTypeParam(typeParam) ?? 'games')
+  const [linkedType, setLinkedType] = useState(typeParam)
+  if (typeParam !== linkedType) {
+    setLinkedType(typeParam)
+    const linked = searchTypeParam(typeParam)
+    if (linked) setSearchType(linked)
+  }
   const [searchQuery, setSearchQuery] = useState<string | null>(null)
   // Another range keeps this one on screen until it loads.
   const page = useQuery({
@@ -33,11 +45,7 @@ export default function ExploreRoute() {
   })
   const facets = useRemote(queryKeys.browseFacets, () => api.games.list({ page: 1, pageSize: 1 }))
   const me = useRemote(queryKeys.me, () => api.me.get(), session != null)
-  const search = useRemote(
-    viewer => queryKeys.gameSearch(searchQuery ?? '', viewer),
-    () => api.games.search(searchQuery ?? ''),
-    searchQuery != null,
-  )
+  const search = useExploreSearch(searchType, searchQuery)
   const commit = useCachedWrite<ExplorePageData>(queryKeys.explore(range, viewerId), { viewerId, invalidate: LIKE_SCOPES })
   const { refreshing, refresh } = useRefresh(page.refetch, facets.query.refetch)
 
@@ -53,11 +61,13 @@ export default function ExploreRoute() {
       range={range}
       genres={facets.query.data?.genres ?? []}
       platforms={facets.query.data?.platforms ?? []}
-      results={searchQuery ? (search.query.data?.games ?? null) : null}
+      searchType={searchType}
+      onSearchType={setSearchType}
+      results={search.results}
       searchedFor={searchQuery}
-      searching={searchQuery != null && search.query.isLoading}
-      searchError={searchQuery && search.query.error ? actionFailure(search.query.error) : null}
-      onSearch={setSearchQuery}
+      searching={search.searching}
+      searchError={search.error}
+      onSearch={query => setSearchQuery(query || null)}
       onOpen={go}
       onRange={setRange}
       viewerUsername={me.query.data?.user?.username ?? null}

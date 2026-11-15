@@ -32,6 +32,8 @@ export const queryKeys = {
   /** The welcome screen's trending rail: this week, falling back to all time. */
   welcomeTrending: (viewer: Viewer) => ['welcome-trending', viewer] as const,
   gameSearch: (query: string, viewer: Viewer) => ['game-search', query, viewer] as const,
+  listSearch: (query: string, viewer: Viewer) => ['list-search', query, viewer] as const,
+  userSearch: (query: string, viewer: Viewer) => ['user-search', query, viewer] as const,
   /** Explore's genre and platform browse: the first catalogue page, one game long. */
   browseFacets: (viewer: Viewer) => ['browse-facets', viewer] as const,
   /** Every loaded page of one catalogue query. */

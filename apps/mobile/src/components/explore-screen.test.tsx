@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { ExplorePageData } from '@screenpeak/shared/api/explore'
-import React from 'react'
+import React, { act } from 'react'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -83,6 +83,7 @@ vi.mock('react-native', () => ({
 
 afterEach(() => {
   cleanup()
+  vi.useRealTimers()
 })
 
 const EXPLORE: ExplorePageData = {
@@ -167,12 +168,15 @@ function renderScreen(props: Partial<ExploreScreenProps> = {}) {
   const onSearch = vi.fn()
   const onRange = vi.fn()
   const onLike = vi.fn(async () => null as string | null)
+  const onSearchType = vi.fn()
   render(
     <ExploreScreen
       data={EXPLORE}
       range="week"
       genres={[{ id: 'genre-1', name: 'Roguelike', slug: 'roguelike' }]}
       platforms={[{ id: 'platform-1', name: 'PC (Windows)', slug: 'win' }]}
+      searchType="games"
+      onSearchType={onSearchType}
       results={null}
       searchedFor={null}
       searching={false}
@@ -185,13 +189,13 @@ function renderScreen(props: Partial<ExploreScreenProps> = {}) {
       {...props}
     />,
   )
-  return { onOpen, onSearch, onRange, onLike }
+  return { onOpen, onSearch, onRange, onLike, onSearchType }
 }
 
 describe('explore', () => {
   it('searches by name and opens a hit or every match in the catalogue', () => {
     const { onSearch, onOpen } = renderScreen({
-      results: [{ id: 'g-hades', name: 'Hades', slug: 'hades', cover_image_url: null, released: '2020-09-17', avg_rating: 9 }],
+      results: { type: 'games', hits: [{ id: 'g-hades', name: 'Hades', slug: 'hades', cover_image_url: null, released: '2020-09-17', avg_rating: 9 }] },
       searchedFor: 'hades',
     })
     fireEvent.change(screen.getByLabelText('Search games'), { target: { value: ' Hades ' } })
@@ -214,11 +218,125 @@ describe('explore', () => {
   })
 
   it('asks for a name instead of searching nothing, and says when nothing matches', () => {
-    const { onSearch } = renderScreen({ results: [], searchedFor: 'zzz' })
+    const { onSearch } = renderScreen({ results: { type: 'games', hits: [] }, searchedFor: 'zzz' })
     expect(screen.getByText('No games match "zzz".').textContent).toBe('No games match "zzz".')
     fireEvent.click(screen.getByRole('button', { name: 'Search' }))
     expect(onSearch).not.toHaveBeenCalled()
     expect(screen.getByText('Type a game name.').textContent).toBe('Type a game name.')
+  })
+
+  it('searches 300ms after typing stops, once per pause rather than per keystroke', () => {
+    vi.useFakeTimers()
+    const { onSearch } = renderScreen()
+    const field = screen.getByLabelText('Search games')
+    fireEvent.change(field, { target: { value: 'h' } })
+    act(() => { vi.advanceTimersByTime(200) })
+    fireEvent.change(field, { target: { value: 'ha' } })
+    act(() => { vi.advanceTimersByTime(200) })
+    fireEvent.change(field, { target: { value: 'had' } })
+    act(() => { vi.advanceTimersByTime(299) })
+    expect(onSearch).not.toHaveBeenCalled()
+    act(() => { vi.advanceTimersByTime(1) })
+    expect(onSearch).toHaveBeenCalledTimes(1)
+    expect(onSearch).toHaveBeenLastCalledWith('had')
+    act(() => { vi.advanceTimersByTime(1000) })
+    expect(onSearch).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not search again when Search was pressed before the pause ran out', () => {
+    vi.useFakeTimers()
+    const { onSearch } = renderScreen()
+    fireEvent.change(screen.getByLabelText('Search games'), { target: { value: 'hades' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
+    expect(onSearch).toHaveBeenCalledTimes(1)
+    act(() => { vi.advanceTimersByTime(300) })
+    expect(onSearch).toHaveBeenCalledTimes(1)
+  })
+
+  it('clears the search when the field is emptied', () => {
+    vi.useFakeTimers()
+    const { onSearch } = renderScreen()
+    const field = screen.getByLabelText('Search games')
+    fireEvent.change(field, { target: { value: 'hades' } })
+    act(() => { vi.advanceTimersByTime(300) })
+    fireEvent.change(field, { target: { value: '  ' } })
+    act(() => { vi.advanceTimersByTime(300) })
+    expect(onSearch).toHaveBeenLastCalledWith('')
+  })
+
+  it('switches what it searches at once, even with a search still waiting on the pause', () => {
+    vi.useFakeTimers()
+    const { onSearch, onSearchType } = renderScreen()
+    expect(screen.getByRole('button', { name: 'Games' }).getAttribute('aria-selected')).toBe('true')
+    fireEvent.change(screen.getByLabelText('Search games'), { target: { value: 'ada' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Players' }))
+    expect(onSearchType).toHaveBeenCalledWith('users')
+    // The typed text still goes out: the parent searches whichever type is current then.
+    act(() => { vi.advanceTimersByTime(300) })
+    expect(onSearch).toHaveBeenCalledWith('ada')
+  })
+
+  it('finds players: avatar, name, and follower count, opening their profile', () => {
+    const { onOpen } = renderScreen({
+      searchType: 'users',
+      searchedFor: 'ad',
+      results: { type: 'users', hits: [
+        { id: 'u-ada', username: 'ada', avatar_url: null, follower_count: 1 },
+        { id: 'u-adam', username: 'adam', avatar_url: null, follower_count: 12 },
+      ] },
+    })
+    expect(screen.getByRole('button', { name: 'Players' }).getAttribute('aria-selected')).toBe('true')
+    expect(screen.getByLabelText('Search players')).toBeTruthy()
+    const ada = screen.getByRole('link', { name: 'ada, 1 follower' })
+    expect(ada.textContent).toContain('1 follower')
+    expect(screen.getByRole('link', { name: 'adam, 12 followers' }).textContent).toContain('12 followers')
+    fireEvent.click(ada)
+    expect(onOpen).toHaveBeenLastCalledWith('/user/ada')
+    // Browse all is the games catalogue, so it only sits under a games search.
+    expect(screen.getAllByRole('button', { name: 'Browse all' })).toHaveLength(1)
+  })
+
+  it('finds lists as list cards without like or pin buttons', () => {
+    const { onOpen } = renderScreen({
+      searchType: 'lists',
+      searchedFor: 'climb',
+      results: { type: 'lists', hits: [{
+        id: 'list-found',
+        name: 'Climbing games',
+        description: 'Up.',
+        owner_username: 'mina',
+        last_activity: '2026-10-01 00:00:00+00',
+        game_count: 2,
+        like_count: 5,
+        viewer_has_liked: false,
+        covers: [],
+      }] },
+    })
+    expect(screen.getByLabelText('Search lists')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Like list, 5 likes/ })).toBeNull()
+    expect(screen.getByLabelText('5 likes')).toBeTruthy()
+    fireEvent.click(screen.getByRole('link', { name: 'Climbing games' }))
+    expect(onOpen).toHaveBeenLastCalledWith('/user/mina/lists/list-found')
+  })
+
+  it('says when no players or lists match, and asks for the right kind of name', () => {
+    const { onSearch } = renderScreen({ searchType: 'users', searchedFor: 'zzz', results: { type: 'users', hits: [] } })
+    expect(screen.getByText('No players match "zzz".')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }))
+    expect(onSearch).not.toHaveBeenCalled()
+    expect(screen.getByText('Type a username.')).toBeTruthy()
+    cleanup()
+    renderScreen({ searchType: 'lists', searchedFor: 'zzz', results: { type: 'lists', hits: [] } })
+    expect(screen.getByText('No lists match "zzz".')).toBeTruthy()
+  })
+
+  it('does not draw results of one type under another type’s filter', () => {
+    renderScreen({
+      searchType: 'games',
+      searchedFor: 'ada',
+      results: { type: 'users', hits: [{ id: 'u-ada', username: 'ada', avatar_url: null, follower_count: 1 }] },
+    })
+    expect(screen.queryByRole('link', { name: 'ada, 1 follower' })).toBeNull()
   })
 
   it('shows the chosen range and switches it', () => {

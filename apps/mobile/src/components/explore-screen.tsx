@@ -3,18 +3,21 @@
 import type { ExploreGameCard, ExplorePageData, ExploreRange } from '@screenpeak/shared/api/explore'
 import type { Taxon } from '@screenpeak/shared/api/games'
 import { releaseYear } from '@screenpeak/shared/dates'
-import type { GameSearchHit } from '@screenpeak/shared/api/search'
+import type { GameSearchHit, UserSearchHit } from '@screenpeak/shared/api/search'
 import { Image } from 'expo-image'
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { igdbImageUri } from '@/lib/catalog-image'
 import { completedLine, followedByLine, libraryLine, likedByLine } from '@/lib/explore-page'
+import type { SearchResults, SearchType } from '@/lib/explore-search'
+import { plural } from '@/lib/lists-page'
 import { catalogueHref, gameHref, profileHref } from '@/lib/routes'
 import { colors, face, hitTarget, radius, space, text, tracking, trackingPx, typeScale } from '@/theme'
 
 import { AppHeader } from './app-header'
+import { Avatar } from './avatar'
 import { Button } from './button'
 import { EmptyState } from './empty-state'
 import { MenuTrigger } from './filter-controls'
@@ -30,6 +33,16 @@ import { UserCard } from './user-card'
 
 type Open = (href: string) => void
 
+/** Typing searches once it stops for this long. */
+export const SEARCH_DEBOUNCE_MS = 300
+
+const SEARCH_TYPE_COPY: Record<SearchType, { tab: string, field: string, hint: string, none: string }> = {
+  games: { tab: 'Games', field: 'Search games', hint: 'Type a game name.', none: 'games' },
+  lists: { tab: 'Lists', field: 'Search lists', hint: 'Type a list name.', none: 'lists' },
+  users: { tab: 'Players', field: 'Search players', hint: 'Type a username.', none: 'players' },
+}
+const SEARCH_TYPE_ORDER: SearchType[] = ['games', 'lists', 'users']
+
 const RANGES: { id: ExploreRange, label: string, phrase: string }[] = [
   { id: 'week', label: 'This week', phrase: 'this week' },
   { id: 'month', label: 'This month', phrase: 'this month' },
@@ -43,11 +56,16 @@ export type ExploreScreenProps = {
   range: ExploreRange
   genres: Taxon[]
   platforms: Taxon[]
-  results: GameSearchHit[] | null
+  /** What the search box looks for. A deep link (`/explore?type=users`) can preselect it. */
+  searchType: SearchType
+  onSearchType: (type: SearchType) => void
+  /** Tagged with the type they answer; hits for another type than `searchType` are not drawn. */
+  results: SearchResults | null
   /** The search the results belong to. */
   searchedFor: string | null
   searching: boolean
   searchError: string | null
+  /** Fired on submit and 300ms after typing stops. An empty string clears the search. */
   onSearch: (query: string) => void
   onOpen: Open
   onRange: (range: ExploreRange) => void
@@ -81,6 +99,26 @@ function SearchHitRow({ hit, onOpen }: { hit: GameSearchHit, onOpen: Open }) {
             <Text numberOfLines={2} style={styles.hitName}>{hit.name}</Text>
             <Text style={styles.meta}>{[year, hit.avg_rating != null ? `SP ${hit.avg_rating}/10` : null].filter(Boolean).join(' · ')}</Text>
           </View>
+        </Panel>
+      )}
+    </Pressable>
+  )
+}
+
+function UserHitRow({ hit, onOpen }: { hit: UserSearchHit, onOpen: Open }) {
+  const followers = plural(hit.follower_count, 'follower', 'followers')
+  return (
+    <Pressable
+      accessibilityRole="link"
+      accessibilityLabel={`${hit.username}, ${followers}`}
+      onPress={() => onOpen(profileHref(hit.username))}
+      style={styles.hitTarget}
+    >
+      {({ pressed }) => (
+        <Panel style={[styles.hit, pressed && styles.hitPressed]}>
+          <Avatar src={hit.avatar_url} alt={hit.username} size="sm" />
+          <Text numberOfLines={1} style={[styles.hitName, styles.hitBody]}>{hit.username}</Text>
+          <Text style={styles.meta}>{followers}</Text>
         </Panel>
       )}
     </Pressable>
@@ -181,6 +219,8 @@ export function ExploreScreen({
   range,
   genres,
   platforms,
+  searchType,
+  onSearchType,
   results,
   searchedFor,
   searching,
@@ -202,6 +242,12 @@ export function ExploreScreen({
   const [query, setQuery] = useState('')
   const [hint, setHint] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  // The text last handed to onSearch, so a pause after a submit doesn't search twice.
+  const sent = useRef('')
+  // The latest onSearch, so a parent re-render doesn't restart the pause.
+  const search = useRef(onSearch)
+  useEffect(() => { search.current = onSearch }, [onSearch])
+  const copy = SEARCH_TYPE_COPY[searchType]
   const phrase = RANGES.find(item => item.id === data.range)?.phrase ?? 'this week'
   const recommendations = data.recommendations
   const nothingRecommended = recommendations != null
@@ -215,14 +261,50 @@ export function ExploreScreen({
     && data.trending_games.length === 0
     && data.trending_lists.length === 0
 
+  // Search once typing stops. The parent searches whatever type is current when this fires.
+  useEffect(() => {
+    const trimmed = query.trim()
+    if (trimmed === sent.current) return
+    const timer = setTimeout(() => {
+      // Search was pressed during the pause: that already sent this text.
+      if (trimmed === sent.current) return
+      sent.current = trimmed
+      if (trimmed) setHint(null)
+      search.current(trimmed)
+    }, SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [query])
+
   function submit() {
     const trimmed = query.trim()
     if (!trimmed) {
-      setHint('Type a game name.')
+      setHint(copy.hint)
       return
     }
     setHint(null)
+    sent.current = trimmed
     onSearch(trimmed)
+  }
+
+  function searchHits(shown: SearchResults) {
+    if (shown.hits.length === 0) {
+      return <Text style={text.muted}>{`No ${SEARCH_TYPE_COPY[shown.type].none} match "${searchedFor}".`}</Text>
+    }
+    switch (shown.type) {
+      case 'games': return shown.hits.map(hit => <SearchHitRow key={hit.id} hit={hit} onOpen={onOpen} />)
+      case 'users': return shown.hits.map(hit => <UserHitRow key={hit.id} hit={hit} onOpen={onOpen} />)
+      case 'lists': return shown.hits.map(hit => (
+        <ListCardView
+          key={hit.id}
+          list={hit}
+          username={hit.owner_username}
+          canLike={false}
+          canPin={false}
+          onOpen={onOpen}
+          onActionError={setActionError}
+        />
+      ))
+    }
   }
 
   function listCard(list: ListCardFields) {
@@ -255,12 +337,29 @@ export function ExploreScreen({
           </View>
         ) : null}
 
+        <View style={styles.chipsRow}>
+          <Chips>
+            {SEARCH_TYPE_ORDER.map(type => (
+              <Button
+                key={type}
+                label={SEARCH_TYPE_COPY[type].tab}
+                variant={searchType === type ? 'primary' : 'ghost'}
+                selected={searchType === type}
+                onPress={() => {
+                  setHint(null)
+                  onSearchType(type)
+                }}
+                style={styles.rangeChip}
+              />
+            ))}
+          </Chips>
+        </View>
         <View style={styles.searchRow}>
           <View style={styles.searchField}>
             <TextField
-              label="Search games"
+              label={copy.field}
               hideLabel
-              placeholder="Search games"
+              placeholder={copy.field}
               value={query}
               onChangeText={setQuery}
               onSubmitEditing={submit}
@@ -268,24 +367,23 @@ export function ExploreScreen({
           </View>
           <Button label="Search" onPress={submit} />
         </View>
-        <Button
-          label="Browse all"
-          accessibilityLabel={searchedFor ? `Browse all games matching "${searchedFor}"` : 'Browse all'}
-          variant="secondary"
-          onPress={() => onOpen(catalogueHref(searchedFor ? { q: searchedFor } : {}))}
-        />
+        {/* Browse all is the games catalogue, so it only sits under a games search. */}
+        {searchType === 'games' ? (
+          <Button
+            label="Browse all"
+            accessibilityLabel={searchedFor ? `Browse all games matching "${searchedFor}"` : 'Browse all'}
+            variant="secondary"
+            onPress={() => onOpen(catalogueHref(searchedFor ? { q: searchedFor } : {}))}
+          />
+        ) : null}
         {hint ? <Text style={text.muted}>{hint}</Text> : null}
-        {searching ? <ActivityIndicator accessibilityLabel="Searching games" color={colors.accent} /> : null}
+        {searching ? <ActivityIndicator accessibilityLabel={`Searching ${SEARCH_TYPE_COPY[searchType].none}`} color={colors.accent} /> : null}
         {searchError ? <Text accessibilityLiveRegion="polite" style={text.error}>{searchError}</Text> : null}
-        {results && searchedFor ? (
-          <View style={styles.stack}>
-            {results.length === 0
-              ? <Text style={text.muted}>{`No games match "${searchedFor}".`}</Text>
-              : results.map(hit => <SearchHitRow key={hit.id} hit={hit} onOpen={onOpen} />)}
-          </View>
+        {results && results.type === searchType && searchedFor ? (
+          <View style={styles.stack}>{searchHits(results)}</View>
         ) : null}
 
-        <View style={styles.rangeRow}>
+        <View style={styles.chipsRow}>
           <Chips>
             {RANGES.map(item => (
               <Button
@@ -461,7 +559,7 @@ const styles = StyleSheet.create({
     lineHeight: typeScale.lg.line,
     color: colors.text,
   },
-  rangeRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
+  chipsRow: { flexDirection: 'row', alignItems: 'center', gap: space[2] },
   rangeChip: { paddingHorizontal: space[2], minWidth: 0 },
   chipsScroll: { flexShrink: 1 },
   chips: { flexDirection: 'row', gap: space[1.5] },
