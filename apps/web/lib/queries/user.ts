@@ -1,7 +1,7 @@
 import 'server-only'
-import { eq, and, sql } from 'drizzle-orm'
+import { eq, and, or, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { users, follows } from '@/db/schema'
+import { users, follows, blocks } from '@/db/schema'
 import {
     usernameSchema, bioSchema,
     selectedTitleSchema, favoriteGameIdsSchema, privacyTypeSchema, parseOrError,
@@ -299,9 +299,11 @@ export async function userExists(userId: string): Promise<boolean> {
 /**
  * Idempotent. A database error rejects. The caller rejects a self-follow
  * before this. Notifies the followed player only on a genuinely new follow,
- * not a retry of one that already exists.
+ * not a retry of one that already exists. Silently no-ops (no insert, no
+ * notification) when either party has blocked the other.
  */
 export async function followUser(followerId: string, followingId: string) {
+    if (await isBlockedEitherWay(followerId, followingId)) return
     const inserted = await db.insert(follows).values({ followerId, followingId })
         .onConflictDoNothing()
         .returning({ followerId: follows.followerId })
@@ -319,6 +321,49 @@ export async function followUser(followerId: string, followingId: string) {
 /** Idempotent. A database error rejects. */
 export async function unfollowUser(followerId: string, followingId: string) {
     await db.delete(follows).where(and(eq(follows.followerId, followerId), eq(follows.followingId, followingId)))
+}
+
+/**
+ * Idempotent. A database error rejects. Self-block is rejected by the caller
+ * (route/action layer), not here — the `blocks_check` constraint is the
+ * backstop. Also removes any existing follow between the two in either
+ * direction, atomically with the block insert.
+ */
+export async function blockUser(blockerId: string, blockedId: string): Promise<void> {
+    await db.transaction(async (tx) => {
+        await tx.insert(blocks).values({ blockerId, blockedId }).onConflictDoNothing()
+        await tx.delete(follows).where(or(
+            and(eq(follows.followerId, blockerId), eq(follows.followingId, blockedId)),
+            and(eq(follows.followerId, blockedId), eq(follows.followingId, blockerId)),
+        ))
+    })
+}
+
+/** Idempotent. A database error rejects. Scoped to this specific blocker. */
+export async function unblockUser(blockerId: string, blockedId: string): Promise<void> {
+    await db.delete(blocks).where(and(eq(blocks.blockerId, blockerId), eq(blocks.blockedId, blockedId)))
+}
+
+/** True regardless of which of the two actually did the blocking. A database error rejects. */
+export async function isBlockedEitherWay(a: string, b: string): Promise<boolean> {
+    const rows = await db
+        .select({ blockerId: blocks.blockerId })
+        .from(blocks)
+        .where(or(
+            and(eq(blocks.blockerId, a), eq(blocks.blockedId, b)),
+            and(eq(blocks.blockerId, b), eq(blocks.blockedId, a)),
+        ))
+        .limit(1)
+    return rows.length > 0
+}
+
+/** The users this blocker has blocked — never who has blocked them. A database error rejects. */
+export async function getBlockedUsers(blockerId: string): Promise<{ id: string, username: string, avatar_url: string | null }[]> {
+    return await db
+        .select({ id: users.id, username: users.username, avatar_url: users.avatarUrl })
+        .from(blocks)
+        .innerJoin(users, eq(users.id, blocks.blockedId))
+        .where(eq(blocks.blockerId, blockerId))
 }
 
 // The landing page's sample Loadout. `db` bypasses RLS, so the loadout_public

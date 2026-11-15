@@ -3,10 +3,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // followUser's write itself (idempotent insert) is exercised through the API
 // route tests. This file is about the one thing that rides along with a
 // genuinely new follow: notifying the followed player, naming the follower.
+// It also covers the blocked-parties no-op, since that check runs inline in
+// followUser before anything else.
 
 const state = vi.hoisted(() => ({
     insertReturns: [] as { followerId: string }[],
-    selectReturns: [] as { username: string }[],
+    // One db.select(...).from(...).where().limit() call per queue entry, in
+    // order: isBlockedEitherWay's check first, then (only past that, and only
+    // on a genuinely new follow that clears the notification window) the
+    // follower's username.
+    selectQueue: [] as unknown[][],
 }))
 
 const { sendPushNotification, notifyOncePerWindow } = vi.hoisted(() => ({
@@ -14,19 +20,24 @@ const { sendPushNotification, notifyOncePerWindow } = vi.hoisted(() => ({
     notifyOncePerWindow: vi.fn(async () => true),
 }))
 
+const insertSpy = vi.hoisted(() => vi.fn())
+
 vi.mock('@/lib/db', () => ({
     db: {
-        insert: () => ({
-            values: () => ({
-                onConflictDoNothing: () => ({
-                    returning: async () => state.insertReturns,
+        insert: (...args: unknown[]) => {
+            insertSpy(...args)
+            return {
+                values: () => ({
+                    onConflictDoNothing: () => ({
+                        returning: async () => state.insertReturns,
+                    }),
                 }),
-            }),
-        }),
+            }
+        },
         select: () => ({
             from: () => ({
                 where: () => ({
-                    limit: async () => state.selectReturns,
+                    limit: async () => state.selectQueue.shift() ?? [],
                 }),
             }),
         }),
@@ -42,7 +53,8 @@ const FOLLOWING = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 
 beforeEach(() => {
     state.insertReturns = []
-    state.selectReturns = []
+    state.selectQueue = []
+    insertSpy.mockReset()
     sendPushNotification.mockReset()
     notifyOncePerWindow.mockReset()
     notifyOncePerWindow.mockResolvedValue(true)
@@ -50,8 +62,8 @@ beforeEach(() => {
 
 describe('followUser notifications', () => {
     it('notifies the followed player, naming the follower, on a new follow', async () => {
+        state.selectQueue = [[], [{ username: 'ada' }]] // not blocked, then follower lookup
         state.insertReturns = [{ followerId: FOLLOWER }]
-        state.selectReturns = [{ username: 'ada' }]
 
         await followUser(FOLLOWER, FOLLOWING)
 
@@ -63,6 +75,7 @@ describe('followUser notifications', () => {
     })
 
     it('does not notify again when the follow already existed (a retry)', async () => {
+        state.selectQueue = [[]] // not blocked
         state.insertReturns = [] // onConflictDoNothing: no row inserted
 
         await followUser(FOLLOWER, FOLLOWING)
@@ -71,13 +84,25 @@ describe('followUser notifications', () => {
     })
 
     it('skips the send when the per-pair notification window is still open', async () => {
+        state.selectQueue = [[]] // not blocked
         state.insertReturns = [{ followerId: FOLLOWER }]
-        state.selectReturns = [{ username: 'ada' }]
         notifyOncePerWindow.mockResolvedValue(false)
 
         await followUser(FOLLOWER, FOLLOWING)
 
         expect(notifyOncePerWindow).toHaveBeenCalledWith(`follow:${FOLLOWER}:${FOLLOWING}`)
+        expect(sendPushNotification).not.toHaveBeenCalled()
+    })
+
+    it('is a silent no-op between blocked parties, in either direction', async () => {
+        state.selectQueue = [[{ blockerId: FOLLOWER }], [{ blockerId: FOLLOWER }]] // blocked, both directions
+
+        await followUser(FOLLOWER, FOLLOWING)
+        expect(insertSpy).not.toHaveBeenCalled()
+
+        await followUser(FOLLOWING, FOLLOWER)
+        expect(insertSpy).not.toHaveBeenCalled()
+
         expect(sendPushNotification).not.toHaveBeenCalled()
     })
 })
