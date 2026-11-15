@@ -2,11 +2,13 @@
 
 import { headers } from 'next/headers'
 import { searchGamesByName as queryGamesByName, searchTaxonomyTable as queryTaxonomy, searchLibraryTaxonomy as queryLibraryTaxonomy, getTaxonomyNameBySlug as queryTaxonomyName, SearchInputError } from '@/lib/queries/game'
+import { searchUsersByUsername as queryUsersByUsername } from '@/lib/queries/user'
+import { searchListsByName as queryListsByName } from '@/lib/queries/list'
 import { gameSearchSchema, taxonomySearchSchema, taxonomySlugSchema, taxonomyTableSchema } from '@screenpeak/shared/schemas'
 import type { TaxonomySearchTable } from '@screenpeak/shared/api/search'
 import { getOptionalUser } from '@/lib/auth'
 import { consumeSearchRateLimit } from '@/lib/rate-limit'
-import { toGameSearchHit, toTaxonomyHit } from '@/lib/search-shape'
+import { toGameSearchHit, toTaxonomyHit, toUserSearchHit, toListSearchHit } from '@/lib/search-shape'
 
 // Public catalogue. The same queries back GET /api/v1/games/search and
 // GET /api/v1/taxonomy/[table]/search. A bad string returns nothing; a
@@ -46,6 +48,26 @@ export async function searchLibraryTaxonomy(table: TaxonomySearchTable, query: s
     await consumeSearchRateLimit(user.id, await headers())
     const rows = await queryLibraryTaxonomy(user.id, parsed.data.table, parsed.data.q, parsed.data.limit)
     return rows.map(toTaxonomyHit)
+}
+
+/** Account search. No client id list, matching the game/taxonomy search actions. */
+export async function searchUsers(query: string) {
+    const parsed = gameSearchSchema.safeParse({ q: query })
+    if (!parsed.success) return []
+    const user = await getOptionalUser()
+    await consumeSearchRateLimit(user?.id ?? null, await headers())
+    const rows = await queryUsersByUsername(parsed.data.q, parsed.data.limit)
+    return rows.map(toUserSearchHit)
+}
+
+/** List search. A signed-in viewer also matches their own private lists. */
+export async function searchLists(query: string) {
+    const parsed = gameSearchSchema.safeParse({ q: query })
+    if (!parsed.success) return []
+    const user = await getOptionalUser()
+    await consumeSearchRateLimit(user?.id ?? null, await headers())
+    const rows = await queryListsByName(parsed.data.q, parsed.data.limit, user?.id ?? null)
+    return rows.map(toListSearchHit)
 }
 
 export async function getTaxonomyNameBySlug(table: TaxonomySearchTable, slug: string) {

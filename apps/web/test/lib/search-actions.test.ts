@@ -8,6 +8,8 @@ const queryGamesByName = vi.fn()
 const queryTaxonomy = vi.fn()
 const queryLibraryTaxonomy = vi.fn()
 const queryTaxonomyName = vi.fn()
+const queryUsersByUsername = vi.fn()
+const queryListsByName = vi.fn()
 
 vi.mock('next/headers', () => ({ headers }))
 vi.mock('@/lib/auth', () => ({ getOptionalUser }))
@@ -24,8 +26,14 @@ vi.mock('@/lib/queries/game', () => ({
         }
     },
 }))
+vi.mock('@/lib/queries/user', () => ({
+    searchUsersByUsername: queryUsersByUsername,
+}))
+vi.mock('@/lib/queries/list', () => ({
+    searchListsByName: queryListsByName,
+}))
 
-const { searchGamesByName, searchTaxonomyTable, searchLibraryTaxonomy } = await import('@/app/search-actions')
+const { searchGamesByName, searchTaxonomyTable, searchLibraryTaxonomy, searchUsers, searchLists } = await import('@/app/search-actions')
 
 const USER = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 
@@ -40,6 +48,8 @@ beforeEach(() => {
     queryGamesByName.mockReset().mockResolvedValue([])
     queryTaxonomy.mockReset().mockResolvedValue([])
     queryLibraryTaxonomy.mockReset().mockResolvedValue([])
+    queryUsersByUsername.mockReset().mockResolvedValue([])
+    queryListsByName.mockReset().mockResolvedValue([])
 })
 
 describe('search actions', () => {
@@ -82,5 +92,66 @@ describe('search actions', () => {
         await expect(searchLibraryTaxonomy('developers', 'fix')).resolves.toEqual([])
         expect(consumeSearchRateLimit).not.toHaveBeenCalled()
         expect(queryLibraryTaxonomy).not.toHaveBeenCalled()
+    })
+
+    it('searches users and shapes the rows', async () => {
+        queryUsersByUsername.mockResolvedValueOnce([
+            { id: uuid(1), username: 'hades_fan', avatar_url: null, follower_count: '3' },
+        ])
+        await expect(searchUsers('hades')).resolves.toEqual([
+            { id: uuid(1), username: 'hades_fan', avatar_url: null, follower_count: 3 },
+        ])
+        expect(consumeSearchRateLimit).toHaveBeenCalledWith(USER, headerList)
+        expect(queryUsersByUsername).toHaveBeenCalledWith('hades', 20)
+    })
+
+    it('does not spend the budget on an empty user search', async () => {
+        await expect(searchUsers('')).resolves.toEqual([])
+        expect(consumeSearchRateLimit).not.toHaveBeenCalled()
+        expect(queryUsersByUsername).not.toHaveBeenCalled()
+    })
+
+    it('searches lists, passing the signed-in viewer id, and shapes the rows', async () => {
+        queryListsByName.mockResolvedValueOnce([
+            {
+                id: uuid(2),
+                name: 'Favorites',
+                description: 'My favorite games',
+                owner_username: 'hades_fan',
+                last_activity: '2024-01-01 00:00:00.000+00',
+                game_count: '2',
+                like_count: '1',
+                viewer_has_liked: true,
+                covers: [{ cover_image_url: null, slug: 'hades' }],
+            },
+        ])
+        await expect(searchLists('favorites')).resolves.toEqual([
+            {
+                id: uuid(2),
+                name: 'Favorites',
+                description: 'My favorite games',
+                owner_username: 'hades_fan',
+                last_activity: '2024-01-01 00:00:00.000+00',
+                game_count: 2,
+                like_count: 1,
+                viewer_has_liked: true,
+                covers: [{ cover_image_url: null, slug: 'hades' }],
+            },
+        ])
+        expect(consumeSearchRateLimit).toHaveBeenCalledWith(USER, headerList)
+        expect(queryListsByName).toHaveBeenCalledWith('favorites', 20, USER)
+    })
+
+    it('searches lists signed-out, passing a null viewer id', async () => {
+        getOptionalUser.mockResolvedValueOnce(null)
+        await searchLists('favorites')
+        expect(consumeSearchRateLimit).toHaveBeenCalledWith(null, headerList)
+        expect(queryListsByName).toHaveBeenCalledWith('favorites', 20, null)
+    })
+
+    it('does not spend the budget on an empty list search', async () => {
+        await expect(searchLists('')).resolves.toEqual([])
+        expect(consumeSearchRateLimit).not.toHaveBeenCalled()
+        expect(queryListsByName).not.toHaveBeenCalled()
     })
 })
