@@ -239,6 +239,26 @@ export function parseGameSearchQuery(params: URLSearchParams): Parsed<GameSearch
     return { ok: true, query: { q: result.data.q, limit: result.data.limit } }
 }
 
+/** GET /api/v1/users/search. Same `q`/`limit` shape as game search. */
+export function parseUserSearchQuery(params: URLSearchParams): Parsed<GameSearchParams> {
+    const result = gameSearchSchema.safeParse({
+        q: params.get('q') ?? '',
+        limit: params.get('limit') ?? undefined,
+    })
+    if (!result.success) return fail(result.error)
+    return { ok: true, query: { q: result.data.q, limit: result.data.limit } }
+}
+
+/** GET /api/v1/lists/search. Same `q`/`limit` shape as game search. */
+export function parseListSearchQuery(params: URLSearchParams): Parsed<GameSearchParams> {
+    const result = gameSearchSchema.safeParse({
+        q: params.get('q') ?? '',
+        limit: params.get('limit') ?? undefined,
+    })
+    if (!result.success) return fail(result.error)
+    return { ok: true, query: { q: result.data.q, limit: result.data.limit } }
+}
+
 function taxonomyIds(params: URLSearchParams): string[] | undefined {
     const raw = params.get('ids')
     if (raw == null || raw.trim() === '') return undefined
