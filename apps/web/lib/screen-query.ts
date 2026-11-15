@@ -230,33 +230,29 @@ export type TaxonomySearchParams = {
     ids?: string[]
 }
 
+// GET /api/v1/games/search, GET /api/v1/users/search, and GET /api/v1/lists/search
+// all take the exact same `q`/`limit` shape, so the parse logic lives here once
+// and each route gets its own thin, distinctly-named export that reads right at
+// its own call site instead of duplicating the body three times.
+function parseSearchQuery(params: URLSearchParams): Parsed<GameSearchParams> {
+    const result = gameSearchSchema.safeParse({
+        q: params.get('q') ?? '',
+        limit: params.get('limit') ?? undefined,
+    })
+    if (!result.success) return fail(result.error)
+    return { ok: true, query: { q: result.data.q, limit: result.data.limit } }
+}
+
 export function parseGameSearchQuery(params: URLSearchParams): Parsed<GameSearchParams> {
-    const result = gameSearchSchema.safeParse({
-        q: params.get('q') ?? '',
-        limit: params.get('limit') ?? undefined,
-    })
-    if (!result.success) return fail(result.error)
-    return { ok: true, query: { q: result.data.q, limit: result.data.limit } }
+    return parseSearchQuery(params)
 }
 
-/** GET /api/v1/users/search. Same `q`/`limit` shape as game search. */
 export function parseUserSearchQuery(params: URLSearchParams): Parsed<GameSearchParams> {
-    const result = gameSearchSchema.safeParse({
-        q: params.get('q') ?? '',
-        limit: params.get('limit') ?? undefined,
-    })
-    if (!result.success) return fail(result.error)
-    return { ok: true, query: { q: result.data.q, limit: result.data.limit } }
+    return parseSearchQuery(params)
 }
 
-/** GET /api/v1/lists/search. Same `q`/`limit` shape as game search. */
 export function parseListSearchQuery(params: URLSearchParams): Parsed<GameSearchParams> {
-    const result = gameSearchSchema.safeParse({
-        q: params.get('q') ?? '',
-        limit: params.get('limit') ?? undefined,
-    })
-    if (!result.success) return fail(result.error)
-    return { ok: true, query: { q: result.data.q, limit: result.data.limit } }
+    return parseSearchQuery(params)
 }
 
 function taxonomyIds(params: URLSearchParams): string[] | undefined {
