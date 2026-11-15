@@ -1,5 +1,8 @@
 // GET /api/v1/games/search?q=&limit=
+// GET /api/v1/games/search?q=&limit=
 // GET /api/v1/taxonomy/[table]/search?q=&limit=&ids=
+// GET /api/v1/users/search?q=&limit=   -> UserSearchPage
+// GET /api/v1/lists/search?q=&limit=   -> ListSearchPage
 //
 // Typeahead. Signed out is fine. `q` is required, trimmed, and at most
 // SEARCH_QUERY_MAX_LENGTH. `limit` defaults to SEARCH_MAX_PAGE_SIZE and a
@@ -9,6 +12,15 @@
 // `avg_rating` is the community score out of 10 (null when nobody has rated
 // the game). Covers are display-ready `t_cover_big_2x`, or null when the
 // stored value is not an IGDB image. Ids are uuid strings.
+//
+// User search matches `username`. `follower_count` is bulk-computed and is 0
+// for a user nobody follows. `avatar_url` is null when the user has none.
+//
+// List search matches list `name`. `ListSearchHit` mirrors `ListCard`'s shape
+// (`@screenpeak/shared/api/lists`): `owner_username`, `game_count`,
+// `like_count`, `viewer_has_liked`, `covers` (`ListCover[]`, display-ready
+// URLs) and `last_activity`. `description` is always a string, never null,
+// matching `ListCard`.
 
 import type { TAXONOMY_SEARCH_TABLES } from '../constants'
 import type { ListCover } from './lists'
