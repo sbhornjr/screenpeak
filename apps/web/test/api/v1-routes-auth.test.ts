@@ -193,15 +193,24 @@ describe('/api/v1 route auth', () => {
             const requireBearer = namedImport(source, '@/lib/auth', 'requireBearerUser')
             const writeLimit = namedImport(source, '@/lib/rate-limit', 'consumeWriteRateLimit')
             const writeLimitCounts = !!writeLimit && !locallyDeclared(source, writeLimit)
+            // /api/v1/reports' POST spends the dedicated, much tighter report
+            // budget (consumeReportRateLimit) instead of the general write
+            // budget — still a per-request budget check before any write, just
+            // a narrower one. Treat either as satisfying a write method's budget
+            // requirement.
+            const reportLimit = namedImport(source, '@/lib/rate-limit', 'consumeReportRateLimit')
+            const reportLimitCounts = !!reportLimit && !locallyDeclared(source, reportLimit)
             for (const handler of handlers) {
+                const spendsWriteBudget = writeLimitCounts && !!writeLimit && !!handler.fn && callsName(handler.fn, writeLimit)
+                const spendsReportBudget = reportLimitCounts && !!reportLimit && !!handler.fn && callsName(handler.fn, reportLimit)
                 if (WRITE_METHODS.has(handler.method)) {
                     if (!requireBearer || locallyDeclared(source, requireBearer) || !handler.fn || !callsName(handler.fn, requireBearer)) {
                         problems.push(`${label} ${handler.method} must call requireBearerUser from @/lib/auth`)
                     }
-                    if (!writeLimitCounts || !writeLimit || !handler.fn || !callsName(handler.fn, writeLimit)) {
-                        problems.push(`${label} ${handler.method} must call consumeWriteRateLimit from @/lib/rate-limit`)
+                    if (!spendsWriteBudget && !spendsReportBudget) {
+                        problems.push(`${label} ${handler.method} must call consumeWriteRateLimit or consumeReportRateLimit from @/lib/rate-limit`)
                     }
-                } else if (handler.fn && writeLimitCounts && writeLimit && callsName(handler.fn, writeLimit)) {
+                } else if (spendsWriteBudget || spendsReportBudget) {
                     problems.push(`${label} ${handler.method} must not spend the write budget`)
                 }
             }
