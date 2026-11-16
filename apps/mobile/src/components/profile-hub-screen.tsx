@@ -147,6 +147,7 @@ function ProfileFollowSession({ username, showBack }: { username: string, showBa
       blocked={blocked}
       onBlock={() => changeBlock(true)}
       onUnblock={() => changeBlock(false)}
+      viewerId={viewerId}
     />
   )
 }

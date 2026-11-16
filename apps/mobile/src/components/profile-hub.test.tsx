@@ -23,6 +23,14 @@ vi.mock('./block-button', () => ({
     React.createElement('button', { type: 'button', 'aria-label': blocked ? 'stub-unblock' : 'stub-block', onClick: () => { void onUnblock() } }),
 }))
 
+// The followers/following sheet has its own test (follow-list-sheet.test.tsx).
+// This stand-in renders the same text the real trigger shows before it's ever
+// tapped, so this file's counts-line assertions don't change.
+vi.mock('./follow-list-sheet', () => ({
+  FollowListTrigger: ({ followerCount, followingCount }: { followerCount: number, followingCount: number }) =>
+    React.createElement('span', null, `${followerCount} ${followerCount === 1 ? 'follower' : 'followers'} · ${followingCount} following`),
+}))
+
 vi.mock('react-native', () => {
   function flatStyle(style: unknown): Record<string, unknown> {
     if (!style) return {}

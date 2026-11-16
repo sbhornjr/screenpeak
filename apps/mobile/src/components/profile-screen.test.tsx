@@ -197,14 +197,18 @@ describe('profile follow', () => {
     expect(follow).toHaveBeenCalledWith(ADA)
     expect(tapHaptic).toHaveBeenCalled()
     expect(screen.getByRole('button', { name: 'Unfollow ada' }).textContent).toBe('Following…')
-    expect(screen.getByText('5 followers · 2 following').textContent).toBe('5 followers · 2 following')
+    // The counts line is now two separately-tappable segments (the followers/following
+    // list trigger), so its text is split across elements rather than one node.
+    expect(screen.getByText('5 followers').textContent).toBe('5 followers')
+    expect(screen.getByText('2 following').textContent).toBe('2 following')
 
     getProfile.mockResolvedValue(ada(false, 4))
     rejectFollow(new ApiClientError(429, 'rate_limited', 'Too many requests. Try again soon.', 8))
 
     expect(await screen.findByText('Too many requests. Try again in 8 seconds.')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Follow ada' }).textContent).toBe('Follow')
-    expect(screen.getByText('4 followers · 2 following').textContent).toBe('4 followers · 2 following')
+    expect(screen.getByText('4 followers').textContent).toBe('4 followers')
+    expect(screen.getByText('2 following').textContent).toBe('2 following')
   })
 
   it('drops a follower when you unfollow and shows the count from a later refresh', async () => {
@@ -214,10 +218,12 @@ describe('profile follow', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Unfollow ada' }))
     expect(await screen.findByRole('button', { name: 'Follow ada' })).toBeTruthy()
-    expect(screen.getByText('3 followers · 2 following').textContent).toBe('3 followers · 2 following')
+    expect(screen.getByText('3 followers').textContent).toBe('3 followers')
+    expect(screen.getByText('2 following').textContent).toBe('2 following')
 
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
-    expect(await screen.findByText('2 followers · 2 following')).toBeTruthy()
+    expect(await screen.findByText('2 followers')).toBeTruthy()
+    expect(screen.getByText('2 following')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Follow ada' }).textContent).toBe('Follow')
   })
 
@@ -240,11 +246,15 @@ describe('profile follow', () => {
       </QueryClientProvider>,
     )
 
-    expect(await screen.findByText('1 follower · 2 following')).toBeTruthy()
+    // Two profiles render at once and both start on "2 following" — match the whole
+    // line's text (now split across the two tappable segments) rather than one count
+    // in isolation, same precision the single-node assertion had before the split.
+    const countsLine = (expected: string) => (_: string, element: Element | null) => element?.textContent === expected
+    expect(await screen.findByText(countsLine('1 follower · 2 following'))).toBeTruthy()
     fireEvent.click(await screen.findByRole('button', { name: 'Follow ada' }))
-    expect(await screen.findByText('1 follower · 3 following')).toBeTruthy()
+    expect(await screen.findByText(countsLine('1 follower · 3 following'))).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Unfollow ada' }).textContent).toBe('Following')
-    expect(screen.getByText('5 followers · 2 following').textContent).toBe('5 followers · 2 following')
+    expect(screen.getByText(countsLine('5 followers · 2 following'))).toBeTruthy()
     const cached = client.getQueryData<ProfilePageData>(['profile', 'ada', 'other-viewer'])
     expect(cached?.viewer?.is_following).toBe(false)
     expect(cached?.profile.follower_count).toBe(4)

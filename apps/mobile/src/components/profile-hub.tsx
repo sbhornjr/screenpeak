@@ -18,6 +18,7 @@ import { FavoritesSheet } from './favorites-sheet'
 import { GameCard } from './game-card'
 import { Panel } from './panel'
 import { AppHeader } from './app-header'
+import { FollowListTrigger } from './follow-list-sheet'
 import { ReportButton } from './report-sheet'
 import { PanelRow } from './screen-scroll'
 import { SectionHead } from './section-head'
@@ -31,11 +32,6 @@ function libraryCopy(library: NonNullable<ProfileHubModel['library']>): { label:
     label: `Library, ${library.totalGames} games, ${library.completed} completed`,
     text: `${library.totalGames} games · ${library.completed} completed`,
   }
-}
-
-function countLine(followers: number, following: number): string {
-  const followerWord = followers === 1 ? 'follower' : 'followers'
-  return `${followers} ${followerWord} · ${following} following`
 }
 
 function HubRow({
@@ -122,6 +118,7 @@ export function ProfileHub({
   blocked,
   onBlock,
   onUnblock,
+  viewerId = null,
 }: {
   model: ProfileHubModel
   onOpen: (href: string) => void
@@ -140,6 +137,8 @@ export function ProfileHub({
   /** Each resolves to null, or the sentence to show. */
   onBlock?: () => Promise<string | null>
   onUnblock?: () => Promise<string | null>
+  /** Who's signed in, for the followers/following list's Follow buttons. Omitted/null hides them all. */
+  viewerId?: string | null
 }) {
   const { width } = useWindowDimensions()
   const [pickingFavorites, setPickingFavorites] = useState(false)
@@ -201,7 +200,7 @@ export function ProfileHub({
             <Text style={styles.handle}>@{model.username}</Text>
             <Text style={styles.titleLine}>{model.title}</Text>
             {model.memberSince ? <Text style={text.meta}>{model.memberSince}</Text> : null}
-            <Text style={text.meta}>{countLine(model.followerCount, model.followingCount)}</Text>
+            <FollowListTrigger username={model.username} followerCount={model.followerCount} followingCount={model.followingCount} viewerId={viewerId} />
           </View>
         </View>
         <View style={styles.actionRow}>

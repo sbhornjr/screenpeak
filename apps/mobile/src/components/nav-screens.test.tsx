@@ -19,6 +19,12 @@ vi.mock('./report-sheet', () => ({
   ReportButton: () => null,
 }))
 
+// The followers/following sheet has its own test (follow-list-sheet.test.tsx).
+vi.mock('./follow-list-sheet', () => ({
+  FollowListTrigger: ({ followerCount, followingCount }: { followerCount: number, followingCount: number }) =>
+    React.createElement('span', null, `${followerCount} ${followerCount === 1 ? 'follower' : 'followers'} · ${followingCount} following`),
+}))
+
 vi.mock('expo-router/native-tabs', () => {
   function Label({ children }: { children?: React.ReactNode }) {
     return React.createElement('span', null, children)

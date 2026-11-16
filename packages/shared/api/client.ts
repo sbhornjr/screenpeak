@@ -11,7 +11,7 @@ import type { ListPageData, ListsPageData, ListsTab } from './lists'
 import type { LoadoutPageData } from './loadout'
 import type { MeData, SettingsData } from './me'
 import type { BlockedUsersPage, ReportInput } from './moderation'
-import type { ProfilePageData } from './profile'
+import type { FollowListPage, ProfilePageData } from './profile'
 import type { UserReviewsPage, UserReviewsQuery } from './user-reviews'
 import type { GameSearchPage, ListSearchPage, TaxonomySearchPage, TaxonomySearchTable, UserSearchPage } from './search'
 import type { AppConfig } from './app-config'
@@ -235,6 +235,8 @@ export function createApiClient(opts: {
             loadout: (username: string) => get<LoadoutPageData>(`${user(username)}/loadout`),
             follow: (userId: string) => send<FollowResult>('POST', `/api/v1/user/${encodeURIComponent(userId)}/follow`),
             unfollow: (userId: string) => send<FollowResult>('DELETE', `/api/v1/user/${encodeURIComponent(userId)}/follow`),
+            followers: (username: string) => get<FollowListPage>(`${user(username)}/followers`),
+            following: (username: string) => get<FollowListPage>(`${user(username)}/following`),
             search: (q: string, limit?: number) => get<UserSearchPage>(`/api/v1/users/search${qs({ q, limit })}`),
             block: (userId: string) => send<BlockResult>('POST', `/api/v1/user/${encodeURIComponent(userId)}/block`),
             unblock: (userId: string) => send<BlockResult>('DELETE', `/api/v1/user/${encodeURIComponent(userId)}/block`),
