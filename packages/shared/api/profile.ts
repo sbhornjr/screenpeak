@@ -53,3 +53,5 @@ export type FollowListEntry = {
     avatar_url: string | null
     is_following: boolean
 }
+
+export type FollowListPage = { users: FollowListEntry[] }
