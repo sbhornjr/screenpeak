@@ -32,3 +32,43 @@ describe.each([
         await expect(fn('target-id', 'viewer-id')).rejects.toThrow('down')
     })
 })
+
+// Final-review finding: the cap and ordering had no test, resting entirely on
+// a code read. `db.execute` is mocked, but the drizzle `SQL` object passed to
+// it is real — its `queryChunks` carry the literal template text plus any
+// interpolated non-chunk values (like the 500 limit) verbatim, so the actual
+// generated query is inspectable without a live database.
+function flattenSql(call: unknown): string {
+    const chunks = (call as { queryChunks?: unknown[] }).queryChunks ?? []
+    return chunks
+        .map(chunk => (chunk && typeof chunk === 'object' && 'value' in chunk) ? (chunk as { value: string[] }).value.join('') : '')
+        .join('')
+}
+
+describe('getFollowerProfiles SQL shape', () => {
+    it('orders by username then id, caps at 500, and joins on the follower side', async () => {
+        execute.mockResolvedValue([])
+        await getFollowerProfiles('target-id', 'viewer-id')
+        const [sqlArg] = execute.mock.calls.at(-1) ?? []
+        const text = flattenSql(sqlArg)
+        expect(text).toContain('order by u.username, u.id')
+        expect(text).toContain('limit')
+        expect(text).toContain('join users u on u.id = f.follower_id')
+        expect(text).toContain('where f.following_id =')
+        expect((sqlArg as { queryChunks: unknown[] }).queryChunks).toContain(500)
+    })
+})
+
+describe('getFollowingProfiles SQL shape', () => {
+    it('orders by username then id, caps at 500, and joins on the following side', async () => {
+        execute.mockResolvedValue([])
+        await getFollowingProfiles('target-id', 'viewer-id')
+        const [sqlArg] = execute.mock.calls.at(-1) ?? []
+        const text = flattenSql(sqlArg)
+        expect(text).toContain('order by u.username, u.id')
+        expect(text).toContain('limit')
+        expect(text).toContain('join users u on u.id = f.following_id')
+        expect(text).toContain('where f.follower_id =')
+        expect((sqlArg as { queryChunks: unknown[] }).queryChunks).toContain(500)
+    })
+})

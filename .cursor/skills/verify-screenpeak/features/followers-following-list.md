@@ -9,7 +9,7 @@ The "X Followers | Y Following" counts on a profile (`/user/[username]`) each op
 - `follow-row-button` — each row (except the viewer's own) carries a Follow/Unfollow button; toggling it updates that row only.
 - `follow-list-self-row` — the viewer's own row, when present in someone else's list, never shows a Follow button.
 - `follow-list-signed-out` — signed out, no row shows a Follow button.
-- `follow-list-blocked` — a viewer the profile owner has blocked sees an empty list on both counts, the same as a real empty list.
+- `follow-list-blocked` — a viewer the profile owner has blocked sees an empty list on both counts, the same as a real empty list, and the counts themselves read 0 so they never disagree with the list (`getProfileFollowStats` zeroes them for this same block relationship — otherwise a non-zero count next to an empty list would itself reveal the block).
 - `follow-list-api` — `GET /api/v1/user/[username]/followers` and `.../following` return `{ users: [...] }` or 404 for a missing player or a blocked viewer.
 
 ## How to get to it (user POV)
@@ -29,7 +29,7 @@ Preconditions:
 - **Open the modal.** Sign in as `peek` (or stay signed out), open `/user/<a-followed-or-following-username>`, click `<N> Followers`. A modal titled "Followers" opens with one row per follower: avatar, username, and (signed in, not your own row) a Follow/Unfollow button. Click `<N> Following` and confirm the same for the following list.
 - **Toggle a row's follow state.** Click a row's Follow button. It flips to Following (or back) without closing the modal or changing any other row.
 - **Confirm the self-row and signed-out cases.** If `peek`'s own id appears in a list you're viewing, that row has no button. Sign out and reopen either list: no row has a button.
-- **Confirm the blocked case.** As a viewer `peek` has blocked, open `peek`'s profile and either count. The modal opens to an empty list ("No followers yet." / "Not following anyone yet."), not an error and not a message naming the block.
+- **Confirm the blocked case.** As a viewer `peek` has blocked, open `peek`'s profile. The counts themselves read "0 Followers | 0 Following" (not the real numbers — `getProfileFollowStats` zeroes them for a blocked viewer specifically so they never disagree with the list below), and either count opens an empty list ("No followers yet." / "Not following anyone yet."), not an error and not a message naming the block.
 - **Confirm the API 404s.** `GET /api/v1/user/<blocked-viewer-relevant-username>/followers` as the blocked viewer's bearer token, and the same route for a username that doesn't exist, both return 404 `not_found`.
 
 ## Gotchas

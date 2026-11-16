@@ -1,5 +1,5 @@
-import type { FollowListEntry } from '@screenpeak/shared/api/profile'
-import { useQuery } from '@tanstack/react-query'
+import type { FollowListEntry, FollowListPage } from '@screenpeak/shared/api/profile'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 
@@ -27,17 +27,23 @@ const EMPTY: Record<Kind, string> = { followers: 'No followers yet.', following:
  * control is a sibling of the row's own Pressable (not nested inside it),
  * so pressing it never also triggers the row's navigate-away press. Hidden
  * entirely for the viewer's own row or when signed out.
+ *
+ * `following` comes from `entry.is_following`, not local state: the row's
+ * own cache (via `onToggled`) is the single source of truth, so closing and
+ * reopening the sheet — which remounts this row — can't show a stale label.
  */
-function FollowListRow({ entry, viewerId, onOpen }: {
+function FollowListRow({ entry, viewerId, onOpen, onToggled }: {
   entry: FollowListEntry
   viewerId: string | null
   onOpen: (username: string) => void
+  onToggled: (id: string, following: boolean) => void
 }) {
-  const [following, setFollowing] = useState(entry.is_following)
   const toggle = useAction()
   const showButton = viewerId != null && viewerId !== entry.id
+  const following = entry.is_following
 
   function press() {
+    const next = !following
     void toggle.run(async () => {
       try {
         if (following) await api.users.unfollow(entry.id)
@@ -46,7 +52,7 @@ function FollowListRow({ entry, viewerId, onOpen }: {
       } catch (error) {
         return actionFailure(error)
       }
-    }, () => setFollowing(current => !current))
+    }, () => onToggled(entry.id, next))
   }
 
   return (
@@ -84,8 +90,10 @@ export function FollowListSheet({ visible, username, kind, viewerId, onClose }: 
   viewerId: string | null
   onClose: () => void
 }) {
+  const queryClient = useQueryClient()
+  const queryKey = queryKeys.followList(username, kind, viewerId)
   const query = useQuery({
-    queryKey: queryKeys.followList(username, kind, viewerId),
+    queryKey,
     queryFn: () => kind === 'followers' ? api.users.followers(username) : api.users.following(username),
     enabled: visible,
   })
@@ -93,6 +101,11 @@ export function FollowListSheet({ visible, username, kind, viewerId, onClose }: 
   function openProfile(rowUsername: string) {
     onClose()
     go(profileHref(rowUsername))
+  }
+
+  function updateFollowing(id: string, following: boolean) {
+    queryClient.setQueryData<FollowListPage>(queryKey, page =>
+      page ? { users: page.users.map(u => u.id === id ? { ...u, is_following: following } : u) } : page)
   }
 
   const entries = query.data?.users ?? []
@@ -105,7 +118,7 @@ export function FollowListSheet({ visible, username, kind, viewerId, onClose }: 
         <Text style={text.muted}>{EMPTY[kind]}</Text>
       ) : (
         entries.map(entry => (
-          <FollowListRow key={entry.id} entry={entry} viewerId={viewerId} onOpen={openProfile} />
+          <FollowListRow key={entry.id} entry={entry} viewerId={viewerId} onOpen={openProfile} onToggled={updateFollowing} />
         ))
       )}
     </Sheet>

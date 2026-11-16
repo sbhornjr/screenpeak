@@ -144,4 +144,37 @@ describe('FollowListSheet', () => {
     expect(go).toHaveBeenCalledWith('/user/bea')
     expect(onClose).toHaveBeenCalled()
   })
+
+  it('keeps a toggled row\'s state correct after the sheet closes and reopens', async () => {
+    // Final-review finding: the row only updated its own local state, so closing
+    // and reopening re-read the follow-list query cache, which the toggle never
+    // touched — the row silently reverted. Mocking followers() to always resolve
+    // the pre-toggle value (rather than updating it) proves the fix comes from
+    // patching the cache on toggle, not from a lucky refetch returning fresh data.
+    followers.mockResolvedValue({ users: [{ id: 'u1', username: 'bea', avatar_url: null, is_following: false }] })
+    follow.mockResolvedValue({ following: true })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const props = { visible: true, username: 'ada', kind: 'followers' as const, viewerId: 'viewer-1', onClose: () => {} }
+    const { rerender } = render(
+      <QueryClientProvider client={client}>
+        <FollowListSheet {...props} />
+      </QueryClientProvider>,
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Follow bea' }))
+    await screen.findByRole('button', { name: 'Unfollow bea' })
+
+    rerender(
+      <QueryClientProvider client={client}>
+        <FollowListSheet {...props} visible={false} />
+      </QueryClientProvider>,
+    )
+    rerender(
+      <QueryClientProvider client={client}>
+        <FollowListSheet {...props} />
+      </QueryClientProvider>,
+    )
+
+    expect(await screen.findByRole('button', { name: 'Unfollow bea' })).toBeTruthy()
+  })
 })

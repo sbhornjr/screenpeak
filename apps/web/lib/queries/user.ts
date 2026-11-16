@@ -259,18 +259,29 @@ export async function updatePrivacy(privacy: boolean, type: string, userId: stri
     }
 }
 
-/** Counts and one existence check. A database error rejects. Follower ids are not returned. */
+/**
+ * Counts and one existence check. A database error rejects. Follower ids are
+ * not returned. Zeroed out, together, for a viewer the profile has blocked
+ * (either direction) — the followers/following list hides behind that same
+ * block, and a non-zero count next to an empty list would be a visible
+ * signal of the block the feature is built to avoid.
+ */
 export async function getProfileFollowStats(userId: string, viewerId: string | null) {
     const isFollowing = viewerId
         ? sql`exists (select 1 from follows where following_id = ${userId} and follower_id = ${viewerId})`
+        : sql`false`
+    const blocked = viewerId
+        ? sql`exists (select 1 from blocks where (blocker_id = ${viewerId} and blocked_id = ${userId}) or (blocker_id = ${userId} and blocked_id = ${viewerId}))`
         : sql`false`
     const rows = await db.execute(sql`
         select
             (select count(*) from follows where following_id = ${userId}) as follower_count,
             (select count(*) from follows where follower_id = ${userId}) as following_count,
-            ${isFollowing} as is_following
-    `) as unknown as { follower_count: number; following_count: number; is_following: boolean }[]
+            ${isFollowing} as is_following,
+            ${blocked} as blocked
+    `) as unknown as { follower_count: number; following_count: number; is_following: boolean; blocked: boolean }[]
     const row = rows[0]
+    if (row?.blocked === true) return { follower_count: 0, following_count: 0, is_following: false }
     return {
         follower_count: row?.follower_count ?? 0,
         following_count: row?.following_count ?? 0,
