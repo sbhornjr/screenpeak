@@ -7,6 +7,7 @@ import GameCard from "@/app/components/game/GameCard"
 import Review from "@/app/components/game/Review"
 import Link from "next/link"
 import FollowButton from "@/app/components/user/FollowButton"
+import FollowCounts from "@/app/components/user/FollowListModal"
 import BlockButton from "@/app/components/user/BlockButton"
 import BioButton from "@/app/components/user/BioButton"
 import StatGrid from "@/app/components/util/StatGrid"
@@ -89,7 +90,7 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
                             {isOwnProfile && <TitleSelectButton currentTitle={currentTitle} topGames={favoriteGames ? favoriteGames.map(g => g.name) : []} topDevelopers={topDeveloperNames} />}
                         </div>
                         <p className="text-md font-semibold font-(family-name:--font-display) text-(--color-muted)">Member since {new Date(profile.created_at ?? '').getMonth() + 1}/{new Date(profile.created_at ?? '').getDate()}/{new Date(profile.created_at ?? '').getFullYear()}</p>
-                        <p className="text-md font-semibold font-(family-name:--font-display) text-(--color-muted)">{followersCount} Followers | {followingCount} Following</p>
+                        <FollowCounts username={username} followerCount={followersCount} followingCount={followingCount} viewerId={viewer?.id ?? null} />
                     </div>
                     {!isOwnProfile && viewer && (
                         <div className="sm:ml-auto flex items-center gap-2">

@@ -1,10 +1,21 @@
 'use server'
 
-import { requireUser } from '@/lib/auth'
+import { getOptionalUser, requireUser } from '@/lib/auth'
 import { consumeWriteRateLimit } from '@/lib/rate-limit'
 import { updateAvatarUrl, updateFavoriteGames, updatePrivacy, updateUsername, updateSelectedTitle, updateBio, updateLoadoutBio, clearLoadoutIdentity, followUser, unfollowUser, blockUser, unblockUser } from '@/lib/queries/user'
 import { avatarUploadErrorMessage } from '@/lib/avatar-upload'
 import { createPresignedAvatarUploadUrl } from '@/lib/r2'
+import { loadFollowList } from '@/lib/loaders/follow-list'
+
+export async function listFollowers(username: string) {
+    const viewer = await getOptionalUser()
+    return (await loadFollowList(username, 'followers', viewer?.id ?? null)) ?? []
+}
+
+export async function listFollowing(username: string) {
+    const viewer = await getOptionalUser()
+    return (await loadFollowList(username, 'following', viewer?.id ?? null)) ?? []
+}
 
 export async function createAvatarUploadUrl(contentType: string, contentLength: number) {
     const user = await requireUser()
