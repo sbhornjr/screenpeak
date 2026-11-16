@@ -46,3 +46,10 @@ export type ProfilePageData = {
     avg_rating: number | null
     viewer: ProfileViewer | null
 }
+
+export type FollowListEntry = {
+    id: string
+    username: string
+    avatar_url: string | null
+    is_following: boolean
+}

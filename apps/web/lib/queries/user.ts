@@ -11,6 +11,7 @@ import { notifyOncePerWindow, sendPushNotification } from '@/lib/queries/push'
 import { writeErrorText } from '@/lib/write-http'
 import { searchBounds, containsPattern } from '@/lib/queries/game'
 import { SEARCH_MAX_PAGE_SIZE } from '@screenpeak/shared/constants'
+import type { FollowListEntry } from '@screenpeak/shared/api/profile'
 
 export async function getProfileSummaryByUsername(username: string) {
     // A database error must reject. Returning null makes an outage look like an unknown player.
@@ -275,6 +276,40 @@ export async function getProfileFollowStats(userId: string, viewerId: string | n
         following_count: row?.following_count ?? 0,
         is_following: row?.is_following === true,
     }
+}
+
+const FOLLOW_LIST_MAX = 500
+
+/** A user's followers, with the viewer's own follow state per row. A database error rejects. */
+export async function getFollowerProfiles(userId: string, viewerId: string | null): Promise<FollowListEntry[]> {
+    const isFollowing = viewerId
+        ? sql`exists (select 1 from follows vf where vf.following_id = u.id and vf.follower_id = ${viewerId})`
+        : sql`false`
+    const rows = await db.execute(sql`
+        select u.id as id, u.username as username, u.avatar_url as avatar_url, ${isFollowing} as is_following
+        from follows f
+        join users u on u.id = f.follower_id
+        where f.following_id = ${userId}
+        order by u.username, u.id
+        limit ${FOLLOW_LIST_MAX}
+    `) as unknown as FollowListEntry[]
+    return rows.map(r => ({ ...r, is_following: r.is_following === true }))
+}
+
+/** Who a user follows, with the viewer's own follow state per row. A database error rejects. */
+export async function getFollowingProfiles(userId: string, viewerId: string | null): Promise<FollowListEntry[]> {
+    const isFollowing = viewerId
+        ? sql`exists (select 1 from follows vf where vf.following_id = u.id and vf.follower_id = ${viewerId})`
+        : sql`false`
+    const rows = await db.execute(sql`
+        select u.id as id, u.username as username, u.avatar_url as avatar_url, ${isFollowing} as is_following
+        from follows f
+        join users u on u.id = f.following_id
+        where f.follower_id = ${userId}
+        order by u.username, u.id
+        limit ${FOLLOW_LIST_MAX}
+    `) as unknown as FollowListEntry[]
+    return rows.map(r => ({ ...r, is_following: r.is_following === true }))
 }
 
 export async function getFollowers(userId: string) {
